@@ -1,0 +1,186 @@
+{% extends "layouts/print.html" %}
+{% block title %}{{ report.title }} • Opsloom{% endblock %}
+{% block preview_title %}{{ report.title }}{% endblock %}
+
+{% block preview_actions %}
+<div class="flex items-center gap-2">
+  {% if pdf_url %}
+  <a href="{{ pdf_url }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white text-slate-700 px-4 py-2 text-sm font-black hover:bg-slate-50 dark:border-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/15">
+    <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+    Open PDF
+  </a>
+  {% endif %}
+  <button type="button" onclick="window.print()" class="inline-flex items-center gap-2 rounded-lg bg-ueal-gold text-white px-4 py-2 text-sm font-black shadow-md hover:opacity-90">
+    <span class="material-symbols-outlined text-[18px]">print</span>
+    Print
+  </button>
+</div>
+{% endblock %}
+
+{% block page_styles %}
+<style>
+  .print-chart-frame{ page-break-inside: avoid; break-inside: avoid; }
+  .print-chart-img{ display:none; width:100%; height:auto; }
+  .cost-chart-shell{ min-height: 280px; }
+  @media print {
+    @page { size: A4 portrait; margin: 10mm; }
+    .business-print-shell{ max-width:none !important; width:100% !important; }
+    .print-chart-canvas{ display:none !important; }
+    .print-chart-img{ display:block !important; }
+    .business-print-card, .business-print-kpi, .business-print-shell{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .business-print-card h2, .business-print-table th, .business-print-kpi, .eabc-doc-header-meta { color: #0f172a !important; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="business-print-shell max-w-5xl mx-auto">
+  {% set document_department = report.department_display or report.department %}
+  {% include "partials/report_document_header.html" %}
+
+  <div class="business-print-header">
+    <div>
+      <p class="text-[11px] font-black uppercase tracking-[0.25em] text-slate-500">{{ 'Management Chart Report' if report_kind == 'maintenance' else 'Incident Chart Report' }}</p>
+      <h1 class="mt-2 text-3xl font-black text-slate-900 dark:text-white">{{ report.title }}</h1>
+      <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">{{ report.subtitle or 'Management-ready export generated from the live chart card.' }}</p>
+    </div>
+    <div class="business-print-meta">
+      {% set report_department_label = report.department_display or report_department_display(report.department) %}
+      <div><span>Department</span><strong>{{ report_department_label }}</strong></div>
+      <div><span>Scope</span><strong>{{ report.scope_label or report_department_label }}</strong></div>
+      <div><span>Reported By</span><strong>{{ report.reported_by or current_user_name }}</strong></div>
+      <div><span>Generated</span><strong>{{ report.generated_label or '' }}</strong></div>
+      <div><span>Period</span><strong>{{ report.period_label }}</strong></div>
+    </div>
+  </div>
+
+  <div class="business-print-kpis">
+    {% if report_kind == 'maintenance' %}
+    <div class="business-print-kpi"><span>Actual Before VAT</span><strong>{{ (report.cost_subtotal or 0)|kes2 }}</strong><small>Recognized actual cost</small></div>
+    <div class="business-print-kpi"><span>Actual Total</span><strong>{{ (report.total_cost or 0)|kes2 }}</strong><small>Completed actual cost</small></div>
+    <div class="business-print-kpi"><span>Estimated Total</span><strong>{{ (report.estimated_total_cost or 0)|kes2 }}</strong><small>Scheduled cost in scope</small></div>
+    <div class="business-print-kpi"><span>Records</span><strong>{{ report.record_count or 0 }}</strong><small>{{ report.scope_label or report_department_label }}</small></div>
+    {% else %}
+    <div class="business-print-kpi"><span>Amount Before VAT</span><strong>{{ (report.cost_subtotal or 0)|kes2 }}</strong><small>Base cost</small></div>
+    <div class="business-print-kpi"><span>VAT Amount</span><strong>{{ (report.vat_amount or 0)|kes2 }}</strong><small>{{ report.vat_rate_label or 'No VAT applied' }}</small></div>
+    <div class="business-print-kpi"><span>Total Cost</span><strong>{{ (report.total_cost or 0)|kes2 }}</strong><small>Cost incl. VAT</small></div>
+    <div class="business-print-kpi"><span>Records</span><strong>{{ report.record_count or 0 }}</strong><small>{{ report.scope_label or report_department_label }}</small></div>
+    {% endif %}
+  </div>
+
+  <section class="business-print-card mt-6 print-chart-frame">
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div>
+        <h2>Chart View</h2>
+        <p class="text-sm text-slate-500 dark:text-slate-300">Visual summary for the selected scope and period.</p>
+      </div>
+      <div class="text-right text-xs text-slate-500 dark:text-slate-400">
+        <div class="font-black uppercase tracking-[0.18em]">Period</div>
+        <div class="mt-1 font-semibold text-slate-700 dark:text-slate-200">{{ report.period_label }}</div>
+      </div>
+    </div>
+    <div class="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-4 min-h-[320px] overflow-hidden">
+      {{ report.main_chart_svg|safe }}
+    </div>
+  </section>
+
+  <div class="business-print-grid mt-6">
+    <section class="business-print-card compact-card">
+      <h2>Executive Insights</h2>
+      <table class="business-print-table compact">
+        <thead><tr><th>#</th><th>Insight</th></tr></thead>
+        <tbody>
+          {% for item in report.insights or [] %}
+            <tr><td>{{ loop.index }}</td><td>{{ item }}</td></tr>
+          {% else %}
+            <tr><td colspan="2">No executive insights available.</td></tr>
+          {% endfor %}
+          {% if notes %}
+            <tr><td>{{ (report.insights|length if report.insights else 0) + 1 }}</td><td>{{ notes }}</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="business-print-card compact-card">
+      <h2>Cost & VAT Summary</h2>
+      <table class="business-print-table compact">
+        <thead><tr><th>Cost Line</th><th>Value</th></tr></thead>
+        <tbody>
+          {% if report_kind == 'maintenance' %}
+          <tr><td>Actual Before VAT</td><td>{{ (report.cost_subtotal or 0)|kes2 }}</td></tr>
+          <tr><td>Actual VAT Amount</td><td>{{ (report.vat_amount or 0)|kes2 }}</td></tr>
+          <tr><td>VAT Rate(s)</td><td>{{ report.vat_rate_label or 'No VAT applied' }}</td></tr>
+          <tr><td>Actual Total</td><td>{{ (report.total_cost or 0)|kes2 }}</td></tr>
+          <tr><td>Estimated Before VAT</td><td>{{ (report.estimated_cost_subtotal or 0)|kes2 }}</td></tr>
+          <tr><td>Estimated VAT Amount</td><td>{{ (report.estimated_vat_amount or 0)|kes2 }}</td></tr>
+          <tr><td>Estimated Total</td><td>{{ (report.estimated_total_cost or 0)|kes2 }}</td></tr>
+          {% else %}
+          <tr><td>Amount Before VAT</td><td>{{ (report.cost_subtotal or 0)|kes2 }}</td></tr>
+          <tr><td>VAT Amount</td><td>{{ (report.vat_amount or 0)|kes2 }}</td></tr>
+          <tr><td>VAT Rate(s)</td><td>{{ report.vat_rate_label or 'No VAT applied' }}</td></tr>
+          <tr><td>Total Cost</td><td>{{ (report.total_cost or 0)|kes2 }}</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <section class="business-print-card mt-6">
+    <h2>Chart Data</h2>
+    <table class="business-print-table compact">
+      <thead>
+        {% if report_kind == 'maintenance' %}
+          <tr><th>Period</th><th>PM</th><th>CM</th><th>Total</th><th>Actual Before VAT</th><th>VAT Amount</th><th>Actual Total</th><th>Estimated Total</th></tr>
+        {% else %}
+          <tr><th>Period</th><th>Value</th><th>Amount Before VAT</th><th>VAT Amount</th><th>Total Cost</th></tr>
+        {% endif %}
+      </thead>
+      <tbody>
+        {% if report_kind == 'maintenance' %}
+          {% for row in report.rows or [] %}
+            <tr>
+              <td>{{ row.period }}</td><td>{{ row.pm }}</td><td>{{ row.cm }}</td><td>{{ row.total }}</td>
+              <td>{{ (row.cost_subtotal or 0)|kes2 }}</td><td>{{ (row.vat_amount or 0)|kes2 }}</td><td>{{ (row.total_cost or 0)|kes2 }}</td><td>{{ (row.estimated_total_cost or 0)|kes2 }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="8">No chart data available.</td></tr>
+          {% endfor %}
+        {% else %}
+          {% for row in report.rows or [] %}
+            <tr><td>{{ row.period }}</td><td>{{ row.value }}</td><td>{{ (row.cost_subtotal or 0)|kes2 }}</td><td>{{ (row.vat_amount or 0)|kes2 }}</td><td>{{ (row.total_cost or 0)|kes2 }}</td></tr>
+          {% else %}
+            <tr><td colspan="5">No chart data available.</td></tr>
+          {% endfor %}
+        {% endif %}
+      </tbody>
+    </table>
+  </section>
+
+  {% set has_cost_series = (report.total_cost_values or report.cost_subtotals or report.vat_values) %}
+  {% if has_cost_series %}
+  <section class="business-print-card mt-6 print-chart-frame">
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div>
+        <h2>Cost Trend</h2>
+        <p class="text-sm text-slate-500 dark:text-slate-300">Cost movement for the selected scope and period.</p>
+      </div>
+      <div class="text-right text-xs text-slate-500 dark:text-slate-400">
+        <div class="font-black uppercase tracking-[0.18em]">Period</div>
+        <div class="mt-1 font-semibold text-slate-700 dark:text-slate-200">{{ report.period_label }}</div>
+      </div>
+    </div>
+    <div class="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-4 min-h-[320px] overflow-hidden cost-chart-shell">
+      {{ report.cost_chart_svg|safe }}
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+  window.__reportChartsReady = true;
+  window.dispatchEvent(new CustomEvent('report:charts-ready'));
+</script>
+{% endblock %}

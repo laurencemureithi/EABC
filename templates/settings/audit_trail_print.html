@@ -1,0 +1,100 @@
+{% extends "layouts/print.html" %}
+{% block title %}Audit Trail Print Preview • Opsloom{% endblock %}
+{% block preview_title %}Audit Trail{% endblock %}
+{% block preview_actions %}
+  <a href="{{ url_for('audit_trail_export', format='xlsx', q=audit_q, module=selected_module) }}" class="inline-flex items-center gap-2 rounded-lg bg-white text-slate-700 px-4 py-2 text-sm font-black border border-slate-200 hover:bg-slate-50">
+    <span class="material-symbols-outlined text-[18px]">table_view</span>
+    Export XLSX
+  </a>
+  <a href="{{ url_for('audit_trail_export', format='pdf', q=audit_q, module=selected_module) }}" class="inline-flex items-center gap-2 rounded-lg bg-white text-slate-700 px-4 py-2 text-sm font-black border border-slate-200 hover:bg-slate-50">
+    <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+    Export PDF
+  </a>
+  <button type="button" onclick="window.print()" class="inline-flex items-center gap-2 rounded-lg bg-ueal-gold text-white px-4 py-2 text-sm font-black shadow-md hover:opacity-90">
+    <span class="material-symbols-outlined text-[18px]">print</span>
+    Print
+  </button>
+{% endblock %}
+{% block content %}
+{% set document_status = 'READY' %}
+{% set document_department = current_department %}
+{% set audit_pages = audit_rows|batch(24, None)|list %}
+<div class="business-print-shell max-w-5xl mx-auto">
+  {% for page_rows in audit_pages if page_rows %}
+  <div class="business-print-page">
+    {% include "partials/report_document_header.html" %}
+
+    {% if loop.first %}
+    <div class="business-print-header">
+      <div>
+        <p class="text-[11px] font-black uppercase tracking-[0.25em] text-slate-500">Settings / Admin</p>
+        <h1 class="mt-2 text-3xl font-black text-slate-900">Audit Trail</h1>
+        <p class="mt-2 text-sm text-slate-600">Formal operational trace prepared for administrative review, export, and filing.</p>
+      </div>
+      <div class="business-print-meta">
+        <div><span>Scope</span><strong>Audit Trail</strong></div>
+        <div><span>Target</span><strong>{{ current_department_display }}</strong></div>
+        <div><span>Rows</span><strong>{{ total_audit_rows or (audit_rows|length) }}</strong></div>
+        <div><span>Generated</span><strong>{{ audit_generated_at or '' }}</strong></div>
+      </div>
+    </div>
+
+    <section class="business-print-card compact-card mt-6">
+      <h2>Applied Filters</h2>
+      <table class="business-print-table compact">
+        <tbody>
+          <tr><td>Search</td><td>{{ audit_q or 'All records' }}</td></tr>
+          <tr><td>Module</td><td>{{ selected_module|replace('_',' ')|title if selected_module else 'All modules' }}</td></tr>
+          <tr><td>Rows included</td><td>{{ audit_rows|length }}</td></tr>
+        </tbody>
+      </table>
+    </section>
+    {% else %}
+    <section class="business-print-card compact-card">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <h2>Audit Trail (cont.)</h2>
+          <p class="text-sm text-slate-600 mt-1">Continuation of the filtered operational trace.</p>
+        </div>
+        <div class="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Page {{ loop.index }} of {{ audit_pages|length }}</div>
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="business-print-card compact-card mt-6">
+      <h2>Audit Register{% if not loop.first %} (cont.){% endif %}</h2>
+      <table class="business-print-table compact">
+        <thead>
+          <tr>
+            <th style="width:16%">Time</th>
+            <th style="width:18%">Action</th>
+            <th style="width:12%">Module</th>
+            <th style="width:14%">User</th>
+            <th style="width:40%">Detail</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in page_rows if row %}
+          <tr>
+            <td>{{ (row.created_at or '')|replace('T',' ') }}</td>
+            <td>{{ row.action or '—' }}</td>
+            <td>{{ row.module or '—' }}</td>
+            <td>{{ row.user_name or '—' }}</td>
+            <td>{{ row.detail or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+  {% else %}
+  <div class="business-print-page">
+    {% include "partials/report_document_header.html" %}
+    <section class="business-print-card compact-card">
+      <h2>Audit Trail</h2>
+      <p class="text-sm text-slate-600">No audit activity matched the current filters.</p>
+    </section>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

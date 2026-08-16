@@ -1,0 +1,250 @@
+{# templates/assets/assets_maintenance_history.html #}
+{% extends "layouts/base.html" %}
+{% block title %}Maintenance History • Opsloom{% endblock %}
+
+{% block content %}
+{% set page = page|default(request.args.get('page', 1)|int) %}
+{% set per_page = per_page|default(request.args.get('per_page', 10)|int) %}
+
+{% set breadcrumbs = [
+  {"label":"Asset Register", "href": url_for("assets_master_list")},
+  {"label": asset.asset_name, "href": url_for("assets_profile_get", asset_uid=asset.uid)},
+  {"label":"Maintenance History"}
+] %}
+
+<div class="max-w-6xl mx-auto">
+
+  {# show thumbnail here (matches your target UI) #}
+  {% set header_show_image = true %}
+  {% include "partials/asset_profile_header.html" %}
+
+  {% set current_tab = "maintenance_history" %}
+  {% include "partials/asset_profile_tabs.html" %}
+
+  {# KPI cards #}
+  <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-ueal-purple/10 dark:bg-ueal-gold/10 rounded-lg flex items-center justify-center text-ueal-purple dark:text-ueal-gold shrink-0">
+        <span class="material-symbols-outlined text-xl">build</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Service Events</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">{{ kpi_total_events }}</p>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center text-green-600 dark:text-green-300 shrink-0">
+        <span class="material-symbols-outlined text-xl">check_circle</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">PM Compliance</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">{{ kpi_pm_compliance }}</p>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center text-blue-700 dark:text-blue-300 shrink-0">
+        <span class="material-symbols-outlined text-xl">history_toggle_off</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Last Service Date</p>
+        <p class="text-lg font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">{{ kpi_last_service or "—" }}</p>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-ueal-gold/10 dark:bg-ueal-gold/10 rounded-lg flex items-center justify-center text-ueal-gold shrink-0">
+        <span class="material-symbols-outlined text-xl">calendar_today</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Next Scheduled Service</p>
+        <p class="text-lg font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">{{ kpi_next_service or "—" }}</p>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-300 shrink-0">
+        <span class="material-symbols-outlined text-xl">payments</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Maintenance Cost</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">{{ kpi_cost or "—" }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-12 gap-8">
+
+    {# Left: Full maintenance log #}
+    <div class="col-span-12 lg:col-span-8">
+      <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/30 space-y-4">
+          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2 uppercase tracking-wide">
+              <span class="material-symbols-outlined text-ueal-purple dark:text-ueal-gold text-lg">history</span>
+              Full Maintenance Log
+            </h3>
+            <div class="flex flex-wrap items-center gap-3 relative z-20">
+              {% set export_links = [
+                {"href": url_for('assets_maintenance_history_export', asset_uid=asset.uid, fmt='csv', q=q, status=selected_status, type=selected_type), "icon": "description", "label": "Export CSV"},
+                {"href": url_for('assets_maintenance_history_export', asset_uid=asset.uid, fmt='xlsx', q=q, status=selected_status, type=selected_type), "icon": "table_view", "label": "Export Excel"},
+                {"href": url_for('assets_maintenance_history_export', asset_uid=asset.uid, fmt='pdf', q=q, status=selected_status, type=selected_type), "icon": "picture_as_pdf", "label": "Export PDF"}
+              ] %}
+              {% set export_menu_position = "up" %}
+              {% include 'partials/export_menu.html' %}
+              <a href="{{ url_for('maintenance_management', q=asset.asset_name) }}" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+                <span class="material-symbols-outlined text-base">open_in_new</span>
+                Open Maintenance Module
+              </a>
+            </div>
+          </div>
+
+          <form method="get" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+            <input type="hidden" name="page" value="1"/>
+            <div class="md:col-span-6 relative">
+              <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Search</label>
+              <input class="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-ueal-gold focus:border-ueal-gold transition-all" placeholder="Search task, technician, task ID or notes" type="text" name="q" value="{{ q }}" />
+              <span class="material-symbols-outlined absolute left-3 top-[38px] text-slate-400 text-lg">search</span>
+            </div>
+            <div class="md:col-span-3">
+              <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Status</label>
+              <select name="status" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-ueal-gold focus:border-ueal-gold transition-all">
+                <option value="">All statuses</option>
+                {% for status in statuses %}
+                  <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status|replace('_',' ')|title }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="md:col-span-3">
+              <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Maintenance Type</label>
+              <select name="type" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-ueal-gold focus:border-ueal-gold transition-all">
+                <option value="">All types</option>
+                {% for maintenance_type in maintenance_types %}
+                  <option value="{{ maintenance_type }}" {% if selected_type == maintenance_type %}selected{% endif %}>{{ maintenance_type|title }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="md:col-span-12 flex flex-wrap items-center gap-3">
+              <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+                <span class="material-symbols-outlined text-base">filter_list</span>
+                Filter Table
+              </button>
+              <a href="{{ url_for('assets_maintenance_history_get', asset_uid=asset.uid) }}" class="text-sm font-semibold text-slate-500 hover:text-ueal-purple dark:text-slate-300 dark:hover:text-ueal-gold">Reset</a>
+            </div>
+          </form>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="min-w-full table-fixed text-left">
+            <thead>
+              <tr class="bg-white dark:bg-dark-surface text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold tracking-wider border-b border-slate-100 dark:border-dark-border">
+                <th class="px-6 py-4 w-[12%]">Service Date</th>
+                <th class="px-6 py-4 w-[14%]">Service Type</th>
+                <th class="px-6 py-4 w-[34%]">Task Description</th>
+                <th class="px-6 py-4 w-[18%]">Lead Technician</th>
+                <th class="px-6 py-4 w-[12%]">Status</th>
+                <th class="px-6 py-4 text-right w-[10%]">Actions</th>
+              </tr>
+            </thead>
+
+            <tbody class="divide-y divide-slate-100 dark:divide-dark-border">
+              {% if maintenance_rows and maintenance_rows|length > 0 %}
+                {% for r in maintenance_rows %}
+                  <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                    <td class="px-6 py-4 align-top"><p class="text-sm font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">{{ r.service_date or r.due_date or "—" }}</p></td>
+                    <td class="px-6 py-4 align-top">
+                      {% if (r.maintenance_type or r.service_type or "") in ["PM","PREVENTIVE","Preventive"] %}
+                        <span class="px-2 py-1 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-[10px] font-bold">PREVENTIVE</span>
+                      {% else %}
+                        <span class="px-2 py-1 rounded-full bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 text-[10px] font-bold">CORRECTIVE</span>
+                      {% endif %}
+                    </td>
+                    <td class="px-6 py-4 align-top"><p class="text-sm text-slate-600 dark:text-slate-300 leading-6 break-words">{{ r.task_title or r.task_description or "—" }}</p></td>
+                    <td class="px-6 py-4 align-top">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center text-[10px] font-black">{{ r.technician_initials or "NA" }}</div>
+                        <span class="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{{ r.technician or r.lead_technician or "—" }}</span>
+                      </div>
+                    </td>
+                    <td class="px-6 py-4 align-top">
+                      {% set st = (r.status or "")|upper %}
+                      {% if st in ["COMPLETED"] %}
+                        <span class="px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 text-[10px] font-bold">COMPLETED</span>
+                      {% elif st in ["OVERDUE"] %}
+                        <span class="px-2.5 py-1 rounded-full bg-rose-100 dark:bg-rose-900/20 text-rose-700 dark:text-rose-200 text-[10px] font-bold">OVERDUE</span>
+                      {% else %}
+                        <span class="px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-200 text-[10px] font-bold">UPCOMING</span>
+                      {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-right align-top">
+                      {% set action_items = [
+                        {"href": url_for('maintenance_view', task_id=r.task_id), "icon": "visibility", "label": "Preview"},
+                        {"href": url_for('maintenance_view', task_id=r.task_id, print=1, autoprint=1), "icon": "print", "label": "Print"},
+                        {"href": url_for('maintenance_update_get', task_id=r.task_id), "icon": "edit_document", "label": "Update"},
+                        {"type": "form", "href": url_for('maintenance_delete', task_id=r.task_id), "icon": "delete", "label": "Delete", "variant": "danger", "confirm": "Delete this maintenance task?"}
+                      ] %}
+                      {% include 'partials/table_actions_menu.html' %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="6" class="px-6 py-8 text-sm text-slate-500 dark:text-slate-400">No maintenance history matched your current filters for this asset.</td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="px-6 py-4 border-t border-slate-100 dark:border-dark-border bg-slate-50/30 dark:bg-slate-800/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Showing {{ showing_from }} to {{ showing_to }} of {{ total }} service events</span>
+          <div class="flex items-center gap-4 sm:gap-6 justify-between sm:justify-end">
+            <form method="get" class="flex items-center gap-2">
+              <input type="hidden" name="page" value="1"/>
+              <input type="hidden" name="q" value="{{ q }}"/>
+              <input type="hidden" name="status" value="{{ selected_status }}"/>
+              <input type="hidden" name="type" value="{{ selected_type }}"/>
+              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap" for="rows-per-page">Rows per page</label>
+              <div class="relative">
+                <select class="appearance-none bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded text-xs font-bold text-slate-700 dark:text-slate-200 px-3 py-1 pr-8 focus:ring-ueal-gold focus:border-ueal-gold transition-all cursor-pointer" id="rows-per-page" name="per_page" onchange="this.form.submit()">
+                  {% for n in [5,10,20,50] %}
+                    <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }}</option>
+                  {% endfor %}
+                </select>
+                <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">expand_more</span>
+              </div>
+            </form>
+
+            {% set prev_page = 1 if page <= 1 else page - 1 %}
+            {% set next_page = total_pages if page >= total_pages else page + 1 %}
+            <div class="flex gap-1">
+              <a class="px-3 py-1 border border-slate-200 dark:border-dark-border rounded text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-white dark:hover:bg-white/5 transition-colors {% if page <= 1 %}pointer-events-none opacity-50{% endif %}" href="{{ url_for('assets_maintenance_history_get', asset_uid=asset.uid, page=prev_page, per_page=per_page, q=q, status=selected_status, type=selected_type) }}">Prev</a>
+              {% for p in pages %}
+                {% if p == "…" %}
+                  <span class="px-3 py-1 text-xs font-bold text-slate-400">…</span>
+                {% elif p == page %}
+                  <span class="px-3 py-1 bg-ueal-purple text-white rounded text-xs font-bold shadow-sm">{{ p }}</span>
+                {% else %}
+                  <a class="px-3 py-1 border border-slate-200 dark:border-dark-border rounded text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-white dark:hover:bg-white/5 transition-colors" href="{{ url_for('assets_maintenance_history_get', asset_uid=asset.uid, page=p, per_page=per_page, q=q, status=selected_status, type=selected_type) }}">{{ p }}</a>
+                {% endif %}
+              {% endfor %}
+              <a class="px-3 py-1 border border-slate-200 dark:border-dark-border rounded text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-white dark:hover:bg-white/5 transition-colors {% if page >= total_pages %}pointer-events-none opacity-50{% endif %}" href="{{ url_for('assets_maintenance_history_get', asset_uid=asset.uid, page=next_page, per_page=per_page, q=q, status=selected_status, type=selected_type) }}">Next</a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    {# Right: panels (BRING BACK THE CHART) #}
+    <div class="col-span-12 lg:col-span-4 space-y-6">
+      {% include "partials/service_intelligence.html" %}
+      {# {% include "partials/top_spares.html" %} #}
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}

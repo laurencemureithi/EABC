@@ -1,0 +1,25 @@
+Opsloom patch v4
+
+Included changes:
+1. Outgoing report emails now send as multipart plain-text + HTML so the saved email sign-off is included.
+2. Signature image is now included in outgoing report emails. Local static images are embedded inline where possible.
+3. Added Audit Trail export actions:
+   - Preview
+   - Export PDF
+   - Export XLSX
+4. Audit Trail PDF export repeats the formal header on every page.
+5. Audit Trail XLSX export outputs the filtered table in structured workbook form.
+6. Added report generation progress dialog with percentage/status polling on Step 3 finalize.
+7. Reports Center and Report History tables now use fixed column widths so headers stay aligned even before any rows exist.
+8. Added stronger persistence protection:
+   - forced save on logout
+   - rolling JSON datastore backup
+   - latest SQLite backup copy
+
+Files changed:
+- app.py
+- templates/reports/reports_generate_step3.html
+- templates/reports/reports_center.html
+- templates/reports/reports_history.html
+- templates/settings/audit_trail.html
+- templates/settings/audit_trail_print.html

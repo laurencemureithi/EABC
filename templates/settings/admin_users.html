@@ -1,0 +1,82 @@
+{% extends "layouts/base.html" %}
+{% block title %}Admin Users • Opsloom{% endblock %}
+{% block content %}
+{% set page_title = "Admin Credentials & Users" %}
+{% set title_icon = "admin_panel_settings" %}
+{% set page_subtitle = "Grant, edit, suspend, or remove access while defining module permissions and user sign-off identity." %}
+{% set show_system_badge = true %}
+{% set breadcrumbs = [{"label":"Settings / Admin", "href": url_for('settings_admin')}, {"label":"Admin Users"}] %}
+{% include "partials/title_block.html" %}
+<div class="max-w-7xl mx-auto grid grid-cols-1 xl:grid-cols-5 gap-6">
+  <div class="xl:col-span-3 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-slate-800/30 flex items-center justify-between gap-3">
+      <div>
+        <h2 class="text-sm font-black uppercase tracking-[0.18em]">System User Register</h2>
+        <p class="mt-1 text-xs text-slate-500">Roles, scope, privileges, and custom sign-off settings for each user.</p>
+      </div>
+      <a href="{{ url_for('admin_users_page') }}" class="px-4 py-2 rounded-lg border border-slate-200 dark:border-dark-border text-xs font-black uppercase tracking-wider">New User</a>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 dark:bg-slate-900/40"><tr><th class="px-6 py-3 text-left text-[11px] font-black uppercase tracking-[0.18em]">User</th><th class="px-6 py-3 text-left text-[11px] font-black uppercase tracking-[0.18em]">Role</th><th class="px-6 py-3 text-left text-[11px] font-black uppercase tracking-[0.18em]">Scope</th><th class="px-6 py-3 text-left text-[11px] font-black uppercase tracking-[0.18em]">Permissions</th><th class="px-6 py-3 text-right text-[11px] font-black uppercase tracking-[0.18em]">Actions</th></tr></thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-dark-border">
+          {% for row in admin_users %}
+          <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+            <td class="px-6 py-4 align-top"><div class="font-bold text-slate-900 dark:text-white">{{ row.name }}</div><div class="text-xs text-slate-500">{{ row.email }}</div><div class="text-[11px] text-slate-400 mt-1">{{ row.department or 'Engineering' }}</div></td>
+            <td class="px-6 py-4 align-top"><div class="font-semibold">{{ row.role }}</div><div class="text-xs text-slate-500 mt-1">{{ 'Active' if row.active else 'Inactive' }}</div></td>
+            <td class="px-6 py-4 align-top">{{ row.access_scope }}</td>
+            <td class="px-6 py-4 align-top"><div class="flex flex-wrap gap-2">{% for perm in row.permissions or [] %}<span class="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-200">{{ perm|replace('_',' ') }}</span>{% endfor %}</div></td>
+            <td class="px-6 py-4 text-right align-top">
+              {% set action_items = [
+                {'href': url_for('admin_users_page', edit=row.id), 'label': 'Edit User & Privileges', 'icon': 'edit'},
+                {'type':'form','href': url_for('admin_users_toggle', user_id=row.id), 'label': 'Set ' ~ ('Inactive' if row.active else 'Active'), 'icon': 'toggle_on'},
+                {'type':'form','href': url_for('admin_users_delete', user_id=row.id), 'label': 'Delete User', 'icon': 'delete', 'variant': 'danger', 'confirm': 'Delete this user from the system register?'}
+              ] %}
+              {% include 'partials/table_actions_menu.html' %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">No admin users configured.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="xl:col-span-2 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-sm p-6">
+    {% set form_user = edit_user or {} %}
+    <h2 class="text-sm font-black uppercase tracking-[0.18em]">{{ 'Edit Access User' if edit_user else 'Add Access User' }}</h2>
+    <form method="post" action="{{ url_for('admin_users_create') }}" class="mt-4 space-y-4">
+      <input type="hidden" name="user_id" value="{{ form_user.id or '' }}">
+      <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Full Name</label><input name="name" value="{{ form_user.name or '' }}" placeholder="Full name" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+      <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Email</label><input name="email" value="{{ form_user.email or '' }}" placeholder="Email" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Role</label><select name="role" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">{% for role_name in permission_presets.keys() %}<option value="{{ role_name }}" {% if (form_user.role == role_name) or (not form_user and role_name == 'Viewer') %}selected{% endif %}>{{ role_name }}</option>{% endfor %}</select></div>
+        <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Access Scope</label><select name="access_scope" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"><option {% if (form_user.access_scope or '') == 'Department' %}selected{% endif %}>Department</option><option {% if (form_user.access_scope or '') == 'Full System' %}selected{% endif %}>Full System</option><option {% if (form_user.access_scope or '') == 'Section' %}selected{% endif %}>Section</option><option {% if (form_user.access_scope or '') == 'Read Only' %}selected{% endif %}>Read Only</option></select></div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Department</label><select name="department" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">{% for dep in departments %}<option value="{{ dep }}" {% if (form_user.department or current_department) == dep %}selected{% endif %}>{{ dep }}</option>{% endfor %}</select></div><div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">{% if edit_user %}Reset Password{% else %}Initial Password{% endif %}</label><input name="password" type="text" placeholder="{% if edit_user %}Leave blank to keep current password{% else %}Required for new user{% endif %}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm" {% if not edit_user %}required{% endif %}></div></div>
+      <div>
+        <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Allowed Modules & Controls</label>
+        <div class="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-900 p-3">
+          {% set active_perms = form_user.permissions or [] %}
+          {% for perm in ['dashboard','assets','breakdowns','maintenance','inventory','reports','settings_manage','users_manage','notifications_manage','technicians_manage'] %}
+          <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200"><input type="checkbox" name="permissions" value="{{ perm }}" {% if perm in active_perms %}checked{% endif %} class="rounded border-slate-300">{{ perm|replace('_',' ')|title }}</label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="pt-2 border-t border-slate-200 dark:border-dark-border">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-3">Custom Sign-off</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><input name="signature_name" value="{{ form_user.signature_name or form_user.name or '' }}" placeholder="Sign-off name" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+          <div><input name="signature_title" value="{{ form_user.signature_title or form_user.role or '' }}" placeholder="Sign-off title" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+          <div><input name="signature_font" value="{{ form_user.signature_font or settings.mail_signature_font or 'Inter' }}" placeholder="Font" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+          <div><input type="color" name="signature_color" value="{{ form_user.signature_color or settings.mail_signature_color or '#1554FF' }}" class="w-full h-12 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-2 py-2"></div>
+          <div class="md:col-span-2"><input name="signature_image_url" value="{{ form_user.signature_image_url or '' }}" placeholder="Signature image URL (optional)" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+          <div class="md:col-span-2"><select name="signature_style" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"><option value="formal" {% if (form_user.signature_style or settings.mail_signature_style) == 'formal' %}selected{% endif %}>Formal</option><option value="modern" {% if (form_user.signature_style or settings.mail_signature_style) == 'modern' %}selected{% endif %}>Modern</option><option value="bold" {% if (form_user.signature_style or settings.mail_signature_style) == 'bold' %}selected{% endif %}>Bold</option></select></div>
+        </div>
+      </div>
+      <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200"><input type="checkbox" name="active" value="1" {% if form_user.active is not defined or form_user.active %}checked{% endif %} class="rounded border-slate-300">User active</label>
+      <div class="flex items-center gap-3"><button class="flex-1 rounded-lg bg-ueal-gold text-white py-3 font-black text-sm">{{ 'Save Changes' if edit_user else 'Create Access' }}</button>{% if edit_user %}<a href="{{ url_for('admin_users_page') }}" class="rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 text-sm font-black">Cancel</a>{% endif %}</div>
+    </form>
+  </div>
+</div>
+{% endblock %}

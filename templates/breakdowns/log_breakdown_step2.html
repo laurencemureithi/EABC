@@ -1,0 +1,403 @@
+{% extends "layouts/base.html" %}
+{% block title %}Log New Breakdown - Step 2 • Opsloom{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+  <div class="mb-8 flex items-center justify-between">
+    <div>
+      <div class="flex items-center gap-6">
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Log New Breakdown</h1>
+        <div class="hidden lg:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm">
+          <span class="w-2 h-2 rounded-full bg-green-500"></span>
+          <span class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">SYSTEM STABLE</span>
+        </div>
+      </div>
+      <nav class="flex items-center gap-2 mt-2 text-[13px] text-slate-500 font-medium">
+        <a href="{{ url_for('breakdowns') }}" class="hover:text-ueal-purple transition-colors">Breakdowns</a>
+        <span class="material-symbols-outlined text-base text-slate-400">chevron_right</span>
+        <span class="text-slate-900 dark:text-slate-300">Log New Incident</span>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Stepper -->
+  <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm mb-8 overflow-hidden">
+    <div class="flex">
+      <div class="flex-1 flex items-center justify-center py-4 px-6 gap-3 text-ueal-purple border-b-2 border-ueal-purple bg-slate-50/50 dark:bg-slate-800/20">
+        <span class="w-7 h-7 flex items-center justify-center rounded-full bg-ueal-purple text-white text-xs font-bold">
+          <span class="material-symbols-outlined text-base">check</span>
+        </span>
+        <span class="text-sm font-bold">Incident Details</span>
+      </div>
+      <div class="flex-1 flex items-center justify-center py-4 px-6 gap-3 text-ueal-gold border-b-2 border-ueal-gold">
+        <span class="w-7 h-7 flex items-center justify-center rounded-full bg-ueal-gold text-white text-xs font-bold">2</span>
+        <span class="text-sm font-bold">Assignment &amp; Notes</span>
+      </div>
+    </div>
+  </div>
+
+  <form id="finalizeForm" method="post" enctype="multipart/form-data"
+        class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm p-8">
+    {% if error %}
+      <div class="mb-6 p-4 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm font-semibold">
+        {{ error }}
+      </div>
+    {% endif %}
+
+    <input type="hidden" name="do_rca" id="doRcaInput" value="no"/>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+      <!-- Technician Assignment -->
+      <div class="space-y-8">
+        <div>
+          <h3 class="text-sm font-bold text-ueal-purple uppercase tracking-wider mb-6 flex items-center gap-2">
+            <span class="material-symbols-outlined text-lg">engineering</span>
+            Technician Assignment
+          </h3>
+
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-2">Lead Technician</label>
+              <div class="relative">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">person</span>
+                <select id="leadTechnicianSelect" name="lead_technician_name" class="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white appearance-none">
+                  <option value="">Select from technician directory</option>
+                  {% for row in tech_rows or [] %}
+                  <option value="{{ row.name }}" data-phone="{{ row.phone or '' }}" data-email="{{ row.email or '' }}" {% if (form.lead_technician_name or '') == row.name %}selected{% endif %}>{{ row.name }} — {{ row.role }} • {{ row.availability_score }}% available</option>
+                  {% endfor %}
+                </select>
+                <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">expand_more</span>
+              </div>
+              <p class="mt-2 text-[11px] text-slate-400">{% if assigned_technician_name %}Assigned technician from step 1: {{ assigned_technician_name }}. You can keep it or change the lead here.{% else %}Select a lead technician from the active directory. Phone and email fill automatically.{% endif %}</p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-2">Lead Technician Phone</label>
+                <div class="relative">
+                  <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">call</span>
+                  <input id="leadTechnicianPhone" name="lead_technician_phone"
+                         value="{{ form.lead_technician_phone or '' }}"
+                         class="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
+                         placeholder="+2547..."/>
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-2">Lead Technician Email</label>
+                <div class="relative">
+                  <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">mail</span>
+                  <input id="leadTechnicianEmail" name="lead_technician_email"
+                         value="{{ form.lead_technician_email or '' }}"
+                         class="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
+                         placeholder="name@company.com"/>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-3">Recommended Technicians</label>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {% for row in recommended or [] %}
+                <button type="button" class="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-800/30 p-4 text-left tech-recommend" data-tech-name="{{ row.name }}" data-tech-phone="{{ row.phone or '' }}" data-tech-email="{{ row.email or '' }}">
+                  <div class="text-sm font-extrabold text-slate-900 dark:text-white">{{ row.name }}</div>
+                  <div class="mt-1 text-[11px] text-slate-500">{{ row.meta }}</div>
+                </button>
+                {% else %}
+                <div class="p-4 rounded-lg border border-dashed border-slate-300 dark:border-dark-border bg-slate-50 dark:bg-slate-800/30 text-sm text-slate-500 dark:text-slate-300">No technician recommendations available yet.</div>
+                {% endfor %}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Notes + Upload -->
+      <div class="space-y-8">
+        <div>
+          <h3 class="text-sm font-bold text-ueal-purple uppercase tracking-wider mb-6 flex items-center gap-2">
+            <span class="material-symbols-outlined text-lg">history_edu</span>
+            Detailed Notes
+          </h3>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-2">Initial Diagnosis &amp; Technical Notes</label>
+            <textarea name="notes"
+                      class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white h-44 placeholder:text-slate-400"
+                      placeholder="Enter detailed findings, error codes, or technical notes...">{{ form.notes or '' }}</textarea>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-3">Supporting Images</label>
+
+          <div class="border-2 border-dashed border-slate-200 dark:border-dark-border rounded-xl p-8 bg-slate-50/50 dark:bg-slate-800/30 hover:border-ueal-gold/50 transition-all">
+            <div class="flex flex-col items-center justify-center">
+              <div class="w-12 h-12 rounded-full bg-white dark:bg-dark-surface shadow-sm flex items-center justify-center mb-3">
+                <span class="material-symbols-outlined text-slate-400">cloud_upload</span>
+              </div>
+              <p class="text-sm font-bold text-slate-700 dark:text-slate-200">Upload Incident Photos/Media</p>
+              <p class="text-[11px] text-slate-500 mt-1 uppercase tracking-tight font-medium">
+                Max 5 files • Max 5MB per file • JPG, PNG, WEBP
+              </p>
+
+              <div class="mt-5 flex items-center gap-3">
+                <label for="mediaInput"
+                       class="cursor-pointer bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border px-4 py-2 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+                  Choose files
+                </label>
+
+                <span id="mediaHint" class="text-xs text-slate-500 dark:text-slate-300">No files selected</span>
+              </div>
+
+              <input id="mediaInput" name="media" type="file" multiple
+                     accept="image/*,.jpg,.jpeg,.png,.webp"
+                     class="hidden"/>
+            </div>
+
+            <div id="mediaList" class="mt-5 hidden">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Selected:</p>
+              <ul id="mediaFilesUl" class="text-xs text-slate-600 dark:text-slate-300 space-y-1"></ul>
+            </div>
+          </div>
+
+          {% if form.uploaded and form.uploaded|length > 0 %}
+            <div class="mt-4 text-xs text-slate-500">
+              <p class="font-bold uppercase tracking-wider text-[10px] text-slate-400 mb-2">Already uploaded:</p>
+              <ul class="list-disc ml-5">
+                {% for f in form.uploaded %}
+                  <li>{{ f }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+
+    <div class="mt-10 grid grid-cols-1 md:grid-cols-3 gap-4 pt-8 border-t border-slate-100 dark:border-dark-border">
+      <div class="md:col-span-3">
+        <h3 class="text-sm font-bold text-ueal-purple uppercase tracking-wider">Breakdown Cost Capture</h3>
+        <p class="mt-1 text-xs text-slate-500">Capture labor/material spend now or upload an invoice so reports and asset history include cost insights.</p>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-2">Cost Subtotal</label>
+        <input name="cost_subtotal" type="number" min="0" step="0.01" value="{{ form.cost_subtotal or '' }}" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm" placeholder="0.00">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-2">VAT %</label>
+        <input name="cost_vat_pct" type="number" min="0" max="100" step="0.01" value="{{ form.cost_vat_pct or 16 }}" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-2">Invoice</label>
+        <input name="invoice" type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.csv" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm">
+      </div>
+      <label class="md:col-span-3 inline-flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200"><input type="checkbox" name="cost_apply_vat" value="1" {% if form.cost_apply_vat %}checked{% endif %}> Apply VAT automatically</label>
+    </div>
+
+    <div class="mt-12 flex items-center justify-between border-t border-slate-100 dark:border-dark-border pt-8">
+      <a href="{{ url_for('breakdowns_new_step1_get') }}"
+         class="px-6 py-2.5 rounded-lg border border-slate-300 dark:border-dark-border text-slate-600 dark:text-slate-300 font-bold text-xs uppercase hover:bg-slate-50 dark:hover:bg-slate-800 transition-all tracking-wider flex items-center gap-2">
+        <span class="material-symbols-outlined text-lg">arrow_back</span>
+        Back to Incident Details
+      </a>
+
+      <!-- submit button (works even if JS fails) -->
+      <button id="finalizeBtn" type="submit"
+              class="bg-ueal-gold text-white px-8 py-3 rounded-lg text-sm font-bold flex items-center gap-3 hover:brightness-110 transition-all shadow-lg shadow-ueal-gold/20 uppercase">
+        Finalize &amp; Log Breakdown
+        <span class="material-symbols-outlined text-lg">send</span>
+      </button>
+    </div>
+  </form>
+
+  <div class="mt-8 text-center">
+    <p class="text-[11px] text-slate-400 font-medium flex items-center justify-center gap-2">
+      <span class="material-symbols-outlined text-xs">verified_user</span>
+      Breakdown Log ID will be auto-generated upon submission
+    </p>
+  </div>
+</div>
+
+<!-- RCA Modal (NO tailwind-arbitrary values; uses inline style to avoid invisible overlay hang) -->
+<div id="rcaModal"
+     style="display:none; position:fixed; inset:0; z-index:9999;"
+     class="items-center justify-center">
+  <div id="rcaBackdrop"
+       style="position:absolute; inset:0; background:rgba(0,0,0,0.40);"></div>
+
+  <div class="relative w-full max-w-md bg-white dark:bg-dark-surface rounded-2xl shadow-2xl border border-slate-200 dark:border-dark-border p-6">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h3 class="text-lg font-bold text-slate-900 dark:text-white">Root Cause Analysis?</h3>
+        <p class="text-sm text-slate-500 dark:text-slate-300 mt-1">
+          Do you want to perform a Root Cause Analysis now?
+        </p>
+      </div>
+      <button type="button" id="rcaClose"
+              class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <div class="mt-6 flex gap-3 justify-end">
+      <button type="button" id="rcaNo"
+              class="px-5 py-2.5 rounded-lg border border-slate-200 dark:border-dark-border text-slate-700 dark:text-slate-200 bg-white dark:bg-dark-surface hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-sm">
+        No, finalize
+      </button>
+
+      <button type="button" id="rcaYes"
+              class="px-5 py-2.5 rounded-lg bg-ueal-purple text-white hover:opacity-95 font-bold text-sm shadow-md">
+        Yes, do RCA
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const select = document.getElementById("leadTechnicianSelect");
+    const phone = document.getElementById("leadTechnicianPhone");
+    const email = document.getElementById("leadTechnicianEmail");
+    const recommendButtons = Array.from(document.querySelectorAll(".tech-recommend"));
+    if (!select || !phone || !email) return;
+
+    function syncFromOption(option, force = true) {
+      if (!option) return;
+      const optionPhone = option.getAttribute("data-phone") || "";
+      const optionEmail = option.getAttribute("data-email") || "";
+      if (force || !(phone.value || "").trim()) phone.value = optionPhone;
+      if (force || !(email.value || "").trim()) email.value = optionEmail;
+    }
+
+    function syncFromSelection(force = true) {
+      const selected = select.options[select.selectedIndex];
+      if (!selected || !select.value) {
+        if (force) {
+          phone.value = "";
+          email.value = "";
+        }
+        return;
+      }
+      syncFromOption(selected, force);
+    }
+
+    select.addEventListener("change", () => syncFromSelection(true));
+    recommendButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const name = btn.getAttribute("data-tech-name") || "";
+        const matching = Array.from(select.options).find((opt) => opt.value === name);
+        if (matching) {
+          select.value = matching.value;
+          syncFromOption(matching, true);
+        } else {
+          phone.value = btn.getAttribute("data-tech-phone") || "";
+          email.value = btn.getAttribute("data-tech-email") || "";
+        }
+      });
+    });
+
+    syncFromSelection(false);
+  })();
+</script>
+
+<script>
+  // File selection UX + client guardrails
+  (function () {
+    const input = document.getElementById("mediaInput");
+    const hint = document.getElementById("mediaHint");
+    const listWrap = document.getElementById("mediaList");
+    const ul = document.getElementById("mediaFilesUl");
+    if (!input || !hint || !listWrap || !ul) return;
+
+    const MAX_FILES = 5;
+    const MAX_MB = 5;
+    function bytesToMB(b){ return (b / (1024 * 1024)); }
+
+    input.addEventListener("change", () => {
+      ul.innerHTML = "";
+      const files = Array.from(input.files || []);
+
+      if (!files.length) {
+        hint.textContent = "No files selected";
+        listWrap.classList.add("hidden");
+        return;
+      }
+
+      if (files.length > MAX_FILES) {
+        hint.textContent = `Too many files (max ${MAX_FILES})`;
+        input.value = "";
+        listWrap.classList.add("hidden");
+        return;
+      }
+
+      for (const f of files) {
+        if (bytesToMB(f.size) > MAX_MB) {
+          hint.textContent = `File too large: ${f.name} (max ${MAX_MB}MB)`;
+          input.value = "";
+          listWrap.classList.add("hidden");
+          return;
+        }
+      }
+
+      hint.textContent = `${files.length} file(s) selected`;
+      listWrap.classList.remove("hidden");
+
+      files.forEach(f => {
+        const li = document.createElement("li");
+        li.textContent = `${f.name} • ${bytesToMB(f.size).toFixed(2)}MB`;
+        ul.appendChild(li);
+      });
+    });
+  })();
+
+  // RCA modal -> submit (guaranteed visible, no invisible overlay hang)
+  (function () {
+    const modal = document.getElementById('rcaModal');
+    const backdrop = document.getElementById('rcaBackdrop');
+    const closeBtn = document.getElementById('rcaClose');
+    const noBtn = document.getElementById('rcaNo');
+    const yesBtn = document.getElementById('rcaYes');
+    const form = document.getElementById('finalizeForm');
+    const doRca = document.getElementById('doRcaInput');
+    const finalizeBtn = document.getElementById('finalizeBtn');
+
+    if (!modal || !form || !doRca) return;
+
+    let allowSubmit = false;
+
+    function open() {
+      modal.style.display = "flex";
+      modal.classList.add("flex");
+    }
+    function close() {
+      modal.style.display = "none";
+      modal.classList.remove("flex");
+    }
+
+    form.addEventListener("submit", function (e) {
+      if (allowSubmit) return;
+      e.preventDefault();
+      open();
+    });
+
+    if (closeBtn) closeBtn.addEventListener('click', close);
+    if (backdrop) backdrop.addEventListener('click', close);
+
+    function doSubmit(choice) {
+      doRca.value = choice;
+      allowSubmit = true;
+      close();
+      if (finalizeBtn) finalizeBtn.disabled = true;
+      form.submit();
+    }
+
+    if (noBtn) noBtn.addEventListener('click', () => doSubmit("no"));
+    if (yesBtn) yesBtn.addEventListener('click', () => doSubmit("yes"));
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === "Escape") close();
+    });
+  })();
+</script>
+{% endblock %}

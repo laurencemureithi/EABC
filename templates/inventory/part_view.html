@@ -1,0 +1,141 @@
+{% extends "layouts/base.html" %}
+{% block title %}Inventory Part • {{ part.part_name }} • Opsloom{% endblock %}
+
+{% block content %}
+  {% set from_asset = source_asset is not none %}
+  {% set page_title = part.part_name %}
+  {% set title_icon = "inventory_2" %}
+  {% set page_subtitle = "Professional inventory record for preview, audit, and print." %}
+  {% set show_system_badge = true %}
+  {% if from_asset %}
+    {% set breadcrumbs = [
+      {"label":"Asset Register", "href": url_for("assets_master_list")},
+      {"label": source_asset.asset_name, "href": url_for("assets_profile_get", asset_uid=source_asset.uid)},
+      {"label":"Spare Parts", "href": url_for("assets_spare_parts_get", asset_uid=source_asset.uid)},
+      {"label":"Part Details"}
+    ] %}
+  {% else %}
+    {% set breadcrumbs = [
+      {"label":"Inventory", "href": url_for("inventory_management")},
+      {"label":"Part Details"}
+    ] %}
+  {% endif %}
+  {% include "partials/title_block.html" %}
+
+  <div class="max-w-6xl mx-auto space-y-6">
+    <div class="flex flex-wrap items-center justify-between gap-3" data-no-print>
+      <div class="flex flex-wrap gap-2">
+        {% if from_asset %}
+          <a href="{{ url_for('assets_spare_parts_get', asset_uid=source_asset.uid) }}" class="px-4 py-2 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">Back to Asset Spares</a>
+        {% else %}
+          <a href="{{ url_for('inventory_management') }}" class="px-4 py-2 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">Back to Inventory</a>
+        {% endif %}
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a href="{{ url_for('inventory_part_view', part_uid=(part.uid or part.id), asset_uid=(source_asset.uid if from_asset else None), print=1, autoprint=1) }}" class="px-4 py-2 rounded-lg bg-ueal-gold text-white text-sm font-bold hover:bg-ueal-gold/90 shadow">Print</a>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 space-y-6">
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden print-card">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/30 flex items-center justify-between">
+            <h3 class="font-bold text-slate-900 dark:text-white text-sm uppercase tracking-wide">Part Snapshot</h3>
+            <span class="text-[11px] font-bold uppercase tracking-widest text-slate-400">SKU {{ part.sku }}</span>
+          </div>
+          <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Part Name</p>
+              <p class="mt-1 text-lg font-extrabold text-slate-900 dark:text-white">{{ part.part_name }}</p>
+            </div>
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Category</p>
+              <p class="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">{{ part.category or '—' }}</p>
+            </div>
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Supplier</p>
+              <p class="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">{{ part.supplier or part.vendor or '—' }}</p>
+            </div>
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Storage Location</p>
+              <p class="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">{{ part.storage_location or '—' }}</p>
+            </div>
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Lead Time</p>
+              <p class="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">{{ part.lead_time_days or '—' }}{% if part.lead_time_days %} days{% endif %}</p>
+            </div>
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Unit Price</p>
+              <p class="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">{{ (part.unit_price or 0)|kes2 }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden print-card">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/30">
+            <h3 class="font-bold text-slate-900 dark:text-white text-sm uppercase tracking-wide">Linked Assets</h3>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold tracking-wider border-b border-slate-100 dark:border-dark-border">
+                  <th class="px-6 py-4">Asset ID</th>
+                  <th class="px-6 py-4">Asset Name</th>
+                  <th class="px-6 py-4">Section</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-dark-border">
+                {% for asset in linked_assets %}
+                  <tr>
+                    <td class="px-6 py-4 text-sm font-bold text-ueal-purple dark:text-ueal-gold">{{ asset.asset_id }}</td>
+                    <td class="px-6 py-4 text-sm text-slate-700 dark:text-slate-200">{{ asset.asset_name }}</td>
+                    <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-300">{{ asset.section or '—' }}</td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="3" class="px-6 py-6 text-sm text-slate-500 dark:text-slate-400">No linked assets found.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-6">
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm p-6 print-card">
+          <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Stock Status</p>
+          {% if stock_state == 'out_of_stock' %}
+            <div class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-100 text-red-700 text-xs font-bold uppercase"><span class="w-2 h-2 rounded-full bg-red-500"></span>Out of Stock</div>
+          {% elif stock_state == 'low_stock' %}
+            <div class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold uppercase"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Low Stock</div>
+          {% else %}
+            <div class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-100 text-green-700 text-xs font-bold uppercase"><span class="w-2 h-2 rounded-full bg-green-500"></span>Healthy</div>
+          {% endif %}
+
+          <div class="mt-5 space-y-4">
+            <div>
+              <div class="flex items-center justify-between text-sm">
+                <span class="font-semibold text-slate-700 dark:text-slate-200">Current Stock</span>
+                <span class="font-bold text-slate-900 dark:text-white">{{ part.qty or 0 }} / {{ target_qty }}</span>
+              </div>
+              <div class="mt-2 h-3 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                <div class="h-3 {% if stock_state == 'out_of_stock' %}bg-red-500{% elif stock_state == 'low_stock' %}bg-amber-500{% else %}bg-green-500{% endif %}" style="width: {{ stock_percent }}%;"></div>
+              </div>
+              <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Minimum stock target: {{ min_qty }}</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100 dark:border-dark-border">
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Critical Part</p>
+                <p class="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">{{ 'Yes' if part.is_critical else 'No' }}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">UID</p>
+                <p class="mt-1 text-sm font-mono text-slate-700 dark:text-slate-200">{{ part.uid or part.id or '—' }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

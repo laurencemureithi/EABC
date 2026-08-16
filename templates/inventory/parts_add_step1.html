@@ -1,0 +1,200 @@
+{% extends "layouts/base.html" %}
+{% block title %}Add New Part • Step 1 • Opsloom{% endblock %}
+
+{% block content %}
+{% set page_title = "Add New Part" %}
+{% set title_icon = "inventory_2" %}
+{% set page_subtitle = "Capture the identity and linked asset context for a new spare part record." %}
+{% set show_system_badge = true %}
+{% set breadcrumbs = [{"label":"Inventory", "href": url_for("inventory_management")}, {"label":"Add New Part"}] %}
+{% include "partials/title_block.html" %}
+
+<div class="max-w-4xl mx-auto mb-4 flex justify-end" data-no-print>
+  <a class="text-slate-500 hover:text-slate-700 flex items-center gap-1 text-sm font-medium transition-colors" href="{{ url_for('inventory_management') }}"><span class="material-symbols-outlined text-lg">close</span> Cancel</a>
+</div>
+
+<!-- Stepper -->
+<div class="max-w-4xl mx-auto mb-8 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-full bg-ueal-gold text-white flex items-center justify-center font-bold shadow-md shadow-ueal-gold/20">1</div>
+      <div>
+        <p class="text-xs font-bold text-ueal-gold uppercase tracking-wider">Basic Info</p>
+        <p class="text-[10px] text-slate-400 font-medium">Part Name &amp; Identity</p>
+      </div>
+    </div>
+
+    <div class="stepper-line active"></div>
+
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center font-bold">2</div>
+      <div>
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Stock &amp; Financials</p>
+        <p class="text-[10px] text-slate-400 font-medium">Levels &amp; Unit Prices</p>
+      </div>
+    </div>
+
+    <div class="stepper-line"></div>
+
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center font-bold">3</div>
+      <div>
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Technical Specs</p>
+        <p class="text-[10px] text-slate-400 font-medium">Compatibility &amp; Docs</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-4xl mx-auto bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+  <form method="post" action="{{ url_for('inventory_add_step1_post') }}" class="p-8">
+    <h2 class="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+      <span class="material-symbols-outlined text-ueal-purple">info</span> Step 1: Basic Information
+    </h2>
+
+    {% if error %}
+      <div class="mb-6 p-4 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm font-semibold">
+        {{ error }}
+      </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <!-- Part Name -->
+      <div class="space-y-2">
+        <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider" for="part_name">
+          Part Name <span class="text-red-500">*</span>
+        </label>
+        <input
+          id="part_name"
+          name="part_name"
+          value="{{ (form.part_name or '') }}"
+          class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-ueal-gold focus:border-ueal-gold transition-all"
+          placeholder="e.g., Heating Element - 1500W"
+          type="text"
+          required
+        />
+        <p class="text-[10px] text-slate-400 italic">Descriptive name used in purchase orders.</p>
+      </div>
+
+      <!-- SKU -->
+      <div class="space-y-2">
+        <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider" for="sku">
+          Part ID / SKU <span class="text-red-500">*</span>
+        </label>
+        <input
+          id="sku"
+          name="sku"
+          value="{{ (form.sku or '') }}"
+          class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-ueal-gold focus:border-ueal-gold transition-all"
+          placeholder="e.g., SP-047-H01"
+          type="text"
+          required
+        />
+        <p class="text-[10px] text-slate-400 italic">Unique identifier for tracking.</p>
+      </div>
+
+      <!-- Category -->
+      <div class="space-y-2">
+        <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider" for="category">
+          Category <span class="text-red-500">*</span>
+        </label>
+        <div class="relative">
+          <select
+            id="category"
+            name="category"
+            class="w-full pl-4 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-ueal-gold focus:border-ueal-gold appearance-none transition-all cursor-pointer"
+            required
+          >
+            <option value="" disabled {% if not form.category %}selected{% endif %}>Select Category</option>
+            {% for c in categories %}
+              <option value="{{ c }}" {% if form.category==c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+          <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+        </div>
+      </div>
+
+      <!-- Asset Compatibility (multi-select) -->
+      <div class="space-y-2 md:col-span-2">
+        <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider" for="asset_search">
+          Linked Machines
+        </label>
+
+        {% if fixed_asset %}
+          <input type="hidden" name="fixed_asset_uid" value="{{ fixed_asset.uid }}" />
+          <div class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm">
+            <div class="font-semibold text-slate-800">{{ fixed_asset.asset_name }}</div>
+            <div class="text-xs text-slate-500">{{ fixed_asset.asset_id or fixed_asset.uid }}</div>
+          </div>
+          <p class="text-[10px] text-slate-400 italic">This part will be linked to the current machine automatically.</p>
+        {% else %}
+          <div class="rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
+            <div class="p-3 border-b border-slate-200 bg-white">
+              <div class="relative">
+                <input
+                  id="asset_search"
+                  type="text"
+                  autocomplete="off"
+                  class="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-ueal-gold focus:border-ueal-gold transition-all"
+                  placeholder="Search machines by name, ID, or serial..."
+                />
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+              </div>
+            </div>
+            <div id="machine_picker" class="max-h-64 overflow-y-auto divide-y divide-slate-100 bg-white">
+              {% for a in assets %}
+                <label class="machine-option flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50" data-search="{{ ((a.asset_name or '') ~ ' ' ~ (a.asset_id or '') ~ ' ' ~ (a.serial_number or ''))|lower }}">
+                  <input
+                    type="checkbox"
+                    name="compatible_assets"
+                    value="{{ a.uid }}"
+                    class="mt-1 rounded border-slate-300 text-ueal-gold focus:ring-ueal-gold"
+                    {% if a.uid in (form.compatible_assets or []) %}checked{% endif %}
+                  />
+                  <div>
+                    <div class="text-sm font-semibold text-slate-800">{{ a.asset_name }}</div>
+                    <div class="text-xs text-slate-500">{{ a.asset_id or a.uid }}</div>
+                  </div>
+                </label>
+              {% endfor %}
+            </div>
+          </div>
+          <p class="text-[10px] text-slate-400 italic">Type to filter machines, then tick one or many to link this part.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="mt-12 pt-8 border-t border-slate-100 flex items-center justify-between">
+      <a
+        href="{{ url_for('inventory_management') }}"
+        class="px-6 py-2.5 border border-slate-300 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all flex items-center gap-2"
+      >
+        Cancel
+      </a>
+
+      <button
+        type="submit"
+        class="px-8 py-2.5 bg-ueal-gold text-white rounded-lg text-sm font-bold shadow-lg shadow-ueal-gold/30 hover:bg-opacity-90 transition-all flex items-center gap-2"
+      >
+        Next: Stock Details <span class="material-symbols-outlined text-sm">arrow_forward</span>
+      </button>
+    </div>
+  </form>
+</div>
+<script>
+  (() => {
+    const search = document.getElementById('asset_search');
+    if (!search) return;
+    const options = Array.from(document.querySelectorAll('.machine-option'));
+    const applyFilter = () => {
+      const q = (search.value || '').trim().toLowerCase();
+      options.forEach(el => {
+        const hay = el.dataset.search || '';
+        el.style.display = !q || hay.includes(q) ? '' : 'none';
+      });
+    };
+    search.addEventListener('input', applyFilter);
+    applyFilter();
+  })();
+</script>
+{% endblock %}

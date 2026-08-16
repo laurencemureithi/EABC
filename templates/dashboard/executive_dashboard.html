@@ -1,0 +1,536 @@
+{% extends "layouts/base.html" %}
+{% block title %}Executive Dashboard • Opsloom{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+
+  <!-- Header -->
+  <div class="mb-8 flex justify-between items-start gap-4">
+    <div>
+      <div class="flex items-center gap-3">
+        <h1 class="text-3xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
+          Executive Strategic Intelligence
+        </h1>
+      </div>
+
+      <nav class="flex items-center gap-2 mt-2 text-[13px] text-slate-500 dark:text-slate-400 font-medium">
+        <span class="hover:text-ueal-purple dark:hover:text-ueal-gold cursor-pointer transition-colors">Dashboard</span>
+        <span class="material-symbols-outlined text-base text-slate-400">chevron_right</span>
+        <span class="text-slate-900 dark:text-slate-100 font-semibold">Strategic Overview</span>
+        <span class="material-symbols-outlined text-base text-slate-400">chevron_right</span>
+        <span class="text-slate-700 dark:text-slate-300 font-semibold">{{ current_department_display }}</span>
+      </nav>
+    </div>
+
+    <div class="flex flex-col items-end gap-3">
+      {% if kpi_uptime_rate >= kpi_uptime_target %}
+        <div id="dashboardHealthBadge" class="hidden lg:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
+          <span id="dashboardHealthDot" class="w-2 h-2 rounded-full bg-green-500"></span>
+          <span id="dashboardHealthText">SYSTEM STABLE</span>
+        </div>
+      {% else %}
+        <div id="dashboardHealthBadge" class="hidden lg:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
+          <span id="dashboardHealthDot" class="w-2 h-2 rounded-full bg-red-500"></span>
+          <span id="dashboardHealthText">SYSTEM AT RISK</span>
+        </div>
+      {% endif %}
+
+      <form id="strategicExportForm" method="GET" action="{{ url_for('dashboard_strategic_export') }}" class="flex flex-wrap items-end justify-end gap-2">
+        <div>
+          <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">Timeline</label>
+          <select id="dashboardExportRange" name="range" class="px-3 py-2 border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface rounded-lg text-sm font-bold text-slate-600 dark:text-slate-200">
+            <option value="mtd" selected>Current MTD</option>
+            <option value="90d">Last 90 Days</option>
+            <option value="qtr">Quarter</option>
+            <option value="year">Year</option>
+            <option value="ytd">Year to Date</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div id="dashboardExportYearWrap">
+          <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">Year</label>
+          <input id="dashboardExportYear" type="number" name="year" min="2000" max="2100" value="{{ current_year if current_year is defined else '' }}{{ now().year if now is defined else '' }}" class="w-24 px-3 py-2 border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface rounded-lg text-sm font-bold text-slate-600 dark:text-slate-200">
+        </div>
+        <div id="dashboardExportQuarterWrap" class="hidden">
+          <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">Quarter</label>
+          <select name="quarter" class="px-3 py-2 border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface rounded-lg text-sm font-bold text-slate-600 dark:text-slate-200">
+            <option value="1">Q1</option>
+            <option value="2">Q2</option>
+            <option value="3">Q3</option>
+            <option value="4">Q4</option>
+          </select>
+        </div>
+        <div id="dashboardExportCustomWrap" class="hidden flex items-end gap-2">
+          <div>
+            <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">From</label>
+            <input type="date" name="from" class="px-3 py-2 border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface rounded-lg text-sm font-bold text-slate-600 dark:text-slate-200">
+          </div>
+          <div>
+            <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">To</label>
+            <input type="date" name="to" class="px-3 py-2 border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface rounded-lg text-sm font-bold text-slate-600 dark:text-slate-200">
+          </div>
+        </div>
+        <button type="submit" class="flex items-center gap-2 px-4 py-2 bg-ueal-purple text-white rounded-lg text-sm font-bold shadow-md hover:brightness-110 transition-all">
+          <span class="material-symbols-outlined text-lg">download</span>
+          Strategic Export
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div class="mb-6 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_22rem] gap-6">
+    <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm p-5">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Accessibility & Navigation</p>
+          <h2 class="mt-2 text-lg font-black text-slate-900 dark:text-white">Direct access to active risks and actions</h2>
+          <p class="mt-2 text-sm text-slate-500 dark:text-slate-300">Jump straight from the dashboard into the part of the system that needs attention.</p>
+        </div>
+        <span class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-200">
+          <span class="material-symbols-outlined text-sm">bolt</span> Quick access
+        </span>
+      </div>
+      <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        <a href="{{ url_for('breakdowns_management') }}" class="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-slate-800/40 p-4 hover:border-ueal-gold/50 transition">
+          <div class="flex items-center justify-between gap-3"><span class="material-symbols-outlined text-rose-500">warning</span><span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Breakdowns</span></div>
+          <p class="mt-3 text-sm font-black text-slate-900 dark:text-white">Open incident control</p>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-300">{{ kpi_active_breakdowns }} active incidents • {{ critical_risks }} critical risks need attention.</p>
+        </a>
+        <a href="{{ url_for('maintenance_management', status='overdue') }}" class="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-slate-800/40 p-4 hover:border-ueal-gold/50 transition">
+          <div class="flex items-center justify-between gap-3"><span class="material-symbols-outlined text-amber-500">event_busy</span><span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Maintenance</span></div>
+          <p class="mt-3 text-sm font-black text-slate-900 dark:text-white">Overdue PM focus</p>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-300">{{ overdue_pm }} overdue PM tasks require action before more slippage occurs.</p>
+        </a>
+        <a href="{{ url_for('inventory_management', stock_state='low_stock') }}" class="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-slate-800/40 p-4 hover:border-ueal-gold/50 transition">
+          <div class="flex items-center justify-between gap-3"><span class="material-symbols-outlined text-indigo-500">inventory_2</span><span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Inventory</span></div>
+          <p class="mt-3 text-sm font-black text-slate-900 dark:text-white">Low-stock spares</p>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-300">{{ inventory_low_stock }} low stock • {{ inventory_out_of_stock }} out of stock items affecting readiness.</p>
+        </a>
+        <a href="{{ url_for('reports_center') }}" class="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-slate-800/40 p-4 hover:border-ueal-gold/50 transition">
+          <div class="flex items-center justify-between gap-3"><span class="material-symbols-outlined text-ueal-purple">analytics</span><span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Reports</span></div>
+          <p class="mt-3 text-sm font-black text-slate-900 dark:text-white">Generate analytics</p>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-300">{{ reports_count }} generated report(s) available for review and distribution.</p>
+        </a>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm p-5">
+      <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Visual Trend</p>
+      <h2 class="mt-2 text-base font-black text-slate-900 dark:text-white">Top downtime drivers</h2>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-300">A quick graph of the assets consuming the most downtime this month.</p>
+      <div class="mt-4 h-56"><canvas id="dashboardDowntimeChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- KPI row -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+
+    <div class="bg-white dark:bg-dark-surface p-6 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm">
+      <div class="flex justify-between items-start mb-2">
+        <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Uptime Rate</p>
+        <span class="text-[10px] font-bold text-slate-500 dark:text-slate-300">Target <span id="dashboardUptimeTarget">{{ "%.1f"|format(kpi_uptime_target) }}</span>%</span>
+      </div>
+      <div class="flex items-end gap-3 mt-4">
+        <p class="text-3xl font-bold text-slate-900 dark:text-slate-100"><span id="dashboardUptimeRate">{{ "%.2f"|format(kpi_uptime_rate) }}</span>%</p>
+      </div>
+      <div class="mt-3 w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+        <div id="dashboardUptimeBar" class="h-full bg-ueal-purple" style="width: {{ [kpi_uptime_rate, 100]|min }}%"></div>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-6 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm">
+      <div class="flex justify-between items-start mb-2">
+        <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Active Breakdowns</p>
+        <span id="dashboardActiveDelta" class="text-xs font-bold {% if kpi_active_delta > 0 %} text-rose-600 {% elif kpi_active_delta < 0 %} text-green-600 {% else %} text-slate-400 {% endif %}">
+          {% if kpi_active_delta > 0 %}+{% endif %}{{ kpi_active_delta }}
+        </span>
+      </div>
+      <p class="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-4"><span id="dashboardActiveBreakdowns">{{ kpi_active_breakdowns }}</span></p>
+      <p class="mt-2 text-[10px] text-slate-500 dark:text-slate-400 font-medium">Live load across incidents</p>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-6 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm">
+      <div class="flex justify-between items-start mb-2">
+        <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">MTTR</p>
+        <span id="dashboardMttrTrend" class="text-xs font-bold {% if kpi_mttr_trend > 0 %} text-rose-600 {% elif kpi_mttr_trend < 0 %} text-green-600 {% else %} text-slate-400 {% endif %}">
+          {% if kpi_mttr_trend > 0 %}+{% endif %}{{ "%.1f"|format(kpi_mttr_trend) }}%
+        </span>
+      </div>
+      <p class="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-4"><span id="dashboardMttrHours">{{ "%.1f"|format(kpi_mttr_hours) }}</span>h</p>
+      <p class="mt-2 text-[10px] text-slate-500 dark:text-slate-400 font-medium">Avg time to restore</p>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-6 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm">
+      <div class="flex justify-between items-start mb-2">
+        <p class="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Downtime MTD</p>
+        <span class="material-symbols-outlined text-slate-400 text-sm">timer</span>
+      </div>
+      <p class="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-4"><span id="dashboardDowntimeMtd">{{ "%.1f"|format(kpi_downtime_mtd_hours) }}</span>h</p>
+      <p class="mt-2 text-[10px] text-slate-500 dark:text-slate-400 font-medium">Resolved downtime hours this month</p>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-6 rounded-xl border border-rose-100 dark:border-rose-900 bg-rose-50/10 dark:bg-rose-900/10 shadow-sm">
+      <div class="flex justify-between items-start mb-2">
+        <p class="text-[11px] text-rose-600 dark:text-rose-200 font-bold uppercase tracking-wider">Downtime Financial Impact</p>
+        <span class="material-symbols-outlined text-rose-600 dark:text-rose-200 text-sm">warning</span>
+      </div>
+      <p class="text-3xl font-bold text-slate-900 dark:text-slate-100 mt-4">
+        <span id="dashboardDowntimeFinancial">{{ (kpi_downtime_financial_mtd or 0)|kes0 if kpi_downtime_financial_mtd is not none else "—" }}</span>
+        <span class="text-sm font-medium text-slate-400">KES</span>
+      </p>
+      <p class="mt-2 text-[10px] text-rose-600 dark:text-rose-200 font-semibold uppercase tracking-tighter">
+        Model: Cost/hr × downtime
+      </p>
+      <p class="mt-2 text-[10px] text-slate-500 dark:text-slate-300 font-medium">
+        Maintenance {{ maintenance_cost_total|kes0 }} • Breakdowns {{ breakdown_cost_total|kes0 }}
+      </p>
+    </div>
+
+  </div>
+
+  <!-- Mid row -->
+  <div class="grid grid-cols-12 gap-8 mb-8">
+
+    <!-- Asset health -->
+    <div class="col-span-12 lg:col-span-4 bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border">
+        <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm uppercase tracking-wide">Asset Health Distribution</h3>
+      </div>
+
+      <div class="p-6">
+        <div class="grid grid-cols-3 gap-3 mb-4">
+          <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/40">
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Operational</p>
+            <p class="text-xl font-black text-slate-900 dark:text-slate-100 mt-1">{{ operational_assets }}</p>
+          </div>
+          <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/40">
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Maintenance</p>
+            <p class="text-xl font-black text-slate-900 dark:text-slate-100 mt-1">{{ maintenance_assets }}</p>
+          </div>
+          <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/40">
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Out of Service</p>
+            <p class="text-xl font-black text-slate-900 dark:text-slate-100 mt-1">{{ oos_assets }}</p>
+          </div>
+        </div>
+
+        <p class="text-[11px] text-slate-500 dark:text-slate-400">
+          Total tracked assets in this context: <span class="font-bold">{{ total_assets }}</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Root causes -->
+    <div class="col-span-12 lg:col-span-4 bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border">
+        <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm uppercase tracking-wide">Root Cause / Failure Focus</h3>
+      </div>
+
+      <div class="p-6 space-y-3">
+        {% if root_causes and root_causes|length > 0 %}
+          {% for rc in root_causes %}
+            <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between">
+              <div class="min-w-0">
+                <p class="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{{ rc.label }}</p>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400">{{ rc.count }} incidents</p>
+              </div>
+              <span class="text-sm font-black text-ueal-purple dark:text-ueal-gold">{{ rc.percent }}%</span>
+            </div>
+          {% endfor %}
+        {% else %}
+          <p class="text-sm text-slate-500 dark:text-slate-400">No breakdown data yet.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Compliance + reliability -->
+    <div class="col-span-12 lg:col-span-4 bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border flex items-center justify-between">
+        <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm uppercase tracking-wide">Compliance vs Reliability</h3>
+        <span class="text-[10px] text-slate-400 font-bold uppercase">MTD</span>
+      </div>
+
+      <div class="p-6">
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40">
+          <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">PM Compliance</p>
+          <p class="text-2xl font-black text-slate-900 dark:text-slate-100 mt-2">
+            {% if pm_compliance is none %}—{% else %}{{ "%.1f"|format(pm_compliance) }}%{% endif %}
+          </p>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+            Overdue PM tasks: <span class="font-bold">{{ overdue_pm }}</span>
+          </p>
+        </div>
+
+        <div class="mt-4 p-4 rounded-xl bg-ueal-purple/5 dark:bg-ueal-gold/10">
+          <p class="text-[10px] text-slate-500 dark:text-slate-300 font-bold uppercase tracking-wider">Risk Signal</p>
+          <p class="text-[11px] text-slate-600 dark:text-slate-200 mt-2 leading-relaxed">
+            Compliance improves reliability only when overdue work is closed and RCAs are captured on major incidents.
+          </p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom row -->
+  <div class="grid grid-cols-12 gap-8">
+
+    <!-- Action feed -->
+    <div class="col-span-12 lg:col-span-5 space-y-6">
+      <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border flex items-center justify-between">
+          <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2 uppercase tracking-wide">
+            <span class="material-symbols-outlined text-ueal-gold text-lg">auto_awesome</span>
+            Strategic Action Feed
+          </h3>
+          <span class="bg-purple-100 dark:bg-ueal-gold/20 text-purple-700 dark:text-ueal-gold text-[10px] font-bold px-1.5 py-0.5 rounded tracking-wide uppercase">AI Driven</span>
+        </div>
+
+        <div class="p-4 space-y-4">
+          {% if action_feed and action_feed|length > 0 %}
+            {% for a in action_feed %}
+              <div class="flex items-start gap-4 p-4 rounded-xl border border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/30 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                <div class="w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shrink-0">
+                  <span class="material-symbols-outlined text-xl">{{ a.icon }}</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex justify-between items-start">
+                    <p class="text-sm font-bold text-slate-800 dark:text-slate-100">{{ a.title }}</p>
+                    <span class="text-[10px] text-slate-400 font-medium">{{ a.meta }}</span>
+                  </div>
+                  <p class="text-xs text-slate-500 dark:text-slate-300 mt-1 leading-relaxed">{{ a.body }}</p>
+                  <div class="mt-3">
+                    {% if a.href %}
+                    <a href="{{ a.href }}" class="inline-flex items-center gap-2 text-[10px] font-bold text-ueal-purple dark:text-ueal-gold uppercase tracking-wider hover:underline">
+                      <span>{{ a.cta }}</span>
+                      <span class="material-symbols-outlined text-sm">arrow_forward</span>
+                    </a>
+                    {% else %}
+                    <span class="text-[10px] font-bold text-ueal-purple dark:text-ueal-gold uppercase tracking-wider">{{ a.cta }}</span>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <p class="text-sm text-slate-500 dark:text-slate-400">No strategic actions yet. Add assets, breakdowns, PM tasks, and spares.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Inventory Snapshot -->
+      <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border">
+          <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm uppercase tracking-wide">Inventory Snapshot</h3>
+        </div>
+        <div class="p-6 grid grid-cols-2 gap-4">
+          <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40">
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Inventory Value</p>
+            <p class="text-xl font-black text-slate-900 dark:text-slate-100 mt-2">{{ inventory_value|kes0 }}</p>
+          </div>
+          <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40">
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Critical Spares</p>
+            <p class="text-xl font-black text-slate-900 dark:text-slate-100 mt-2">{{ inventory_critical_spares }}</p>
+          </div>
+          <div class="p-4 rounded-xl bg-amber-50/60 dark:bg-amber-900/15">
+            <p class="text-[10px] font-bold text-amber-700 dark:text-amber-200 uppercase">Low Stock Alerts</p>
+            <p class="text-xl font-black text-slate-900 dark:text-slate-100 mt-2">{{ inventory_low_stock }}</p>
+          </div>
+          <div class="p-4 rounded-xl bg-rose-50/60 dark:bg-rose-900/15">
+            <p class="text-[10px] font-bold text-rose-700 dark:text-rose-200 uppercase">Out of Stock</p>
+            <p class="text-xl font-black text-slate-900 dark:text-slate-100 mt-2">{{ inventory_out_of_stock }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Worst assets table + critical list -->
+    <div class="col-span-12 lg:col-span-7 space-y-6">
+
+      <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border flex items-center justify-between">
+          <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm uppercase tracking-wide">Worst Performing Assets (MTD)</h3>
+          <a class="text-ueal-purple dark:text-ueal-gold text-xs font-bold hover:underline" href="{{ url_for('assets_master_list') }}">Open Asset Register</a>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left">
+            <thead>
+              <tr class="bg-slate-50 dark:bg-slate-800/40 text-slate-500 dark:text-slate-300 uppercase text-[10px] font-bold tracking-wider border-b border-slate-100 dark:border-dark-border">
+                <th class="px-6 py-4">Asset</th>
+                <th class="px-6 py-4">Section</th>
+                <th class="px-6 py-4 text-center">Downtime (hrs)</th>
+                <th class="px-6 py-4 text-center">Incidents</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-dark-border">
+              {% if worst_assets and worst_assets|length > 0 %}
+                {% for r in worst_assets %}
+                  <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                    <td class="px-6 py-4">
+                      <p class="text-sm font-semibold text-slate-700 dark:text-slate-100">{{ r.asset_name }}</p>
+                    </td>
+                    <td class="px-6 py-4">
+                      <span class="px-2 py-1 rounded bg-slate-100 dark:bg-slate-700/40 text-slate-600 dark:text-slate-200 text-[10px] font-bold uppercase">
+                        {{ r.section or "—" }}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                      <p class="text-sm font-black text-rose-600">{{ "%.1f"|format(r.downtime_hours) }}</p>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                      <p class="text-sm font-black text-slate-800 dark:text-slate-100">{{ r.count }}</p>
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="4" class="px-6 py-8 text-sm text-slate-500 dark:text-slate-400">
+                    No MTD downtime records yet.
+                  </td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border flex items-center justify-between">
+          <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm uppercase tracking-wide">Critical Risks</h3>
+          <span class="px-2 py-0.5 bg-rose-600 text-white text-[10px] font-bold rounded">ACT NOW</span>
+        </div>
+
+        <div class="p-4 space-y-3">
+          {% if critical_open and critical_open|length > 0 %}
+            {% for b in critical_open %}
+              <div class="p-4 rounded-xl border border-rose-100 dark:border-rose-900 bg-rose-50/40 dark:bg-rose-900/10">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{{ b.incident_title }}</p>
+                    <p class="text-[11px] text-slate-600 dark:text-slate-300 mt-1">
+                      {{ b.asset_name }} • {{ b.section }} • {{ (b.status or "")|replace("_"," ")|title }}
+                    </p>
+                  </div>
+                  <a class="text-ueal-purple dark:text-ueal-gold text-xs font-bold hover:underline"
+                     href="{{ url_for('breakdowns_view', breakdown_id=b.breakdown_id) }}">
+                    Open
+                  </a>
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <p class="text-sm text-slate-500 dark:text-slate-400">No open critical incidents.</p>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+<script>
+(function(){
+  const rangeEl = document.getElementById('dashboardExportRange');
+  const qWrap = document.getElementById('dashboardExportQuarterWrap');
+  const cWrap = document.getElementById('dashboardExportCustomWrap');
+  const yWrap = document.getElementById('dashboardExportYearWrap');
+  const yInput = document.getElementById('dashboardExportYear');
+  function sync(){
+    const mode = rangeEl?.value || 'mtd';
+    qWrap?.classList.toggle('hidden', mode !== 'qtr');
+    cWrap?.classList.toggle('hidden', mode !== 'custom');
+    yWrap?.classList.toggle('hidden', !(mode === 'qtr' || mode === 'year' || mode === 'ytd'));
+    if (yInput && !yInput.value) yInput.value = String(new Date().getFullYear());
+  }
+  rangeEl?.addEventListener('change', sync);
+  sync();
+})();
+</script>
+{% endblock %}
+
+
+{% block page_scripts %}
+<script>
+(function(){
+  const url = {{ url_for('api_live_dashboard_kpis')|tojson }};
+  const money = n => 'KES ' + Number(n || 0).toLocaleString(undefined, {maximumFractionDigits:0});
+  function setText(id, value){ const el = document.getElementById(id); if(el) el.textContent = value; }
+  function setBadge(uptime, target){
+    const badge = document.getElementById('dashboardHealthBadge');
+    const text = document.getElementById('dashboardHealthText');
+    const dot = document.getElementById('dashboardHealthDot');
+    if(!badge || !text || !dot) return;
+    const stable = Number(uptime || 0) >= Number(target || 0);
+    badge.className = 'hidden lg:inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide';
+    text.textContent = stable ? 'SYSTEM STABLE' : 'SYSTEM AT RISK';
+    dot.className = stable ? 'w-2 h-2 rounded-full bg-green-500' : 'w-2 h-2 rounded-full bg-red-500';
+  }
+  function setDelta(id, n, positiveBad){
+    const el = document.getElementById(id);
+    if(!el) return;
+    const val = Number(n || 0);
+    const positiveIsBad = !!positiveBad;
+    const bad = positiveIsBad ? val > 0 : val < 0;
+    const good = positiveIsBad ? val < 0 : val > 0;
+    el.className = 'text-xs font-bold ' + (bad ? 'text-rose-600' : good ? 'text-green-600' : 'text-slate-400');
+    el.textContent = (val > 0 ? '+' : '') + (Math.round(val * 10) / 10);
+  }
+  async function refreshKpis(){
+    try{
+      const r = await fetch(url, {cache:'no-store', headers:{'X-Requested-With':'XMLHttpRequest'}});
+      if(!r.ok) return;
+      const k = await r.json();
+      setText('dashboardUptimeRate', Number(k.uptime_rate || 0).toFixed(2));
+      setText('dashboardUptimeTarget', Number(k.uptime_target || 0).toFixed(1));
+      setText('dashboardActiveBreakdowns', Number(k.active_breakdowns || 0));
+      setText('dashboardMttrHours', Number(k.mttr_hours || 0).toFixed(1));
+      setText('dashboardDowntimeMtd', Number(k.downtime_mtd_hours || 0).toFixed(1));
+      setText('dashboardDowntimeFinancial', money(k.downtime_financial_mtd || 0));
+      const bar = document.getElementById('dashboardUptimeBar');
+      if(bar) bar.style.width = Math.max(0, Math.min(100, Number(k.uptime_rate || 0))) + '%';
+      setDelta('dashboardActiveDelta', k.active_delta, true);
+      setDelta('dashboardMttrTrend', k.mttr_trend, true);
+      setBadge(k.uptime_rate, k.uptime_target);
+    }catch(e){}
+  }
+  refreshKpis();
+  setInterval(refreshKpis, 1000);
+
+  (function(){
+    const canvas = document.getElementById('dashboardDowntimeChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+    const labels = {{ (worst_assets | map(attribute='asset_name') | list)[:6] | tojson }};
+    const values = {{ (worst_assets | map(attribute='downtime_hours') | list)[:6] | tojson }};
+    if (!labels.length) return;
+    new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'Downtime Hours', data: values }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } }
+      }
+    });
+  })();
+})();
+</script>
+<script>
+(function(){
+  const rangeEl = document.getElementById('dashboardExportRange');
+  const qWrap = document.getElementById('dashboardExportQuarterWrap');
+  const cWrap = document.getElementById('dashboardExportCustomWrap');
+  const yWrap = document.getElementById('dashboardExportYearWrap');
+  const yInput = document.getElementById('dashboardExportYear');
+  function sync(){
+    const mode = rangeEl?.value || 'mtd';
+    qWrap?.classList.toggle('hidden', mode !== 'qtr');
+    cWrap?.classList.toggle('hidden', mode !== 'custom');
+    yWrap?.classList.toggle('hidden', !(mode === 'qtr' || mode === 'year' || mode === 'ytd'));
+    if (yInput && !yInput.value) yInput.value = String(new Date().getFullYear());
+  }
+  rangeEl?.addEventListener('change', sync);
+  sync();
+})();
+</script>
+{% endblock %}

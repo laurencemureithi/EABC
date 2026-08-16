@@ -1,0 +1,14 @@
+Opsloom Reports Patch v3
+
+Changes included:
+1. PDF export for reports center now uses the same print HTML/template flow as the print preview, so downloaded PDFs match the printable report layout much more closely.
+2. Print preview for PDF routes now opens the report print HTML directly instead of serving the stored PDF file inline.
+3. Generic report print pages now include report charts as embedded SVG sections, so charts are part of the printed/exported report.
+4. Executive Insights now includes metric commentary for selected metrics, with value plus management interpretation.
+5. Initial PDF generation from the reports wizard now tries the HTML-based PDF path first, then falls back to the existing ReportLab builder only if needed.
+6. Non-PDF exports retain their existing generation flow.
+
+Main files changed:
+- app.py
+- templates/reports/report_print.html
+- static/css/app.css

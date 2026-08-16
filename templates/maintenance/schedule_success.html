@@ -1,0 +1,108 @@
+{% extends "layouts/base.html" %}
+{% block title %}Maintenance Scheduled • Opsloom{% endblock %}
+{% block main_wrapper_class %}bg-[#F9FAFB]{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto py-6">
+  <div class="flex flex-col items-center text-center">
+    <div class="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center shadow-sm">
+      <span class="material-symbols-outlined text-4xl text-green-600">check_circle</span>
+    </div>
+
+    <h1 class="text-3xl font-extrabold text-slate-900 mt-5">Maintenance Task Successfully Scheduled</h1>
+    <p class="text-slate-500 font-medium mt-2">The new preventive maintenance cycle has been registered and assigned.</p>
+  </div>
+
+  <!-- tighter + more "original UI" proportions -->
+  <div class="mt-8 bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden max-w-3xl mx-auto">
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-0">
+      <div class="md:col-span-2 bg-slate-50 p-6 flex items-center justify-center">
+        {% if asset_photo_url %}
+          <div class="w-full max-w-[220px]">
+            <div class="aspect-square w-full rounded-xl overflow-hidden border border-slate-200 bg-white shadow-sm">
+              <img src="{{ asset_photo_url }}" alt="Asset"
+                   class="w-full h-full object-contain p-2">
+            </div>
+          </div>
+        {% else %}
+          <div class="w-full max-w-[220px] aspect-square rounded-xl bg-white border border-slate-200 flex flex-col items-center justify-center text-slate-400">
+            <span class="material-symbols-outlined text-6xl">precision_manufacturing</span>
+            <p class="text-xs font-bold mt-2">No image</p>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="md:col-span-3 p-6">
+        <div class="space-y-4">
+          <div>
+            <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">ASSET</p>
+            <p class="text-lg font-extrabold text-slate-900">{{ task.asset_name }}</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4 pt-3 border-t border-slate-100">
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">TASK DESCRIPTION</p>
+              <p class="text-sm font-bold text-slate-900">{{ task.task_description.split('\n')[0] if task.task_description else '' }}</p>
+              <p class="text-xs text-slate-500 mt-1">ID: {{ task.task_id }}</p>
+            </div>
+
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">FREQUENCY</p>
+              <p class="text-sm font-extrabold text-slate-900">{{ task.frequency }}</p>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">START DATE</p>
+              <p class="text-sm font-extrabold text-slate-900">{{ task.due_date }}</p>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">ASSIGNED TECH</p>
+              <p class="text-sm font-extrabold text-slate-900">{{ task.technician or 'Unassigned' }}</p>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">STATUS</p>
+              {% if task.status == 'completed' %}
+                <span class="inline-flex px-2 py-1 rounded bg-green-100 text-green-700 text-[10px] font-extrabold uppercase">Completed</span>
+              {% elif task.status == 'overdue' %}
+                <span class="inline-flex px-2 py-1 rounded bg-red-100 text-red-700 text-[10px] font-extrabold uppercase">Overdue</span>
+              {% else %}
+                <span class="inline-flex px-2 py-1 rounded bg-ueal-gold/15 text-[#8B6E1E] text-[10px] font-extrabold uppercase">Scheduled</span>
+              {% endif %}
+            </div>
+
+            <div class="pt-3 border-t border-slate-100">
+              <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">SECTION</p>
+              <p class="text-sm font-extrabold text-slate-900">{{ task.section }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-7 flex flex-col sm:flex-row items-center justify-center gap-4 max-w-3xl mx-auto">
+    <a href="{{ url_for('maintenance_calendar') }}"
+       class="w-full sm:w-auto px-8 py-3 bg-ueal-gold text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 hover:bg-[#C5A02E] transition-all shadow-lg shadow-ueal-gold/20">
+      <span class="material-symbols-outlined text-lg">calendar_month</span>
+      GO TO MAINTENANCE CALENDAR
+    </a>
+
+    <a href="{{ url_for('maintenance_schedule_step1') }}"
+       class="w-full sm:w-auto px-8 py-3 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-all shadow-sm">
+      <span class="material-symbols-outlined text-lg">add_circle_outline</span>
+      SCHEDULE ANOTHER TASK
+    </a>
+  </div>
+
+  <div class="mt-8 flex items-center justify-center">
+    <button type="button"
+      class="flex items-center gap-2 text-ueal-purple hover:text-ueal-purple/80 transition-colors text-xs font-bold uppercase tracking-wider"
+      onclick="window.print()">
+      <span class="material-symbols-outlined text-base">print</span>
+      PRINT SERVICE WORK ORDER
+    </button>
+  </div>
+</div>
+{% endblock %}

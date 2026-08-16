@@ -1,0 +1,103 @@
+{% extends "layouts/base.html" %}
+{% block title %}Add New Asset - Step 1 • Opsloom{% endblock %}
+
+{% block content %}
+  {% set page_title = "Add New Asset" %}
+  {% set breadcrumbs = [
+    {"label":"Asset Register", "href": url_for("assets_master_list")},
+    {"label":"Add New Asset"}
+  ] %}
+  {% include "partials/title_block.html" %}
+
+  <div class="max-w-4xl mx-auto">
+    <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden mb-6">
+
+      {% if error %}
+      <div class="p-4 bg-red-50 text-red-700 text-sm font-semibold border-b border-red-100">
+        {{ error }}
+      </div>
+      {% endif %}
+
+      <div class="grid grid-cols-3 border-b border-slate-100 dark:border-dark-border">
+        <div class="flex items-center justify-center p-4 gap-3 border-b-2 border-ueal-gold">
+          <span class="w-7 h-7 rounded-full bg-ueal-gold text-white flex items-center justify-center text-xs font-bold">1</span>
+          <span class="text-sm font-bold text-ueal-purple dark:text-ueal-gold">Basic Info</span>
+        </div>
+        <div class="flex items-center justify-center p-4 gap-3 border-b-2 border-transparent text-slate-400">
+          <span class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-xs font-bold">2</span>
+          <span class="text-sm font-medium">Technical Details</span>
+        </div>
+        <div class="flex items-center justify-center p-4 gap-3 border-b-2 border-transparent text-slate-400">
+          <span class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-xs font-bold">3</span>
+          <span class="text-sm font-medium">Criticality &amp; Status</span>
+        </div>
+      </div>
+
+      <form method="post" action="{{ url_for('assets_add_step1_post') }}">
+        <div class="p-8">
+          <div class="mb-8">
+            <h2 class="text-lg font-bold text-slate-900 dark:text-white">General Information</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400">Provide the fundamental identification details for the new asset.</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+            <div class="space-y-1.5">
+              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Asset Name <span class="text-red-500">*</span></label>
+              <input name="asset_name" value="{{ form.asset_name if form else '' }}"
+                     class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
+                     placeholder="e.g. Induction Sealer 500W" type="text"/>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Asset ID <span class="text-red-500">*</span></label>
+              <input name="asset_id" value="{{ form.asset_id if form else '' }}"
+                     class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm font-mono focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
+                     placeholder="e.g. UEAL/HQ/P/001" type="text"/>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Section <span class="text-red-500">*</span></label>
+              <div class="relative">
+                <select name="section"
+                        class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white appearance-none cursor-pointer">
+                  <option disabled value="" {% if not form or not form.section %}selected{% endif %}>Select Section</option>
+                  {% for s in sections %}
+                    <option value="{{ s }}" {% if form and form.section==s %}selected{% endif %}>{{ s|capitalize }}</option>
+                  {% endfor %}
+                </select>
+                <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Serial No.</label>
+              <input name="serial_no" value="{{ form.serial_no if form else '' }}"
+                     class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
+                     placeholder="e.g. SN-992039-B" type="text"/>
+            </div>
+
+            <div class="space-y-1.5 md:col-span-2">
+              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Manufacturer</label>
+              <input name="manufacturer" value="{{ form.manufacturer if form else '' }}"
+                     class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
+                     placeholder="e.g. Enercon" type="text"/>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-6 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-dark-border flex items-center justify-between">
+          <a href="{{ url_for('assets_master_list') }}"
+             class="px-6 py-2.5 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">
+            Cancel
+          </a>
+
+          <button type="submit"
+                  class="bg-ueal-gold text-white px-8 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:opacity-90 transition-all shadow-md active:scale-95">
+            Next Step
+            <span class="material-symbols-outlined text-lg">arrow_forward</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

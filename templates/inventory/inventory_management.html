@@ -1,0 +1,381 @@
+{% extends "layouts/base.html" %}
+{% block title %}Inventory • Opsloom{% endblock %}
+
+{% block page_styles %}
+<style>
+  .chip { border: 1px solid rgba(148,163,184,.6); }
+  .donut-wrap { position: relative; width: 240px; height: 240px; }
+  .donut {
+    width: 240px; height: 240px; border-radius: 9999px;
+    background: conic-gradient(
+      #22c55e 0% {{ donut.healthy_pct }}%,
+      #f59e0b {{ donut.healthy_pct }}% {{ donut.healthy_pct + donut.low_pct }}%,
+      #ef4444 {{ donut.healthy_pct + donut.low_pct }}% 100%
+    );
+  }
+  .donut-hole {
+    position:absolute; inset: 24px;
+    border-radius: 9999px;
+    background: white;
+    display:flex; align-items:center; justify-content:center;
+    text-align:center;
+    box-shadow: 0 1px 2px rgba(15,23,42,.08);
+    border: 1px solid rgba(226,232,240,.9);
+  }
+  .dark .donut-hole { background: rgb(15 23 42); border-color: rgba(51,65,85,.7); }
+  .min-marker {
+    position:absolute; top: -3px;
+    width: 2px; height: 14px;
+    background: rgba(148,163,184,.9);
+    border-radius: 9999px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+  {% set page_title = "Global Inventory Management" %}
+  {% set title_icon = "inventory_2" %}
+  {% set page_subtitle = "Real-time view of stock health, value, and replenishment risk." %}
+  {% set show_system_badge = true %}
+  {% set breadcrumbs = [
+    {"label":"Dashboard", "href": url_for("dashboard")},
+    {"label":"Inventory"}
+  ] %}
+  {% include "partials/title_block.html" %}
+
+  <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600 shrink-0">
+        <span class="material-symbols-outlined text-xl">category</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Unique SKUs</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-white leading-none mt-1">{{ total_unique_skus }}</p>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-red-50 rounded-lg flex items-center justify-center text-red-600 shrink-0">
+        <span class="material-symbols-outlined text-xl">priority_high</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Critical Spares</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-white leading-none mt-1">{{ critical_spares }}</p>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center text-amber-600 shrink-0">
+        <span class="material-symbols-outlined text-xl">notification_important</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Low Stock Alerts</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-white leading-none mt-1">{{ low_stock_alerts }}</p>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center text-red-700 shrink-0">
+        <span class="material-symbols-outlined text-xl">remove_shopping_cart</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Out of Stock</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-white leading-none mt-1">{{ out_of_stock }}</p>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center text-green-600 shrink-0">
+        <span class="material-symbols-outlined text-xl">payments</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Inventory Value</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-white leading-none mt-1">{{ total_inventory_value|kes0 }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-12 gap-6">
+    <div class="col-span-12 lg:col-span-8">
+      <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden eabc-table-shell">
+        <form id="inventoryFilterForm" method="get" action="{{ url_for('inventory_management') }}">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border flex flex-col md:flex-row md:items-center justify-between bg-slate-50/50 dark:bg-white/5 gap-4">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-ueal-purple text-lg">view_list</span>
+              <h3 class="font-bold text-slate-800 dark:text-white text-sm uppercase tracking-wide">Master Inventory List</h3>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3" data-no-print>
+              <div class="relative">
+                <input id="inventorySearchInput" name="q" value="{{ q }}" class="pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-ueal-gold focus:border-ueal-gold transition-all w-72" placeholder="Search parts, IDs, suppliers..." type="text" />
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+              </div>
+
+              <button type="button" id="inventoryFilterBtn" class="bg-white dark:bg-dark-surface text-slate-700 dark:text-slate-100 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 border border-slate-200 dark:border-dark-border hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                <span class="material-symbols-outlined text-lg">filter_list</span>
+                FILTERS
+              </button>
+
+              {% set export_links = [
+                {"href": url_for('inventory_export', fmt='csv', q=q, category=selected_category, stock_state=selected_stock_state), "icon": "description", "label": "Export CSV"},
+                {"href": url_for('inventory_export', fmt='xlsx', q=q, category=selected_category, stock_state=selected_stock_state), "icon": "table_view", "label": "Export Excel"},
+                {"href": url_for('inventory_export', fmt='pdf', q=q, category=selected_category, stock_state=selected_stock_state), "icon": "picture_as_pdf", "label": "Export PDF"}
+              ] %}
+              {% include "partials/export_menu.html" %}
+
+              <a href="{{ url_for('reports_generate_step1_get', category='inventory_spares') }}" class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-dark-surface text-slate-700 dark:text-slate-100 rounded-lg text-sm font-bold border border-slate-200 dark:border-dark-border hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                <span class="material-symbols-outlined text-sm">assessment</span>
+                INVENTORY REPORT
+              </a>
+
+              <a href="{{ url_for('inventory_add_step1_get') }}" class="flex items-center gap-2 px-4 py-2 bg-ueal-gold text-white rounded-lg text-sm font-bold shadow-md hover:bg-opacity-90 transition-all">
+                <span class="material-symbols-outlined text-sm">add</span>
+                ADD NEW PART
+              </a>
+            </div>
+          </div>
+
+          <div id="inventoryFilterPanel" class="hidden px-6 py-4 border-b border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/30">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 block">Category</label>
+                <select name="category" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 px-3 text-sm font-semibold text-slate-700 dark:text-slate-200 appearance-none">
+                  <option value="">All Categories</option>
+                  {% for cat in categories %}
+                    <option value="{{ cat }}" {% if selected_category == cat %}selected{% endif %}>{{ cat }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div>
+                <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 block">Stock Status</label>
+                <select name="stock_state" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 px-3 text-sm font-semibold text-slate-700 dark:text-slate-200 appearance-none">
+                  <option value="">All Status</option>
+                  <option value="healthy" {% if selected_stock_state == 'healthy' %}selected{% endif %}>Healthy</option>
+                  <option value="low_stock" {% if selected_stock_state == 'low_stock' %}selected{% endif %}>Low Stock</option>
+                  <option value="out_of_stock" {% if selected_stock_state == 'out_of_stock' %}selected{% endif %}>Out of Stock</option>
+                </select>
+              </div>
+
+              <div class="flex items-end gap-3">
+                <button type="submit" class="bg-ueal-purple text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:opacity-95 transition-all active:scale-95">Apply Filters</button>
+                <a href="{{ url_for('inventory_management') }}" class="px-5 py-2.5 rounded-lg text-sm font-bold border border-slate-200 dark:border-dark-border text-slate-600 dark:text-slate-200 bg-white dark:bg-dark-surface hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Reset</a>
+              </div>
+            </div>
+            <input type="hidden" name="per_page" value="{{ per_page }}">
+            <input type="hidden" name="page" value="1">
+          </div>
+        </form>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left">
+            <thead>
+              <tr class="bg-white dark:bg-dark-surface text-slate-500 uppercase text-[10px] font-bold tracking-wider border-b border-slate-100 dark:border-dark-border">
+                <th class="px-6 py-4">Part Image</th>
+                <th class="px-6 py-4">Part Name &amp; ID</th>
+                <th class="px-6 py-4">Category</th>
+                <th class="px-6 py-4">Total Stock</th>
+                <th class="px-6 py-4">Unit Price</th>
+                <th class="px-6 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+
+            <tbody class="divide-y divide-slate-100 dark:divide-dark-border">
+              {% for p in parts %}
+                {% set qty = (p.qty or 0) %}
+                {% set minq = (p.min_qty or 0) %}
+                {% set target = (p.target_qty or (minq*2 if minq>0 else (qty if qty>0 else 1))) %}
+                {% set pct = ( (qty / target * 100) if target>0 else 0 ) %}
+                {% set min_pct = ( (minq / target * 100) if target>0 else 0 ) %}
+                <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                  <td class="px-6 py-4">
+                    {% if p.photo_url %}
+                      <img src="{{ p.photo_url }}" alt="part image" class="w-12 h-12 rounded-xl object-cover border border-slate-200 dark:border-dark-border shadow-sm" />
+                    {% else %}
+                      <div class="w-12 h-12 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-100 dark:bg-white/10 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-slate-400">image</span>
+                      </div>
+                    {% endif %}
+                  </td>
+
+                  <td class="px-6 py-4">
+                    <div class="flex flex-col">
+                      <p class="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight">{{ p.part_name }}</p>
+                      <p class="text-[11px] text-slate-500 font-semibold">
+                        {{ p.sku }}
+                        {% if p.is_critical %}
+                          <span class="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold uppercase">
+                            <span class="material-symbols-outlined text-[14px]">report</span>
+                            Critical
+                          </span>
+                        {% endif %}
+                      </p>
+                      <p class="text-[10px] font-mono text-slate-400">UID: {{ (p.uid or '')[:8] }}</p>
+                    </div>
+                  </td>
+
+                  <td class="px-6 py-4">
+                    <span class="px-2 py-1 rounded bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-200 text-[10px] font-bold uppercase tracking-tight">{{ p.category }}</span>
+                  </td>
+
+                  <td class="px-6 py-4">
+                    <div class="flex items-center justify-between mb-1">
+                      <span class="text-xs font-bold {% if qty<=0 %}text-red-600{% elif qty<=minq %}text-amber-600{% else %}text-slate-700 dark:text-slate-100{% endif %}">{{ qty }} / {{ target }}</span>
+                      <span class="text-[10px] font-bold text-slate-400">MIN: {{ minq }}</span>
+                    </div>
+                    <div class="relative h-2.5 w-56 rounded-full bg-slate-100 dark:bg-white/10 overflow-hidden">
+                      <div class="h-full rounded-full {% if qty<=0 %}bg-red-500{% elif qty<=minq %}bg-amber-500{% else %}bg-green-500{% endif %}" style="width: {{ 100 if pct>100 else (0 if pct<0 else pct) }}%;"></div>
+                      <div class="min-marker" style="left: {{ 0 if min_pct<0 else (100 if min_pct>100 else min_pct) }}%;"></div>
+                    </div>
+                    {% if qty<=0 %}
+                      <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-bold uppercase"><span class="material-symbols-outlined text-[14px]">remove_shopping_cart</span>Stock Out</div>
+                    {% elif qty<=minq %}
+                      <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold uppercase"><span class="material-symbols-outlined text-[14px]">notifications</span>Low Stock</div>
+                    {% else %}
+                      <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[10px] font-bold uppercase"><span class="material-symbols-outlined text-[14px]">done</span>Healthy</div>
+                    {% endif %}
+                  </td>
+
+                  <td class="px-6 py-4">
+                    <p class="text-xs font-bold text-slate-800 dark:text-slate-100">{{ (p.unit_price or 0)|kes2 }}</p>
+                    <p class="text-[10px] text-slate-400">Value: {{ ((p.qty or 0) * (p.unit_price or 0))|kes0 }}</p>
+                  </td>
+
+                  <td class="px-6 py-4 text-right">
+                    {% set action_items = [
+                      {"href": url_for('inventory_part_view', part_uid=(p.uid or p.id)), "icon": "visibility", "label": "Preview"},
+                      {"href": url_for('inventory_part_view', part_uid=(p.uid or p.id)) ~ '?print=1&autoprint=1', "icon": "print", "label": "Print"}
+                    ] %}
+                    {% include "partials/table_actions_menu.html" %}
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="6" class="px-6 py-8 text-sm text-slate-500">No inventory items found for the current selection.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="p-4 border-t border-slate-200 dark:border-dark-border flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/30 dark:bg-slate-800/30">
+          <div class="flex items-center gap-6">
+            <p class="text-[13px] text-slate-500 dark:text-slate-400">Showing {{ showing_from }}-{{ showing_to }} of {{ total }} records</p>
+            <form method="get" action="{{ url_for('inventory_management') }}" class="flex items-center gap-3 pl-6 border-l border-slate-200 dark:border-dark-border">
+              <input type="hidden" name="q" value="{{ q }}">
+              <input type="hidden" name="category" value="{{ selected_category }}">
+              <input type="hidden" name="stock_state" value="{{ selected_stock_state }}">
+              <input type="hidden" name="page" value="1">
+              <label class="text-[13px] text-slate-500 dark:text-slate-400 font-medium">Rows per page:</label>
+              <div class="relative">
+                <select name="per_page" onchange="this.form.submit()" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded py-1 pl-2 pr-8 text-[13px] font-bold focus:ring-1 focus:ring-ueal-purple/20 outline-none text-slate-700 dark:text-slate-300 appearance-none cursor-pointer">
+                  {% for n in [5,10,20,50] %}
+                    <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }}</option>
+                  {% endfor %}
+                </select>
+                <span class="material-symbols-outlined absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">expand_more</span>
+              </div>
+            </form>
+          </div>
+
+          <div class="flex items-center gap-1">
+            <a class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 {% if page <= 1 %}pointer-events-none opacity-30{% endif %}" href="{{ url_for('inventory_management', page=page-1, q=q, category=selected_category, stock_state=selected_stock_state, per_page=per_page) }}"><span class="material-symbols-outlined">chevron_left</span></a>
+            {% for pnum in pages %}
+              {% if pnum == '…' %}
+                <span class="px-2 text-slate-400 text-xs font-bold">…</span>
+              {% elif pnum == page %}
+                <span class="w-8 h-8 flex items-center justify-center rounded bg-ueal-purple text-white text-xs font-bold shadow-md">{{ pnum }}</span>
+              {% else %}
+                <a class="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300 transition-colors" href="{{ url_for('inventory_management', page=pnum, q=q, category=selected_category, stock_state=selected_stock_state, per_page=per_page) }}">{{ pnum }}</a>
+              {% endif %}
+            {% endfor %}
+            <a class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 {% if page >= total_pages %}pointer-events-none opacity-30{% endif %}" href="{{ url_for('inventory_management', page=page+1, q=q, category=selected_category, stock_state=selected_stock_state, per_page=per_page) }}"><span class="material-symbols-outlined">chevron_right</span></a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-span-12 lg:col-span-4 space-y-6">
+      <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-ueal-gold text-lg">donut_large</span>
+            <h3 class="font-bold text-slate-800 dark:text-white text-sm uppercase tracking-wide">Inventory Analytics</h3>
+          </div>
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Stock Health Distribution</span>
+        </div>
+
+        <div class="p-6">
+          <div class="flex items-center justify-center">
+            <div class="donut-wrap">
+              <div class="donut"></div>
+              <div class="donut-hole">
+                <div>
+                  <div class="text-3xl font-extrabold text-slate-900 dark:text-white">{{ total_unique_skus }}</div>
+                  <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total SKU</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 space-y-3">
+            <div class="flex items-center justify-between"><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span><span class="text-xs font-semibold text-slate-700 dark:text-slate-100">Healthy Stock</span></div><span class="text-xs font-bold text-slate-700 dark:text-slate-100">{{ donut.healthy }} ({{ donut.healthy_pct }}%)</span></div>
+            <div class="flex items-center justify-between"><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span><span class="text-xs font-semibold text-slate-700 dark:text-slate-100">Low Stock</span></div><span class="text-xs font-bold text-slate-700 dark:text-slate-100">{{ donut.low }} ({{ donut.low_pct }}%)</span></div>
+            <div class="flex items-center justify-between"><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span><span class="text-xs font-semibold text-slate-700 dark:text-slate-100">Stock Out</span></div><span class="text-xs font-bold text-slate-700 dark:text-slate-100">{{ donut.out }} ({{ donut.out_pct }}%)</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-red-600 text-lg">shopping_cart_checkout</span>
+            <h3 class="font-bold text-slate-800 dark:text-white text-sm uppercase tracking-wide">Urgent Replenishment</h3>
+          </div>
+          <span class="inline-flex items-center justify-center min-w-[22px] h-[22px] px-2 rounded-full bg-red-50 text-red-700 text-[11px] font-extrabold">{{ urgent_count }}</span>
+        </div>
+
+        <div class="p-4 space-y-3">
+          {% for u in urgent %}
+            {% set qty = (u.qty or 0) %}
+            {% set minq = (u.min_qty or 0) %}
+            {% set is_out = (qty<=0) %}
+            <div class="rounded-xl border {% if is_out %}border-red-200 bg-red-50{% else %}border-amber-200 bg-amber-50{% endif %} p-4">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm font-extrabold text-slate-900">{{ u.part_name }} ({{ u.sku }})</p>
+                  <p class="text-xs text-slate-600 mt-1">{{ u.urgent_reason }}</p>
+                  <p class="text-[11px] text-slate-500 mt-2">Stock: <span class="font-bold">{{ qty }}</span> • Min: <span class="font-bold">{{ minq }}</span>{% if u.lead_time_days %} • Lead time: <span class="font-bold">{{ u.lead_time_days }}d</span>{% endif %}</p>
+                </div>
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold uppercase {% if is_out %}bg-red-100 text-red-700{% else %}bg-amber-100 text-amber-700{% endif %}">{% if is_out %}Stock Out{% else %}Low Stock{% endif %}</span>
+              </div>
+            </div>
+          {% else %}
+            <div class="rounded-xl border border-slate-200 dark:border-dark-border p-4 text-sm text-slate-500 dark:text-slate-400">No urgent replenishment items in this selection.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+  (function () {
+    const btn = document.getElementById('inventoryFilterBtn');
+    const panel = document.getElementById('inventoryFilterPanel');
+    if (btn && panel) btn.addEventListener('click', () => panel.classList.toggle('hidden'));
+  })();
+
+  (function () {
+    const input = document.getElementById('inventorySearchInput');
+    const form = document.getElementById('inventoryFilterForm');
+    if (!input || !form) return;
+    let t = null;
+    input.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => form.submit(), 450);
+    });
+  })();
+</script>
+{% endblock %}

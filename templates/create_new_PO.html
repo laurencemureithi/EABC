@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Create New PO - Opsloom</title>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts: Inter -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#5b13ec",
+                        "gold": "#1554FF",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#161022",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display min-h-screen text-[#131118] dark:text-white">
+<!-- Header -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-[#dfdbe6] dark:border-[#2e2a3d] bg-white dark:bg-[#1c162b] px-6 lg:px-10 py-3 sticky top-0 z-50">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3">
+<div class="size-8 bg-primary rounded-lg flex items-center justify-center text-white">
+<span class="material-symbols-outlined">inventory_2</span>
+</div>
+<h2 class="text-[#131118] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">Opsloom</h2>
+</div>
+<div class="hidden md:flex flex-col min-w-40 !h-10 max-w-64">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full">
+<div class="text-[#6f6189] flex border-none bg-[#f2f0f4] dark:bg-[#2e2a3d] items-center justify-center pl-4 rounded-l-lg">
+<span class="material-symbols-outlined text-xl">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 border-none bg-[#f2f0f4] dark:bg-[#2e2a3d] focus:ring-0 h-full placeholder:text-[#6f6189] px-4 rounded-r-lg text-base font-normal" placeholder="Search Assets..." value=""/>
+</div>
+</div>
+</div>
+<div class="flex flex-1 justify-end gap-6 items-center">
+<nav class="hidden xl:flex items-center gap-6">
+<a class="text-[#131118] dark:text-white text-sm font-medium hover:text-primary transition-colors" href="#">Dashboard</a>
+<a class="text-[#131118] dark:text-white text-sm font-medium hover:text-primary transition-colors" href="#">Assets</a>
+<a class="text-[#131118] dark:text-white text-sm font-medium hover:text-primary transition-colors" href="#">Breakdowns</a>
+<a class="text-primary text-sm font-bold border-b-2 border-primary pb-1" href="#">Procurement</a>
+</nav>
+<div class="flex gap-2">
+<button class="flex size-10 items-center justify-center rounded-lg bg-[#f2f0f4] dark:bg-[#2e2a3d] text-[#131118] dark:text-white">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="flex size-10 items-center justify-center rounded-lg bg-[#f2f0f4] dark:bg-[#2e2a3d] text-[#131118] dark:text-white">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border border-gray-200" data-alt="Profile picture of an engineer" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCzEOWJuEUhZRhH1g_FtjFUx-_a0xstXbmwwDo-i-tEWGJ3pp95ZR6J40T4DuJbQLfPxQaK5eh-UKuA-SSHYTlgmVq4K6WE4jx-pf8R0t7DmEWEBY3raofO1PM2dpuVHWG83U3PlLkaknpwbi0gHr16NJzqjIUo1AB5ovzhI-2KD9W6l3rICIN1Lg3WML6tBWlKZx2xRZcWXzmJ04eNshtqSuA9Qx8e_E3mrnH2NN3zbwFL7yr_lLqsyOygTDwmIcIWutlEl2RDTQ");'></div>
+</div>
+</header>
+<div class="flex min-h-[calc(100vh-64px)]">
+<!-- Sidebar Navigation -->
+<aside class="hidden lg:flex w-64 flex-col border-r border-[#dfdbe6] dark:border-[#2e2a3d] bg-white dark:bg-[#1c162b] p-4 gap-4">
+<div class="flex flex-col gap-1 px-3 py-2">
+<h3 class="text-xs font-bold uppercase tracking-wider text-[#6f6189]">Management</h3>
+</div>
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-3 px-3 py-2 text-[#6f6189] hover:bg-background-light dark:hover:bg-[#2e2a3d] rounded-lg cursor-pointer">
+<span class="material-symbols-outlined">grid_view</span>
+<p class="text-sm font-medium">Dashboard</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-[#6f6189] hover:bg-background-light dark:hover:bg-[#2e2a3d] rounded-lg cursor-pointer">
+<span class="material-symbols-outlined">construction</span>
+<p class="text-sm font-medium">Assets</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-[#6f6189] hover:bg-background-light dark:hover:bg-[#2e2a3d] rounded-lg cursor-pointer">
+<span class="material-symbols-outlined">warning_amber</span>
+<p class="text-sm font-medium">Breakdowns</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary">
+<span class="material-symbols-outlined">shopping_cart</span>
+<p class="text-sm font-bold">Purchase Orders</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-[#6f6189] hover:bg-background-light dark:hover:bg-[#2e2a3d] rounded-lg cursor-pointer">
+<span class="material-symbols-outlined">inventory</span>
+<p class="text-sm font-medium">Inventory</p>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col overflow-hidden">
+<!-- Stepper Component -->
+<div class="bg-white dark:bg-[#1c162b] border-b border-[#dfdbe6] dark:border-[#2e2a3d] px-8 py-6">
+<div class="max-w-5xl mx-auto">
+<div class="flex items-center justify-between relative">
+<!-- Progress Lines -->
+<div class="absolute top-1/2 left-0 w-full h-0.5 bg-[#dfdbe6] dark:bg-[#2e2a3d] -z-0 transform -translate-y-1/2"></div>
+<div class="absolute top-1/2 left-0 w-1/3 h-0.5 bg-primary -z-0 transform -translate-y-1/2"></div>
+<!-- Step 1 -->
+<div class="relative z-10 flex flex-col items-center gap-2 group cursor-pointer">
+<div class="size-10 rounded-full bg-primary text-white flex items-center justify-center font-bold shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-xl">check</span>
+</div>
+<span class="text-xs font-bold text-primary">1. Supplier Info</span>
+</div>
+<!-- Step 2 -->
+<div class="relative z-10 flex flex-col items-center gap-2 group cursor-pointer">
+<div class="size-10 rounded-full bg-primary text-white flex items-center justify-center font-bold ring-4 ring-primary/20">
+                                2
+                            </div>
+<span class="text-xs font-bold text-primary">2. Add Items</span>
+</div>
+<!-- Step 3 -->
+<div class="relative z-10 flex flex-col items-center gap-2 group cursor-pointer">
+<div class="size-10 rounded-full bg-white dark:bg-[#2e2a3d] border-2 border-[#dfdbe6] dark:border-[#3d384d] text-[#6f6189] flex items-center justify-center font-bold">
+                                3
+                            </div>
+<span class="text-xs font-medium text-[#6f6189]">3. Logistics &amp; Costs</span>
+</div>
+<!-- Step 4 -->
+<div class="relative z-10 flex flex-col items-center gap-2 group cursor-pointer">
+<div class="size-10 rounded-full bg-white dark:bg-[#2e2a3d] border-2 border-[#dfdbe6] dark:border-[#3d384d] text-[#6f6189] flex items-center justify-center font-bold">
+                                4
+                            </div>
+<span class="text-xs font-medium text-[#6f6189]">4. Review &amp; Submit</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Scrollable Form View -->
+<div class="flex-1 overflow-y-auto p-6 lg:p-8">
+<div class="max-w-6xl mx-auto flex flex-col xl:flex-row gap-8">
+<!-- Left Column: Form Details -->
+<div class="flex-1 space-y-6">
+<!-- Page Heading -->
+<div class="flex flex-wrap justify-between items-end gap-4">
+<div class="flex flex-col gap-1">
+<h1 class="text-[#131118] dark:text-white text-3xl font-black leading-tight tracking-[-0.033em]">Create New Purchase Order</h1>
+<div class="flex items-center gap-2">
+<span class="px-2.5 py-0.5 rounded-full bg-[#f2f0f4] dark:bg-[#2e2a3d] text-[#6f6189] text-xs font-bold uppercase">Draft</span>
+<p class="text-[#6f6189] text-base font-normal">PO Number: <span class="text-[#131118] dark:text-white font-semibold">PO-2024-092</span></p>
+</div>
+</div>
+<button class="flex items-center gap-2 px-4 py-2 border border-[#dfdbe6] dark:border-[#2e2a3d] rounded-lg text-sm font-bold text-[#131118] dark:text-white bg-white dark:bg-[#1c162b] hover:bg-gray-50 transition-colors">
+<span class="material-symbols-outlined text-lg">list_alt</span>
+                                View All POs
+                            </button>
+</div>
+<!-- Section: PO Details Pre-filled -->
+<div class="bg-white dark:bg-[#1c162b] rounded-xl border border-[#dfdbe6] dark:border-[#2e2a3d] p-6 shadow-sm">
+<h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">info</span>
+                                PO Details
+                            </h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="flex flex-col gap-2">
+<label class="text-sm font-bold text-[#6f6189]">Supplier Name</label>
+<select class="form-select w-full rounded-lg border-[#dfdbe6] dark:border-[#2e2a3d] bg-white dark:bg-[#2e2a3d] text-base focus:ring-primary focus:border-primary">
+<option>Atlas Copco Parts Distribution</option>
+<option>Bosch Rexroth Engineering</option>
+<option>Siemens Industrial</option>
+</select>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-sm font-bold text-[#6f6189]">Warehouse Destination</label>
+<input class="form-input w-full rounded-lg border-[#dfdbe6] dark:border-[#2e2a3d] bg-[#f2f0f4] dark:bg-[#161022] text-[#6f6189] text-base cursor-not-allowed" disabled="" type="text" value="Main Engineering Hub - Sector 4"/>
+</div>
+</div>
+</div>
+<!-- Section: Line Items -->
+<div class="bg-white dark:bg-[#1c162b] rounded-xl border border-[#dfdbe6] dark:border-[#2e2a3d] overflow-hidden shadow-sm">
+<div class="p-6 border-b border-[#dfdbe6] dark:border-[#2e2a3d] flex flex-wrap justify-between items-center gap-4">
+<h2 class="text-lg font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">inventory_2</span>
+                                    Line Items
+                                </h2>
+<div class="relative w-full max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#6f6189]">add_circle</span>
+<input class="form-input w-full pl-10 pr-4 py-2 rounded-lg border-primary/30 focus:border-primary focus:ring-primary dark:bg-[#2e2a3d] dark:border-[#3d384d] text-sm" placeholder="Search and add parts by ID or name..." type="text"/>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead class="bg-background-light dark:bg-[#251e36]">
+<tr>
+<th class="px-4 py-3 text-xs font-bold text-[#6f6189] uppercase tracking-wider">Part ID</th>
+<th class="px-4 py-3 text-xs font-bold text-[#6f6189] uppercase tracking-wider">Part Name</th>
+<th class="px-4 py-3 text-xs font-bold text-[#6f6189] uppercase tracking-wider">Linked Asset</th>
+<th class="px-4 py-3 text-xs font-bold text-[#6f6189] uppercase tracking-wider text-right">Unit Price</th>
+<th class="px-4 py-3 text-xs font-bold text-[#6f6189] uppercase tracking-wider text-center">Qty</th>
+<th class="px-4 py-3 text-xs font-bold text-[#6f6189] uppercase tracking-wider text-right">Subtotal</th>
+<th class="px-4 py-3 text-xs font-bold text-[#6f6189] uppercase tracking-wider w-10"></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-[#dfdbe6] dark:divide-[#2e2a3d]">
+<tr>
+<td class="px-4 py-4 text-sm font-mono text-primary font-bold">#HV-9082</td>
+<td class="px-4 py-4">
+<div class="flex flex-col">
+<span class="text-sm font-semibold">Hydraulic Valve Block</span>
+<span class="text-xs text-[#6f6189]">Replacement for main lift</span>
+</div>
+</td>
+<td class="px-4 py-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm text-gold">bolt</span>
+<span class="text-xs bg-gold/10 text-gold font-bold px-2 py-0.5 rounded">Breakdown BD-047</span>
+</div>
+</td>
+<td class="px-4 py-4 text-sm text-right">$1,250.00</td>
+<td class="px-4 py-4 text-center">
+<input class="form-input w-16 text-center border-[#dfdbe6] dark:border-[#3d384d] rounded dark:bg-[#2e2a3d]" type="number" value="1"/>
+</td>
+<td class="px-4 py-4 text-sm font-bold text-right">$1,250.00</td>
+<td class="px-4 py-4 text-right">
+<button class="text-[#6f6189] hover:text-red-500">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</td>
+</tr>
+<tr>
+<td class="px-4 py-4 text-sm font-mono text-primary font-bold">#SG-1102</td>
+<td class="px-4 py-4">
+<div class="flex flex-col">
+<span class="text-sm font-semibold">Seal Gasket Set (10pc)</span>
+<span class="text-xs text-[#6f6189]">Routine Maintenance</span>
+</div>
+</td>
+<td class="px-4 py-4">
+<select class="form-select text-xs rounded border-[#dfdbe6] py-1 dark:bg-[#2e2a3d] dark:border-[#3d384d]">
+<option>Excavator EX-04</option>
+<option>GenSet GS-12</option>
+<option>Crane CR-09</option>
+</select>
+</td>
+<td class="px-4 py-4 text-sm text-right">$45.00</td>
+<td class="px-4 py-4 text-center">
+<input class="form-input w-16 text-center border-[#dfdbe6] dark:border-[#3d384d] rounded dark:bg-[#2e2a3d]" type="number" value="5"/>
+</td>
+<td class="px-4 py-4 text-sm font-bold text-right">$225.00</td>
+<td class="px-4 py-4 text-right">
+<button class="text-[#6f6189] hover:text-red-500">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-4 bg-background-light dark:bg-[#1c162b] border-t border-[#dfdbe6] dark:border-[#2e2a3d]">
+<button class="flex items-center gap-2 text-primary font-bold text-sm hover:underline">
+<span class="material-symbols-outlined text-lg">add</span>
+                                    Link Urgent Item to Active Breakdown
+                                </button>
+</div>
+</div>
+</div>
+<!-- Right Column: Summary Sidebar -->
+<aside class="w-full xl:w-80 flex flex-col gap-6">
+<div class="bg-white dark:bg-[#1c162b] rounded-xl border border-[#dfdbe6] dark:border-[#2e2a3d] p-6 shadow-md sticky top-24">
+<h3 class="text-lg font-bold mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">receipt_long</span>
+                                Financial Overview
+                            </h3>
+<!-- Urgency Badge -->
+<div class="mb-6 p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-lg flex items-start gap-3">
+<span class="material-symbols-outlined text-red-600 dark:text-red-400">priority_high</span>
+<div class="flex flex-col">
+<span class="text-xs font-black text-red-600 dark:text-red-400 uppercase tracking-wider">High Priority</span>
+<span class="text-xs text-[#6f6189] dark:text-gray-400">Linked to Breakdown BD-047</span>
+</div>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center">
+<span class="text-sm text-[#6f6189]">Line Items (2)</span>
+<span class="text-sm font-semibold">$1,475.00</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-sm text-[#6f6189]">Shipping Estimate</span>
+<span class="text-sm font-semibold">$120.00</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-sm text-[#6f6189]">Tax (VAT 16%)</span>
+<span class="text-sm font-semibold">$255.20</span>
+</div>
+<div class="pt-4 border-t border-dashed border-[#dfdbe6] dark:border-[#2e2a3d] flex justify-between items-center">
+<span class="text-base font-bold">Total Order Value</span>
+<span class="text-xl font-black text-primary">$1,850.20</span>
+</div>
+</div>
+<div class="mt-8 flex flex-col gap-3">
+<button class="w-full py-3 bg-gold text-white font-bold rounded-lg shadow-lg shadow-gold/20 hover:bg-opacity-90 transition-all flex items-center justify-center gap-2">
+                                    Save &amp; Next
+                                    <span class="material-symbols-outlined text-lg">chevron_right</span>
+</button>
+<button class="w-full py-3 border border-primary/20 text-primary font-bold rounded-lg hover:bg-primary/5 transition-all">
+                                    Back to Supplier Info
+                                </button>
+</div>
+<p class="mt-4 text-[10px] text-center text-[#6f6189] uppercase font-bold tracking-[0.1em]">
+                                Last autosaved 2 min ago
+                            </p>
+</div>
+</aside>
+</div>
+</div>
+<!-- Fixed Footer Actions (Mobile/Tablet and as a safe fallback) -->
+<div class="lg:hidden bg-white dark:bg-[#1c162b] border-t border-[#dfdbe6] dark:border-[#2e2a3d] p-4 flex gap-4">
+<button class="flex-1 py-3 bg-white dark:bg-[#2e2a3d] border border-[#dfdbe6] dark:border-[#3d384d] text-sm font-bold rounded-lg">
+                    Back
+                </button>
+<button class="flex-1 py-3 bg-gold text-white text-sm font-bold rounded-lg">
+                    Save &amp; Next
+                </button>
+</div>
+</main>
+</div>
+</body></html>

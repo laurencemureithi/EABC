@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>UEAL Executive Strategic Intelligence Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#0B1020",
+                        secondary: "#1554FF",
+                        "ueal-purple": "#0B1020",
+                        "ueal-gold": "#1554FF",
+                        "background-light": "#F3F4F6"
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ["Inter"]
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.25rem",
+                        lg: "0.5rem",
+                        xl: "0.75rem",
+                        full: "9999px"
+                    }
+                }
+            }
+        };
+    </script>
+<style type="text/tailwindcss">
+        @layer base {
+            body {
+                font-family: 'Inter', sans-serif;
+            }
+        }
+        .sidebar-bg {
+            background-color: #0B1020;
+        }
+        .department-dropdown-container:hover .department-menu {
+            display: block;
+        }
+        .department-menu {
+            display: none;
+            bottom: 100%;
+            left: 1rem;
+            right: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        .app-container {
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+        .main-content {
+            height: calc(100vh - 64px);
+            overflow-y: auto;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .kpi-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            padding: 1.25rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .chart-container {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            height: 100%;
+        }
+        .circular-gauge {
+            position: relative;
+            width: 80px;
+            height: 80px;
+        }
+        .circular-gauge svg {
+            transform: rotate(-90deg);
+        }
+        .sparkline-svg {
+            width: 100%;
+            height: 40px;
+            stroke: #0B1020;
+            stroke-width: 2;
+            fill: none;
+        }
+    </style>
+</head>
+<body class="bg-background-light text-slate-800 transition-colors duration-200">
+<div class="app-container">
+<aside class="sidebar-bg w-64 flex-shrink-0 flex flex-col text-white h-screen">
+<div class="p-6 flex items-center gap-3">
+<div class="opsloom-sidebar-wordmark"><img src="{{ url_for('static', filename='brand/opsloom_wordmark_light.png') }}" alt="Opsloom" class="h-11 max-w-full w-auto block"></div>
+</div>
+<nav class="flex-1 px-3 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-ueal-gold text-white shadow-lg shadow-black/20" href="#">
+<span class="material-icons-round text-xl">dashboard</span>
+<span class="font-medium text-sm">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70" href="#">
+<span class="material-icons-round text-xl">inventory</span>
+<span class="font-medium text-sm">Asset Register</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70" href="#">
+<span class="material-icons-round text-xl">error_outline</span>
+<span class="font-medium text-sm">Breakdowns</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70" href="#">
+<span class="material-icons-round text-xl">build</span>
+<span class="font-medium text-sm">Maintenance</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70" href="#">
+<span class="material-icons-round text-xl">assessment</span>
+<span class="font-medium text-sm">Reports</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70" href="#">
+<span class="material-icons-round text-xl">settings</span>
+<span class="font-medium text-sm">Settings / Admin</span>
+</a>
+</nav>
+<div class="p-4 border-t border-white/10 relative department-dropdown-container">
+<label class="text-[10px] text-white/50 uppercase font-bold tracking-wider mb-2 block px-2">Current Context</label>
+<button class="w-full bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg py-2.5 px-3 flex items-center justify-between transition-all group">
+<div class="flex flex-col items-start overflow-hidden">
+<span class="text-xs font-bold text-white truncate w-full text-left">Engineering</span>
+<span class="text-[9px] text-ueal-gold uppercase tracking-tighter">Department</span>
+</div>
+<span class="material-icons-round text-white/60 group-hover:text-ueal-gold">unfold_more</span>
+</button>
+<div class="department-menu absolute z-50 bg-white rounded-xl shadow-2xl py-2 w-[calc(100%-2rem)] border border-slate-200">
+<div class="px-3 py-2 border-b border-slate-50 mb-1">
+<p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Select Department</p>
+</div>
+<a class="flex items-center px-4 py-2.5 text-sm text-ueal-purple bg-ueal-gold/5 font-bold border-l-4 border-ueal-gold" href="#">
+<span class="w-2 h-2 rounded-full bg-ueal-gold mr-3"></span> Engineering
+                </a>
+<a class="flex items-center px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50" href="#">
+<span class="w-2 h-2 rounded-full bg-slate-300 mr-3"></span> Production
+                </a>
+</div>
+</div>
+</aside>
+<div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+<header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-10 shrink-0">
+<div class="flex flex-col items-start">
+<p class="text-base font-bold text-ueal-purple leading-tight">Opsloom Dashboard</p>
+<p class="text-[11px] text-slate-500 font-medium tracking-wide uppercase">Engineering Asset &amp; Breakdown Core</p>
+</div>
+<div class="flex items-center gap-6">
+<button class="p-2 rounded-full hover:bg-slate-100 text-slate-500">
+<span class="material-icons-round">dark_mode</span>
+</button>
+<div class="h-8 w-[1px] bg-slate-200"></div>
+<div class="flex items-center gap-3">
+<div class="text-right hidden sm:block">
+<p class="text-sm font-bold leading-none text-slate-900">John Doe</p>
+<p class="text-[10px] text-slate-500 uppercase mt-1">Super Admin</p>
+</div>
+<div class="w-10 h-10 rounded-full border-2 border-ueal-gold overflow-hidden shrink-0 shadow-sm">
+<img alt="User avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBuRMuN75FatwhYJ5leivaMeD4GFDX3AnQXCfwwIRlNsFY-6qap6xsfxIkM8aR4AVN1xOnzbN_OyLjCSFSnH_bq4tVvVJ2d3lcoST_YxNSfwCL5wO79R7TIm6Aa7pMFQeZkiVgC4TJCsWnd--DJFSwzSt4tihvlaT4CckE7DK2x-vC1ulHomKqNBswC6Yt4FZXfQS8fkloqmPX2e2FAYpATWMkrDJT9l4uSAPHk4Rh7zdvCMGixMw0U8nnC_l9rtxmstc0mdYW6xQ"/>
+</div>
+</div>
+</div>
+</header>
+<main class="main-content flex-1 p-8">
+<div class="max-w-[1400px] mx-auto space-y-8">
+<div class="flex items-center justify-between">
+<div>
+<h1 class="text-2xl font-bold text-slate-900">Executive Strategic Intelligence</h1>
+<nav class="flex items-center gap-2 mt-1 text-[13px] text-slate-500 font-medium">
+<span>Dashboard</span>
+<span class="material-icons-round text-base text-slate-400">chevron_right</span>
+<span class="text-slate-900">Strategic Overview</span>
+</nav>
+</div>
+<div class="flex items-center gap-2 bg-green-50 px-4 py-1.5 rounded-full border border-green-100 shadow-sm">
+<span class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+<span class="text-xs font-bold text-green-700 tracking-wider">SYSTEM STABLE</span>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<div class="kpi-card flex items-center justify-between">
+<div>
+<p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Overall Plant Health</p>
+<h2 class="text-3xl font-black text-slate-900">94%</h2>
+<p class="text-[10px] text-green-600 font-bold mt-1">+2.1% from target</p>
+</div>
+<div class="circular-gauge">
+<svg class="w-16 h-16" viewBox="0 0 36 36">
+<path class="text-slate-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3"></path>
+<path class="text-ueal-purple" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="94, 100" stroke-width="3"></path>
+<line stroke="#1554FF" stroke-width="2" x1="18" x2="18" y1="2" y2="5"></line>
+</svg>
+</div>
+</div>
+<div class="kpi-card">
+<p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">OEE (Effectiveness)</p>
+<div class="flex items-end justify-between">
+<h2 class="text-3xl font-black text-slate-900">88.5%</h2>
+<div class="w-24 h-10 mb-1">
+<svg class="sparkline-svg" viewBox="0 0 100 40">
+<path d="M0 35 Q 25 38, 50 20 T 100 15" stroke-linecap="round"></path>
+</svg>
+</div>
+</div>
+</div>
+<div class="kpi-card">
+<p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Maintenance ROI Index</p>
+<h2 class="text-3xl font-black text-slate-900">5.2x</h2>
+<div class="flex items-center gap-2 mt-2">
+<div class="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+<div class="bg-ueal-gold h-full" style="width: 75%"></div>
+</div>
+<span class="text-[10px] font-bold text-slate-500">Value/Cost</span>
+</div>
+</div>
+<div class="kpi-card border-l-4 border-l-rose-500">
+<p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Downtime Cost MTD</p>
+<div class="flex items-center gap-2">
+<h2 class="text-3xl font-black text-slate-900">$14,200</h2>
+<span class="material-icons-round text-rose-500 text-xl">warning</span>
+</div>
+<p class="text-[10px] text-rose-500 font-bold mt-1">15% above monthly budget</p>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<div class="chart-container">
+<h3 class="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
+<span class="material-icons-round text-ueal-purple">donut_large</span>
+                            Asset Health Distribution
+                        </h3>
+<div class="flex flex-col items-center">
+<div class="relative w-48 h-48 mb-6">
+<svg class="w-full h-full" viewBox="0 0 36 36">
+<circle cx="18" cy="18" fill="transparent" r="16" stroke="#10B981" stroke-dasharray="70 100" stroke-dashoffset="0" stroke-width="4"></circle>
+<circle cx="18" cy="18" fill="transparent" r="16" stroke="#F59E0B" stroke-dasharray="20 100" stroke-dashoffset="-70" stroke-width="4"></circle>
+<circle cx="18" cy="18" fill="transparent" r="16" stroke="#EF4444" stroke-dasharray="10 100" stroke-dashoffset="-90" stroke-width="4"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-2xl font-black text-slate-900">124</span>
+<span class="text-[9px] text-slate-400 uppercase font-bold">Total Assets</span>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-4 w-full">
+<div class="text-center">
+<p class="text-[10px] font-bold text-emerald-600 mb-1">Operational</p>
+<p class="text-lg font-bold">70%</p>
+</div>
+<div class="text-center">
+<p class="text-[10px] font-bold text-amber-500 mb-1">Maint.</p>
+<p class="text-lg font-bold">20%</p>
+</div>
+<div class="text-center">
+<p class="text-[10px] font-bold text-rose-500 mb-1">Offline</p>
+<p class="text-lg font-bold">10%</p>
+</div>
+</div>
+</div>
+</div>
+<div class="chart-container">
+<h3 class="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
+<span class="material-icons-round text-ueal-purple">pie_chart</span>
+                            Breakdown Root Cause Analysis
+                        </h3>
+<div class="space-y-4">
+<div>
+<div class="flex justify-between text-[11px] mb-1">
+<span class="font-semibold text-slate-600">Electrical</span>
+<span class="font-bold text-slate-900">42%</span>
+</div>
+<div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+<div class="bg-ueal-purple h-full" style="width: 42%"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-[11px] mb-1">
+<span class="font-semibold text-slate-600">Mechanical</span>
+<span class="font-bold text-slate-900">31%</span>
+</div>
+<div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+<div class="bg-indigo-400 h-full" style="width: 31%"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-[11px] mb-1">
+<span class="font-semibold text-slate-600">Calibration</span>
+<span class="font-bold text-slate-900">18%</span>
+</div>
+<div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+<div class="bg-blue-400 h-full" style="width: 18%"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-[11px] mb-1">
+<span class="font-semibold text-slate-600">Utility/Other</span>
+<span class="font-bold text-slate-900">9%</span>
+</div>
+<div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+<div class="bg-slate-300 h-full" style="width: 9%"></div>
+</div>
+</div>
+</div>
+<div class="mt-8 pt-6 border-t border-slate-50 text-center">
+<p class="text-xs text-slate-500 italic">"Electrical failures up 4% MoM"</p>
+</div>
+</div>
+<div class="chart-container">
+<h3 class="text-sm font-bold text-slate-900 mb-6 flex items-center gap-2">
+<span class="material-icons-round text-ueal-purple">query_stats</span>
+                            PM Compliance vs Failure Incidence
+                        </h3>
+<div class="h-48 relative">
+<div class="absolute inset-0 flex items-end gap-2 px-4">
+<div class="flex-1 flex flex-col justify-end gap-1 h-full">
+<div class="w-full bg-ueal-gold/20 rounded-t h-[80%] relative group">
+<div class="absolute -top-6 left-1/2 -translate-x-1/2 text-[9px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">98%</div>
+</div>
+<div class="text-[9px] text-slate-400 font-bold text-center">JAN</div>
+</div>
+<div class="flex-1 flex flex-col justify-end gap-1 h-full">
+<div class="w-full bg-ueal-gold/20 rounded-t h-[85%]"></div>
+<div class="text-[9px] text-slate-400 font-bold text-center">FEB</div>
+</div>
+<div class="flex-1 flex flex-col justify-end gap-1 h-full">
+<div class="w-full bg-ueal-gold/20 rounded-t h-[75%]"></div>
+<div class="text-[9px] text-slate-400 font-bold text-center">MAR</div>
+</div>
+<div class="flex-1 flex flex-col justify-end gap-1 h-full">
+<div class="w-full bg-ueal-gold/20 rounded-t h-[92%]"></div>
+<div class="text-[9px] text-slate-400 font-bold text-center">APR</div>
+</div>
+<div class="flex-1 flex flex-col justify-end gap-1 h-full">
+<div class="w-full bg-ueal-gold/20 rounded-t h-[88%]"></div>
+<div class="text-[9px] text-slate-400 font-bold text-center">MAY</div>
+</div>
+<div class="flex-1 flex flex-col justify-end gap-1 h-full">
+<div class="w-full bg-ueal-gold/20 rounded-t h-[95%]"></div>
+<div class="text-[9px] text-slate-400 font-bold text-center">JUN</div>
+</div>
+</div>
+<svg class="absolute inset-0 w-full h-full pointer-events-none px-4" preserveAspectRatio="none" viewBox="0 0 100 100">
+<path d="M5 80 L 25 75 L 45 85 L 65 30 L 85 40 L 95 25" fill="none" stroke="#0B1020" stroke-width="2"></path>
+</svg>
+</div>
+<div class="flex justify-center gap-6 mt-6">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 bg-ueal-gold/20 border border-ueal-gold/40 rounded-sm"></span>
+<span class="text-[10px] font-bold text-slate-500 uppercase">PM Compliance</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-4 h-[2px] bg-ueal-purple"></span>
+<span class="text-[10px] font-bold text-slate-500 uppercase">Failure Incidents</span>
+</div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+<div class="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+<h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+<span class="material-icons-round text-ueal-gold">auto_awesome</span>
+                                AI Strategic Action Feed
+                            </h3>
+<span class="text-[10px] font-bold bg-ueal-gold/10 text-ueal-gold px-2 py-0.5 rounded">3 NEW INSIGHTS</span>
+</div>
+<div class="p-4 space-y-4 flex-1">
+<div class="p-4 bg-amber-50 rounded-lg border border-amber-100">
+<div class="flex items-start gap-3">
+<span class="material-icons-round text-amber-500 mt-0.5">priority_high</span>
+<div>
+<p class="text-[11px] font-black text-amber-800 uppercase tracking-tight">REPLACE CANDIDATE</p>
+<p class="text-sm font-medium text-amber-900 mt-1">Asset <span class="font-bold">UV-PH-047</span> has exceeded expected MTBF by 40%; replacement ROI estimated at 18 months.</p>
+</div>
+</div>
+</div>
+<div class="p-4 bg-ueal-purple/5 rounded-lg border border-ueal-purple/10">
+<div class="flex items-start gap-3">
+<span class="material-icons-round text-ueal-purple mt-0.5">bolt</span>
+<div>
+<p class="text-[11px] font-black text-ueal-purple uppercase tracking-tight">ENERGY EFFICIENCY OPPORTUNITY</p>
+<p class="text-sm font-medium text-slate-700 mt-1">Boiler Unit 2 showing 15% efficiency drop during peak loads. Descaling recommended to avoid $3.2k annual waste.</p>
+</div>
+</div>
+</div>
+<div class="p-4 bg-emerald-50 rounded-lg border border-emerald-100">
+<div class="flex items-start gap-3">
+<span class="material-icons-round text-emerald-500 mt-0.5">check_circle</span>
+<div>
+<p class="text-[11px] font-black text-emerald-800 uppercase tracking-tight">MAINTENANCE OPTIMIZATION</p>
+<p class="text-sm font-medium text-slate-700 mt-1">Preventive schedule for Packaging Line A can be extended by 10 days based on zero-failure trend over 120 days.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+<div class="p-4 border-b border-slate-100 bg-slate-50/50">
+<h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+<span class="material-icons-round text-rose-500">trending_down</span>
+                                Worst Performing Assets (MTD)
+                            </h3>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200">
+<tr>
+<th class="px-4 py-3">Asset Name</th>
+<th class="px-4 py-3">Section</th>
+<th class="px-4 py-3">Status</th>
+<th class="px-4 py-3">Downtime</th>
+<th class="px-4 py-3 text-right">Maint. Cost</th>
+</tr>
+</thead>
+<tbody class="text-sm divide-y divide-slate-100">
+<tr class="hover:bg-slate-50/50 transition-colors">
+<td class="px-4 py-3">
+<div class="flex flex-col">
+<span class="font-bold text-ueal-purple leading-tight">Continuous Magnetic Sealer</span>
+<span class="text-[10px] text-slate-500 font-medium">S/N: UEAL-IND-047</span>
+</div>
+</td>
+<td class="px-4 py-3 text-slate-600 font-medium text-xs">Production</td>
+<td class="px-4 py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">CRITICAL</span>
+</td>
+<td class="px-4 py-3 font-medium text-slate-600">72.4 hrs</td>
+<td class="px-4 py-3 font-bold text-slate-900 text-right">$4,850</td>
+</tr>
+<tr class="hover:bg-slate-50/50 transition-colors">
+<td class="px-4 py-3">
+<div class="flex flex-col">
+<span class="font-bold text-ueal-purple leading-tight">Industrial Autoclave Unit 4</span>
+<span class="text-[10px] text-slate-500 font-medium">S/N: UEAL-PHA-012</span>
+</div>
+</td>
+<td class="px-4 py-3 text-slate-600 font-medium text-xs">Pharma</td>
+<td class="px-4 py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">WARN</span>
+</td>
+<td class="px-4 py-3 font-medium text-slate-600">48.1 hrs</td>
+<td class="px-4 py-3 font-bold text-slate-900 text-right">$3,120</td>
+</tr>
+<tr class="hover:bg-slate-50/50 transition-colors">
+<td class="px-4 py-3">
+<div class="flex flex-col">
+<span class="font-bold text-ueal-purple leading-tight">High-Speed Tablet Press</span>
+<span class="text-[10px] text-slate-500 font-medium">S/N: UEAL-IND-088</span>
+</div>
+</td>
+<td class="px-4 py-3 text-slate-600 font-medium text-xs">Production</td>
+<td class="px-4 py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">WARN</span>
+</td>
+<td class="px-4 py-3 font-medium text-slate-600">36.5 hrs</td>
+<td class="px-4 py-3 font-bold text-slate-900 text-right">$2,440</td>
+</tr>
+<tr class="hover:bg-slate-50/50 transition-colors">
+<td class="px-4 py-3">
+<div class="flex flex-col">
+<span class="font-bold text-ueal-purple leading-tight">Centrifugal Air Compressor</span>
+<span class="text-[10px] text-slate-500 font-medium">S/N: UEAL-UTL-005</span>
+</div>
+</td>
+<td class="px-4 py-3 text-slate-600 font-medium text-xs">Utility</td>
+<td class="px-4 py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">MONITOR</span>
+</td>
+<td class="px-4 py-3 font-medium text-slate-600">24.2 hrs</td>
+<td class="px-4 py-3 font-bold text-slate-900 text-right">$1,890</td>
+</tr>
+<tr class="hover:bg-slate-50/50 transition-colors">
+<td class="px-4 py-3">
+<div class="flex flex-col">
+<span class="font-bold text-ueal-purple leading-tight">Standby Diesel Generator</span>
+<span class="text-[10px] text-slate-500 font-medium">S/N: UEAL-PLT-021</span>
+</div>
+</td>
+<td class="px-4 py-3 text-slate-600 font-medium text-xs">Plant Site</td>
+<td class="px-4 py-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">MONITOR</span>
+</td>
+<td class="px-4 py-3 font-medium text-slate-600">18.9 hrs</td>
+<td class="px-4 py-3 font-bold text-slate-900 text-right">$1,200</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between pb-8">
+<p class="text-xs text-slate-400 italic flex items-center gap-2">
+<span class="material-icons-round text-base">info_outline</span>
+                        Strategic recommendations are updated every 6 hours based on real-time sensor and maintenance data.
+                    </p>
+<div class="flex items-center gap-3">
+<button class="px-4 py-2 text-sm font-bold text-ueal-purple border border-ueal-purple/20 bg-white rounded-lg hover:bg-slate-50 transition-all">
+                            GENERATE PDF REPORT
+                        </button>
+<button class="px-6 py-2 text-sm font-bold text-white bg-ueal-gold rounded-lg shadow-md hover:opacity-90 transition-all flex items-center gap-2">
+                            ACTION PLANNING
+                            <span class="material-icons-round">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+
+</body></html>

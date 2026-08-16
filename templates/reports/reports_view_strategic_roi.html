@@ -1,0 +1,408 @@
+{% extends "layouts/base.html" %}
+{% block title %}Strategic ROI Report • Opsloom{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+  {% set report_department = export.department or current_department %}
+  {% set report_department_label = report_department_display(report_department) %}
+  {% set scope_mode_label = (export.scope_mode or 'department')|replace('_',' ')|title %}
+  {% set scope_target = export.scope_target or export.generated_for or export.scope_section or scope_unit_display(report_department) or '—' %}
+  {% if (export.scope_mode or 'department') == 'department' and (scope_target == report_department_label or scope_target == scope_unit_display(report_department)) %}{% set scope_target = scope_unit_display(report_department) or 'Engineering' %}{% endif %}
+  {% set report_creator = export.user_name or analysis.reported_by or current_user_name %}
+  {% include "partials/report_document_header.html" %}
+
+  <div class="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
+    <div>
+      <h1 class="text-3xl font-black text-slate-900 dark:text-white">Strategic Improvement ROI &amp; Action Plan</h1>
+      <nav class="flex items-center gap-2 mt-2 text-[13px] text-slate-500 font-medium">
+        <span>Reports</span><span class="material-symbols-outlined text-base text-slate-400">chevron_right</span><span>Strategy</span><span class="material-symbols-outlined text-base text-slate-400">chevron_right</span><span class="text-slate-900 dark:text-slate-300">ROI &amp; Actions</span>
+      </nav>
+      <p class="text-slate-500 text-sm mt-2 font-medium flex items-center gap-2">
+        <span class="material-symbols-outlined text-sm">calendar_today</span>
+        Period: {{ analysis.start.strftime("%b %d, %Y") }} - {{ analysis.end.strftime("%b %d, %Y") }}
+      </p>
+    </div>
+
+    <div class="flex flex-wrap gap-3 items-center report-action-bar" data-no-print>
+      <div class="hidden lg:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm">
+        <span class="w-2 h-2 rounded-full {{ 'bg-green-500' if export.status=='READY' else 'bg-amber-500' }}"></span>
+        <span class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">{{ export.status or 'READY' }}</span>
+      </div>
+
+      <a href="{{ url_for('reports_generate_step1_get', category=export.category_key) }}" class="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all uppercase tracking-wider">
+        <span class="material-symbols-outlined text-sm">tune</span>
+        Filter
+      </a>
+
+      <a href="{{ url_for('reports_export', report_id=export.id, fmt='pdf', inline=1) }}" data-live-report-action="print" data-live-report-id="{{ export.id }}" class="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all uppercase tracking-wider">
+        <span class="material-symbols-outlined text-sm">print</span>
+        Print
+      </a>
+
+      <div class="relative" data-dd-root>
+        <button type="button" data-dd-btn class="flex items-center gap-2 px-4 py-2 bg-ueal-purple text-white rounded-lg text-xs font-bold hover:opacity-95 transition-all uppercase tracking-wider">
+          <span class="material-symbols-outlined text-sm">download</span>
+          Download
+        </button>
+        <div data-dd-menu class="absolute right-0 mt-2 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg hidden z-20">
+          <a class="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700" data-live-report-action="pdf" data-live-report-id="{{ export.id }}" href="{{ url_for('reports_export', report_id=export.id, fmt='pdf') }}">PDF</a>
+          <a class="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700" href="{{ url_for('reports_export', report_id=export.id, fmt='xlsx') }}">XLSX</a>
+          <a class="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700" href="{{ url_for('reports_export', report_id=export.id, fmt='csv') }}">CSV</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm p-5">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 p-4">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Scope</p>
+        <p class="mt-2 text-sm font-bold text-slate-900 dark:text-white">{{ scope_target }}</p>
+      </div>
+      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 p-4">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Scope Basis</p>
+        <p class="mt-2 text-sm font-bold text-slate-900 dark:text-white break-words">{{ scope_mode_label }}</p>
+      </div>
+      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 p-4">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Department</p>
+        <p class="mt-2 text-sm font-bold text-slate-900 dark:text-white">{{ report_department_label }}</p>
+      </div>
+      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 p-4">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Reported By</p>
+        <p class="mt-2 text-sm font-bold text-slate-900 dark:text-white">{{ report_creator }}</p>
+      </div>
+      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 p-4">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Generated</p>
+        <p class="mt-2 text-sm font-bold text-slate-900 dark:text-white">{{ export.generated_label }}</p>
+      </div>
+      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 p-4">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Format</p>
+        <p class="mt-2 text-sm font-bold text-slate-900 dark:text-white">{{ (export.format or 'pdf')|upper }}</p>
+      </div>
+      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 p-4">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Status</p>
+        <p class="mt-2 text-sm font-bold text-slate-900 dark:text-white">{{ export.status or 'READY' }}</p>
+      </div>
+      <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 p-4">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">File Name</p>
+        <p class="mt-2 text-sm font-bold text-slate-900 dark:text-white break-all">{{ export.filename or '—' }}</p>
+      </div>
+    </div>
+    <div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+      <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-3">Configured Metrics</p>
+      <div class="flex flex-wrap gap-2">
+        {% for card in analysis.selected_metric_cards %}
+          <div class="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/60 px-3 py-2">
+            <span class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-300">{{ card.label }}</span>
+            <span class="text-xs font-black text-slate-900 dark:text-white">{{ card.value }}</span>
+          </div>
+        {% else %}
+          <p class="text-sm text-slate-500 dark:text-slate-400">No metrics selected.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+    {% for card in analysis.strategic_cards %}
+      <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 shadow-sm">
+        <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{{ card.label }}</p>
+        <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ card.value }}</p>
+        <p class="mt-3 text-sm text-slate-500 dark:text-slate-300">{{ card.detail }}</p>
+      </div>
+    {% endfor %}
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.95fr)] gap-6">
+    <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-200">Executive View</h2>
+          <p class="mt-2 text-sm text-slate-500 dark:text-slate-300">This report now concentrates on real operational exposure, actual maintenance spend captured in the system, and the actions management should take next.</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-right bg-slate-50 dark:bg-slate-900/40">
+          <div class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Downtime Cost / Hr</div>
+          <div class="mt-1 text-sm font-black text-slate-900 dark:text-white">{{ (analysis.kpis.loss_estimate / analysis.kpis.downtime_hours)|kes2 if analysis.kpis.downtime_hours else 'Configured' }}</div>
+        </div>
+      </div>
+      <div class="mt-5 space-y-3">
+        {% for item in analysis.insights %}
+          <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/30 p-4">
+            <div class="flex items-start gap-3">
+              <span class="material-symbols-outlined text-ueal-purple mt-0.5">insights</span>
+              <p class="text-sm text-slate-700 dark:text-slate-200 leading-6">{{ item }}</p>
+            </div>
+          </div>
+        {% else %}
+          <p class="text-sm text-slate-500 dark:text-slate-300">No executive insights are available for the selected scope.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm">
+      <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-200">Cost &amp; Exposure Snapshot</h2>
+      <div class="mt-4 space-y-3">
+        {% for row in analysis.cost_summary_rows %}
+          <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/30 p-4">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p class="text-sm font-bold text-slate-900 dark:text-white">{{ row.label }}</p>
+                <p class="mt-1 text-xs text-slate-500 dark:text-slate-300">{{ row.note }}</p>
+              </div>
+              <p class="text-sm font-black text-slate-900 dark:text-white whitespace-nowrap">{{ row.value|kes2 }}</p>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
+      <div>
+        <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-200">Downtime Trend</h2>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-300">Trend the downtime driver over time and switch the year when you need a wider management view.</p>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-xs font-bold text-slate-500">View</span>
+        <select id="trendGrain" class="text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1">
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="quarterly">Quarterly</option>
+          <option value="biannually">Biannually</option>
+          <option value="yearly">Yearly</option>
+        </select>
+        <label class="text-xs font-bold text-slate-500">Year</label>
+        <input id="trendYear" type="number" min="2000" max="2100" value="{{ analysis.end.year if analysis.end else analysis.start.year }}" class="w-24 text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1">
+      </div>
+    </div>
+    <div class="h-[280px]">
+      <canvas id="downtimeTrendChart"></canvas>
+    </div>
+    <div id="quarterPanels" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4"></div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm">
+      <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-200">Biggest Reliability Levers</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+        <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50/70 dark:bg-slate-900/30">
+          <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 mb-3">Top Root Causes</p>
+          {% if analysis.top_causes %}
+            <div class="space-y-3">
+              {% for cause, count in analysis.top_causes %}
+                <div class="flex items-center justify-between gap-4 text-sm">
+                  <span class="text-slate-700 dark:text-slate-200">{{ cause }}</span>
+                  <span class="font-black text-slate-900 dark:text-white">{{ count }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-sm text-slate-500 dark:text-slate-300">No cause data is available in the selected period.</p>
+          {% endif %}
+        </div>
+        <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50/70 dark:bg-slate-900/30">
+          <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500 mb-3">Top Downtime Assets</p>
+          {% if analysis.top_assets %}
+            <div class="space-y-3">
+              {% for name, meta in analysis.top_assets %}
+                <div>
+                  <div class="flex items-center justify-between gap-4 text-sm">
+                    <span class="font-bold text-slate-700 dark:text-slate-200">{{ name }}</span>
+                    <span class="font-black text-slate-900 dark:text-white">{{ meta.downtime_hours }}h</span>
+                  </div>
+                  <div class="mt-1 text-[11px] text-slate-500 dark:text-slate-300">{{ meta.incidents }} incident(s) • dominant cause: {{ meta.dominant_cause or '—' }}</div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-sm text-slate-500 dark:text-slate-300">No downtime asset data is available in the selected period.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm">
+      <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-200">Data Capture Quality</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+        <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50/70 dark:bg-slate-900/30">
+          <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Breakdowns with Root Cause</p>
+          <p class="mt-3 text-2xl font-black text-slate-900 dark:text-white">{{ analysis.data_quality.breakdowns_with_root_cause }} / {{ analysis.kpis.incidents }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50/70 dark:bg-slate-900/30">
+          <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Tasks with Cost Captured</p>
+          <p class="mt-3 text-2xl font-black text-slate-900 dark:text-white">{{ analysis.data_quality.tasks_with_cost }} / {{ analysis.kpis.pm_total }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50/70 dark:bg-slate-900/30">
+          <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Confirmed Actual Cost</p>
+          <p class="mt-3 text-2xl font-black text-slate-900 dark:text-white">{{ analysis.data_quality.tasks_with_confirmed_actual_cost }}</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50/70 dark:bg-slate-900/30">
+          <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Tasks with Named Technician</p>
+          <p class="mt-3 text-2xl font-black text-slate-900 dark:text-white">{{ analysis.data_quality.tasks_with_technician }} / {{ analysis.kpis.pm_total }}</p>
+        </div>
+      </div>
+      <p class="mt-4 text-sm text-slate-500 dark:text-slate-300">True ROI needs project-level investment and realized savings data. The system does not store that yet, so this report uses confirmed operational and cost records already in the database.</p>
+    </div>
+  </section>
+
+  <section class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm">
+    <div class="flex items-center justify-between gap-3 flex-wrap">
+      <div>
+        <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-200">Management Action Plan</h2>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-300">Concrete actions ranked from the strongest issues inside the current dataset.</p>
+      </div>
+    </div>
+    <div class="mt-4 overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 dark:bg-slate-900/40">
+          <tr>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Priority</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Focus</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Issue</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Impact</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Owner</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Recommended Action</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Horizon</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Success Metric</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+          {% for row in analysis.action_plan %}
+            <tr>
+              <td class="px-4 py-4 align-top font-black text-slate-900 dark:text-white">{{ row.priority }}</td>
+              <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.focus }}</td>
+              <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.issue }}</td>
+              <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.impact }}</td>
+              <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.owner }}</td>
+              <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.action }}</td>
+              <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.horizon }}</td>
+              <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.success_metric }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+    <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm">
+      <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-200">Strategic Project Candidates</h2>
+      <div class="mt-4 overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-50 dark:bg-slate-900/40">
+            <tr>
+              <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Project</th>
+              <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Cause</th>
+              <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Incidents</th>
+              <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Downtime</th>
+              <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Loss Share</th>
+              <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Exposure</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+            {% for row in analysis.project_candidates %}
+              <tr>
+                <td class="px-4 py-4 align-top font-bold text-slate-900 dark:text-white">{{ row.project }}</td>
+                <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.dominant_cause }}</td>
+                <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.incidents }}</td>
+                <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.downtime_hours }}h</td>
+                <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.share_pct }}%</td>
+                <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.estimated_loss|kes2 }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="6" class="px-4 py-6 text-slate-500">No candidate projects could be derived from the selected data.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 shadow-sm">
+      <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-200">True ROI Data Still Needed</h2>
+      <div class="mt-4 space-y-3">
+        {% for row in analysis.roi_data_requirements %}
+          <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/30 p-4">
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-sm font-bold text-slate-900 dark:text-white">{{ row.field }}</p>
+              <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] {{ 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' if row.status == 'Captured' else ('bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' if row.status == 'Partial' else 'bg-slate-100 text-slate-700 dark:bg-slate-700/70 dark:text-slate-200') }}">{{ row.status }}</span>
+            </div>
+            <p class="mt-2 text-xs text-slate-500 dark:text-slate-300">{{ row.note }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  (function(){
+    try {
+      const rid = {{ export.id|tojson }};
+      const sel = document.getElementById('trendGrain');
+      const yearEl = document.getElementById('trendYear');
+      const el = document.getElementById('downtimeTrendChart');
+      if(!sel || !el || typeof Chart === 'undefined') return;
+      let chart = new Chart(el.getContext('2d'), {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'Downtime (hrs)', data: [], borderWidth: 2, pointRadius: 2 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      });
+      const endpoint = (grain, year) => `/reports/export/${rid}/chart_data?kind=downtime&grain=${encodeURIComponent(grain)}&year=${encodeURIComponent(year || "")}`;
+
+      function renderPanels(data){
+        const holder = document.getElementById('quarterPanels');
+        if(!holder) return;
+        holder.innerHTML = '';
+        const grain = (sel?.value || '').toLowerCase();
+        let panels = [];
+        if(grain === 'quarterly' && Array.isArray(data?.quarter_panels) && data.quarter_panels.length){
+          panels = data.quarter_panels.map(panel => ({ title: `${panel.quarter} Monthly View`, series: panel.series || [] }));
+        } else if((grain === 'biannually' || grain === 'biannual' || grain === 'bi-annual') && Array.isArray(data?.half_panels) && data.half_panels.length){
+          panels = data.half_panels.map(panel => ({ title: `${panel.half} Monthly View`, series: panel.series || [] }));
+        }
+        if(!panels.length){ holder.classList.add('hidden'); return; }
+        holder.classList.remove('hidden');
+        panels.forEach((panel, idx) => {
+          const wrap = document.createElement('div');
+          wrap.className = 'rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50/40 dark:bg-slate-900/40';
+          wrap.innerHTML = `<div class="text-xs font-black uppercase tracking-wider text-slate-500 mb-3">${panel.title}</div><div class="h-[180px]"><canvas id="sr-${idx}"></canvas></div>`;
+          holder.appendChild(wrap);
+          const c = wrap.querySelector('canvas');
+          new Chart(c.getContext('2d'), {
+            type: 'bar',
+            data: { labels: (panel.series||[]).map(x=>x.label), datasets: [{ label: 'Downtime (hrs)', data: (panel.series||[]).map(x => (typeof x.value === 'number') ? x.value : (x.count||0)), borderWidth: 1 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+          });
+        });
+      }
+
+      async function refresh(useSelectedYear){
+        window.__reportChartsReady = false;
+        try{
+          const grain = sel.value || 'daily';
+          const year = (useSelectedYear && yearEl?.value) ? yearEl.value : '';
+          const res = await fetch(endpoint(grain, year), {credentials: 'same-origin'});
+          const data = await res.json();
+          if(!data || data.ok === false) return;
+          const series = data.series || [];
+          chart.data.labels = series.map(x=>x.label);
+          chart.data.datasets[0].data = series.map(x=> (typeof x.value === 'number') ? x.value : (x.count||0));
+          chart.update();
+          renderPanels(data);
+          window.__reportChartsReady = true;
+          window.dispatchEvent(new CustomEvent('report:charts-ready'));
+        } catch(e){
+          console.warn('downtime trend refresh failed', e);
+        }
+      }
+
+      sel.addEventListener('change', () => refresh(true));
+      yearEl?.addEventListener('change', () => refresh(true));
+      refresh(window.__reportUseSelectedYear === true);
+    } catch(e){
+      console.warn('downtime trend init failed', e);
+    }
+  })();
+</script>
+{% endblock %}

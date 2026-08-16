@@ -1,0 +1,171 @@
+{% extends "layouts/print.html" %}
+{% block title %}Maintenance Schedule Print • Opsloom{% endblock %}
+{% block preview_title %}{{ print_title or 'Maintenance Machine Schedule' }}{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+  <div class="business-print-shell max-w-none">
+    {% set document_department = current_department %}
+    {% include "partials/report_document_header.html" %}
+
+    <div class="business-print-header">
+      <div>
+        <p class="text-[11px] font-black uppercase tracking-[0.25em] text-slate-500">Maintenance Machine Schedule</p>
+        <h1 class="mt-2 text-3xl font-black text-slate-900 dark:text-white">{{ print_title or "Maintenance Machine Schedule" }}</h1>
+        <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Printable maintenance schedule showing machine frequency planning plus the detailed task register for the selected period.</p>
+      </div>
+      <div class="business-print-meta">
+        <div><span>Scope</span><strong>{{ 'Machine' if asset_uid else ('Section' if selected_section else 'Department') }}</strong></div>
+        <div><span>Target</span><strong>{{ report_scope_target or selected_section or current_department }}</strong></div>
+        <div><span>Period</span><strong>{{ report_period }}</strong></div>
+        <div><span>Status Filter</span><strong>{{ (selected_status or 'All')|title }}</strong></div>
+        <div><span>Machines</span><strong>{{ rows|length }}</strong></div>
+        <div><span>Reported By</span><strong>{{ report_creator }}</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-5" data-no-print>
+    <form method="get" class="grid grid-cols-1 md:grid-cols-7 gap-3 items-end">
+      <div>
+        <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Year</label>
+        <input type="number" name="year" value="{{ selected_year }}" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-white">
+      </div>
+      <div>
+        <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Section</label>
+        <select name="section" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-white">
+          <option value="">All Sections</option>
+          {% for s in sections %}<option value="{{ s }}" {% if selected_section == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Machine</label>
+        <select name="asset_uid" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-white">
+          <option value="">All Machines</option>
+          {% for r in rows %}<option value="{{ r.asset_uid or '' }}" {% if asset_uid == (r.asset_uid or '') %}selected{% endif %}>{{ r.asset_name }}{% if r.asset_id %} ({{ r.asset_id }}){% endif %}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Status</label>
+        <select name="status" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-white">
+          <option value="" {% if not selected_status %}selected{% endif %}>All Statuses</option>
+          <option value="upcoming" {% if selected_status == 'upcoming' %}selected{% endif %}>Upcoming</option>
+          <option value="overdue" {% if selected_status == 'overdue' %}selected{% endif %}>Overdue</option>
+          <option value="completed" {% if selected_status == 'completed' %}selected{% endif %}>Completed</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">From</label>
+        <input type="date" name="period_from" value="{{ period_from }}" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-white">
+      </div>
+      <div>
+        <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">To</label>
+        <input type="date" name="period_to" value="{{ period_to }}" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-white">
+      </div>
+      <div class="flex gap-3">
+        <button class="flex-1 rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-3 text-sm font-black text-slate-900 dark:text-white bg-white dark:bg-slate-800">Apply</button>
+        <button type="button" onclick="window.print()" class="flex-1 rounded-lg bg-slate-900 text-white px-4 py-3 text-sm font-black">Print</button>
+      </div>
+      <div class="md:col-span-7">
+        <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Search</label>
+        <input type="text" name="q" value="{{ request.args.get('q','') }}" placeholder="Machine, asset ID or section" class="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-white">
+      </div>
+    </form>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
+      <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-200">Annual Machine Schedule Matrix</h2>
+      <p class="mt-1 text-sm text-slate-500 dark:text-slate-300">Machine frequencies and task counts by month for {{ selected_year }}.</p>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 dark:bg-slate-800/60">
+          <tr>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Machine</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Asset / Section</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Frequencies</th>
+            {% for label in month_labels %}<th class="px-3 py-3 text-center text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{{ label }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+          {% for r in rows %}
+          <tr>
+            <td class="px-4 py-4 align-top"><div class="font-bold text-slate-900 dark:text-white">{{ r.asset_name }}</div></td>
+            <td class="px-4 py-4 align-top text-xs text-slate-600 dark:text-slate-300"><div>{{ r.asset_id or '—' }}</div><div class="mt-1">{{ r.section }}</div><div class="mt-1 text-slate-400">Serial: {{ r.serial or '—' }}</div></td>
+            <td class="px-4 py-4 align-top text-xs text-slate-600 dark:text-slate-300"><div><strong>PM:</strong> {{ r.pm_frequency }}</div><div class="mt-1"><strong>CM:</strong> {{ r.cm_frequency }}</div></td>
+            {% for key in month_keys %}
+              {% set count = r.month_counts.get(key, 0) %}
+              {% set details = r.month_details.get(key, []) %}
+              <td class="px-3 py-4 align-top text-center">
+                <div class="inline-flex min-w-[30px] items-center justify-center rounded-lg px-2 py-1 text-xs font-black {% if count > 0 %}bg-ueal-gold/15 text-slate-900 dark:text-white{% else %}bg-slate-100 dark:bg-slate-800 text-slate-400{% endif %}">{{ count }}</div>
+                {% if details %}
+                  <div class="mt-2 space-y-1 text-left">
+                    {% for item in details[:3] %}
+                    <div class="rounded-md bg-slate-50 dark:bg-slate-800 px-2 py-1 text-[10px] text-slate-600 dark:text-slate-300">
+                      <div class="font-bold">{{ item.frequency }} • {{ item.type }}</div>
+                      <div>{{ item.due_date }}</div>
+                    </div>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+          {% else %}
+          <tr><td colspan="15" class="px-6 py-8 text-center text-slate-500">No machine schedule matched the current filters.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div class="business-print-kpi"><span>Task Register</span><strong>{{ detail_status_counts.all or 0 }}</strong><small>Tasks inside the selected period</small></div>
+    <div class="business-print-kpi"><span>Upcoming</span><strong>{{ detail_status_counts.upcoming or 0 }}</strong><small>Still planned</small></div>
+    <div class="business-print-kpi"><span>Overdue</span><strong>{{ detail_status_counts.overdue or 0 }}</strong><small>Past due and not complete</small></div>
+    <div class="business-print-kpi"><span>Completed</span><strong>{{ detail_status_counts.completed or 0 }}</strong><small>Closed work in period</small></div>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
+      <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-200">Detailed Maintenance Task Register</h2>
+      <p class="mt-1 text-sm text-slate-500 dark:text-slate-300">This section now shows upcoming, overdue, and completed maintenance records within the selected time window.</p>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 dark:bg-slate-800/60">
+          <tr>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Due Date</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Machine</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Task</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Type / Frequency</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Technician</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Section</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Status</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Actual Cost</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+          {% for row in detail_rows %}
+          <tr>
+            <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.due_date }}</td>
+            <td class="px-4 py-4 align-top">
+              <div class="font-bold text-slate-900 dark:text-white">{{ row.asset_name }}</div>
+              <div class="text-[11px] text-slate-500">{{ row.asset_id or '—' }}</div>
+            </td>
+            <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.task_title }}</td>
+            <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.maintenance_type }} • {{ row.frequency }}</td>
+            <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.technician or 'Unassigned' }}</td>
+            <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.section }}</td>
+            <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.status|title }}</td>
+            <td class="px-4 py-4 align-top text-slate-700 dark:text-slate-200">{{ row.cost_total|kes2 }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="px-6 py-8 text-center text-slate-500">No maintenance tasks matched the selected time window and filters.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

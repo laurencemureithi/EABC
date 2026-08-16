@@ -1,0 +1,159 @@
+{
+  "version": 2,
+  "saved_at": "2026-04-25T19:49:41",
+  "ASSETS": [],
+  "BREAKDOWNS": [],
+  "MAINTENANCE_TASKS": [],
+  "INVENTORY_PARTS": [],
+  "SPARE_PARTS": [],
+  "ASSET_DOCUMENTS": [],
+  "REPORT_EXPORTS": [],
+  "AUDIT_TRAIL": [
+    {
+      "id": "7d48af72badc4b449b191f0448aabebb",
+      "action": "User login",
+      "detail": "Laurence Magondu signed in to the Opsloom workspace.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-04-25T19:39:35",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering",
+      "request_path": "/login"
+    }
+  ],
+  "SYSTEM_SETTINGS": {
+    "mail_signature_name": "Engineering Reliability Office",
+    "mail_signature_title": "Opsloom Reports Automation",
+    "mail_signature_footer": "Opsloom",
+    "mail_signature_font": "Inter",
+    "mail_signature_color": "#1554FF",
+    "mail_signature_style": "formal",
+    "mail_signature_image_url": "",
+    "default_report_recipients": [
+      "opsloom.ke@gmail.com"
+    ],
+    "smtp_host": "",
+    "smtp_port": 587,
+    "smtp_user": "",
+    "smtp_pass": "",
+    "smtp_from": "",
+    "report_watermark": "Internal Use",
+    "company_contact_email": "opsloom.ke@gmail.com",
+    "company_contact_phone": "+254 20 2358205",
+    "password_reset_help": "Contact Opsloom support or your system administrator to reset your password."
+  },
+  "SYSTEM_NOTIFICATIONS": [
+    {
+      "id": "notif-system-stable",
+      "title": "System stable",
+      "message": "All core Opsloom modules are available and responsive.",
+      "kind": "success",
+      "created_at": "2026-04-25T19:31:19",
+      "is_read": false,
+      "href": "/dashboard",
+      "should_toast": false
+    },
+    {
+      "id": "notif-low-stock-review",
+      "title": "Review low stock parts",
+      "message": "Inventory alerts are available for immediate replenishment decisions.",
+      "kind": "warning",
+      "created_at": "2026-04-25T17:31:19",
+      "is_read": true,
+      "href": "/inventory",
+      "should_toast": true
+    }
+  ],
+  "TECHNICIAN_DIRECTORY": [
+    {
+      "id": "TECH-001",
+      "name": "David Kimani",
+      "role": "Mechanical Technician",
+      "discipline": "Mechanical",
+      "phone": "+254700000101",
+      "email": "david.kimani@opsloom.co.ke",
+      "active": true
+    },
+    {
+      "id": "TECH-002",
+      "name": "Sarah Njeri",
+      "role": "Electrical Technician",
+      "discipline": "Electrical",
+      "phone": "+254700000102",
+      "email": "sarah.njeri@opsloom.co.ke",
+      "active": true
+    },
+    {
+      "id": "TECH-003",
+      "name": "James Omondi",
+      "role": "Maintenance Planner",
+      "discipline": "Planning",
+      "phone": "+254700000103",
+      "email": "james.omondi@opsloom.co.ke",
+      "active": true
+    },
+    {
+      "id": "TECH-004",
+      "name": "Faith Mumbua",
+      "role": "Instrumentation Technician",
+      "discipline": "Controls",
+      "phone": "+254700000104",
+      "email": "faith.mumbua@opsloom.co.ke",
+      "active": true
+    }
+  ],
+  "ADMIN_USERS": [
+    {
+      "id": "USR-001",
+      "name": "Laurence Magondu",
+      "email": "opsloom.ke@gmail.com",
+      "role": "Administrator",
+      "access_scope": "Full System",
+      "department": "Engineering",
+      "active": true,
+      "password_hash": "scrypt:32768:8:1$tLwvXhAwyBdo0tcI$3780cf800ed4d9a8d4c9f37440571af7c207a6cafa9e1cbcc89cb46aff3d8f0ea9e8a443b824ed290b87916661283aa536a281cd51ab02adc10b618cdaf30149",
+      "permissions": [
+        "dashboard",
+        "assets",
+        "breakdowns",
+        "maintenance",
+        "inventory",
+        "reports",
+        "settings_manage",
+        "users_manage",
+        "notifications_manage",
+        "technicians_manage"
+      ],
+      "signature_name": "Laurence Magondu",
+      "signature_title": "Administrator",
+      "signature_font": "Inter",
+      "signature_color": "#1554FF",
+      "signature_style": "formal",
+      "signature_image_url": "",
+      "profile_image_url": ""
+    }
+  ],
+  "INTERNAL_MESSAGES": [
+    {
+      "id": "msg-welcome-admin",
+      "thread_id": "thread-welcome-admin",
+      "sender_email": "opsloom.ke@gmail.com",
+      "sender_name": "Opsloom System",
+      "recipient_emails": [
+        "opsloom.ke@gmail.com"
+      ],
+      "subject": "Welcome to the Opsloom workspace",
+      "body": "Your administrator workspace is ready. Use Admin Credentials & Users to control access, messages, and audit visibility.",
+      "attachments": [],
+      "created_at": "2026-04-25T19:31:19",
+      "is_read_by": [],
+      "forwarded_from": "",
+      "delivery_status": "sent",
+      "sent_at": "2026-04-25T19:31:19"
+    }
+  ],
+  "DRAFT_MESSAGES": [],
+  "OUTBOX_MESSAGES": []
+}

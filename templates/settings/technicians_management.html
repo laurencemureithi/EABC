@@ -1,0 +1,87 @@
+{% extends "layouts/base.html" %}
+{% block title %}Technicians Management • Opsloom{% endblock %}
+{% block content %}
+{% set page_title = "Technicians Management" %}
+{% set title_icon = "engineering" %}
+{% set page_subtitle = "Register technicians, monitor availability, and open technician detail views for workload and completion performance." %}
+{% set show_system_badge = true %}
+{% set breadcrumbs = [{"label":"Settings / Admin", "href": url_for('settings_admin')}, {"label":"Technicians"}] %}
+{% include "partials/title_block.html" %}
+<div class="max-w-7xl mx-auto space-y-6">
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 technician-kpi-grid">
+    <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border p-5 shadow-sm"><p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Technicians</p><p class="mt-2 text-3xl font-black text-slate-900 dark:text-white">{{ technician_summary.count or technicians|length }}</p></div>
+    <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border p-5 shadow-sm"><p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Open PM</p><p class="mt-2 text-3xl font-black text-slate-900 dark:text-white">{{ technician_summary.open_pm or 0 }}</p></div>
+    <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border p-5 shadow-sm"><p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Active Breakdowns</p><p class="mt-2 text-3xl font-black text-slate-900 dark:text-white">{{ technician_summary.active_breakdowns or 0 }}</p></div>
+    <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border p-5 shadow-sm"><p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Average Availability</p><p class="mt-2 text-3xl font-black text-slate-900 dark:text-white">{{ technician_summary.avg_availability or 0 }}%</p></div>
+  </div>
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <div class="xl:col-span-2 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-200 dark:border-dark-border flex items-center justify-between"><h2 class="text-sm font-black uppercase tracking-[0.18em]">Technician Directory</h2><span class="text-xs font-bold text-slate-500">{{ technicians|length }} registered</span></div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-50 dark:bg-slate-900/40"><tr><th class="px-6 py-3 text-left text-[11px] font-black uppercase tracking-[0.18em]">Technician</th><th class="px-6 py-3 text-left text-[11px] font-black uppercase tracking-[0.18em]">Role</th><th class="px-6 py-3 text-left text-[11px] font-black uppercase tracking-[0.18em]">Load</th><th class="px-6 py-3 text-left text-[11px] font-black uppercase tracking-[0.18em]">Performance</th><th class="px-6 py-3 text-right text-[11px] font-black uppercase tracking-[0.18em]">Actions</th></tr></thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-dark-border">
+            {% for row in technicians %}
+            <tr>
+              <td class="px-6 py-4"><button type="button" class="tech-profile-btn text-left" data-tech-id="{{ row.id }}"><div class="font-bold text-ueal-purple dark:text-ueal-gold hover:underline">{{ row.name }}</div><div class="text-xs text-slate-500">{{ row.email or row.phone or row.id }}</div></button></td>
+              <td class="px-6 py-4">{{ row.role }} / {{ row.discipline }}</td>
+              <td class="px-6 py-4"><div class="font-bold text-slate-900 dark:text-white">{{ row.total_load or 0 }}</div><div class="text-xs text-slate-500">{{ row.open_pm or 0 }} PM • {{ row.active_breakdowns or 0 }} BD</div></td>
+              <td class="px-6 py-4"><div class="font-bold text-slate-900 dark:text-white">{{ row.on_time_rate if row.on_time_rate is not none else '—' }}{% if row.on_time_rate is not none %}%{% endif %}</div><div class="text-xs text-slate-500">Availability {{ row.availability_score or 0 }}%</div></td>
+              <td class="px-6 py-4 text-right">{% set action_items = [
+                {'type':'form','href': url_for('technicians_toggle', tech_id=row.id), 'label': 'Set ' ~ ('Inactive' if row.active else 'Active'), 'icon': 'toggle_on'},
+                {'type':'form','href': url_for('technicians_delete', tech_id=row.id), 'label': 'Delete', 'icon': 'delete', 'variant': 'danger', 'confirm': 'Delete this technician?'}
+              ] %}{% include 'partials/table_actions_menu.html' %}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">No technicians registered yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-sm p-6">
+      <h2 class="text-sm font-black uppercase tracking-[0.18em]">Add Technician</h2>
+      <form method="post" action="{{ url_for('technicians_create') }}" class="mt-4 space-y-4">
+        <input name="name" placeholder="Full name" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">
+        <input name="role" placeholder="Role" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">
+        <input name="discipline" placeholder="Discipline" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">
+        <input name="phone" placeholder="Phone" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">
+        <input name="email" placeholder="Email" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">
+        <button class="w-full rounded-lg bg-ueal-gold text-white py-3 font-black text-sm">Add Technician</button>
+      </form>
+    </div>
+  </div>
+</div>
+<div id="techModal" class="fixed inset-0 z-[90] hidden items-center justify-center bg-slate-900/50 p-4">
+  <div class="w-full max-w-2xl rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border shadow-2xl overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-dark-border"><h3 id="techModalTitle" class="text-lg font-black text-slate-900 dark:text-white">Technician Profile</h3><button type="button" id="techModalClose" class="w-10 h-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">✕</button></div>
+    <div id="techModalBody" class="p-6 text-sm text-slate-600 dark:text-slate-300">Loading…</div>
+  </div>
+</div>
+<script>
+(function(){
+  const modal = document.getElementById('techModal');
+  const body = document.getElementById('techModalBody');
+  const title = document.getElementById('techModalTitle');
+  const closeBtn = document.getElementById('techModalClose');
+  function close(){ modal.classList.add('hidden'); modal.classList.remove('flex'); }
+  function open(){ modal.classList.remove('hidden'); modal.classList.add('flex'); }
+  async function loadTech(id){
+    open();
+    body.innerHTML = 'Loading profile…';
+    try{
+      const res = await fetch(`/api/technicians/${encodeURIComponent(id)}/profile`, {headers:{'Accept':'application/json'}});
+      if(!res.ok) throw new Error('failed');
+      const p = await res.json();
+      title.textContent = p.name || 'Technician Profile';
+      const recent = Array.isArray(p.recent_work) ? p.recent_work.map((r)=>`<tr><td class="py-2">${r.kind||'—'}</td><td class="py-2">${r.title||'—'}</td><td class="py-2">${(r.status||'—').replaceAll('_',' ')}</td><td class="py-2">${r.date||'—'}</td></tr>`).join('') : '';
+      body.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div class="rounded-xl border border-slate-200 dark:border-dark-border p-4"><div class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-black">Role</div><div class="mt-2 font-bold text-slate-900 dark:text-white">${p.role||'—'} / ${p.discipline||'—'}</div><div class="mt-4 text-xs text-slate-500">${p.email||'No email'}<br>${p.phone||'No phone'}</div></div><div class="rounded-xl border border-slate-200 dark:border-dark-border p-4"><div class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-black">Availability</div><div class="mt-2 text-3xl font-black text-slate-900 dark:text-white">${p.availability_score||0}%</div><div class="text-xs text-slate-500 mt-1">${p.status_label||'—'}</div></div><div class="rounded-xl border border-slate-200 dark:border-dark-border p-4"><div class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-black">Current Workload</div><div class="mt-2 text-sm font-bold text-slate-900 dark:text-white">${p.open_pm||0} open PM • ${p.active_breakdowns||0} active BD</div><div class="mt-1 text-xs text-slate-500">Due soon ${p.due_soon||0} • Overdue PM ${p.overdue_pm||0}</div></div><div class="rounded-xl border border-slate-200 dark:border-dark-border p-4"><div class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-black">Performance</div><div class="mt-2 text-sm font-bold text-slate-900 dark:text-white">On-time ${p.on_time_rate ?? '—'}${p.on_time_rate != null ? '%' : ''}</div><div class="mt-1 text-xs text-slate-500">Average completion ${p.avg_completion_days ?? '—'} days</div></div></div><div class="mt-6 rounded-xl border border-slate-200 dark:border-dark-border p-4"><div class="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-black mb-3">Recent Work Timeline</div><table class="min-w-full text-sm"><thead><tr class="text-left text-slate-500"><th class="py-2">Type</th><th class="py-2">Item</th><th class="py-2">Status</th><th class="py-2">Date</th></tr></thead><tbody>${recent || '<tr><td colspan="4" class="py-4 text-slate-500">No recent technician activity.</td></tr>'}</tbody></table></div>`;
+    }catch(e){ body.innerHTML = '<div class="text-sm text-red-600">Technician profile could not be loaded.</div>'; }
+  }
+  document.querySelectorAll('.tech-profile-btn').forEach((btn)=>btn.addEventListener('click',()=>loadTech(btn.dataset.techId)));
+  document.querySelectorAll('[data-tech-open]').forEach((btn)=>btn.addEventListener('click',()=>loadTech(btn.getAttribute('data-tech-open'))));
+  closeBtn?.addEventListener('click', close);
+  modal?.addEventListener('click', (e)=>{ if(e.target===modal) close(); });
+})();
+</script>
+{% endblock %}

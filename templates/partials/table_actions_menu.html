@@ -1,0 +1,40 @@
+{% set menu_width = menu_width|default('26rem') %}
+<div class="relative inline-flex justify-end" data-dd-root>
+  <button type="button"
+          data-dd-btn
+          class="inline-flex items-center justify-center w-10 h-10 rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 hover:text-ueal-purple dark:hover:text-ueal-gold hover:border-ueal-gold/40 transition-colors"
+          title="Actions">
+    <span class="material-symbols-outlined text-[20px]">more_vert</span>
+  </button>
+
+  <div data-dd-menu class="hidden absolute right-0 top-full mt-2 rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 shadow-2xl p-2 z-50" style="width:min({{ menu_width }}, calc(100vw - 2rem)); max-width:min({{ menu_width }}, calc(100vw - 2rem));">
+    {% for item in action_items %}
+      {% set danger = item.variant|default('') == 'danger' %}
+      {% set item_classes = 'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ' ~ ('text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20' if danger else 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800') %}
+      {% if item.type|default('link') == 'form' %}
+        <form method="{{ item.method|default('post') }}" action="{{ item.href }}" class="block"
+              {% if item.confirm_key or item.confirm_title or item.confirm_ok or item.confirm_skip_label %}
+                data-confirm="{{ item.confirm_key or 'action' }}"
+                data-confirm-key="eabc_skip_confirm_{{ item.confirm_key or 'action' }}"
+                data-confirm-title="{{ item.confirm_title|default('Please Confirm')|e }}"
+                data-confirm-text="{{ item.confirm|default('Are you sure you want to continue?')|e }}"
+                data-confirm-ok="{{ item.confirm_ok|default('Yes, continue')|e }}"
+                data-confirm-skip-label="{{ item.confirm_skip_label|default('Do not show this again')|e }}"
+              {% elif item.confirm %}onsubmit="return confirm('{{ item.confirm|e }}');"{% endif %}>
+          {% for hidden in item.hidden_inputs|default([]) %}
+            <input type="hidden" name="{{ hidden.name }}" value="{{ hidden.value }}">
+          {% endfor %}
+          <button type="submit" class="{{ item_classes }} text-left whitespace-normal break-words min-h-[44px]">
+            {% if item.icon %}<span class="material-symbols-outlined text-[18px]">{{ item.icon }}</span>{% endif %}
+            <span>{{ item.label }}</span>
+          </button>
+        </form>
+      {% else %}
+        <a href="{{ item.href }}" class="{{ item_classes }} text-left whitespace-normal break-words min-h-[44px]" {% if item.target %}target="{{ item.target }}"{% endif %}>
+          {% if item.icon %}<span class="material-symbols-outlined text-[18px]">{{ item.icon }}</span>{% endif %}
+          <span>{{ item.label }}</span>
+        </a>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>

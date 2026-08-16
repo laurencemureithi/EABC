@@ -1,0 +1,741 @@
+{# =========================
+   reports_generate_step2.html
+   FIXES:
+   - Uses asset_uid (backend expects this)
+   - Asset API supports objects {uid, name}
+   - Format persists via backend "format" (and accepts export_format fallback)
+   - Date range persists
+   - Dark mode surfaces are consistent
+   ========================= #}
+
+{% extends "layouts/base.html" %}
+
+{% block title %}Generate New Report • Opsloom{% endblock %}
+
+{% block page_styles %}
+<style>
+  .material-symbols-outlined { line-height: 1; vertical-align: middle; }
+
+  .asset-dd {
+    position: absolute;
+    left: 0; right: 0;
+    top: calc(100% + 6px);
+    z-index: 50;
+    max-height: 260px;
+    overflow: auto;
+  }
+
+  .preset-active {
+    background: rgba(212, 175, 55, 0.10);
+    border-color: rgba(212, 175, 55, 0.35);
+    color: #1554FF;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+  {% set page_title = "Generate New Report" %}
+  {% set title_icon = "assessment" %}
+  {% set page_subtitle = "Configure scope, filters, assets, and the exact metrics you want in the output." %}
+  {% set show_system_badge = true %}
+  {% set breadcrumbs = [{"label":"Reports", "href": url_for("reports_center")}, {"label":"Generate"}] %}
+  {% include "partials/title_block.html" %}
+
+  <div class="mb-10 flex items-center justify-between max-w-4xl mx-auto">
+    <div class="flex flex-col items-center gap-2">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2
+                  bg-ueal-purple border-ueal-purple text-white">
+        <span class="material-symbols-outlined text-base">check</span>
+      </div>
+      <span class="text-[10px] font-black text-ueal-purple uppercase tracking-widest">1. Report Type</span>
+    </div>
+
+    <div class="flex-1 h-0.5 bg-ueal-purple mx-4"></div>
+
+    <div class="flex flex-col items-center gap-2">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2
+                  bg-ueal-gold border-ueal-gold text-white shadow-lg shadow-ueal-gold/20">
+        2
+      </div>
+      <span class="text-[10px] font-black text-ueal-purple uppercase tracking-widest">2. Configuration</span>
+    </div>
+
+    <div class="flex-1 h-0.5 bg-slate-200 dark:bg-white/10 mx-4"></div>
+
+    <div class="flex flex-col items-center gap-2">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2
+                  bg-white dark:bg-dark-surface border-slate-200 dark:border-dark-border text-slate-400">
+        3
+      </div>
+      <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">3. Finalize</span>
+    </div>
+  </div>
+
+  {% set card_shell = "bg-white dark:bg-dark-surface rounded-2xl border border-slate-200 dark:border-dark-border shadow-xl overflow-hidden" %}
+  {% set inner_pad  = "p-8 sm:p-10" %}
+  {% set section_title = "text-xs font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2" %}
+  {% set form_card = "bg-slate-50/60 dark:bg-slate-900/40 rounded-xl p-6 border border-slate-100 dark:border-dark-border" %}
+
+  <section class="{{ card_shell }}">
+    <div class="{{ inner_pad }}">
+
+      <div class="flex items-center gap-4 mb-10 pb-6 border-b border-slate-100 dark:border-dark-border">
+        <div class="w-12 h-12 rounded-xl bg-ueal-purple/10 text-ueal-purple flex items-center justify-center">
+          <span class="material-symbols-outlined text-2xl">analytics</span>
+        </div>
+        <div>
+          <h2 class="text-xl font-black text-slate-900 dark:text-white">
+            {{ category_title or "Report Configuration" }}
+          </h2>
+          <p class="text-slate-500 dark:text-slate-300 text-sm font-medium">
+            Fine-tune your analysis parameters and data filters.
+          </p>
+        </div>
+      </div>
+
+      <form method="post" action="{{ url_for('reports_generate_step2_post') }}" id="reportConfigForm" novalidate>
+        <input type="hidden" name="category" value="{{ selected_category or '' }}"/>
+        <input type="hidden" name="department" id="department" value="{{ department or '' }}"/>
+
+        {# ✅ backend expects asset_uid #}
+        <input type="hidden" name="asset_uid" id="asset_uid" value="{{ selected_asset_uid or '' }}"/>
+        {% for au in (selected_asset_uids or []) %}
+          <input type="hidden" name="asset_uids" value="{{ au }}" class="asset-uid-hidden"/>
+        {% endfor %}
+        {# optional: keep name for UI only (backend may ignore) #}
+        <input type="hidden" name="asset_name" id="asset_name" value="{{ selected_asset_name or '' }}"/>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+
+          <!-- LEFT -->
+          <div class="space-y-8">
+
+            <div>
+              <h3 class="{{ section_title }}">
+                <span class="material-symbols-outlined text-base">calendar_today</span>
+                Date Range Selection
+              </h3>
+
+              <div class="{{ form_card }}">
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-tighter">
+                      Start Date
+                    </label>
+                    <input
+                      class="block w-full rounded-lg border-slate-200 dark:border-dark-border
+                             bg-white dark:bg-dark-surface text-sm text-slate-900 dark:text-white
+                             focus:border-ueal-gold focus:ring-ueal-gold"
+                      type="date" name="start_date"
+                      value="{{ start_date or '' }}" required/>
+                  </div>
+
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-tighter">
+                      End Date
+                    </label>
+                    <input
+                      class="block w-full rounded-lg border-slate-200 dark:border-dark-border
+                             bg-white dark:bg-dark-surface text-sm text-slate-900 dark:text-white
+                             focus:border-ueal-gold focus:ring-ueal-gold"
+                      type="date" name="end_date"
+                      value="{{ end_date or '' }}" required/>
+                  </div>
+                </div>
+
+                <div class="flex flex-wrap gap-2" id="presetRow">
+                  <button type="button" data-range="30"
+                          class="preset-btn px-3 py-1.5 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border
+                                 rounded-md text-[10px] font-bold text-slate-600 dark:text-slate-200 hover:border-ueal-gold transition-colors">
+                    LAST 30 DAYS
+                  </button>
+                  <button type="button" data-range="quarter"
+                          class="preset-btn px-3 py-1.5 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border
+                                 rounded-md text-[10px] font-bold text-slate-600 dark:text-slate-200 hover:border-ueal-gold transition-colors">
+                    LAST QUARTER
+                  </button>
+                  <button type="button" data-range="ytd"
+                          class="preset-btn px-3 py-1.5 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border
+                                 rounded-md text-[10px] font-bold text-slate-600 dark:text-slate-200 hover:border-ueal-gold transition-colors">
+                    YTD
+                  </button>
+                </div>
+
+                <p class="text-[11px] text-slate-500 dark:text-slate-300 mt-4">
+                  Tip: If you manually change dates, preset highlighting will clear automatically.
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <h3 class="{{ section_title }}">
+                <span class="material-symbols-outlined text-base">filter_alt</span>
+                Scope &amp; Filters
+              </h3>
+
+              <div class="{{ form_card }} space-y-5">
+
+                <div class="flex flex-col gap-2">
+                  <label class="text-[10px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-tighter">
+                    Section
+                  </label>
+
+                  {% set sections_list = sections or [] %}
+                  <select id="section_select" name="section"
+                          class="block w-full rounded-lg border-slate-200 dark:border-dark-border
+                                 bg-white dark:bg-dark-surface text-sm text-slate-900 dark:text-white
+                                 focus:border-ueal-gold focus:ring-ueal-gold"
+                          required>
+                    <option value="" disabled {% if not selected_section %}selected{% endif %}>Select section...</option>
+                    {% if sections_list|length %}
+                      {% for s in sections_list %}
+                        <option value="{{ s }}" {% if selected_section == s %}selected{% endif %}>{{ s }}</option>
+                      {% endfor %}
+                    {% else %}
+                      {% for s in ["Production","Engineering","Quality","Utilities"] %}
+                        <option value="{{ s }}" {% if selected_section == s %}selected{% endif %}>{{ s }}</option>
+                      {% endfor %}
+                    {% endif %}
+                  </select>
+
+                  <p class="text-[11px] text-slate-500 dark:text-slate-300">
+                    Asset list is filtered by the selected section.
+                  </p>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                  <label class="text-[10px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-tighter">
+                    Report Scope
+                  </label>
+
+                  {% set scope_mode = (scope_mode or selected_scope_mode or 'assets') %}
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <label class="flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface cursor-pointer hover:border-ueal-gold">
+                      <input type="radio" name="scope_mode" value="assets" class="text-ueal-gold focus:ring-ueal-gold" {% if scope_mode=='assets' %}checked{% endif %}>
+                      <div class="min-w-0">
+                        <div class="text-xs font-extrabold text-slate-800 dark:text-white">Selected Machines</div>
+                        <div class="text-[10px] text-slate-500 dark:text-slate-300">Pick one or many machines.</div>
+                      </div>
+                    </label>
+                    <label class="flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface cursor-pointer hover:border-ueal-gold">
+                      <input type="radio" name="scope_mode" value="section" class="text-ueal-gold focus:ring-ueal-gold" {% if scope_mode=='section' %}checked{% endif %}>
+                      <div class="min-w-0">
+                        <div class="text-xs font-extrabold text-slate-800 dark:text-white">Whole Section</div>
+                        <div class="text-[10px] text-slate-500 dark:text-slate-300">All machines in chosen section.</div>
+                      </div>
+                    </label>
+                    <label class="flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface cursor-pointer hover:border-ueal-gold">
+                      <input type="radio" name="scope_mode" value="department" class="text-ueal-gold focus:ring-ueal-gold" {% if scope_mode=='department' %}checked{% endif %}>
+                      <div class="min-w-0">
+                        <div class="text-xs font-extrabold text-slate-800 dark:text-white">Whole Department</div>
+                        <div class="text-[10px] text-slate-500 dark:text-slate-300">All machines in department.</div>
+                      </div>
+                    </label>
+                  </div>
+
+                  <p class="text-[11px] text-slate-500 dark:text-slate-300">
+                    Choose scope first. If you pick Whole Section, section is required.
+                  </p>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                  <label class="text-[10px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-tighter">
+                    Machine Selection
+                  </label>
+                  </label>
+
+                  <div class="relative" id="asset_control">
+                    <div class="flex flex-wrap gap-2 p-2 border border-slate-200 dark:border-dark-border
+                                rounded-lg bg-white dark:bg-dark-surface min-h-[42px] items-center">
+
+                      <div id="asset_chips" class="flex flex-wrap gap-2">
+                        {# restore selected assets as chips #}
+                        {% for nm in (selected_asset_names or []) %}
+                          <span class="inline-flex items-center gap-1 px-2 py-1 bg-ueal-purple text-white text-[10px] font-bold rounded-md uppercase">
+                            {{ nm }}
+                          </span>
+                        {% endfor %}
+                      </div>
+
+                      <button id="asset_clear" type="button" class="ml-auto text-slate-400 hover:text-red-500" aria-label="Clear assets">
+                        <span class="material-symbols-outlined text-sm">backspace</span>
+                      </button>
+
+                      <input id="asset_search"
+                             class="border-none focus:ring-0 text-sm p-0 flex-1 min-w-[140px]
+                                    bg-transparent text-slate-800 dark:text-white placeholder:text-slate-400"
+                             placeholder="Search assets..."
+                             type="text"
+                             autocomplete="off"/>
+                    </div>
+
+                    <div id="asset_dropdown"
+                         class="asset-dd hidden rounded-xl border border-slate-200 dark:border-dark-border
+                                bg-white dark:bg-dark-surface shadow-lg">
+                      <div id="asset_dropdown_inner" class="p-2"></div>
+                    </div>
+                  </div>
+
+                  <div id="assetInlineError"
+                       class="hidden mt-2 text-[11px] font-semibold text-red-700 dark:text-red-200">
+                    Please select at least one machine to continue (or switch scope).
+                  </div>
+
+                  <p class="text-[11px] text-slate-500 dark:text-slate-300">
+                    Start typing, then pick from the list. You can clear and choose another asset any time.
+                  </p>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+
+          <!-- RIGHT -->
+          <div class="space-y-8">
+
+            <div>
+              <h3 class="{{ section_title }}">
+                <span class="material-symbols-outlined text-base">fact_check</span>
+                Report Metrics
+              </h3>
+
+              <div class="{{ form_card }} grid grid-cols-1 gap-3">
+                {% block metrics_options %}
+                  {% set selected_metrics = selected_metrics or ['mtbf','mttr','downtime','availability'] %}
+
+                  {% set metric_rows = [
+                    ('mtbf','MTBF (Mean Time Between Failures)','Track equipment reliability intervals.'),
+                    ('mttr','MTTR (Mean Time To Repair)','Analyze maintenance efficiency and response.'),
+                    ('downtime','Total Downtime Hours','Cumulative impact of all stop events.'),
+                    ('availability','Operational Availability %','Overall equipment effectiveness score.')
+                  ] %}
+
+                  {% for key, title, desc in metric_rows %}
+                    <label class="flex items-center gap-3 p-3 bg-white dark:bg-dark-surface rounded-lg
+                                  border border-slate-200 dark:border-dark-border cursor-pointer
+                                  hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                      <input class="rounded text-ueal-gold focus:ring-ueal-gold h-4 w-4"
+                             type="checkbox" name="metrics" value="{{ key }}"
+                             {% if key in selected_metrics %}checked{% endif %}/>
+                      <div class="flex flex-col">
+                        <span class="text-xs font-bold text-slate-800 dark:text-white">{{ title }}</span>
+                        <span class="text-[10px] text-slate-500 dark:text-slate-300">{{ desc }}</span>
+                      </div>
+                    </label>
+                  {% endfor %}
+                {% endblock %}
+              </div>
+            </div>
+
+            <div>
+              <h3 class="{{ section_title }}">
+                <span class="material-symbols-outlined text-base">description</span>
+                Export File Format
+              </h3>
+
+              {# ✅ backend expects 'format' (keep export_format fallback) #}
+              {% set fmt_value = (format or export_format or 'pdf')|lower %}
+
+              <div class="{{ form_card }} flex flex-wrap gap-4">
+
+                {% set formats = [
+                  ('pdf','picture_as_pdf','text-red-500','Professional PDF'),
+                  ('xlsx','table_view','text-green-600','Excel (XLSX)'),
+                  ('csv','description','text-slate-500','CSV Data')
+                ] %}
+
+                {% for val, icon, icon_cls, label in formats %}
+                  <label class="flex-1 min-w-[120px] relative">
+                    <input class="peer sr-only" name="format" type="radio" value="{{ val }}"
+                           {% if fmt_value == val %}checked{% endif %}/>
+                    <div class="h-full p-4 border-2 border-slate-200 dark:border-dark-border rounded-xl
+                                bg-white dark:bg-dark-surface
+                                peer-checked:border-ueal-gold peer-checked:bg-ueal-gold/10
+                                flex flex-col items-center gap-2 cursor-pointer transition-all">
+                      <span class="material-symbols-outlined {{ icon_cls }}">{{ icon }}</span>
+                      <span class="text-[10px] font-black text-slate-700 dark:text-slate-100 uppercase">{{ label }}</span>
+                    </div>
+                  </label>
+                {% endfor %}
+
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        {% if error %}
+          <div class="mt-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/40
+                      text-red-700 dark:text-red-200 text-xs font-semibold rounded-xl px-4 py-3">
+            {{ error }}
+          </div>
+        {% endif %}
+
+        <div class="-mx-8 sm:-mx-10 mt-10 px-8 sm:px-10 py-6
+                    bg-slate-50 dark:bg-slate-900/40 border-t border-slate-100 dark:border-dark-border
+                    flex items-center justify-between gap-3">
+
+          <a href="{{ url_for('reports_generate_step1_get') }}"
+             class="px-6 py-2.5 rounded-lg border border-slate-300 dark:border-dark-border
+                    bg-white dark:bg-dark-surface text-slate-600 dark:text-slate-200
+                    text-xs font-black hover:bg-slate-100 dark:hover:bg-slate-800 transition-all uppercase tracking-widest
+                    flex items-center gap-2">
+            <span class="material-symbols-outlined text-base">arrow_back</span>
+            Back to Report Type
+          </a>
+
+          <button type="submit" id="nextFinalizeBtn" disabled
+                  class="px-6 py-2.5 rounded-lg bg-ueal-gold text-white
+                         text-xs font-black hover:brightness-110 transition-all
+                         shadow-lg shadow-ueal-gold/20 flex items-center gap-2 uppercase tracking-widest
+                         disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100">
+            Next: Finalize
+            <span class="material-symbols-outlined text-base">arrow_forward</span>
+          </button>
+        </div>
+
+      </form>
+
+    </div>
+  </section>
+
+  <footer class="mt-12 mb-2 text-center">
+    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">
+      © 2024 Opsloom. Opsloom Intelligence Unit
+    </p>
+    <p class="text-[9px] text-slate-300 uppercase tracking-widest mt-1">
+      Opsloom Operations Intelligence System - Wizard v2.1
+    </p>
+  </footer>
+
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function () {
+  // -------------------------
+  // Date presets
+  // -------------------------
+  const startInput = document.querySelector('input[name="start_date"]');
+  const endInput   = document.querySelector('input[name="end_date"]');
+  const presetBtns = Array.from(document.querySelectorAll('.preset-btn'));
+
+  function toISO(d){
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function setPresetActive(range){
+    presetBtns.forEach(b => b.classList.toggle('preset-active', b.getAttribute('data-range') === range));
+  }
+
+  function clearPresetActive(){ presetBtns.forEach(b => b.classList.remove('preset-active')); }
+
+  function setRange(range){
+    const now = new Date();
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    let start = new Date(end);
+
+    if(range === '30') start.setDate(start.getDate() - 30);
+    else if(range === 'quarter') start.setMonth(start.getMonth() - 3);
+    else if(range === 'ytd') start = new Date(end.getFullYear(), 0, 1);
+    else return;
+
+    if (startInput) startInput.value = toISO(start);
+    if (endInput) endInput.value = toISO(end);
+    setPresetActive(range);
+    validateReady();
+  }
+
+  presetBtns.forEach(btn => btn.addEventListener('click', () => setRange(btn.getAttribute('data-range'))));
+  startInput?.addEventListener('input', () => { clearPresetActive(); validateReady(); });
+  endInput?.addEventListener('input',   () => { clearPresetActive(); validateReady(); });
+
+  // -------------------------
+  // Scope + asset multi-select
+  // -------------------------
+  const form = document.getElementById('reportConfigForm');
+  const nextBtn = document.getElementById('nextFinalizeBtn');
+  const sectionSelect = document.getElementById('section_select');
+  const scopeRadios = Array.from(document.querySelectorAll('input[name="scope_mode"]'));
+
+  const assetUidHiddenSingle = document.getElementById('asset_uid');
+  const assetNameHidden = document.getElementById('asset_name');
+  const chipsWrap = document.getElementById('asset_chips');
+  const clearBtn = document.getElementById('asset_clear');
+  const search = document.getElementById('asset_search');
+  const dropdown = document.getElementById('asset_dropdown');
+  const dropdownInner = document.getElementById('asset_dropdown_inner');
+  const assetControl = document.getElementById('asset_control');
+  const assetInlineError = document.getElementById('assetInlineError');
+  const generatedForInput = document.getElementById('generated_for');
+
+  let assetsCache = []; // [{uid,name}]
+  let selected = new Map(); // uid -> name
+  let isLoading = false;
+
+  // restore from hidden inputs
+  document.querySelectorAll('input.asset-uid-hidden').forEach(inp => {
+    const uid = (inp.value || '').trim();
+    if (uid) selected.set(uid, uid);
+  });
+
+  function getScope(){
+    const r = scopeRadios.find(x => x.checked);
+    return r ? r.value : 'assets';
+  }
+
+  function openDropdown(){ dropdown?.classList.remove('hidden'); }
+  function closeDropdown(){ dropdown?.classList.add('hidden'); }
+
+  function normalizeAssetRow(row){
+    if (row && typeof row === 'object') {
+      const uid = String(row.uid || row.asset_uid || '').trim();
+      const name = String(row.name || row.asset_name || row.asset || '').trim();
+      if (uid && name) return { uid, name };
+    }
+    return null;
+  }
+
+  function renderLoading(){
+    if (!dropdownInner) return;
+    dropdownInner.innerHTML = `<div class="px-3 py-2 text-xs text-slate-500 dark:text-slate-300">Loading machines...</div>`;
+    openDropdown();
+  }
+
+  function renderDropdown(items){
+    if (!dropdownInner) return;
+    dropdownInner.innerHTML = '';
+
+    if (!items.length) {
+      dropdownInner.innerHTML = `<div class="px-3 py-2 text-xs text-slate-500 dark:text-slate-300">No machines found.</div>`;
+      openDropdown();
+      return;
+    }
+
+    items.slice(0, 80).forEach(item => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = "w-full text-left px-3 py-2 rounded-lg text-sm text-slate-800 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between";
+      btn.innerHTML = `<span class="truncate">${item.name}</span>${selected.has(item.uid) ? '<span class="text-[10px] font-black text-ueal-gold">SELECTED</span>' : ''}`;
+      btn.addEventListener('click', () => addAsset(item.uid, item.name));
+      dropdownInner.appendChild(btn);
+    });
+
+    openDropdown();
+  }
+
+  function filterAssets(q){
+    const query = (q || '').toLowerCase().trim();
+    if (!query) return assetsCache;
+    return assetsCache.filter(a => a.name.toLowerCase().includes(query));
+  }
+
+  function syncHiddenList(){
+    // remove old
+    form.querySelectorAll('input.asset-uid-hidden').forEach(n => n.remove());
+
+    const uids = Array.from(selected.keys());
+    uids.forEach(uid => {
+      const inp = document.createElement('input');
+      inp.type = 'hidden';
+      inp.name = 'asset_uids';
+      inp.value = uid;
+      inp.className = 'asset-uid-hidden';
+      form.appendChild(inp);
+    });
+
+    // keep backward compat single asset_uid when exactly one selected
+    if (assetUidHiddenSingle) assetUidHiddenSingle.value = (uids.length === 1) ? uids[0] : '';
+  }
+
+  function renderChips(){
+    if (!chipsWrap) return;
+    chipsWrap.innerHTML = '';
+    Array.from(selected.entries()).forEach(([uid, name]) => {
+      const chip = document.createElement('span');
+      chip.className = 'inline-flex items-center gap-1 px-2 py-1 bg-ueal-purple text-white text-[10px] font-bold rounded-md uppercase';
+      const label = document.createElement('span');
+      label.className = 'truncate max-w-[220px]';
+      label.textContent = (name && name !== uid) ? name : uid;
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'hover:text-red-200';
+      x.innerHTML = '<span class="material-symbols-outlined text-sm">close</span>';
+      x.addEventListener('click', () => removeAsset(uid));
+      chip.appendChild(label);
+      chip.appendChild(x);
+      chipsWrap.appendChild(chip);
+    });
+  }
+
+  function addAsset(uid, name){
+    if (!uid) return;
+    selected.set(uid, name || uid);
+    assetNameHidden && (assetNameHidden.value = '');
+    syncHiddenList();
+    renderChips();
+    search && (search.value = '');
+    closeDropdown();
+    validateReady();
+  }
+
+  function removeAsset(uid){
+    selected.delete(uid);
+    syncHiddenList();
+    renderChips();
+    validateReady();
+  }
+
+  function clearAssets(){
+    selected.clear();
+    syncHiddenList();
+    renderChips();
+    validateReady();
+  }
+
+  clearBtn?.addEventListener('click', () => { clearAssets(); search?.focus(); });
+
+  async function loadAssetsForSection(){
+    assetsCache = [];
+    if (!sectionSelect) return;
+
+    const section = (sectionSelect.value || '').trim();
+    if (!section) { closeDropdown(); return; }
+
+    isLoading = true;
+    renderLoading();
+
+    try {
+      const dept = (document.getElementById('department')?.value || '').trim();
+      const res = await fetch(`/reports/api/assets?section=${encodeURIComponent(section)}&department=${encodeURIComponent(dept)}`, { headers: { 'Accept': 'application/json' } });
+      const data = await res.json();
+      const rows = Array.isArray(data.assets) ? data.assets : [];
+      assetsCache = rows.map(normalizeAssetRow).filter(Boolean);
+      closeDropdown();
+    } catch (e) {
+      assetsCache = [];
+      renderDropdown([]);
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  sectionSelect?.addEventListener('change', async () => {
+    const scope = getScope();
+    if (scope !== 'department') {
+      await loadAssetsForSection();
+    }
+    validateReady();
+  });
+
+  function toggleScopeUI(){
+    const scope = getScope();
+
+    // section required only when scope != department
+    if (sectionSelect) {
+      sectionSelect.required = (scope !== 'department');
+      sectionSelect.disabled = false;
+    }
+
+    // asset control enabled only in assets scope
+    const isAssets = scope === 'assets';
+    assetControl?.classList.toggle('opacity-60', !isAssets);
+    assetControl?.classList.toggle('pointer-events-none', !isAssets);
+
+    if (!isAssets) {
+      closeDropdown();
+      // keep selected assets, but they won't be required
+    }
+
+    validateReady();
+  }
+
+  scopeRadios.forEach(r => r.addEventListener('change', () => {
+    toggleScopeUI();
+    if (getScope() === 'assets' && sectionSelect?.value) loadAssetsForSection();
+  }));
+
+  search?.addEventListener('input', () => {
+    if (isLoading) return;
+    if (getScope() !== 'assets') return;
+    if (!sectionSelect?.value) { renderDropdown([]); return; }
+    renderDropdown(filterAssets(search.value));
+  });
+
+  search?.addEventListener('focus', () => {
+    if (isLoading) return;
+    if (getScope() !== 'assets') return;
+    if (!sectionSelect?.value) return;
+    renderDropdown(filterAssets(search.value));
+  });
+
+  search?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { closeDropdown(); return; }
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (isLoading) return;
+    if (getScope() !== 'assets') return;
+
+    const items = filterAssets(search.value);
+    if (items.length) addAsset(items[0].uid, items[0].name);
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!assetControl?.contains(e.target)) closeDropdown();
+  });
+
+  function syncGeneratedFor(){
+    if (!generatedForInput) return;
+    const scope = getScope();
+    const section = (sectionSelect?.value || "").trim();
+    const dept = (document.getElementById('department')?.value || "Engineering").trim();
+    generatedForInput.value = scope === "department" ? dept : (section || dept);
+  }
+
+  function validateReady(){
+    const scope = getScope();
+    const hasDates = !!((startInput?.value || '').trim()) && !!((endInput?.value || '').trim());
+    const hasSection = !!((sectionSelect?.value || '').trim());
+    const hasAssets = selected.size > 0;
+
+    let ok = hasDates;
+    if (scope === 'assets') ok = ok && hasSection && hasAssets;
+    if (scope === 'section') ok = ok && hasSection;
+    if (scope === 'department') ok = ok; // dates only
+
+    syncGeneratedFor();
+    if (nextBtn) nextBtn.disabled = !ok;
+    if (ok) assetInlineError?.classList.add('hidden');
+  }
+
+  document.querySelectorAll('input[name="metrics"]').forEach(cb => cb.addEventListener('change', validateReady));
+
+  // restore chips display if server rendered names not present
+  // If the server didn't provide selected_asset_names, chips wrap will be empty; keep hidden list as-is.
+  renderChips();
+  syncHiddenList();
+  toggleScopeUI();
+  validateReady();
+
+  // load assets when section already selected
+  if (sectionSelect?.value && getScope() === 'assets') loadAssetsForSection();
+
+  form?.addEventListener('submit', (e) => {
+    const scope = getScope();
+    if (scope === 'assets' && selected.size === 0) {
+      e.preventDefault();
+      assetInlineError?.classList.remove('hidden');
+      assetControl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      search?.focus();
+    }
+  });
+})();
+</script>
+{% endblock %}

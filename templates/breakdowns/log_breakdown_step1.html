@@ -1,0 +1,478 @@
+{# ======================
+   log_breakdown_step1.html
+   ====================== #}
+{% extends "layouts/base.html" %}
+{% block title %}Log New Breakdown - Step 1 • Opsloom{% endblock %}
+
+{% block content %}
+{% set f = (form if form is defined and form else none) %}
+
+{% set current_section = '' %}
+{% if f is not none and f.section is defined and f.section %}
+  {% set current_section = f.section %}
+{% elif selected_section is defined and selected_section %}
+  {% set current_section = selected_section %}
+{% elif request is defined and request.args.get('section') %}
+  {% set current_section = request.args.get('section') %}
+{% endif %}
+
+{% set sections_list = (sections if sections is defined and sections and sections|length > 0 else []) %}
+
+{# Resolve selected asset label (for editing/returning with errors) #}
+{% set selected_asset_label = '' %}
+{% if f is not none and f.asset_uid is defined and f.asset_uid %}
+  {% if assets is defined and assets and assets|length > 0 %}
+    {% for a in assets %}
+      {% if a.uid == f.asset_uid %}
+        {% set selected_asset_label = a.asset_name ~ ' (' ~ a.asset_id ~ ')' %}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+{% endif %}
+
+<div class="max-w-4xl mx-auto">
+  <div class="mb-8 flex items-center justify-between">
+    <div>
+      <div class="flex items-center gap-4">
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Log New Breakdown</h1>
+        <div class="hidden lg:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm">
+          <span class="w-2 h-2 rounded-full bg-green-500"></span>
+          <span class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">SYSTEM STABLE</span>
+        </div>
+      </div>
+
+      <nav class="flex items-center gap-2 mt-2 text-[13px] text-slate-500 font-medium">
+        <a href="{{ url_for('breakdowns') }}" class="hover:text-ueal-purple transition-colors">Breakdowns</a>
+        <span class="material-symbols-outlined text-base text-slate-400">chevron_right</span>
+        <span class="text-slate-900 dark:text-slate-300">Log New Incident</span>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Stepper -->
+  <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm mb-8 overflow-hidden">
+    <div class="flex">
+      <div class="flex-1 flex items-center justify-center py-4 px-6 gap-3 text-ueal-gold border-b-2 border-ueal-gold bg-slate-50/50 dark:bg-slate-800/20">
+        <span class="w-7 h-7 flex items-center justify-center rounded-full bg-ueal-gold text-white text-xs font-bold">1</span>
+        <span class="text-sm font-bold">Incident Details</span>
+      </div>
+      <div class="flex-1 flex items-center justify-center py-4 px-6 gap-3 text-slate-400 border-b-2 border-transparent">
+        <span class="w-7 h-7 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 text-xs font-bold">2</span>
+        <span class="text-sm font-semibold">Assignment &amp; Notes</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Form -->
+  <form method="post" class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm p-8" id="breakdownStep1Form">
+    {% if error is defined and error %}
+      <div class="mb-6 p-4 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm font-semibold">
+        {{ error }}
+      </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <!-- Left -->
+      <div class="space-y-6">
+        <h3 class="text-sm font-bold text-ueal-purple uppercase tracking-wider">Step 1: Breakdown Information</h3>
+
+        <!-- INCIDENT TITLE -->
+        <div>
+          <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-2">Incident Title</label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">title</span>
+            <input name="incident_title"
+                   id="incidentTitle"
+                   value="{% if f is not none and f.incident_title is defined %}{{ f.incident_title }}{% endif %}"
+                   class="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
+                   placeholder="e.g. Motor failure during shift start-up"
+                   maxlength="120" />
+          </div>
+          <p class="mt-2 text-[11px] text-slate-400">
+            Keep it short and specific. This becomes the “Incident:” header on the view page.
+          </p>
+        </div>
+
+        <!-- SECTION -->
+        <div>
+          <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-2">Section</label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">factory</span>
+
+            <select id="sectionSelect"
+                    name="section"
+                    class="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white appearance-none cursor-pointer">
+              <option value="">Select section...</option>
+
+              {% if sections_list and sections_list|length > 0 %}
+                {% for s in sections_list %}
+                  <option value="{{ s }}" {% if current_section == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+              {% else %}
+                {% if current_section %}
+                  <option value="{{ current_section }}" selected>{{ current_section }}</option>
+                {% else %}
+                  <option value="" disabled>No sections found</option>
+                {% endif %}
+              {% endif %}
+            </select>
+
+            <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+          </div>
+
+          <p class="mt-2 text-[11px] text-slate-400">
+            Choose a section first — then select the machine/asset.
+          </p>
+        </div>
+
+        <!-- ONE BAR: Asset Combobox -->
+        <div>
+          <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-2">Machine / Asset</label>
+
+          <input type="hidden" name="asset_uid" id="assetUid" value="{% if f is not none and f.asset_uid is defined %}{{ f.asset_uid }}{% endif %}"/>
+
+          <div class="relative" id="assetComboRoot">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">precision_manufacturing</span>
+
+            <input
+              id="assetComboInput"
+              type="text"
+              {% if not current_section %}disabled{% endif %}
+              value="{{ selected_asset_label }}"
+              class="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white disabled:opacity-60"
+              placeholder="{% if current_section %}Search machine name / ID...{% else %}Select a section first...{% endif %}"
+              autocomplete="off"
+            />
+
+            <button type="button" id="assetComboChevron"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-slate-200/60 dark:hover:bg-slate-700/60 {% if not current_section %}pointer-events-none opacity-40{% endif %}">
+              <span class="material-symbols-outlined text-slate-400">expand_more</span>
+            </button>
+
+            <div id="assetComboMenu"
+                 class="hidden absolute z-50 left-0 right-0 mt-2 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-2xl overflow-hidden">
+              <div class="px-3 py-2 border-b border-slate-100 dark:border-dark-border">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Select Asset</p>
+              </div>
+              <div id="assetComboList" class="max-h-64 overflow-auto"></div>
+            </div>
+          </div>
+
+          <p class="mt-2 text-[11px] text-slate-400">
+            If the list is empty after selecting a section, register the asset first in Asset Register.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-2">Incident Date &amp; Time</label>
+            <input name="incident_dt"
+                   id="incidentDt"
+                   class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
+                   type="datetime-local"
+                   value="{% if f is not none and f.incident_dt is defined %}{{ f.incident_dt }}{% endif %}"/>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-2">Failure Category</label>
+            <select name="failure_category"
+                    id="failureCategory"
+                    class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white">
+              {% for c in failure_categories %}
+                <option value="{{ c }}" {% if f is not none and f.failure_category is defined and f.failure_category == c %}selected{% endif %}>{{ c }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- Severity -->
+        <div>
+          <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-4">Severity Level</label>
+
+          {% set sev = 'medium' %}
+          {% if f is not none and f.severity is defined and f.severity %}
+            {% set sev = f.severity %}
+          {% endif %}
+
+          <input type="hidden" name="severity" id="severityInput" value="{{ sev }}"/>
+
+          <div class="grid grid-cols-3 gap-4">
+            <button type="button" data-sev="critical"
+                    class="severity-card border-2 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all
+                           {% if sev == 'critical' %}ring-2 ring-red-400 bg-red-50 dark:bg-red-900/20 border-red-200{% else %}border-red-100 bg-red-50/30 hover:bg-red-50 dark:bg-red-900/10 dark:hover:bg-red-900/20{% endif %}">
+              <span class="material-symbols-outlined text-red-500 text-3xl">priority_high</span>
+              <span class="text-[10px] font-bold text-red-600 uppercase">Critical</span>
+            </button>
+
+            <button type="button" data-sev="medium"
+                    class="severity-card border-2 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all
+                           {% if sev == 'medium' %}ring-2 ring-ueal-gold bg-amber-50 dark:bg-amber-900/20 border-amber-200{% else %}border-amber-100 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/10 dark:hover:bg-amber-900/20{% endif %}">
+              <span class="material-symbols-outlined text-amber-500 text-3xl">warning</span>
+              <span class="text-[10px] font-bold text-amber-600 uppercase">Medium</span>
+            </button>
+
+            <button type="button" data-sev="low"
+                    class="severity-card border-2 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all
+                           {% if sev == 'low' %}ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200{% else %}border-blue-100 bg-blue-50/30 hover:bg-blue-50 dark:bg-blue-900/10 dark:hover:bg-blue-900/20{% endif %}">
+              <span class="material-symbols-outlined text-blue-500 text-3xl">info</span>
+              <span class="text-[10px] font-bold text-blue-600 uppercase">Low</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right -->
+      <div class="space-y-6">
+        <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider">Step 2: Notes</h3>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-2">Symptom Description</label>
+          <textarea name="symptoms"
+                    id="symptoms"
+                    class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white h-32"
+                    placeholder="Describe the symptoms of the breakdown...">{% if f is not none and f.symptoms is defined %}{{ f.symptoms }}{% endif %}</textarea>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-2">Assigned Technician (Optional)</label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">badge</span>
+            <select name="assigned_technician_name"
+                    id="assignedTech"
+                    class="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white appearance-none">
+              <option value="">Leave unassigned for supervisor dispatch</option>
+              {% for row in technician_directory or [] %}
+              <option value="{{ row.name }}" {% if f is not none and f.assigned_technician_name is defined and f.assigned_technician_name == row.name %}selected{% endif %}>{{ row.name }} — {{ row.role }} • {{ row.availability_score }}% available</option>
+              {% endfor %}
+            </select>
+            <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+          </div>
+          <p class="mt-2 text-[11px] text-slate-400">
+            Pick from the active technician directory now, or leave it open for supervisor dispatch.
+          </p>
+        </div>
+
+        <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-dashed border-slate-300 dark:border-dark-border">
+          <p class="text-xs text-slate-500 dark:text-slate-300 leading-relaxed italic">
+            <span class="font-bold">Note:</span> You can assign a technician now or leave it for the maintenance supervisor to dispatch.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-12 flex items-center justify-between border-t border-slate-100 dark:border-dark-border pt-8">
+      <a href="{{ url_for('breakdowns') }}"
+         class="px-6 py-2.5 rounded-lg border border-slate-300 dark:border-dark-border text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+        CANCEL
+      </a>
+
+      <button class="bg-ueal-gold text-white px-8 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:brightness-105 transition-all shadow-md">
+        NEXT: ASSIGN TECHNICIAN <span class="material-symbols-outlined text-lg">arrow_forward</span>
+      </button>
+    </div>
+  </form>
+
+  <div class="mt-8 text-center">
+    <p class="text-[11px] text-slate-400 font-medium">
+      Breakdown Log ID: <span class="font-bold">AUTO-GENERATED ON SUBMIT</span>
+    </p>
+  </div>
+</div>
+
+<script>
+  // ✅ Draft autosave (prevents losing typed data)
+  (function () {
+    const KEY = "eabc_breakdown_step1_draft";
+
+    const fields = [
+      "incidentTitle",
+      "sectionSelect",
+      "assetUid",
+      "assetComboInput",
+      "incidentDt",
+      "failureCategory",
+      "severityInput",
+      "symptoms",
+      "assignedTech"
+    ].map(id => document.getElementById(id)).filter(Boolean);
+
+    function save() {
+      const payload = {};
+      fields.forEach(el => {
+        payload[el.id] = (el.value ?? "");
+      });
+      localStorage.setItem(KEY, JSON.stringify(payload));
+    }
+
+    function restore() {
+      try {
+        const raw = localStorage.getItem(KEY);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        fields.forEach(el => {
+          // Only restore if empty (avoid overwriting server-provided values)
+          if ((el.value || "").trim() === "" && data[el.id] != null) {
+            el.value = data[el.id];
+          }
+        });
+      } catch (e) {}
+    }
+
+    restore();
+
+    let t = null;
+    fields.forEach(el => {
+      el.addEventListener("input", () => {
+        clearTimeout(t);
+        t = setTimeout(save, 150);
+      });
+      el.addEventListener("change", save);
+    });
+
+    // If submit succeeds, clear draft
+    const form = document.getElementById("breakdownStep1Form");
+    if (form) {
+      form.addEventListener("submit", () => {
+        // keep it for a moment in case validation error returns; server will re-render anyway.
+        // You can clear it later if you want after successful POST redirect.
+      });
+    }
+  })();
+
+  // Severity cards
+  (function () {
+    const input = document.getElementById('severityInput');
+    const cards = document.querySelectorAll('[data-sev]');
+    if (!input || !cards.length) return;
+
+    function setActive(sev) {
+      input.value = sev;
+      cards.forEach(btn => {
+        btn.classList.remove('ring-2', 'ring-ueal-gold', 'ring-red-400', 'ring-blue-400');
+        const s = btn.getAttribute('data-sev');
+        if (s === sev) {
+          if (sev === 'medium') btn.classList.add('ring-2', 'ring-ueal-gold');
+          if (sev === 'critical') btn.classList.add('ring-2', 'ring-red-400');
+          if (sev === 'low') btn.classList.add('ring-2', 'ring-blue-400');
+        }
+      });
+    }
+    cards.forEach(btn => btn.addEventListener('click', () => setActive(btn.getAttribute('data-sev'))));
+    setActive(input.value || 'medium');
+  })();
+
+  // ✅ Section -> fetch assets (NO reload)
+  (function () {
+    const sel = document.getElementById('sectionSelect');
+    const input = document.getElementById('assetComboInput');
+    const hidden = document.getElementById('assetUid');
+
+    if (!sel || !input || !hidden) return;
+
+    async function loadAssets(section) {
+      // wipe selected asset when section changes
+      input.value = "";
+      hidden.value = "";
+
+      if (!section) {
+        input.disabled = true;
+        input.placeholder = "Select a section first...";
+        window.__ASSETS__ = [];
+        return;
+      }
+
+      input.disabled = false;
+      input.placeholder = "Search machine name / ID...";
+
+      try {
+        const res = await fetch(`/breakdowns/assets?section=${encodeURIComponent(section)}`, {
+          headers: { "Accept": "application/json" }
+        });
+        if (!res.ok) throw new Error("Bad response");
+        const data = await res.json();
+        window.__ASSETS__ = (data.assets || []);
+      } catch (e) {
+        window.__ASSETS__ = [];
+      }
+    }
+
+    sel.addEventListener('change', () => {
+      loadAssets(sel.value || "");
+    });
+
+    // Initialize with server side section
+    loadAssets(sel.value || "");
+  })();
+
+  // ONE BAR combobox for assets (uses window.__ASSETS__)
+  (function () {
+    const root = document.getElementById('assetComboRoot');
+    const input = document.getElementById('assetComboInput');
+    const hidden = document.getElementById('assetUid');
+    const menu = document.getElementById('assetComboMenu');
+    const list = document.getElementById('assetComboList');
+    const chevron = document.getElementById('assetComboChevron');
+
+    if (!root || !input || !hidden || !menu || !list || !chevron) return;
+
+    function getAssets() {
+      const raw = window.__ASSETS__ || [];
+      return raw.map(a => {
+        const label = `${a.asset_name || ''} (${a.asset_id || ''})`;
+        return { uid: a.uid, label, search: (label).toLowerCase() };
+      });
+    }
+
+    function open() { menu.classList.remove('hidden'); render(); }
+    function close() { menu.classList.add('hidden'); }
+
+    function render() {
+      const assets = getAssets();
+      const q = (input.value || '').trim().toLowerCase();
+      list.innerHTML = '';
+      const filtered = assets.filter(a => !q || (a.search || '').includes(q)).slice(0, 200);
+
+      if (!filtered.length) {
+        const empty = document.createElement('div');
+        empty.className = "px-4 py-3 text-sm text-slate-500 dark:text-slate-300";
+        empty.textContent = "No matching assets found.";
+        list.appendChild(empty);
+        return;
+      }
+
+      filtered.forEach(a => {
+        const btn = document.createElement('button');
+        btn.type = "button";
+        btn.className = "w-full text-left px-4 py-3 text-sm hover:bg-ueal-gold/10 dark:hover:bg-ueal-gold/10 text-slate-700 dark:text-slate-200 flex items-center justify-between";
+        btn.innerHTML = `<span class="font-semibold">${a.label}</span>
+                         <span class="material-symbols-outlined text-slate-400 text-base">arrow_forward</span>`;
+        btn.addEventListener('click', () => {
+          input.value = a.label;
+          hidden.value = a.uid;
+          close();
+        });
+        list.appendChild(btn);
+      });
+    }
+
+    input.addEventListener('input', () => { hidden.value = ""; open(); });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === "Enter") { e.preventDefault(); open(); }
+    });
+
+    input.addEventListener('focus', () => {
+      if (!input.disabled) open();
+    });
+
+    chevron.addEventListener('click', () => {
+      if (input.disabled) return;
+      if (menu.classList.contains('hidden')) open();
+      else close();
+    });
+
+    document.addEventListener('click', (e) => { if (!root.contains(e.target)) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === "Escape") close(); });
+  })();
+</script>
+{% endblock %}

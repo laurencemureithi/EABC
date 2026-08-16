@@ -1,0 +1,274 @@
+{% extends "layouts/base.html" %}
+{% block title %}Breakdown Analytics Report • Opsloom{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+{% set report_creator = export.user_name or analysis.reported_by or current_user_name %}
+{% include "partials/report_document_header.html" %}
+
+<!-- Header -->
+<div class="flex justify-between items-end mb-8">
+  <div>
+    <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Breakdown & Incident Diagnostic Report</h1>
+    <nav class="flex items-center gap-2 mt-2 text-[13px] text-slate-500 font-medium">
+      <span class="hover:text-ueal-purple cursor-pointer transition-colors">Reports</span><span class="material-symbols-outlined text-base text-slate-400">chevron_right</span><span class="hover:text-ueal-purple cursor-pointer transition-colors">Analytics</span><span class="material-symbols-outlined text-base text-slate-400">chevron_right</span><span class="text-slate-900 dark:text-slate-300">Breakdown Overview</span>
+    </nav>
+    <p class="text-slate-500 text-sm mt-2 font-medium flex items-center gap-2">
+      <span class="material-symbols-outlined text-sm">calendar_today</span>
+      Period: {{ analysis.start.strftime("%b %d, %Y") }} - {{ analysis.end.strftime("%b %d, %Y") }}
+    </p>
+  </div>
+
+  <div class="flex gap-3 items-center report-action-bar" data-no-print>
+    <div class="hidden lg:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm">
+      <span class="w-2 h-2 rounded-full {{ 'bg-green-500' if export.status=='READY' else 'bg-amber-500' }}"></span>
+      <span class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">{{ export.status or 'READY' }}</span>
+    </div>
+
+    <a href="{{ url_for('reports_generate_step1_get', category=export.category_key) }}" class="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all uppercase tracking-wider">
+      <span class="material-symbols-outlined text-sm">tune</span>
+      Filter
+    </a>
+
+    <a href="{{ url_for('reports_export', report_id=export.id, fmt='pdf', inline=1) }}" data-live-report-action="print" data-live-report-id="{{ export.id }}" class="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all uppercase tracking-wider">
+      <span class="material-symbols-outlined text-sm">print</span>
+      Print
+    </a>
+
+    <div class="relative" data-dd-root>
+      <button type="button" data-dd-btn class="flex items-center gap-2 px-4 py-2 bg-ueal-purple text-white rounded-lg text-xs font-bold hover:opacity-95 transition-all uppercase tracking-wider">
+        <span class="material-symbols-outlined text-sm">download</span>
+        Download
+      </button>
+      <div data-dd-menu class="absolute right-0 mt-2 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg hidden z-20">
+        <a class="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700" data-live-report-action="pdf" data-live-report-id="{{ export.id }}" href="{{ url_for('reports_export', report_id=export.id, fmt='pdf') }}">PDF</a>
+        <a class="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700" href="{{ url_for('reports_export', report_id=export.id, fmt='xlsx') }}">XLSX</a>
+        <a class="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700" href="{{ url_for('reports_export', report_id=export.id, fmt='csv') }}">CSV</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% include "partials/report_scope_summary.html" %}
+
+<!-- KPI Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+
+<div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
+  <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Incidents</p>
+  <p class="text-3xl font-black text-slate-900 dark:text-white mt-2">{{ analysis.kpis.incidents }}</p>
+  <p class="text-xs text-slate-500 mt-1">All incidents in scope and period</p>
+</div>
+
+<div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
+  <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Downtime (hrs)</p>
+  <p class="text-3xl font-black text-slate-900 dark:text-white mt-2">{{ analysis.kpis.downtime_hours }}</p>
+  <p class="text-xs text-slate-500 mt-1">From resolved/closed incidents</p>
+</div>
+
+<div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
+  <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Estimated Availability</p>
+  <p class="text-3xl font-black text-slate-900 dark:text-white mt-2">{{ analysis.kpis.availability_pct }}%</p>
+  <p class="text-xs text-slate-500 mt-1">Target: 95%</p>
+</div>
+
+</div>
+
+<div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm mb-8">
+  <div class="flex items-center justify-between mb-3">
+    <h2 data-timeline-title class="text-sm font-black tracking-wider uppercase text-slate-700 dark:text-slate-200">Incidents Trend (Daily)</h2>
+    
+    <div class="flex items-center gap-2">
+      <label class="text-xs font-bold text-slate-500">View</label>
+      <select id="timelineGrain" class="text-xs font-bold px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200">
+        <option value="daily" selected>Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+        <option value="quarterly">Quarterly</option>
+        <option value="biannually">Biannually</option>
+        <option value="yearly">Yearly</option>
+      </select>
+      <label class="text-xs font-bold text-slate-500">Year</label>
+      <input id="timelineYear" type="number" min="2000" max="2100" value="{{ analysis.end.year if analysis.end else analysis.start.year }}" class="w-24 text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1">
+    </div>
+    <span class="text-xs font-bold text-slate-500">{{ (analysis.timeline|length) }} days</span>
+  </div>
+  <div class="h-[260px]">
+    <canvas id="breakdownTimeline"></canvas>
+  </div>
+  <div id="quarterPanels" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4"></div>
+</div>
+
+<script>
+  (function(){
+    const payload = {{ analysis.timeline|tojson }};
+    const rid = {{ export.id|tojson }};
+    const endpoint = (grain, year) => `/reports/export/${rid}/chart_data?kind=incidents&grain=${encodeURIComponent(grain)}&year=${encodeURIComponent(year || "")}`;
+
+    const sel = document.getElementById('timelineGrain');
+    const yearEl = document.getElementById('timelineYear');
+    const titleEl = document.querySelector('[data-timeline-title]');
+    const canvas = document.getElementById('breakdownTimeline');
+    if(!canvas || typeof Chart === 'undefined') return;
+
+    const chart = new Chart(canvas.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: (payload||[]).map(x => x.date),
+        datasets: [{
+          label: 'Incidents',
+          data: (payload||[]).map(x => x.count),
+          tension: 0.3,
+          fill: false,
+          borderWidth: 3,
+          pointRadius: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { maxTicksLimit: 12 } },
+          y: { beginAtZero: true, ticks: { precision: 0 } }
+        }
+      }
+    });
+
+    function renderPanels(data){
+      const holder = document.getElementById('quarterPanels');
+      if(!holder) return;
+      holder.innerHTML = '';
+      const grain = (sel?.value || '').toLowerCase();
+      let panels = [];
+      if(grain === 'quarterly' && Array.isArray(data?.quarter_panels) && data.quarter_panels.length){
+        panels = data.quarter_panels.map(panel => ({ title: `${panel.quarter} Monthly View`, series: panel.series || [] }));
+      } else if((grain === 'biannually' || grain === 'biannual' || grain === 'bi-annual') && Array.isArray(data?.half_panels) && data.half_panels.length){
+        panels = data.half_panels.map(panel => ({ title: `${panel.half} Monthly View`, series: panel.series || [] }));
+      }
+      if(!panels.length){ holder.classList.add('hidden'); return; }
+      holder.classList.remove('hidden');
+      panels.forEach((panel, idx) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50/40 dark:bg-slate-900/40';
+        wrap.innerHTML = `<div class="text-xs font-black uppercase tracking-wider text-slate-500 mb-3">${panel.title}</div><div class="h-[180px]"><canvas id="bp-${idx}"></canvas></div>`;
+        holder.appendChild(wrap);
+        const c = wrap.querySelector('canvas');
+        new Chart(c.getContext('2d'), {
+          type: 'bar',
+          data: { labels: (panel.series||[]).map(x=>x.label), datasets: [{ label: 'Incidents', data: (panel.series||[]).map(x => (typeof x.value === 'number') ? x.value : (x.count||0)), borderWidth: 1 }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        });
+      });
+    }
+
+    async function refresh(useSelectedYear){
+      try{
+        const grain = sel?.value || 'daily';
+        const year = (useSelectedYear && yearEl?.value) ? yearEl.value : '';
+        const res = await fetch(endpoint(grain, year), {headers: {'Accept':'application/json'}});
+        const data = await res.json();
+        if(!data || data.ok === false) return;
+        const series = data.series || [];
+        chart.data.labels = series.map(x => x.label);
+        chart.data.datasets[0].data = series.map(x => (typeof x.value === 'number') ? x.value : (x.count || 0));
+        chart.update();
+        renderPanels(data);
+        if(titleEl){
+          const nice = grain.charAt(0).toUpperCase() + grain.slice(1);
+          titleEl.textContent = `Incidents Trend (${nice} • ${year || 'Selected period'})`;
+        }
+      }catch(e){
+        console.warn('timeline refresh failed', e);
+      }
+    }
+
+    if(sel){
+      sel.addEventListener('change', () => refresh(true));
+      yearEl?.addEventListener('change', () => refresh(true));
+      refresh(window.__reportUseSelectedYear === true);
+    }
+  })();
+</script>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <div class="lg:col-span-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm">
+    <h2 class="text-sm font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 mb-4">Root Cause Distribution</h2>
+    {% if analysis.top_causes %}
+      <ul class="space-y-3">
+        {% for c, n in analysis.top_causes %}
+          <li class="flex items-center justify-between">
+            <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ c }}</span>
+            <span class="text-xs font-bold text-slate-500">{{ n }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-sm text-slate-500">No breakdown records found for this scope/period.</p>
+    {% endif %}
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm">
+    <h2 class="text-sm font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 mb-4">Top Assets (Hotspots)</h2>
+    {% if analysis.top_assets %}
+      <div class="space-y-3">
+        {% for name, meta in analysis.top_assets %}
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{ name }}</p>
+              <p class="text-xs text-slate-500">{{ meta.incidents }} incidents</p>
+            </div>
+            <p class="text-sm font-black text-slate-800 dark:text-slate-100">{{ meta.downtime_hours }}h</p>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-sm text-slate-500">No asset hotspots yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm mt-6">
+  <h2 class="text-sm font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 mb-4">Executive Insights</h2>
+  {% if analysis.insights %}
+    <ul class="list-disc pl-6 space-y-2 text-sm text-slate-700 dark:text-slate-200">
+      {% for s in analysis.insights %}<li>{{ s }}</li>{% endfor %}
+    </ul>
+  {% else %}
+    <p class="text-sm text-slate-500">No insights available.</p>
+  {% endif %}
+</div>
+
+<div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm mt-6">
+  <h2 class="text-sm font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 mb-4">Breakdown Log (Raw)</h2>
+  {% if analysis.raw.breakdowns %}
+  <div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs uppercase tracking-wider text-slate-500">
+          <th class="py-2 pr-4">Date</th>
+          <th class="py-2 pr-4">Asset</th>
+          <th class="py-2 pr-4">Title</th>
+          <th class="py-2 pr-4">Status</th>
+          <th class="py-2 pr-4">Duration (mins)</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+        {% for b in analysis.raw.breakdowns[:30] %}
+        <tr>
+          <td class="py-2 pr-4 text-slate-600 dark:text-slate-300">{{ b.reported_dt or b.created_at }}</td>
+          <td class="py-2 pr-4 font-semibold text-slate-800 dark:text-slate-100">{{ b.asset_name or b.asset_id or '—' }}</td>
+          <td class="py-2 pr-4 text-slate-600 dark:text-slate-300">{{ b.incident_title or '—' }}</td>
+          <td class="py-2 pr-4 text-slate-600 dark:text-slate-300">{{ b.status or '—' }}</td>
+          <td class="py-2 pr-4 text-slate-600 dark:text-slate-300">{{ b.duration_mins or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-sm text-slate-500">No breakdowns in this scope/period.</p>
+  {% endif %}
+</div>
+
+</div>
+{% endblock %}

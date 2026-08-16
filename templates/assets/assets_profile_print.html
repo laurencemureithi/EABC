@@ -1,0 +1,100 @@
+{% extends "layouts/base.html" %}
+{% block title %}Asset Profile Print • {{ asset.asset_name }} • Opsloom{% endblock %}
+{% block content %}
+<div class="business-print-shell max-w-5xl mx-auto">
+  <div class="business-print-page">
+    {% include "partials/report_document_header.html" %}
+    <div class="business-print-header">
+      <div>
+        <p class="text-[11px] font-black uppercase tracking-[0.25em] text-slate-500">Asset Profile Report</p>
+        <h1 class="mt-2 text-3xl font-black text-slate-900">{{ asset.asset_name }}</h1>
+        <p class="mt-1 text-sm text-slate-600">Formal asset profile for engineering reference, audit, and lifecycle review.</p>
+      </div>
+      <div class="business-print-meta">
+        <div><span>Asset ID</span><strong>{{ asset.asset_id or '—' }}</strong></div>
+        <div><span>Section</span><strong>{{ asset.section or '—' }}</strong></div>
+        <div><span>Status</span><strong>{{ (asset.status or 'operational')|replace('_',' ')|title }}</strong></div>
+        <div><span>Criticality</span><strong>{{ asset.criticality or '—' }}</strong></div>
+      </div>
+    </div>
+
+    <div class="business-print-kpis">
+      <div class="business-print-kpi"><span>MTBF</span><strong>{{ mtbf_hours if mtbf_hours else '—' }}</strong><small>{% if mtbf_hours %}Hours{% else %}No estimate yet{% endif %}</small></div>
+      <div class="business-print-kpi"><span>Maintenance Cost</span><strong>{{ maintenance_cost_total|kes2 }}</strong><small>Logged work orders</small></div>
+      <div class="business-print-kpi"><span>Breakdown Cost</span><strong>{{ breakdown_cost_total|kes2 }}</strong><small>Logged incidents</small></div>
+      <div class="business-print-kpi"><span>Total VAT</span><strong>{{ total_vat|kes2 }}</strong><small>Tax component</small></div>
+      <div class="business-print-kpi"><span>Total Cost</span><strong>{{ total_cost|kes2 }}</strong><small>Maintenance + breakdowns</small></div>
+    </div>
+
+    <div class="business-print-grid mt-6">
+      <section class="business-print-card">
+        <h2>Asset Master Data</h2>
+        <table class="business-print-table"><tbody>
+          <tr><th>Category</th><td>{{ asset.category or '—' }}</td></tr>
+          <tr><th>Location</th><td>{{ asset.location or '—' }}</td></tr>
+          <tr><th>Serial Number</th><td>{{ asset.serial_no or asset.serial_number or '—' }}</td></tr>
+          <tr><th>Manufacturer / OEM</th><td>{{ asset.manufacturer or asset.oem or '—' }}</td></tr>
+          <tr><th>Supplier</th><td>{{ asset.supplier or '—' }}</td></tr>
+          <tr><th>Installation Date</th><td>{{ asset.installation_date or '—' }}</td></tr>
+          <tr><th>Warranty Expiry</th><td>{{ asset.warranty_expiry or '—' }}</td></tr>
+          <tr><th>Asset Value</th><td>{{ asset.asset_value or '—' }}</td></tr>
+        </tbody></table>
+      </section>
+      <section class="business-print-card">
+        <h2>Engineering Notes</h2>
+        <p class="text-sm leading-6 text-slate-700 whitespace-pre-wrap">{{ asset.technical_notes or 'No technical notes logged.' }}</p>
+        <div class="mt-4 pt-4 border-t border-slate-200">
+          <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Service Provider</p>
+          <p class="text-sm leading-6 text-slate-700 whitespace-pre-wrap">{{ asset.service_provider or '—' }}</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="business-print-page">
+    {% include "partials/report_document_header.html" %}
+    <section class="business-print-card compact-card">
+      <h2>Cost & VAT Summary</h2>
+      <table class="business-print-table compact">
+        <thead><tr><th>Cost Line</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Maintenance Before VAT</td><td>{{ (maintenance_cost_subtotal or 0)|kes2 }}</td></tr>
+          <tr><td>Breakdown Before VAT</td><td>{{ (breakdown_cost_subtotal or 0)|kes2 }}</td></tr>
+          <tr><td>Total Before VAT</td><td>{{ ((maintenance_cost_subtotal or 0) + (breakdown_cost_subtotal or 0))|kes2 }}</td></tr>
+          <tr><td>Total VAT</td><td>{{ (total_vat or 0)|kes2 }}</td></tr>
+          <tr><td>VAT Rate(s)</td><td>{{ vat_rate_label or 'No VAT applied' }}</td></tr>
+          <tr><td>Total Cost</td><td>{{ (total_cost or 0)|kes2 }}</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="business-print-card mt-6">
+      <h2>Recent Maintenance Activity</h2>
+      <table class="business-print-table">
+        <thead><tr><th>Task</th><th>Due Date</th><th>Type / Frequency</th><th>Status</th><th>Cost</th></tr></thead>
+        <tbody>
+          {% for t in recent_maintenance %}
+          <tr><td>{{ t.task_title or 'Maintenance Task' }}</td><td>{{ t.due_date or '—' }}</td><td>{{ t.maintenance_type or '—' }} / {{ t.frequency or '—' }}</td><td>{{ (t.status or '—')|replace('_',' ')|title }}</td><td>{{ (t.cost_total or 0)|kes2 }}</td></tr>
+          {% else %}
+          <tr><td colspan="5">No maintenance activity found for this asset.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="business-print-card mt-6">
+      <h2>Recent Breakdown Activity</h2>
+      <table class="business-print-table">
+        <thead><tr><th>Incident</th><th>Reported</th><th>Downtime</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for b in recent_breakdowns %}
+          <tr><td>{{ b.incident_title or 'Incident' }}</td><td>{{ b.reported_date or '—' }}</td><td>{{ b.downtime or '—' }}</td><td>{{ b.status_label or '—' }}</td></tr>
+          {% else %}
+          <tr><td colspan="4">No breakdown activity found for this asset.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+</div>
+{% endblock %}

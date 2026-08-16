@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Strategic Action Planning | Opsloom</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#0B1020",
+                        secondary: "#1554FF",
+                        "ueal-purple": "#0B1020",
+                        "ueal-gold": "#1554FF",
+                        "background-light": "#F8FAFC"
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        };
+    </script>
+<style type="text/tailwindcss">
+        @layer base {
+            body {
+                font-family: 'Inter', sans-serif;
+                @apply bg-background-light text-slate-900;
+            }
+        }
+        .sidebar-bg { background-color: #0B1020; }
+        .main-content { height: calc(100vh - 64px); overflow-y: auto; }
+        .table-container { scrollbar-width: thin; }
+        .radar-grid { stroke: #e2e8f0; stroke-width: 1; fill: none; }
+        .radar-area { fill: rgba(76, 53, 117, 0.2); stroke: #0B1020; stroke-width: 2; }
+    </style>
+</head>
+<body class="transition-colors duration-200">
+<div class="flex h-screen overflow-hidden">
+<aside class="sidebar-bg w-64 flex-shrink-0 flex flex-col text-white h-full z-20">
+<div class="p-6 flex items-center gap-3">
+<div class="opsloom-sidebar-wordmark"><img src="{{ url_for('static', filename='brand/opsloom_wordmark_light.png') }}" alt="Opsloom" class="h-11 max-w-full w-auto block"></div>
+</div>
+<nav class="flex-1 px-3 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70" href="#">
+<span class="material-icons-round text-xl">dashboard</span>
+<span class="font-medium text-sm">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-ueal-gold text-white shadow-lg shadow-black/20" href="#">
+<span class="material-icons-round text-xl">insights</span>
+<span class="font-medium text-sm">Strategic Feed</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70" href="#">
+<span class="material-icons-round text-xl">inventory</span>
+<span class="font-medium text-sm">Asset Register</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70" href="#">
+<span class="material-icons-round text-xl">build</span>
+<span class="font-medium text-sm">Maintenance</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/10 transition-colors text-white/70" href="#">
+<span class="material-icons-round text-xl">assessment</span>
+<span class="font-medium text-sm">Reports</span>
+</a>
+</nav>
+<div class="p-4 border-t border-white/10">
+<div class="bg-white/5 rounded-lg p-3">
+<p class="text-[10px] text-white/50 uppercase font-bold tracking-wider mb-2">Selected Asset</p>
+<p class="text-xs font-bold text-white truncate">UV-PH-047 Mixer 3</p>
+<p class="text-[9px] text-ueal-gold uppercase mt-1">Status: Replace Candidate</p>
+</div>
+</div>
+</aside>
+<div class="flex-1 flex flex-col min-w-0 bg-background-light">
+<header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-10 shrink-0">
+<div class="flex flex-col items-start">
+<p class="text-base font-bold text-ueal-purple leading-tight">Opsloom Dashboard</p>
+<p class="text-[11px] text-slate-500 font-medium tracking-wide uppercase">Engineering Asset &amp; Breakdown Core</p>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-3">
+<div class="text-right hidden sm:block">
+<p class="text-sm font-bold leading-none text-slate-900">John Doe</p>
+<p class="text-[10px] text-slate-500 uppercase mt-1">Strategic Manager</p>
+</div>
+<div class="w-10 h-10 rounded-full border-2 border-ueal-gold overflow-hidden shrink-0 shadow-sm">
+<img alt="User avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCTofqMP0nxgBR5ysmW8ffY10_J4qmh5vX_ybVZtsA2vDF7wJUZRxjuzNxLxAgI3Lwh7LIP-fkryrF63S7j-6UsF0KgcCtSWEiFxWpLAf-fDn9yN37E6rlAej-tvlLpANyMWmSMq0gUSZBig9T75V4Mf2W2ngoyLFGFgCSq1tVrpyRruc_9TmXaplIXmvH3bgxmlhB-Blfd9qmXblKV-57RiNVaMhkJrabKNKpM9HNrAYGmCPIIz2wDHrZlCJunKQrLEf-0keTsrA"/>
+</div>
+</div>
+</div>
+</header>
+<main class="main-content flex-1 p-8">
+<div class="max-w-[1600px] mx-auto space-y-6">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+<div>
+<nav class="flex items-center gap-2 mb-1 text-[13px] text-slate-500 font-medium">
+<span>Dashboard</span>
+<span class="material-icons-round text-base text-slate-400">chevron_right</span>
+<span class="text-slate-900">Action Planning</span>
+</nav>
+<h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Strategic Action Planning</h1>
+</div>
+<button class="bg-ueal-gold hover:bg-[#C19F30] text-white px-6 py-3 rounded-lg font-bold shadow-lg shadow-ueal-gold/20 flex items-center gap-2 transition-all transform hover:-translate-y-0.5">
+<span class="material-icons-round text-xl">add</span>
+                        NEW ACTION PLAN
+                    </button>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+<div class="flex items-center justify-between mb-3">
+<span class="material-icons-round text-ueal-gold bg-ueal-gold/10 p-2 rounded-lg">play_arrow</span>
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active</span>
+</div>
+<p class="text-3xl font-black text-slate-900">12</p>
+<p class="text-xs font-semibold text-slate-500 mt-1">Initiatives In Progress</p>
+</div>
+<div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+<div class="flex items-center justify-between mb-3">
+<span class="material-icons-round text-emerald-500 bg-emerald-50 p-2 rounded-lg">trending_up</span>
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Efficiency</span>
+</div>
+<p class="text-3xl font-black text-slate-900">$42.5k</p>
+<p class="text-xs font-semibold text-emerald-600 mt-1">Projected ROI (Monthly)</p>
+</div>
+<div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+<div class="flex items-center justify-between mb-3">
+<span class="material-icons-round text-amber-500 bg-amber-50 p-2 rounded-lg">pending_actions</span>
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Reviews</span>
+</div>
+<p class="text-3xl font-black text-slate-900">4</p>
+<p class="text-xs font-semibold text-amber-600 mt-1">Pending Approval</p>
+</div>
+<div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+<div class="flex items-center justify-between mb-3">
+<span class="material-icons-round text-indigo-500 bg-indigo-50 p-2 rounded-lg">speed</span>
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Lead Time</span>
+</div>
+<p class="text-3xl font-black text-slate-900">14 Days</p>
+<p class="text-xs font-semibold text-slate-500 mt-1">Average Completion</p>
+</div>
+</div>
+<div class="flex flex-col lg:flex-row gap-6">
+<div class="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col min-w-0">
+<div class="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
+<div class="relative w-full md:w-80">
+<span class="material-icons-round absolute left-3 top-2.5 text-slate-400 text-xl">search</span>
+<input class="w-full bg-slate-50 border-slate-200 rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-ueal-purple focus:border-ueal-purple" placeholder="Search strategic actions..." type="text"/>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="text-xs font-bold text-slate-400 uppercase">Rows:</span>
+<select class="text-sm bg-slate-50 border-slate-200 rounded-md py-1 px-3">
+<option>10</option>
+<option>25</option>
+<option>50</option>
+</select>
+</div>
+<button class="p-2 text-slate-400 hover:text-ueal-purple">
+<span class="material-icons-round">filter_list</span>
+</button>
+</div>
+</div>
+<div class="overflow-x-auto table-container">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-50/50 border-b border-slate-100">
+<th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Priority</th>
+<th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Strategic Action</th>
+<th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Category</th>
+<th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Assigned To</th>
+<th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Timeline</th>
+<th class="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100">
+<tr class="hover:bg-slate-50 transition-colors group">
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-rose-50 text-rose-700 text-[10px] font-black rounded border border-rose-100">CRITICAL</span>
+</td>
+<td class="px-6 py-4">
+<p class="text-sm font-bold text-slate-800">Overhaul Mixer Machine 3</p>
+<p class="text-[10px] text-slate-500 font-medium">ID: SA-2024-089</p>
+</td>
+<td class="px-6 py-4">
+<span class="text-xs font-semibold text-slate-600">Maintenance</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-ueal-purple/10 flex items-center justify-center">
+<span class="text-[9px] font-bold text-ueal-purple">MK</span>
+</div>
+<span class="text-xs font-medium text-slate-700">M. Kamau</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="text-[11px] font-bold text-slate-500">12 Oct - 25 Oct</div>
+<div class="w-24 h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
+<div class="bg-ueal-purple h-full" style="width: 65%"></div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700">
+<span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                                                In Progress
+                                            </span>
+</td>
+</tr>
+<tr class="hover:bg-slate-50 transition-colors">
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-amber-50 text-amber-700 text-[10px] font-black rounded border border-amber-100">HIGH</span>
+</td>
+<td class="px-6 py-4">
+<p class="text-sm font-bold text-slate-800">Replace Coil on UV-PH-047</p>
+<p class="text-[10px] text-slate-500 font-medium">ID: SA-2024-092</p>
+</td>
+<td class="px-6 py-4">
+<span class="text-xs font-semibold text-slate-600">CAPEX</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<img alt="" class="w-6 h-6 rounded-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBvJjNu3DdAcl_IGnwzQNW1jwvK1zE1PqUZ8uHnMVM3zv5HqWIka-YLaSG_nZvcNEGsK6DkFOBWSL1pt71i-65tlEHJFkNZx3rOsUncVvyjwCwSrx4uUSaQ37A5_Z-swLMUWBkJAGi4in8mLqeVC6BuExLCZ8Y3nQzL8KDT2a3SaL5ewIPT39ed96gBS8t9i3uuC-LBXikTuHCuVnLryaY5dCdZTeUITI_kZ74lukeoeiMyFNN3-OAmE1E2IIGBxbrG72qnzZwaug"/>
+<span class="text-xs font-medium text-slate-700">S. Omondi</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="text-[11px] font-bold text-slate-500">20 Oct - 05 Nov</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                                Proposed
+                                            </span>
+</td>
+</tr>
+<tr class="hover:bg-slate-50 transition-colors">
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-black rounded border border-blue-100">MEDIUM</span>
+</td>
+<td class="px-6 py-4">
+<p class="text-sm font-bold text-slate-800">Smart Meter Integration</p>
+<p class="text-[10px] text-slate-500 font-medium">ID: SA-2024-085</p>
+</td>
+<td class="px-6 py-4">
+<span class="text-xs font-semibold text-slate-600">Energy</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+<span class="text-[9px] font-bold text-blue-700">ET</span>
+</div>
+<span class="text-xs font-medium text-slate-700">E. Tanui</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="text-[11px] font-bold text-slate-500">Completed 05 Oct</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700">
+<span class="material-icons-round text-xs">check_circle</span>
+                                                Completed
+                                            </span>
+</td>
+</tr>
+<tr class="hover:bg-slate-50 transition-colors">
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 bg-rose-50 text-rose-700 text-[10px] font-black rounded border border-rose-100">CRITICAL</span>
+</td>
+<td class="px-6 py-4">
+<p class="text-sm font-bold text-slate-800">Main Steam Valve Repair</p>
+<p class="text-[10px] text-slate-500 font-medium">ID: SA-2024-101</p>
+</td>
+<td class="px-6 py-4">
+<span class="text-xs font-semibold text-slate-600">Maintenance</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center">
+<span class="material-icons-round text-[14px] text-slate-400">person</span>
+</div>
+<span class="text-xs font-medium text-slate-400 italic">Unassigned</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="text-[11px] font-bold text-slate-500">TBD</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700">
+<span class="material-icons-round text-xs">verified</span>
+                                                Approved
+                                            </span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between">
+<p class="text-xs font-medium text-slate-500 uppercase tracking-tighter">Showing 1-10 of 12 strategic actions</p>
+<div class="flex items-center gap-1">
+<button class="p-1.5 rounded hover:bg-slate-200 text-slate-400"><span class="material-icons-round text-lg">chevron_left</span></button>
+<button class="w-8 h-8 rounded bg-ueal-purple text-white text-xs font-bold">1</button>
+<button class="w-8 h-8 rounded hover:bg-slate-200 text-xs font-bold text-slate-600">2</button>
+<button class="p-1.5 rounded hover:bg-slate-200 text-slate-400"><span class="material-icons-round text-lg">chevron_right</span></button>
+</div>
+</div>
+</div>
+<aside class="w-full lg:w-[380px] space-y-6">
+<div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+<div class="p-4 border-b border-slate-100 flex items-center justify-between">
+<h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+<span class="material-icons-round text-ueal-purple text-lg">analytics</span>
+                                    Implementation Forecast
+                                </h3>
+<button class="text-ueal-purple hover:text-ueal-gold transition-colors">
+<span class="material-icons-round text-lg">more_horiz</span>
+</button>
+</div>
+<div class="p-5">
+<div class="h-40 relative flex items-end justify-between gap-1">
+<svg class="absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 100">
+<path d="M0 80 Q 25 75, 50 60 T 100 50" fill="none" stroke="#0B1020" stroke-dasharray="4 2" stroke-width="2"></path>
+<path d="M0 90 Q 25 80, 50 40 T 100 10" fill="none" stroke="#10B981" stroke-width="2"></path>
+</svg>
+<div class="absolute top-0 right-0 flex flex-col items-end gap-1">
+<div class="flex items-center gap-2">
+<span class="text-[9px] font-bold text-slate-500">AVOIDED COST</span>
+<span class="w-3 h-0.5 bg-emerald-500"></span>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-[9px] font-bold text-slate-500">ACTION COST</span>
+<span class="w-3 h-0.5 bg-ueal-purple border-dashed"></span>
+</div>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-slate-50">
+<div class="flex justify-between items-center">
+<div>
+<p class="text-[10px] text-slate-400 font-bold uppercase">Break-even Point</p>
+<p class="text-sm font-black text-slate-900">4.2 Months</p>
+</div>
+<div class="text-right">
+<p class="text-[10px] text-slate-400 font-bold uppercase">Net Benefit (12M)</p>
+<p class="text-sm font-black text-emerald-600">+$124,000</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+<div class="p-4 border-b border-slate-100">
+<h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+<span class="material-icons-round text-ueal-gold text-lg">hub</span>
+                                    Strategic Impact Map
+                                </h3>
+</div>
+<div class="p-5 flex flex-col items-center">
+<div class="relative w-48 h-48 mb-4">
+<svg class="w-full h-full" viewBox="0 0 100 100">
+<circle class="radar-grid" cx="50" cy="50" r="10"></circle>
+<circle class="radar-grid" cx="50" cy="50" r="25"></circle>
+<circle class="radar-grid" cx="50" cy="50" r="40"></circle>
+<line class="radar-grid" x1="50" x2="50" y1="10" y2="90"></line>
+<line class="radar-grid" x1="10" x2="90" y1="50" y2="50"></line>
+<path class="radar-area" d="M 50 15 L 85 50 L 50 85 L 20 50 Z"></path>
+</svg>
+<span class="absolute top-0 left-1/2 -translate-x-1/2 text-[9px] font-bold text-slate-400 tracking-tighter uppercase">Reliability</span>
+<span class="absolute bottom-0 left-1/2 -translate-x-1/2 text-[9px] font-bold text-slate-400 tracking-tighter uppercase">Cost Savings</span>
+<span class="absolute right-0 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 tracking-tighter uppercase rotate-90 translate-x-3">Efficiency</span>
+<span class="absolute left-0 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 tracking-tighter uppercase -rotate-90 -translate-x-3">Lifecycle</span>
+</div>
+<div class="grid grid-cols-2 gap-4 w-full mt-4">
+<div class="p-2 bg-slate-50 rounded-lg">
+<p class="text-[9px] font-bold text-slate-400 uppercase">Efficiency</p>
+<p class="text-lg font-black text-ueal-purple">88%</p>
+</div>
+<div class="p-2 bg-slate-50 rounded-lg">
+<p class="text-[9px] font-bold text-slate-400 uppercase">Reliability</p>
+<p class="text-lg font-black text-ueal-gold">94%</p>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-indigo-900 rounded-xl p-5 text-white relative overflow-hidden">
+<div class="relative z-10">
+<p class="text-[11px] font-bold text-indigo-300 uppercase tracking-widest mb-2">System Insight</p>
+<p class="text-sm font-medium leading-relaxed">Implementing all 4 pending actions is predicted to stabilize the <span class="text-ueal-gold font-bold">Utility Section</span> for the next quarter.</p>
+<button class="mt-4 text-xs font-bold text-ueal-gold hover:underline flex items-center gap-1">
+                                    VIEW SIMULATION
+                                    <span class="material-icons-round text-sm">open_in_new</span>
+</button>
+</div>
+<span class="material-icons-round absolute -right-4 -bottom-4 text-8xl text-white/5 rotate-12">auto_graph</span>
+</div>
+</aside>
+</div>
+</div>
+</main>
+</div>
+</div>
+
+</body></html>

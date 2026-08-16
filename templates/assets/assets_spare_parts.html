@@ -1,0 +1,488 @@
+{# templates/assets/assets_spare_parts.html #}
+{% extends "layouts/base.html" %}
+{% block title %}Spare Parts • Opsloom{% endblock %}
+
+{% block page_styles %}
+<style>
+  .min-marker {
+    position:absolute; top: -3px;
+    width: 2px; height: 14px;
+    background: rgba(148,163,184,.9);
+    border-radius: 9999px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set page = page|default(request.args.get('page', 1)|int) %}
+{% set per_page = per_page|default(request.args.get('per_page', 10)|int) %}
+
+{% set breadcrumbs = [
+  {"label":"Asset Register", "href": url_for("assets_master_list")},
+  {"label": asset.asset_name, "href": url_for("assets_profile_get", asset_uid=asset.uid) if asset and asset.uid else None},
+  {"label":"Spare Parts"}
+] %}
+
+<div class="max-w-6xl mx-auto">
+
+  {% set header_show_image = true %}
+  {% include "partials/asset_profile_header.html" %}
+
+  {% set current_tab = "spare_parts" %}
+  {% include "partials/asset_profile_tabs.html" %}
+
+  <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8 mt-6">
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-200 shrink-0">
+        <span class="material-symbols-outlined text-xl">settings_input_component</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Linked Parts</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">
+          {{ (kpis.total_linked_parts if kpis is defined and kpis.total_linked_parts is defined else (total if total is defined else (linked_parts|length if linked_parts is defined else 0))) }}
+        </p>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-red-50 dark:bg-red-900/20 rounded-lg flex items-center justify-center text-red-600 dark:text-red-200 shrink-0">
+        <span class="material-symbols-outlined text-xl">priority_high</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Critical Spares</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">
+          {{ (kpis.critical_spares if kpis is defined and kpis.critical_spares is defined else 0) }}
+        </p>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-amber-50 dark:bg-amber-900/20 rounded-lg flex items-center justify-center text-amber-600 dark:text-amber-200 shrink-0">
+        <span class="material-symbols-outlined text-xl">notification_important</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Low Stock Alerts</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">
+          {{ (kpis.low_stock_alerts if kpis is defined and kpis.low_stock_alerts is defined else 0) }}
+        </p>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-red-100 dark:bg-red-900/20 rounded-lg flex items-center justify-center text-red-700 dark:text-red-200 shrink-0">
+        <span class="material-symbols-outlined text-xl">remove_shopping_cart</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Out of Stock</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">
+          {{ (kpis.out_of_stock if kpis is defined and kpis.out_of_stock is defined else 0) }}
+        </p>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center text-green-600 dark:text-green-200 shrink-0">
+        <span class="material-symbols-outlined text-xl">payments</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Inventory Value</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">
+          {{ (kpis.total_inventory_value if kpis is defined and kpis.total_inventory_value is defined else "—") }}
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="grid grid-cols-12 gap-8">
+
+    <div class="col-span-12 lg:col-span-8">
+      <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/30 space-y-4">
+          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-ueal-purple dark:text-ueal-gold text-lg">inventory_2</span>
+              <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm uppercase tracking-wide">
+                Asset Spare Parts Inventory
+              </h3>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              {% set export_links = [
+                {"href": url_for('assets_spare_parts_export', asset_uid=asset.uid, fmt='csv', q=q, category=selected_category, stock_state=selected_stock_state), "icon": "description", "label": "Export CSV"},
+                {"href": url_for('assets_spare_parts_export', asset_uid=asset.uid, fmt='xlsx', q=q, category=selected_category, stock_state=selected_stock_state), "icon": "table_view", "label": "Export Excel"},
+                {"href": url_for('assets_spare_parts_export', asset_uid=asset.uid, fmt='pdf', q=q, category=selected_category, stock_state=selected_stock_state), "icon": "picture_as_pdf", "label": "Export PDF"}
+              ] %}
+              {% include 'partials/export_menu.html' %}
+              <a
+                href="{{ url_for('inventory_add_step1_get', asset_uid=asset.uid) }}"
+                class="flex items-center gap-2 px-4 py-2 bg-ueal-gold text-white rounded-lg text-sm font-bold shadow-md hover:bg-opacity-90 transition-all"
+                title="Add a new spare part directly for this machine"
+              >
+                <span class="material-symbols-outlined text-sm">add</span>
+                ADD NEW PART
+              </a>
+            </div>
+          </div>
+
+          <form method="get" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+            <input type="hidden" name="page" value="1"/>
+            <div class="md:col-span-6 relative">
+              <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Search</label>
+              <input
+                class="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-ueal-gold focus:border-ueal-gold transition-all"
+                placeholder="Search part, SKU, supplier, or storage location"
+                type="text"
+                name="q"
+                value="{{ q }}"
+              />
+              <span class="material-symbols-outlined absolute left-3 top-[38px] text-slate-400 text-lg">search</span>
+            </div>
+            <div class="md:col-span-3">
+              <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Category</label>
+              <select name="category" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-ueal-gold focus:border-ueal-gold transition-all">
+                <option value="">All categories</option>
+                {% for category in categories %}
+                  <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>{{ category }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="md:col-span-3">
+              <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Stock Filter</label>
+              <select name="stock_state" class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-ueal-gold focus:border-ueal-gold transition-all">
+                <option value="">All stock states</option>
+                <option value="healthy" {% if selected_stock_state == 'healthy' %}selected{% endif %}>Healthy</option>
+                <option value="low_stock" {% if selected_stock_state == 'low_stock' %}selected{% endif %}>Low Stock</option>
+                <option value="out_of_stock" {% if selected_stock_state == 'out_of_stock' %}selected{% endif %}>Out of Stock</option>
+              </select>
+            </div>
+            <div class="md:col-span-12 flex flex-wrap items-center gap-3">
+              <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+                <span class="material-symbols-outlined text-base">filter_list</span>
+                Filter Table
+              </button>
+              <a href="{{ url_for('assets_spare_parts_get', asset_uid=asset.uid) }}" class="text-sm font-semibold text-slate-500 hover:text-ueal-purple dark:text-slate-300 dark:hover:text-ueal-gold">Reset</a>
+            </div>
+          </form>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left">
+            <thead>
+              <tr class="bg-white dark:bg-dark-surface text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold tracking-wider border-b border-slate-100 dark:border-dark-border">
+                <th class="px-6 py-4">Part Image</th>
+                <th class="px-6 py-4">Part Name &amp; ID</th>
+                <th class="px-6 py-4">Category</th>
+                <th class="px-6 py-4">Current Stock</th>
+                <th class="px-6 py-4 text-center">Lead Time</th>
+                <th class="px-6 py-4">Status</th>
+                <th class="px-6 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+
+            <tbody class="divide-y divide-slate-100 dark:divide-dark-border">
+              {% if linked_parts is defined and linked_parts|length > 0 %}
+                {% for p in linked_parts %}
+                  {% set qty = (p.qty or 0) %}
+                  {% set minq = (p.min_qty or 0) %}
+                  {% set target = (p.target_qty or (minq*2 if minq>0 else (qty if qty>0 else 1))) %}
+                  {% set pct = ((qty / target * 100) if target>0 else 0) %}
+                  {% set min_pct = ((minq / target * 100) if target>0 else 0) %}
+                  {% set is_out = (qty <= 0) %}
+                  {% set is_low = (not is_out) and (minq > 0) and (qty <= minq) %}
+                  {% set part_key = p.uid or p.id or p.sku or p.part_no %}
+                  <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                    <td class="px-6 py-4">
+                      {% if p.photo_url %}
+                        <img src="{{ p.photo_url }}" alt="part image"
+                             class="w-12 h-12 rounded-xl object-cover border border-slate-200 dark:border-dark-border shadow-sm" />
+                      {% else %}
+                        <div class="w-12 h-12 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-100 dark:bg-white/10 flex items-center justify-center">
+                          <span class="material-symbols-outlined text-slate-400">image</span>
+                        </div>
+                      {% endif %}
+                    </td>
+
+                    <td class="px-6 py-4">
+                      <div class="flex flex-col">
+                        <p class="text-sm font-semibold text-slate-700 dark:text-slate-100 leading-tight">
+                          {{ p.part_name or "—" }}
+                        </p>
+
+                        <p class="text-[11px] text-slate-500 dark:text-slate-300 font-semibold">
+                          {{ p.sku or p.part_no or "—" }}
+
+                          {% if p.is_critical %}
+                            <span class="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-200 text-[10px] font-bold uppercase">
+                              <span class="material-symbols-outlined text-[14px]">report</span>
+                              Critical
+                            </span>
+                          {% endif %}
+                        </p>
+
+                        {% if p.uid or p.id %}
+                          <p class="text-[10px] font-mono text-slate-400">UID: {{ ((p.uid or p.id) or '')[:8] }}</p>
+                        {% endif %}
+                      </div>
+                    </td>
+
+                    <td class="px-6 py-4">
+                      <span class="px-2 py-1 rounded bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-200 text-[10px] font-bold uppercase tracking-tight">
+                        {{ p.category or "GENERAL" }}
+                      </span>
+                    </td>
+
+                    <td class="px-6 py-4">
+                      <div class="w-56">
+                        <div class="flex items-center justify-between mb-1">
+                          <span class="text-[11px] font-bold {% if is_out %}text-red-600{% elif is_low %}text-amber-600{% else %}text-slate-700 dark:text-slate-100{% endif %}">
+                            {{ qty }} / {{ target }}
+                          </span>
+                          <span class="text-[10px] font-bold text-slate-400">Min: {{ minq }}</span>
+                        </div>
+
+                        <div class="relative h-2.5 w-full rounded-full bg-slate-100 dark:bg-white/10 overflow-hidden">
+                          <div class="h-full rounded-full {% if is_out %}bg-red-500{% elif is_low %}bg-amber-500{% else %}bg-green-500{% endif %}" style="width: {{ 100 if pct>100 else (0 if pct<0 else pct) }}%;"></div>
+                          <div class="min-marker" style="left: {{ 0 if min_pct<0 else (100 if min_pct>100 else min_pct) }}%;"></div>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td class="px-6 py-4 text-center">
+                      <p class="text-xs font-medium text-slate-700 dark:text-slate-100">
+                        {% if p.lead_time_days is defined and p.lead_time_days is not none %}
+                          {{ p.lead_time_days }} Days
+                        {% else %}
+                          —
+                        {% endif %}
+                      </p>
+                    </td>
+
+                    <td class="px-6 py-4">
+                      {% if is_out %}
+                        <span class="px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-200 text-[10px] font-bold uppercase">Out of Stock</span>
+                      {% elif is_low %}
+                        <span class="px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-200 text-[10px] font-bold uppercase">Low Stock</span>
+                      {% else %}
+                        <span class="px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-200 text-[10px] font-bold uppercase">In Stock</span>
+                      {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                      {% set action_items = [
+                        {"href": url_for('asset_spare_part_view', asset_uid=asset.uid, part_uid=part_key), "icon": "visibility", "label": "Preview"},
+                        {"href": url_for('asset_spare_part_view', asset_uid=asset.uid, part_uid=part_key, print=1, autoprint=1), "icon": "print", "label": "Print"},
+                        {"href": url_for('inventory_management', q=(p.sku or p.part_no or p.part_name)), "icon": "open_in_new", "label": "Open in Inventory"},
+                        {"type": "form", "href": url_for('asset_sparepart_delete', asset_uid=asset.uid, spare_id=(p.id or p.uid)), "icon": "delete", "label": "Delete", "variant": "danger", "confirm": "Delete this spare part link?"}
+                      ] %}
+                      {% include 'partials/table_actions_menu.html' %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="7" class="px-6 py-8 text-sm text-slate-500 dark:text-slate-400">
+                    No spare parts matched your current filters for this asset.
+                  </td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="px-6 py-4 border-t border-slate-100 dark:border-dark-border bg-slate-50/30 dark:bg-slate-800/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">
+            Showing {{ showing_from }} to {{ showing_to }} of {{ total }} linked parts
+          </span>
+
+          <div class="flex items-center gap-4 sm:gap-6 justify-between sm:justify-end">
+            <form method="get" class="flex items-center gap-2">
+              <input type="hidden" name="page" value="1"/>
+              <input type="hidden" name="q" value="{{ q }}"/>
+              <input type="hidden" name="category" value="{{ selected_category }}"/>
+              <input type="hidden" name="stock_state" value="{{ selected_stock_state }}"/>
+              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap" for="rows-per-page">
+                Rows per page
+              </label>
+              <div class="relative">
+                <select class="appearance-none bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded text-xs font-bold text-slate-700 dark:text-slate-200 px-3 py-1 pr-8 focus:ring-ueal-gold focus:border-ueal-gold transition-all cursor-pointer" id="rows-per-page" name="per_page" onchange="this.form.submit()">
+                  {% for n in [5,10,20,50] %}
+                    <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }}</option>
+                  {% endfor %}
+                </select>
+                <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">expand_more</span>
+              </div>
+            </form>
+
+            {% set prev_page = 1 if page <= 1 else page - 1 %}
+            {% set next_page = total_pages if page >= total_pages else page + 1 %}
+
+            <div class="flex gap-1">
+              <a class="px-3 py-1 border border-slate-200 dark:border-dark-border rounded text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-white dark:hover:bg-white/5 transition-colors {% if page <= 1 %}pointer-events-none opacity-50{% endif %}" href="{{ url_for('assets_spare_parts_get', asset_uid=asset.uid, page=prev_page, per_page=per_page, q=q, category=selected_category, stock_state=selected_stock_state) }}">Prev</a>
+
+              {% for pnum in pages %}
+                {% if pnum == "…" %}
+                  <span class="px-3 py-1 text-xs font-bold text-slate-400">…</span>
+                {% elif pnum == page %}
+                  <span class="px-3 py-1 bg-ueal-purple text-white rounded text-xs font-bold shadow-sm">{{ pnum }}</span>
+                {% else %}
+                  <a class="px-3 py-1 border border-slate-200 dark:border-dark-border rounded text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-white dark:hover:bg-white/5 transition-colors" href="{{ url_for('assets_spare_parts_get', asset_uid=asset.uid, page=pnum, per_page=per_page, q=q, category=selected_category, stock_state=selected_stock_state) }}">{{ pnum }}</a>
+                {% endif %}
+              {% endfor %}
+
+              <a class="px-3 py-1 border border-slate-200 dark:border-dark-border rounded text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-white dark:hover:bg-white/5 transition-colors {% if page >= total_pages %}pointer-events-none opacity-50{% endif %}" href="{{ url_for('assets_spare_parts_get', asset_uid=asset.uid, page=next_page, per_page=per_page, q=q, category=selected_category, stock_state=selected_stock_state) }}">Next</a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="col-span-12 lg:col-span-4 space-y-6">
+
+      <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border">
+          <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2 uppercase tracking-wide">
+            <span class="material-symbols-outlined text-ueal-gold text-lg">donut_large</span>
+            Inventory Analytics
+          </h3>
+        </div>
+
+        <div class="p-6 text-center">
+          <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-6 text-left">Stock Health Distribution</p>
+
+          <div class="relative inline-flex items-center justify-center mb-6">
+            {% set in_pct = (donut.in_pct if donut is defined and donut.in_pct is defined else 0) %}
+            {% set low_pct = (donut.low_pct if donut is defined and donut.low_pct is defined else 0) %}
+            {% set out_pct = (donut.out_pct if donut is defined and donut.out_pct is defined else 0) %}
+
+            <svg class="w-40 h-40" viewBox="0 0 36 36">
+              <circle class="text-slate-100 dark:text-slate-800" cx="18" cy="18" fill="none" r="15.91549430918954" stroke="currentColor" stroke-width="4"></circle>
+
+              <circle class="text-green-500 donut-segment" cx="18" cy="18" fill="none" r="15.91549430918954"
+                      stroke="currentColor" stroke-dasharray="{{ in_pct }} {{ 100 - in_pct }}" stroke-dashoffset="25" stroke-width="4"></circle>
+              <circle class="text-amber-500 donut-segment" cx="18" cy="18" fill="none" r="15.91549430918954"
+                      stroke="currentColor" stroke-dasharray="{{ low_pct }} {{ 100 - low_pct }}" stroke-dashoffset="{{ 25 + in_pct }}" stroke-width="4"></circle>
+              <circle class="text-red-500 donut-segment" cx="18" cy="18" fill="none" r="15.91549430918954"
+                      stroke="currentColor" stroke-dasharray="{{ out_pct }} {{ 100 - out_pct }}" stroke-dashoffset="{{ 25 + in_pct + low_pct }}" stroke-width="4"></circle>
+            </svg>
+
+            <div class="absolute flex flex-col items-center">
+              <span class="text-xl font-bold text-slate-800 dark:text-slate-100">
+                {{ donut.total if donut is defined else 0 }}
+              </span>
+              <span class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Total SKU</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-2 text-left">
+            <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
+              <div class="flex items-center gap-2">
+                <div class="w-2.5 h-2.5 rounded-full bg-green-500"></div>
+                <span class="text-[11px] font-semibold text-slate-600 dark:text-slate-300">In Stock</span>
+              </div>
+              <span class="text-xs font-bold text-slate-800 dark:text-slate-100">
+                {{ donut.in_stock if donut is defined else 0 }} ({{ in_pct }}%)
+              </span>
+            </div>
+
+            <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
+              <div class="flex items-center gap-2">
+                <div class="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
+                <span class="text-[11px] font-semibold text-slate-600 dark:text-slate-300">Low Stock</span>
+              </div>
+              <span class="text-xs font-bold text-slate-800 dark:text-slate-100">
+                {{ donut.low_stock if donut is defined else 0 }} ({{ low_pct }}%)
+              </span>
+            </div>
+
+            <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
+              <div class="flex items-center gap-2">
+                <div class="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+                <span class="text-[11px] font-semibold text-slate-600 dark:text-slate-300">Out of Stock</span>
+              </div>
+              <span class="text-xs font-bold text-slate-800 dark:text-slate-100">
+                {{ donut.out_stock if donut is defined else 0 }} ({{ out_pct }}%)
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border flex items-center justify-between">
+          <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2 uppercase tracking-wide">
+            <span class="material-symbols-outlined text-red-500 text-lg">shopping_basket</span>
+            Urgent Replenishment
+          </h3>
+          <span class="inline-flex items-center justify-center min-w-[22px] h-[22px] px-2 rounded-full bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-200 text-[11px] font-extrabold">
+            {{ urgent_count if urgent_count is defined else 0 }}
+          </span>
+        </div>
+
+        <div class="p-4 space-y-3">
+          {% if urgent is defined and urgent|length > 0 %}
+            {% for u in urgent %}
+              {% set qty = (u.qty or 0) %}
+              {% set minq = (u.min_qty or 0) %}
+              {% set is_out = (qty<=0) %}
+
+              <div class="p-3 rounded-xl border-l-4
+                {% if is_out %}
+                  bg-red-50 dark:bg-red-900/20 border-red-500
+                {% else %}
+                  bg-amber-50 dark:bg-amber-900/20 border-amber-500
+                {% endif %}
+              ">
+                <div class="flex justify-between items-start mb-1 gap-3">
+                  <p class="text-xs font-bold
+                    {% if is_out %}text-red-700 dark:text-red-200{% else %}text-amber-700 dark:text-amber-200{% endif %}">
+                    {{ u.part_name or "Part" }}
+                  </p>
+
+                  <span class="text-[9px] font-bold
+                    {% if is_out %}text-red-400{% else %}text-amber-400{% endif %}">
+                    {% if is_out %}STOCK OUT{% else %}CRITICAL LOW{% endif %}
+                  </span>
+                </div>
+
+                <p class="text-[11px] leading-relaxed
+                  {% if is_out %}text-red-600/80 dark:text-red-200/80{% else %}text-amber-600/80 dark:text-amber-200/80{% endif %}">
+                  {{ u.urgent_reason or ("Stock level is " ~ qty ~ " (Min: " ~ minq ~ "). Replenish now to reduce stoppage risk.") }}
+                </p>
+
+                <p class="mt-2 text-[10px] text-slate-500 dark:text-slate-300 font-semibold">
+                  Stock: {{ qty }} • Min: {{ minq }}
+                  {% if u.lead_time_days %} • Lead time: {{ u.lead_time_days }}d{% endif %}
+                </p>
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="text-sm text-slate-500 dark:text-slate-400 px-2 py-4">
+              No urgent replenishment items right now.
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="bg-ueal-purple text-white rounded-xl shadow-lg p-6 relative overflow-hidden">
+        <div class="absolute -right-4 -top-4 opacity-10">
+          <span class="material-symbols-outlined text-8xl">precision_manufacturing</span>
+        </div>
+
+        <div class="flex items-center gap-2 mb-3">
+          <span class="material-symbols-outlined text-ueal-gold text-lg">lightbulb</span>
+          <h4 class="text-xs font-bold uppercase tracking-widest">Inventory Note</h4>
+        </div>
+
+        <p class="text-xs leading-relaxed text-indigo-50/90 italic">
+          {{ (kpis.inventory_note if kpis is defined and kpis.inventory_note is defined and kpis.inventory_note else
+            '"Always verify part serial numbers against the manufacturer catalog before placing replenishment orders to ensure 100% component compatibility."') }}
+        </p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{% endblock %}

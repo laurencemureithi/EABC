@@ -1,0 +1,568 @@
+{# =========================
+   reports_generate_step3.html
+   UI MATCH:
+   - Match screenshot spacing + preview proportions
+   - Preview: max-w 360, aspect 1/1.414, gradient background
+   - Hover "Live Preview Mockup" overlay like reference
+   - Dark theme surfaces corrected (no washed panels)
+   - Button wording: Generate Report (no download yet)
+   ========================= #}
+
+{% extends "layouts/base.html" %}
+
+{% block title %}Generate New Report • Finalize • Opsloom{% endblock %}
+
+{% block page_styles %}
+<style>
+  .material-symbols-outlined { line-height: 1; vertical-align: middle; }
+
+  /* Match reference preview: gradient + aspect ratio 1 / 1.414 (A4-ish) */
+  .report-mock-preview {
+    background: linear-gradient(135deg, #1554FF 0%, #0B1020 100%);
+    aspect-ratio: 1 / 1.414;
+  }
+
+  #reportProgressModal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: none;
+  }
+  #reportProgressModal.is-open {
+    display: block;
+  }
+  #reportProgressBarWrap {
+    position: relative;
+    overflow: hidden;
+  }
+  #reportProgressBar.is-stalled::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.18) 35%, rgba(255,255,255,.42) 50%, rgba(255,255,255,.18) 65%, transparent 100%);
+    transform: translateX(-120%);
+    animation: reportProgressSweep 1.35s linear infinite;
+  }
+  @keyframes reportProgressSweep {
+    from { transform: translateX(-120%); }
+    to { transform: translateX(120%); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+  {% set page_title = "Generate New Report" %}
+  {% set title_icon = "assessment" %}
+  {% set page_subtitle = "Review the report package, confirm delivery options, and finalize generation." %}
+  {% set show_system_badge = true %}
+  {% set breadcrumbs = [{"label":"Reports", "href": url_for("reports_center")}, {"label":"Generate"}] %}
+  {% include "partials/title_block.html" %}
+
+  <!-- STEPPER (match reference max width + lines) -->
+  <div class="mb-12 flex items-center justify-between max-w-3xl mx-auto">
+    <div class="flex flex-col items-center gap-2">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 bg-ueal-purple border-ueal-purple text-white">
+        <span class="material-symbols-outlined text-sm">check</span>
+      </div>
+      <span class="text-[10px] font-bold text-ueal-purple uppercase tracking-widest">1. Report Type</span>
+    </div>
+
+    <div class="flex-1 h-0.5 bg-ueal-purple mx-4"></div>
+
+    <div class="flex flex-col items-center gap-2">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 bg-ueal-purple border-ueal-purple text-white">
+        <span class="material-symbols-outlined text-sm">check</span>
+      </div>
+      <span class="text-[10px] font-bold text-ueal-purple uppercase tracking-widest">2. Configuration</span>
+    </div>
+
+    <div class="flex-1 h-0.5 bg-ueal-purple mx-4"></div>
+
+    <div class="flex flex-col items-center gap-2">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 bg-ueal-gold border-ueal-gold text-white shadow-lg shadow-ueal-gold/20">
+        3
+      </div>
+      <span class="text-[10px] font-black text-ueal-gold uppercase tracking-widest">3. Finalize</span>
+    </div>
+  </div>
+
+  {% set w = wizard or {} %}
+  {% set fmt_value = (w.get('format') or 'pdf')|lower %}
+  {% set start_val = w.get('start_date') or '' %}
+  {% set end_val = w.get('end_date') or '' %}
+  {% set scope_mode = (w.get('scope_mode') or 'assets')|lower %}
+  {% set asset_uids = w.get('asset_uids') or [] %}
+  {% set has_assets = (asset_uids|length > 0) or ((w.get('asset_uid') or '')|trim != '') %}
+  {% set has_selection = (scope_mode != 'assets') or has_assets %}
+
+  <!-- MAIN CARD -->
+  <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-black/30 overflow-hidden mb-8">
+    <div class="p-10">
+
+      <div class="text-center mb-10">
+        <h2 class="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+          Report Summary &amp; Preview
+        </h2>
+        <p class="text-slate-500 dark:text-slate-300 text-sm font-medium mt-1">
+          Verify your selections before final generation.
+        </p>
+      </div>
+
+      <form method="post" action="{{ url_for('reports_generate_step3_post') }}" id="reportFinalizeForm" novalidate>
+        <input type="hidden" name="job_id" value="{{ report_job_id or "" }}"/>
+        <input type="hidden" name="category" value="{{ w.get('category','') }}"/>
+        <input type="hidden" name="scope_mode" value="{{ scope_mode }}"/>
+        <input type="hidden" name="section" value="{{ w.get('section','') }}"/>
+        <input type="hidden" name="asset_uid" value="{{ w.get('asset_uid','') }}"/>
+        {% for uid in (w.get('asset_uids') or []) %}
+          <input type="hidden" name="asset_uids" value="{{ uid }}"/>
+        {% endfor %}
+        <input type="hidden" name="start_date" value="{{ start_val }}"/>
+        <input type="hidden" name="end_date" value="{{ end_val }}"/>
+        <input type="hidden" name="format" value="{{ fmt_value }}"/>
+        {% for m in (w.get('metrics') or []) %}
+          <input type="hidden" name="metrics" value="{{ m }}"/>
+        {% endfor %}
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+
+          <!-- LEFT -->
+          <div class="lg:col-span-5 space-y-8">
+
+            <div class="grid grid-cols-1 gap-6">
+              <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-700/60">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Report Type</label>
+                <p class="text-sm font-bold text-ueal-purple">{{ preview_report_type or "Report" }}</p>
+              </div>
+
+              <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-700/60">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Time Range</label>
+                <p class="text-sm font-bold text-slate-800 dark:text-white">{{ preview_time_range or "Custom Range" }}</p>
+              </div>
+
+              <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-700/60">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Selected Assets</label>
+                {% set selected_assets = preview_selected_assets or [] %}
+                {% if selected_assets|length %}
+                  <div class="flex flex-wrap gap-2 mt-1">
+                    {% for a in selected_assets %}
+                      <span class="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60
+                                   text-[10px] font-bold rounded text-slate-600 dark:text-slate-200 uppercase">
+                        {{ a }}
+                      </span>
+                    {% endfor %}
+                  </div>
+                {% elif has_selection %}
+                  <p class="text-xs font-bold text-slate-700 dark:text-slate-200">Asset selected.</p>
+                {% else %}
+                  <p class="text-xs font-bold text-red-600 dark:text-red-200">No asset selected. Go back and choose one.</p>
+                {% endif %}
+              </div>
+
+              <div class="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-700/60">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Output Format</label>
+                <div class="flex items-center gap-2">
+                  {% if fmt_value == 'pdf' %}
+                    <span class="material-symbols-outlined text-red-500 text-xl">picture_as_pdf</span>
+                    <p class="text-sm font-bold text-slate-800 dark:text-white uppercase">{{ preview_output_format or "Professional PDF" }}</p>
+                  {% elif fmt_value == 'xlsx' %}
+                    <span class="material-symbols-outlined text-emerald-600 text-xl">table_view</span>
+                    <p class="text-sm font-bold text-slate-800 dark:text-white uppercase">{{ preview_output_format or "Excel (XLSX)" }}</p>
+                  {% else %}
+                    <span class="material-symbols-outlined text-slate-500 dark:text-slate-300 text-xl">description</span>
+                    <p class="text-sm font-bold text-slate-800 dark:text-white uppercase">{{ preview_output_format or "CSV" }}</p>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <!-- DELIVERY OPTIONS -->
+            <div class="pt-6 border-t border-slate-100 dark:border-slate-800/70">
+              <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm">mail</span>
+                Delivery Options
+              </h3>
+
+              <div class="space-y-3">
+                <label class="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700/60 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                  <input class="rounded text-ueal-gold focus:ring-ueal-gold h-4 w-4"
+                         type="checkbox" name="send_email" value="1"
+                         {% if send_email_default is not defined or send_email_default %}checked{% endif %}/>
+                  <div class="flex flex-col">
+                    <span class="text-xs font-bold text-slate-800 dark:text-white">Email copy to {{ recipient_name or "Joseph Gitau" }}</span>
+                    <span class="text-[10px] text-slate-500 dark:text-slate-300">{{ recipient_email or "opsloom.ke@gmail.com" }}</span>
+                  </div>
+                </label>
+
+                <!-- Extra recipients + message (shown only if send_email is checked) -->
+                <div id="emailExtras" class="mt-3 hidden">
+                  <div class="grid grid-cols-1 gap-3">
+                    <div>
+                      <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">To (additional)</label>
+                      <input name="to_emails" value="{{ (w.get('to_emails') or '') }}" placeholder="name@company.com, another@gmail.com"
+                             class="mt-1 w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white" />
+                      <p class="text-[11px] text-slate-500 dark:text-slate-300 mt-1">Comma-separated emails.</p>
+                    </div>
+                    <div>
+                      <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">CC</label>
+                      <input name="cc_emails" value="{{ (w.get('cc_emails') or '') }}" placeholder="cc1@company.com, cc2@gmail.com"
+                             class="mt-1 w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white" />
+                    </div>
+                    <div>
+                      <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subject</label>
+                      <input name="email_subject" value="{{ (w.get('email_subject') or (preview_report_type ~ ' • ' ~ (preview_time_range or 'Report'))) }}"
+                             class="mt-1 w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white" />
+                    </div>
+                    <div>
+                      <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Message</label>
+                      <textarea name="email_message" rows="4" class="mt-1 w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white"
+                                placeholder="Write a short note explaining what this report is and any next actions.">{{ w.get('email_message') or '' }}</textarea>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/60 p-4">
+                  <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email Sign-off Preview</p>
+                  <div class="mt-3" style="font-family: {{ current_user_signature.font if current_user_signature is defined else 'Inter' }}; color: {{ current_user_signature.color if current_user_signature is defined else '#1554FF' }};">
+                    <p class="text-sm font-bold">{{ current_user_signature.name if current_user_signature is defined else current_user_name }}</p>
+                    <p class="text-xs">{{ current_user_signature.title if current_user_signature is defined else current_user_role }}</p>
+                    <p class="text-[11px] text-slate-500 dark:text-slate-300">{{ settings.mail_signature_footer if settings is defined else 'Opsloom' }}</p>
+                    {% if current_user_signature is defined and current_user_signature.image_url %}<img src="{{ current_user_signature.image_url }}" alt="signature" class="mt-2 max-h-12 object-contain">{% endif %}
+                  </div>
+                </div>
+
+                <label class="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700/60 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                  <input class="rounded text-ueal-gold focus:ring-ueal-gold h-4 w-4"
+                         type="checkbox" name="schedule_monthly" value="1"
+                         {% if schedule_monthly_default %}checked{% endif %}/>
+                  <div class="flex flex-col">
+                    <span class="text-xs font-bold text-slate-800 dark:text-white">Schedule recurring monthly version</span>
+                    <span class="text-[10px] text-slate-500 dark:text-slate-300">Auto-generate on the 1st of every month.</span>
+                  </div>
+                </label>
+
+<label class="flex items-center gap-3 p-4 rounded-xl cursor-pointer
+              bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60
+              hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+  <input class="rounded text-ueal-gold focus:ring-ueal-gold h-4 w-4"
+         type="checkbox" name="include_cover" value="1" checked />
+  <div class="flex flex-col">
+    <span class="text-xs font-black text-slate-900 dark:text-white">
+      Include cover page in PDF
+    </span>
+    <span class="text-[11px] text-slate-500 dark:text-slate-300">
+      Adds the report title cover as Page 1.
+    </span>
+  </div>
+</label>
+              </div>
+            </div>
+
+            <div id="finalInlineError"
+                 class="{% if has_selection %}hidden{% endif %} mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/40
+                        text-red-700 dark:text-red-200 text-xs font-semibold rounded-xl px-4 py-3">
+              No asset selected. Please go back to Configuration and choose an asset.
+            </div>
+
+            {% if error %}
+              <div class="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/40
+                          text-red-700 dark:text-red-200 text-xs font-semibold rounded-xl px-4 py-3">
+                {{ error }}
+              </div>
+            {% endif %}
+
+          </div>
+
+          <!-- RIGHT: PREVIEW (match reference: max-w 360, rounded-lg, hover overlay) -->
+          <div class="lg:col-span-7 flex justify-center">
+            <div class="report-mock-preview w-full max-w-[360px] rounded-lg shadow-2xl relative overflow-hidden group">
+
+              <!-- hover overlay label -->
+              <div class="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity
+                          flex items-center justify-center backdrop-blur-[1px] pointer-events-none">
+                <span class="bg-white/90 text-ueal-purple px-4 py-2 rounded-full font-bold text-xs uppercase shadow-xl tracking-widest">
+                  Live Preview Mockup
+                </span>
+              </div>
+
+              <div class="p-8 h-full flex flex-col text-white">
+                <div class="flex items-center gap-2 mb-12">
+                  <div class="bg-ueal-gold rounded p-1">
+                    <span class="material-symbols-outlined text-white text-lg">insights</span>
+                  </div>
+                  <div class="leading-none">
+                    <span class="font-black text-sm tracking-tight">Opsloom</span>
+                    <p class="text-[6px] uppercase tracking-widest text-ueal-gold">Operations Intelligence</p>
+                  </div>
+                </div>
+
+                <div class="mt-auto space-y-4">
+                  <div class="h-1 w-12 bg-ueal-gold rounded"></div>
+                  <h3 class="text-2xl font-black leading-tight tracking-tight">
+                    {{ preview_title or "Asset Reliability" }}<br/>Performance Report
+                  </h3>
+{% if preview_machine_name %}
+  <div class="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/10">
+    <span class="material-symbols-outlined text-base text-ueal-gold">precision_manufacturing</span>
+    <span class="text-[11px] font-black uppercase tracking-widest">
+      {{ preview_machine_name }}
+    </span>
+  </div>
+{% endif %}
+                  <p class="text-ueal-gold text-[10px] font-bold uppercase tracking-[0.3em]">
+                    Engineering Division
+                  </p>
+                </div>
+
+                <div class="mt-12 pt-8 border-t border-white/10 grid grid-cols-2 gap-4">
+                  <div>
+                    <p class="text-[8px] uppercase text-white/40 tracking-widest font-bold">Reporting Period</p>
+                    <p class="text-[10px] font-medium mt-1">
+                      {# UI shows "Q1 FY2024". If you later add preview_reporting_period from backend, prefer it. #}
+                      {{ preview_reporting_period or preview_time_range }}
+                    </p>
+                  </div>
+                  <div>
+                    <p class="text-[8px] uppercase text-white/40 tracking-widest font-bold">Generated For</p>
+                    <p class="text-[10px] font-medium mt-1">
+                      {{ preview_generated_for or "Production Unit A" }}
+                    </p>
+                  </div>
+                </div>
+
+                <div class="mt-8 flex items-center justify-between">
+                  <div class="w-16 h-16 border border-white/10 rounded flex items-center justify-center p-2 opacity-30">
+                    <div class="w-full h-full bg-slate-400/20 rounded-sm"></div>
+                  </div>
+                  <p class="text-[8px] text-white/20 italic">Strictly Confidential - Opsloom Core</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- FOOTER ACTIONS -->
+        <div class="px-10 py-6 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <a href="{{ url_for('reports_generate_step2_get') }}"
+             class="px-6 py-2.5 border border-slate-300 dark:border-white/10 text-slate-600 dark:text-slate-200
+                    bg-white dark:bg-slate-900 rounded-lg text-xs font-black
+                    hover:bg-slate-100 dark:hover:bg-slate-800 transition-all uppercase tracking-widest flex items-center gap-2">
+            <span class="material-symbols-outlined text-sm">arrow_back</span>
+            Back to Configuration
+          </a>
+
+          <button type="submit" id="generateBtn" {% if not has_selection %}disabled{% endif %}
+                  class="px-8 py-3 bg-ueal-gold text-white rounded-lg text-sm font-black
+                         hover:brightness-110 transition-all shadow-xl shadow-ueal-gold/30
+                         flex items-center gap-2 uppercase tracking-widest
+                         disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100">
+            Generate Report
+            <span class="material-symbols-outlined">arrow_forward</span>
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </section>
+
+  <footer class="mt-12 mb-8 text-center">
+    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">
+      © 2024 Opsloom. Opsloom Intelligence Unit
+    </p>
+    <p class="text-[9px] text-slate-300 uppercase tracking-widest mt-1">
+      Opsloom Operations Intelligence System - Wizard v2.1
+    </p>
+  </footer>
+
+
+  <div id="reportProgressModal" class="hidden fixed inset-0 z-[120] bg-slate-950/55 backdrop-blur-sm px-4">
+    <div class="min-h-full flex items-center justify-center">
+      <div class="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl p-6">
+        <div class="flex items-start gap-3">
+          <div class="w-11 h-11 rounded-full bg-ueal-gold/15 text-ueal-gold flex items-center justify-center">
+            <span class="material-symbols-outlined">hourglass_top</span>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-lg font-black text-slate-900 dark:text-white">Generating report</h3>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-300">Please wait while Opsloom compiles the report package.</p>
+          </div>
+        </div>
+        <div class="mt-6">
+          <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+            <span id="reportProgressLabel">Initializing report generation</span>
+            <span id="reportProgressValue">0%</span>
+          </div>
+          <div id="reportProgressBarWrap" class="mt-3 h-3 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+            <div id="reportProgressBar" class="h-full rounded-full bg-ueal-gold transition-all duration-300 relative" style="width:0%"></div>
+          </div>
+          <p id="reportProgressHint" class="mt-3 text-xs text-slate-500 dark:text-slate-300">Do not close this window until the report is ready.</p>
+          <div class="mt-3 flex items-center gap-2 text-[11px] font-bold text-slate-500 dark:text-slate-300">
+            <span class="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span id="reportProgressLiveState">Live status: waiting to start.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+  (function () {
+    const form = document.getElementById("reportFinalizeForm");
+    const btn = document.getElementById("generateBtn");
+    const err = document.getElementById("finalInlineError");
+    const sendEmail = form?.querySelector('input[name="send_email"]');
+    const emailExtras = document.getElementById('emailExtras');
+    const progressModal = document.getElementById("reportProgressModal");
+    const progressBar = document.getElementById("reportProgressBar");
+    const progressValue = document.getElementById("reportProgressValue");
+    const progressLabel = document.getElementById("reportProgressLabel");
+    const progressHint = document.getElementById("reportProgressHint");
+    const progressLiveState = document.getElementById("reportProgressLiveState");
+    if (!form) return;
+
+    if (progressModal && progressModal.parentElement !== document.body) {
+      document.body.appendChild(progressModal);
+    }
+
+    function hasSelection() {
+      const scope = (form.querySelector('input[name="scope_mode"]')?.value || 'assets').trim().toLowerCase();
+      if (scope !== 'assets') return true;
+      const anyMulti = form.querySelectorAll('input[name="asset_uids"]').length > 0;
+      const single = !!((form.querySelector('input[name="asset_uid"]')?.value || "").trim());
+      return anyMulti || single;
+    }
+
+    function toggleEmailExtras(){
+      const on = !!sendEmail?.checked;
+      emailExtras?.classList.toggle('hidden', !on);
+    }
+    sendEmail?.addEventListener('change', toggleEmailExtras);
+    toggleEmailExtras();
+
+    let pollTimer = null;
+    let heartbeatTimer = null;
+    let startedAt = 0;
+    let lastServerTick = 0;
+    let lastServerUpdatedAt = "";
+    let isComplete = false;
+
+    function openProgressModal(){
+      progressModal?.classList.add('is-open');
+      progressModal?.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeProgressModal(){
+      progressModal?.classList.remove('is-open');
+      progressModal?.classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    function setProgress(percent, label, hint, stalled){
+      const pct = Math.max(0, Math.min(100, Number(percent || 0)));
+      if (progressBar) {
+        progressBar.style.width = pct + "%";
+        progressBar.classList.toggle('is-stalled', !!stalled && pct < 100);
+      }
+      if (progressValue) progressValue.textContent = pct + "%";
+      if (progressLabel && label) progressLabel.textContent = label;
+      if (progressHint && hint) progressHint.textContent = hint;
+    }
+
+    function startHeartbeat(){
+      if (heartbeatTimer) window.clearInterval(heartbeatTimer);
+      heartbeatTimer = window.setInterval(() => {
+        if (isComplete) return;
+        const now = Date.now();
+        const elapsed = Math.max(0, Math.floor((now - startedAt) / 1000));
+        const staleFor = lastServerTick ? Math.max(0, Math.floor((now - lastServerTick) / 1000)) : 0;
+        const dots = '.'.repeat((elapsed % 3) + 1);
+        if (progressLiveState) {
+          if (staleFor >= 4) {
+            progressLiveState.textContent = `Live status: still working${dots} ${elapsed}s elapsed • last confirmed ${staleFor}s ago.`;
+          } else {
+            progressLiveState.textContent = `Live status: generation in progress${dots} ${elapsed}s elapsed.`;
+          }
+        }
+        if (staleFor >= 4 && !isComplete) {
+          const label = progressLabel?.textContent || 'Generating report';
+          setProgress(progressValue?.textContent?.replace('%','') || 0, label, 'Still compiling the report. Larger charts and PDF layout steps can take longer.', true);
+        }
+      }, 1000);
+    }
+
+    async function pollProgress(jobId){
+      try{
+        const res = await fetch(`/reports/generate/progress/${encodeURIComponent(jobId)}`, {headers:{'X-Requested-With':'XMLHttpRequest'}});
+        if(!res.ok) return;
+        const data = await res.json();
+        lastServerTick = Date.now();
+        const updatedAt = data.updated_at || '';
+        const changed = updatedAt && updatedAt !== lastServerUpdatedAt;
+        if (changed) lastServerUpdatedAt = updatedAt;
+        const runningHint = data.status === 'failed'
+          ? (data.error || 'Generation failed.')
+          : 'Do not close this window until the report is ready.';
+        setProgress(data.percent || 0, data.label || 'Processing report', runningHint, false);
+        if (progressLiveState) {
+          progressLiveState.textContent = data.status === 'failed'
+            ? 'Live status: generation failed.'
+            : (data.status === 'complete' ? 'Live status: generation complete.' : 'Live status: server confirmed the generation is still running.');
+        }
+      }catch(_e){}
+    }
+
+    form.addEventListener("submit", async function (e) {
+      if (!hasSelection()) {
+        e.preventDefault();
+        err?.classList.remove("hidden");
+        btn?.setAttribute("disabled","disabled");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      e.preventDefault();
+      const jobId = form.querySelector('input[name="job_id"]')?.value || '';
+      btn?.setAttribute("disabled","disabled");
+      startedAt = Date.now();
+      lastServerTick = startedAt;
+      lastServerUpdatedAt = '';
+      isComplete = false;
+      openProgressModal();
+      setProgress(4, 'Starting report generation', 'Preparing report package...', false);
+      if (progressLiveState) progressLiveState.textContent = 'Live status: generation started.';
+      startHeartbeat();
+      if (jobId){
+        pollTimer = window.setInterval(() => pollProgress(jobId), 800);
+        pollProgress(jobId);
+      }
+      try{
+        const formData = new FormData(form);
+        const res = await fetch(form.action, {method:'POST', body:formData, headers:{'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}});
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok || !data.redirect){
+          throw new Error(data.error || 'Report generation failed.');
+        }
+        isComplete = true;
+        if (pollTimer) window.clearInterval(pollTimer);
+        if (heartbeatTimer) window.clearInterval(heartbeatTimer);
+        setProgress(100, 'Report package ready', 'Opening success page...', false);
+        if (progressLiveState) progressLiveState.textContent = 'Live status: report package is ready.';
+        window.location.href = data.redirect;
+      }catch(ex){
+        isComplete = true;
+        if (pollTimer) window.clearInterval(pollTimer);
+        if (heartbeatTimer) window.clearInterval(heartbeatTimer);
+        setProgress(100, 'Generation stopped', ex?.message || 'Something went wrong while generating the report.', false);
+        if (progressLiveState) progressLiveState.textContent = 'Live status: generation stopped.';
+        btn?.removeAttribute('disabled');
+      }
+    });
+  })();
+</script>
+{% endblock %}

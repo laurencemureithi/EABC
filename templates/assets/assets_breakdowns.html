@@ -1,0 +1,417 @@
+{# templates/assets/assets_breakdowns.html #}
+{% extends "layouts/base.html" %}
+{% block title %}Asset Breakdowns • Opsloom{% endblock %}
+
+{% block content %}
+  {# -----------------------------
+     Page context
+     ----------------------------- #}
+  {% set page_title = asset.asset_name %}
+
+  {% set breadcrumbs = [
+    {"label":"Asset Register", "href": url_for("assets_master_list")},
+    {"label": asset.asset_name, "href": url_for("assets_profile_get", asset_uid=asset.uid) if asset and asset.uid else None},
+    {"label":"Breakdowns"}
+  ] %}
+
+  <div class="max-w-6xl mx-auto">
+
+    {# -----------------------------
+       Header (USE THE NEW PARTIAL)
+       ----------------------------- #}
+    {% include "partials/asset_profile_header.html" %}
+
+    {# Tabs #}
+    {% include "partials/asset_profile_tabs.html" %}
+
+    {# -----------------------------
+       KPI Cards (same as your mock)
+       ----------------------------- #}
+    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8 mt-6">
+
+      <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+        <div class="w-10 h-10 bg-rose-50 dark:bg-rose-900/20 rounded-lg flex items-center justify-center text-rose-600 dark:text-rose-300 shrink-0">
+          <span class="material-symbols-outlined text-xl">report_problem</span>
+        </div>
+        <div>
+          <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Breakdowns</p>
+          <p class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">
+            {{ (kpis.total_breakdowns if kpis is defined and kpis.total_breakdowns is defined else (total_records if total_records is defined else (breakdowns|length if breakdowns is defined else 0))) }}
+          </p>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+        <div class="w-10 h-10 bg-ueal-gold/10 rounded-lg flex items-center justify-center text-ueal-gold shrink-0">
+          <span class="material-symbols-outlined text-xl">timer</span>
+        </div>
+        <div>
+          <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">MTTR</p>
+          <p class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">
+            {% if kpis is defined and kpis.mttr_hours is defined and kpis.mttr_hours is not none %}
+              {{ "%.1f"|format(kpis.mttr_hours) }}h
+            {% else %}
+              —
+            {% endif %}
+          </p>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+        <div class="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center text-slate-600 dark:text-slate-200 shrink-0">
+          <span class="material-symbols-outlined text-xl">event_busy</span>
+        </div>
+        <div>
+          <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Last Breakdown</p>
+          <p class="text-lg font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">
+            {{ (kpis.last_breakdown_date if kpis is defined and kpis.last_breakdown_date is defined and kpis.last_breakdown_date else "—") }}
+          </p>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+        <div class="w-10 h-10 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center justify-center text-orange-600 dark:text-orange-200 shrink-0">
+          <span class="material-symbols-outlined text-xl">running_with_errors</span>
+        </div>
+        <div>
+          <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Downtime MTD</p>
+          <p class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">
+            {% if kpis is defined and kpis.downtime_mtd_hours is defined and kpis.downtime_mtd_hours is not none %}
+              {{ "%.1f"|format(kpis.downtime_mtd_hours) }}h
+            {% else %}
+              —
+            {% endif %}
+          </p>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+        <div class="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-200 shrink-0">
+          <span class="material-symbols-outlined text-xl">monetization_on</span>
+        </div>
+        <div>
+          <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Failure Cost</p>
+          <p class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">
+            {{ (kpis.failure_cost if kpis is defined and kpis.failure_cost is defined and kpis.failure_cost else "—") }}
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="grid grid-cols-12 gap-8">
+
+      {# -----------------------------
+         LEFT: Breakdown Log table
+         ----------------------------- #}
+      <div class="col-span-12 lg:col-span-8">
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
+            <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2 uppercase tracking-wide">
+              <span class="material-symbols-outlined text-ueal-purple dark:text-ueal-gold text-lg">list_alt</span>
+              Asset Breakdown Log
+            </h3>
+
+            <div class="flex gap-2">
+              <button class="p-2 text-slate-400 hover:text-ueal-purple dark:hover:text-ueal-gold transition-colors" type="button" title="Filter">
+                <span class="material-symbols-outlined text-xl">filter_list</span>
+              </button>
+              <button class="p-2 text-slate-400 hover:text-ueal-purple dark:hover:text-ueal-gold transition-colors" type="button" title="Download">
+                <span class="material-symbols-outlined text-xl">download</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="bg-white dark:bg-dark-surface text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold tracking-wider border-b border-slate-100 dark:border-dark-border">
+                  <th class="px-6 py-4">Date</th>
+                  <th class="px-6 py-4">Incident Type</th>
+                  <th class="px-6 py-4">Fault Description</th>
+                  <th class="px-6 py-4">Repair Time</th>
+                  <th class="px-6 py-4">Status</th>
+                </tr>
+              </thead>
+
+              <tbody class="divide-y divide-slate-100 dark:divide-dark-border">
+                {% if breakdowns is defined and breakdowns|length > 0 %}
+                  {% for b in breakdowns %}
+                    <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+
+                      <td class="px-6 py-4">
+                        <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                          {{ b.reported_date or b.date or "—" }}
+                        </p>
+                      </td>
+
+                      <td class="px-6 py-4">
+                        {% set itype = (b.incident_type or b.type or "")|lower %}
+                        {% if "elect" in itype %}
+                          <span class="px-2 py-1 rounded-full bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-200 text-[10px] font-bold">
+                            {{ (b.incident_type or b.type or "ELECTRICAL")|upper }}
+                          </span>
+                        {% elif "mech" in itype %}
+                          <span class="px-2 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-200 text-[10px] font-bold">
+                            {{ (b.incident_type or b.type or "MECHANICAL")|upper }}
+                          </span>
+                        {% else %}
+                          <span class="px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200 text-[10px] font-bold">
+                            {{ (b.incident_type or b.type or "GENERAL")|upper }}
+                          </span>
+                        {% endif %}
+                      </td>
+
+                      <td class="px-6 py-4">
+                        <p class="text-sm text-slate-600 dark:text-slate-300">
+                          {% if b.breakdown_id is defined and b.breakdown_id %}
+                            <a class="font-semibold hover:underline text-slate-800 dark:text-slate-100"
+                               href="{{ url_for('breakdowns_view', breakdown_id=b.breakdown_id) }}">
+                              {{ b.incident_title or b.fault_description or "View breakdown" }}
+                            </a>
+                          {% else %}
+                            {{ b.incident_title or b.fault_description or "—" }}
+                          {% endif %}
+
+                          {# Optional: show quick “history” link if you already have maintenance linkage #}
+                          {% if b.work_order_id is defined and b.work_order_id %}
+                            <a class="ml-2 text-[11px] font-bold text-ueal-purple dark:text-ueal-gold hover:underline"
+                               href="{{ url_for('maintenance_work_order_view', work_order_id=b.work_order_id) }}">
+                              View WO
+                            </a>
+                          {% endif %}
+                        </p>
+                      </td>
+
+                      <td class="px-6 py-4">
+                        <p class="text-sm font-medium text-slate-700 dark:text-slate-200">
+                          {{ b.repair_time or b.downtime or "—" }}
+                        </p>
+                      </td>
+
+                      <td class="px-6 py-4">
+                        {% set status = (b.status_label or b.status or "")|lower %}
+                        {% if status in ["closed", "resolved", "completed"] %}
+                          <span class="px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-200 text-[10px] font-bold uppercase">
+                            {{ (b.status_label or b.status or "Closed") }}
+                          </span>
+                        {% elif status in ["open", "active", "in progress", "ongoing"] %}
+                          <span class="px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-200 text-[10px] font-bold uppercase">
+                            {{ (b.status_label or b.status or "Open") }}
+                          </span>
+                        {% else %}
+                          <span class="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200 text-[10px] font-bold uppercase">
+                            {{ (b.status_label or b.status or "—") }}
+                          </span>
+                        {% endif %}
+                      </td>
+
+                    </tr>
+                  {% endfor %}
+                {% else %}
+                  <tr>
+                    <td colspan="5" class="px-6 py-8 text-sm text-slate-500 dark:text-slate-400">
+                      No breakdowns logged for this asset yet.
+                    </td>
+                  </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+
+          {# Pagination/Footer #}
+          <div class="px-6 py-4 border-t border-slate-100 dark:border-dark-border bg-slate-50/30 dark:bg-slate-800/20 flex items-center justify-between">
+            <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              {% if showing_count is defined and total_records is defined %}
+                Showing {{ showing_count }} of {{ total_records }} records
+              {% elif total_records is defined %}
+                Total records: {{ total_records }}
+              {% else %}
+                —
+              {% endif %}
+            </span>
+
+            <div class="flex items-center gap-6">
+
+              <div class="flex items-center gap-2">
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap" for="rows-per-page">Rows per page</label>
+                <div class="relative">
+                  <select
+                    id="rows-per-page"
+                    class="appearance-none bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded text-xs font-bold text-slate-700 dark:text-slate-100 px-3 py-1 pr-8 focus:ring-ueal-gold focus:border-ueal-gold transition-all cursor-pointer"
+                    onchange="location.href=this.value"
+                  >
+                    {% set rpp = rows_per_page if rows_per_page is defined else 10 %}
+                    {% for opt in [5,10,20,50] %}
+                      <option value="{{ url_for(request.endpoint, asset_uid=asset.uid, page=1, rows=opt) }}"
+                        {% if rpp == opt %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                  </select>
+                  <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">expand_more</span>
+                </div>
+              </div>
+
+              <div class="flex gap-1">
+                {% set p = page if page is defined else 1 %}
+                {% set tp = total_pages if total_pages is defined else 1 %}
+
+                <a class="px-3 py-1 border border-slate-200 dark:border-dark-border rounded text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-white dark:hover:bg-white/5 transition-colors {% if p <= 1 %}pointer-events-none opacity-50{% endif %}"
+                   href="{{ url_for(request.endpoint, asset_uid=asset.uid, page=(p-1), rows=(rows_per_page if rows_per_page is defined else 10)) }}">
+                  Prev
+                </a>
+
+                {% set start_page = 1 %}
+                {% set end_page = tp if tp <= 5 else 5 %}
+                {% for n in range(start_page, end_page + 1) %}
+                  <a class="px-3 py-1 rounded text-xs font-bold transition-colors
+                            {% if n == p %}
+                              bg-ueal-purple text-white shadow-sm
+                            {% else %}
+                              border border-slate-200 dark:border-dark-border text-slate-600 dark:text-slate-200 hover:bg-white dark:hover:bg-white/5
+                            {% endif %}"
+                     href="{{ url_for(request.endpoint, asset_uid=asset.uid, page=n, rows=(rows_per_page if rows_per_page is defined else 10)) }}">
+                    {{ n }}
+                  </a>
+                {% endfor %}
+
+                <a class="px-3 py-1 border border-slate-200 dark:border-dark-border rounded text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-white dark:hover:bg-white/5 transition-colors {% if p >= tp %}pointer-events-none opacity-50{% endif %}"
+                   href="{{ url_for(request.endpoint, asset_uid=asset.uid, page=(p+1), rows=(rows_per_page if rows_per_page is defined else 10)) }}">
+                  Next
+                </a>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {# -----------------------------
+         RIGHT: Analytics stack (matches image intent)
+         ----------------------------- #}
+      <div class="col-span-12 lg:col-span-4 space-y-6">
+
+        {# Breakdown Analytics card #}
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border">
+            <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2 uppercase tracking-wide">
+              <span class="material-symbols-outlined text-ueal-gold text-lg">analytics</span>
+              Breakdown Analytics
+            </h3>
+          </div>
+
+          <div class="p-6 text-center">
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-6 text-left">Root Cause Distribution</p>
+
+            <div class="relative inline-flex items-center justify-center mb-6">
+              <svg class="w-40 h-40" viewBox="0 0 36 36">
+                <circle class="text-slate-100 dark:text-slate-800" cx="18" cy="18" fill="none" r="15.91549430918954" stroke="currentColor" stroke-width="4"></circle>
+
+                {% if root_causes is defined and root_causes|length > 0 %}
+                  {% set offset = 25 %}
+                  {% for rc in root_causes %}
+                    {% set pct = rc.percent if rc.percent is defined else 0 %}
+                    {% set color = rc.color if rc.color is defined else "text-ueal-purple" %}
+                    <circle class="{{ color }} donut-segment"
+                            cx="18" cy="18" fill="none" r="15.91549430918954"
+                            stroke="currentColor"
+                            stroke-dasharray="{{ pct }} {{ 100 - pct }}"
+                            stroke-dashoffset="{{ offset }}"
+                            stroke-width="4"></circle>
+                    {% set offset = offset + pct %}
+                  {% endfor %}
+                {% else %}
+                  <circle class="text-slate-200 dark:text-slate-700" cx="18" cy="18" fill="none" r="15.91549430918954" stroke="currentColor" stroke-width="4"></circle>
+                {% endif %}
+              </svg>
+
+              <div class="absolute flex flex-col items-center">
+                <span class="text-xl font-bold text-slate-800 dark:text-slate-100">
+                  {{ (kpis.total_breakdowns if kpis is defined and kpis.total_breakdowns is defined else (total_records if total_records is defined else 0)) }}
+                </span>
+                <span class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Incidents</span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-2 text-left">
+              {% if root_causes is defined and root_causes|length > 0 %}
+                {% for rc in root_causes %}
+                  <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
+                    <div class="flex items-center gap-2">
+                      <div class="w-2.5 h-2.5 rounded-full
+                        {% if rc.color == 'text-ueal-purple' %}bg-ueal-purple
+                        {% elif rc.color == 'text-ueal-gold' %}bg-ueal-gold
+                        {% elif rc.color == 'text-indigo-300' %}bg-indigo-300
+                        {% else %}bg-slate-400{% endif %}"></div>
+                      <span class="text-[11px] font-semibold text-slate-600 dark:text-slate-300">{{ rc.label }}</span>
+                    </div>
+                    <span class="text-xs font-bold text-slate-800 dark:text-slate-100">{{ rc.percent }}%</span>
+                  </div>
+                {% endfor %}
+              {% else %}
+                <div class="rounded-lg border border-dashed border-slate-200 dark:border-dark-border p-3 text-[11px] text-slate-500 dark:text-slate-400 text-left">
+                  No root-cause distribution is available for this asset yet.
+                </div>
+              {% endif %}
+            </div>
+
+          </div>
+        </div>
+
+        {# Strategic Note card #}
+        <div class="bg-ueal-purple text-white rounded-xl shadow-lg p-6 relative overflow-hidden">
+          <div class="absolute -right-4 -top-4 opacity-10">
+            <span class="material-symbols-outlined text-8xl">lightbulb</span>
+          </div>
+
+          <div class="flex items-center gap-2 mb-3">
+            <span class="material-symbols-outlined text-ueal-gold text-lg">tips_and_updates</span>
+            <h4 class="text-xs font-bold uppercase tracking-widest">Strategic Note</h4>
+          </div>
+
+          <p class="text-xs leading-relaxed text-indigo-50/90 italic">
+            {{ (kpis.strategic_note if kpis is defined and kpis.strategic_note is defined and kpis.strategic_note else
+               'No strategic note yet. Breakdown trends will appear once this asset has recorded incident history.') }}
+          </p>
+
+          <div class="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
+            <span class="text-[10px] font-bold text-ueal-gold uppercase">
+              {{ (kpis.strategic_note_tag if kpis is defined and kpis.strategic_note_tag is defined else "Awaiting data") }}
+            </span>
+            <span class="text-[10px] text-white/60">
+              {{ (kpis.strategic_note_date if kpis is defined and kpis.strategic_note_date is defined else "—") }}
+            </span>
+          </div>
+        </div>
+
+        {# Top Failure Modes #}
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm p-6">
+          <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 uppercase tracking-wider">Top Failure Modes</h4>
+
+          <div class="space-y-4">
+            {% if top_failure_modes is defined and top_failure_modes|length > 0 %}
+              {% for fm in top_failure_modes %}
+                <div class="flex flex-col gap-1.5">
+                  <div class="flex justify-between text-[11px] font-bold">
+                    <span class="text-slate-600 dark:text-slate-300">{{ fm.label }}</span>
+                    <span class="text-ueal-purple dark:text-ueal-gold">{{ fm.count }} Incidents</span>
+                  </div>
+                  <div class="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div class="bg-ueal-purple dark:bg-ueal-gold h-full" style="width: {{ fm.percent if fm.percent is defined else 0 }}%;"></div>
+                  </div>
+                </div>
+              {% endfor %}
+            {% else %}
+              <div class="rounded-lg border border-dashed border-slate-200 dark:border-dark-border p-3 text-[11px] text-slate-500 dark:text-slate-400">
+                No failure modes have been recorded for this asset yet.
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% set title_icon = title_icon|default('') %}
+{% set page_subtitle = page_subtitle|default('') %}
+{% set show_system_badge = show_system_badge|default(false) %}
+{% set system_badge_text = system_badge_text|default('SYSTEM STABLE') %}
+{% set system_badge_state = system_badge_state|default('stable') %}
+{% set badge_dot_class = 'bg-green-500' if system_badge_state == 'stable' else ('bg-amber-500' if system_badge_state == 'warning' else 'bg-red-500') %}
+
+<div class="{{ title_mb or 'mb-8' }}">
+  <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+    <div class="min-w-0">
+      <div class="flex items-start gap-3">
+        {% if title_icon %}
+          <div class="hidden sm:flex w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-dark-border items-center justify-center text-ueal-purple dark:text-ueal-gold shrink-0">
+            <span class="material-symbols-outlined text-[22px]">{{ title_icon }}</span>
+          </div>
+        {% endif %}
+
+        <div class="min-w-0">
+          <h1 class="text-3xl font-bold text-slate-900 dark:text-white leading-tight">{{ page_title }}</h1>
+
+          {% if breadcrumbs %}
+          <nav class="flex flex-wrap items-center gap-2 mt-2 text-[13px] text-slate-500 dark:text-slate-400 font-medium">
+            {% for crumb in breadcrumbs %}
+              {% if crumb.href %}
+                <a class="hover:text-ueal-purple dark:hover:text-ueal-gold transition-colors" href="{{ crumb.href }}">{{ crumb.label }}</a>
+              {% else %}
+                <span class="text-slate-900 dark:text-white">{{ crumb.label }}</span>
+              {% endif %}
+
+              {% if not loop.last %}
+                <span class="material-symbols-outlined text-[18px] text-slate-400">chevron_right</span>
+              {% endif %}
+            {% endfor %}
+          </nav>
+          {% endif %}
+
+          {% if page_subtitle %}
+            <p class="text-sm text-slate-500 dark:text-slate-300 mt-2 max-w-3xl">{{ page_subtitle }}</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if show_system_badge %}
+      <div class="hidden lg:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm shrink-0" data-no-print>
+        <span class="w-2 h-2 rounded-full {{ badge_dot_class }}"></span>
+        <span class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">{{ system_badge_text }}</span>
+      </div>
+    {% endif %}
+  </div>
+</div>

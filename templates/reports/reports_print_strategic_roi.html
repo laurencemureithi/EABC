@@ -1,0 +1,208 @@
+{% extends "layouts/print.html" %}
+{% block title %}Strategic Improvement ROI & Action Plan • Opsloom{% endblock %}
+{% block preview_title %}Strategic Improvement ROI & Action Plan{% endblock %}
+{% block content %}
+<div class="business-print-shell max-w-none">
+  {% set document_status = export.status or 'READY' %}
+  {% set report_department = export.department or current_department %}
+  {% set report_department_label = report_department_display(report_department) %}
+  {% set scope_mode_label = (export.scope_mode or 'department')|replace('_',' ')|title %}
+  {% set scope_target = export.scope_target or export.generated_for or export.scope_section or scope_unit_display(report_department) or '—' %}
+  {% if (export.scope_mode or 'department') == 'department' and (scope_target == report_department_label or scope_target == scope_unit_display(report_department)) %}{% set scope_target = scope_unit_display(report_department) or 'Engineering' %}{% endif %}
+  {% set report_creator = export.user_name or analysis.reported_by or current_user_name %}
+
+  <div class="business-print-page">
+    {% include "partials/report_document_header.html" %}
+    <div class="business-print-header">
+      <div>
+        <p class="text-[11px] font-black uppercase tracking-[0.25em] text-slate-500">Strategic / Management Report</p>
+        <h1 class="mt-2 text-3xl font-black text-slate-900">Strategic Improvement ROI &amp; Action Plan</h1>
+        <p class="mt-2 text-sm text-slate-600">Operational management report based on real downtime, maintenance cost, PM execution, and reliability data already captured in the system.</p>
+      </div>
+      <div class="business-print-meta">
+        <div><span>Department</span><strong>{{ report_department_label }}</strong></div>
+        <div><span>Scope</span><strong>{{ scope_target }}</strong></div>
+        <div><span>Scope Basis</span><strong>{{ scope_mode_label }}</strong></div>
+        <div><span>Reported By</span><strong>{{ report_creator }}</strong></div>
+        <div><span>Generated</span><strong>{{ export.generated_label }}</strong></div>
+        <div><span>Period</span><strong>{{ analysis.start.strftime('%d %b %Y') }} - {{ analysis.end.strftime('%d %b %Y') }}</strong></div>
+      </div>
+    </div>
+
+    <div class="business-print-kpis">
+      {% for card in analysis.strategic_cards %}
+        <div class="business-print-kpi">
+          <span>{{ card.label }}</span>
+          <strong>{{ card.value }}</strong>
+          <small>{{ card.detail }}</small>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="business-print-page">
+    {% include "partials/report_document_header.html" %}
+    <div class="business-print-section-stack">
+      <section class="business-print-card compact-card">
+        <h2>Executive View</h2>
+        <table class="business-print-table compact">
+          <thead><tr><th>#</th><th>Management Point</th></tr></thead>
+          <tbody>
+            {% for item in analysis.insights %}
+              <tr><td>{{ loop.index }}</td><td>{{ item }}</td></tr>
+            {% else %}
+              <tr><td colspan="2">No executive commentary was generated from the selected data.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="business-print-card compact-card">
+        <h2>Cost &amp; Exposure Snapshot</h2>
+        <table class="business-print-table compact">
+          <thead><tr><th>Line</th><th>Value</th><th>Meaning</th></tr></thead>
+          <tbody>
+            {% for row in analysis.cost_summary_rows %}
+              <tr>
+                <td>{{ row.label }}</td>
+                <td>{{ row.value|kes2 }}</td>
+                <td>{{ row.note }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </div>
+  </div>
+
+  <div class="business-print-page">
+    {% include "partials/report_document_header.html" %}
+    <section class="business-print-card print-chart-frame">
+      <h2>Downtime Trend</h2>
+      <div class="p-4">
+        <div class="text-xs text-slate-500 mb-3">Trend of downtime hours across the selected reporting window.</div>
+        <div style="min-height:240px;" class="rounded-2xl border border-slate-200 bg-white p-3 overflow-hidden">
+          {{ analysis.trend_chart_svg|safe }}
+        </div>
+      </div>
+    </section>
+
+    <section class="business-print-card mt-6 compact-card">
+      <h2>Top Reliability Drivers</h2>
+      <table class="business-print-table compact">
+        <thead><tr><th>Type</th><th>Description</th><th>Measure</th></tr></thead>
+        <tbody>
+          {% for cause, count in analysis.top_causes %}
+            <tr><td>Root Cause</td><td>{{ cause }}</td><td>{{ count }} incident(s)</td></tr>
+          {% endfor %}
+          {% for name, meta in analysis.top_assets %}
+            <tr><td>Downtime Asset</td><td>{{ name }}{% if meta.dominant_cause %} — dominant cause: {{ meta.dominant_cause }}{% endif %}</td><td>{{ meta.downtime_hours }} hrs / {{ meta.incidents }} incidents</td></tr>
+          {% endfor %}
+          {% if not analysis.top_causes and not analysis.top_assets %}
+            <tr><td colspan="3">No material reliability drivers were found in the selected dataset.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <div class="business-print-page">
+    {% include "partials/report_document_header.html" %}
+    <section class="business-print-card compact-card">
+      <h2>Data Capture Quality</h2>
+      <table class="business-print-table compact">
+        <thead><tr><th>Data Area</th><th>Current Capture</th><th>Comment</th></tr></thead>
+        <tbody>
+          <tr><td>Breakdowns with root cause</td><td>{{ analysis.data_quality.breakdowns_with_root_cause }} / {{ analysis.kpis.incidents }}</td><td>Repeat-failure analysis depends on failure category being entered correctly.</td></tr>
+          <tr><td>Tasks with cost captured</td><td>{{ analysis.data_quality.tasks_with_cost }} / {{ analysis.kpis.pm_total }}</td><td>Scheduled cost exists but actual execution cost still depends on confirmation discipline.</td></tr>
+          <tr><td>Tasks with confirmed actual cost</td><td>{{ analysis.data_quality.tasks_with_confirmed_actual_cost }}</td><td>Only completed work with confirmed actual cost should drive actual cost reporting.</td></tr>
+          <tr><td>Tasks with named technician</td><td>{{ analysis.data_quality.tasks_with_technician }} / {{ analysis.kpis.pm_total }}</td><td>Execution ownership should exist on all open tasks.</td></tr>
+          <tr><td>Inventory items with price</td><td>{{ analysis.data_quality.inventory_items_with_price }}</td><td>Spare value and true cost exposure depend on accurate item pricing.</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <div class="business-print-page">
+    {% include "partials/report_document_header.html" %}
+    <section class="business-print-card compact-card">
+      <h2>Management Action Plan</h2>
+      <table class="business-print-table compact">
+        <thead>
+          <tr>
+            <th>Priority</th>
+            <th>Focus</th>
+            <th>Issue</th>
+            <th>Impact</th>
+            <th>Owner</th>
+            <th>Recommended Action</th>
+            <th>Horizon</th>
+            <th>Success Metric</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in analysis.action_plan %}
+            <tr>
+              <td>{{ row.priority }}</td>
+              <td>{{ row.focus }}</td>
+              <td>{{ row.issue }}</td>
+              <td>{{ row.impact }}</td>
+              <td>{{ row.owner }}</td>
+              <td>{{ row.action }}</td>
+              <td>{{ row.horizon }}</td>
+              <td>{{ row.success_metric }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="8">No action rows were generated.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <div class="business-print-page">
+    {% include "partials/report_document_header.html" %}
+    <div class="business-print-section-stack">
+      <section class="business-print-card compact-card">
+        <h2>Strategic Project Candidates</h2>
+        <table class="business-print-table compact">
+          <thead><tr><th>Project</th><th>Cause</th><th>Incidents</th><th>Downtime</th><th>Loss Share</th><th>Exposure</th></tr></thead>
+          <tbody>
+            {% for row in analysis.project_candidates %}
+              <tr>
+                <td>{{ row.project }}</td>
+                <td>{{ row.dominant_cause }}</td>
+                <td>{{ row.incidents }}</td>
+                <td>{{ row.downtime_hours }}h</td>
+                <td>{{ row.share_pct }}%</td>
+                <td>{{ row.estimated_loss|kes2 }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="6">No candidate projects were derived from the selected period.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="business-print-card compact-card">
+        <h2>True ROI Data Still Needed</h2>
+        <table class="business-print-table compact">
+          <thead><tr><th>Required Field</th><th>Status</th><th>Why It Matters</th></tr></thead>
+          <tbody>
+            {% for row in analysis.roi_data_requirements %}
+              <tr><td>{{ row.field }}</td><td>{{ row.status }}</td><td>{{ row.note }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+  window.__reportChartsReady = true;
+  window.dispatchEvent(new CustomEvent('report:charts-ready'));
+</script>
+{% endblock %}

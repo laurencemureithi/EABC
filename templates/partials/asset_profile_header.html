@@ -1,0 +1,84 @@
+{# templates/partials/asset_profile_header.html #}
+{% set breadcrumbs = breadcrumbs|default([]) %}
+{% set header_show_image = header_show_image|default(true) %}
+
+<div class="max-w-6xl mx-auto mb-6 flex justify-between items-start gap-6">
+
+  <!-- LEFT -->
+  <div class="min-w-0">
+    <div class="flex items-center gap-3 flex-wrap">
+      <h1 class="text-3xl font-bold text-slate-900 dark:text-slate-100 leading-tight truncate">
+        {{ asset.asset_name }}
+      </h1>
+
+      {# SAME pill everywhere #}
+      {% include "partials/asset_status_pill.html" %}
+    </div>
+
+    {# Subtle meta chips (less “highlighted”) #}
+    <div class="flex items-center gap-3 mt-2 flex-wrap">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-lg border
+                  bg-slate-50 border-slate-200 text-slate-600
+                  dark:bg-white/5 dark:border-dark-border dark:text-slate-300
+                  text-[11px] font-semibold uppercase tracking-tight">
+        <span class="text-ueal-purple dark:text-ueal-gold opacity-70">Section:</span>
+        {{ asset.section or "—" }}
+      </div>
+
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-lg border
+                  bg-slate-50 border-slate-200 text-slate-600
+                  dark:bg-white/5 dark:border-dark-border dark:text-slate-300
+                  text-[11px] font-semibold uppercase tracking-tight">
+        <span class="text-ueal-purple dark:text-ueal-gold opacity-70">Asset ID:</span>
+        {{ asset.asset_id or asset.serial_no or asset.serial_number or "—" }}
+      </div>
+    </div>
+
+    <!-- Breadcrumbs -->
+    <nav class="flex items-center gap-2 mt-3 text-[13px] text-slate-500 dark:text-slate-300 font-medium flex-wrap">
+      {% for b in breadcrumbs %}
+        {% if b.href %}
+          <a href="{{ b.href }}" class="hover:text-ueal-purple dark:hover:text-ueal-gold transition-colors">
+            {{ b.label }}
+          </a>
+        {% else %}
+          <span class="text-slate-900 dark:text-slate-100">{{ b.label }}</span>
+        {% endif %}
+        {% if not loop.last %}
+          <span class="material-symbols-outlined text-base text-slate-400">chevron_right</span>
+        {% endif %}
+      {% endfor %}
+    </nav>
+  </div>
+
+  <!-- RIGHT: actions + optional thumbnail -->
+  <div class="shrink-0 flex flex-col items-end gap-3">
+    {% if not print_mode %}
+    <div class="flex flex-wrap items-center justify-end gap-2" data-no-print>
+      <a href="{{ url_for('assets_profile_get', asset_uid=asset.uid, print=1, autoprint=1) }}" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">Print</a>
+      <a href="{{ url_for('assets_profile_pdf', asset_uid=asset.uid) }}" class="px-3 py-2 rounded-lg bg-ueal-gold text-white text-xs font-bold hover:opacity-90 shadow-sm">Download PDF</a>
+    </div>
+    {% endif %}
+    {% if header_show_image %}
+    <div class="relative">
+      <div class="w-24 h-24 rounded-xl border-2 border-white dark:border-dark-border shadow-lg overflow-hidden ring-4 ring-ueal-gold/20 bg-slate-100 dark:bg-white/5">
+        <img
+          src="{{ asset.image_url or asset.photo_url or url_for('static', filename='img/asset-placeholder.png') }}"
+          alt="{{ asset.asset_name }} image"
+          class="w-full h-full object-cover block"
+          loading="lazy"
+        />
+      </div>
+
+      <button
+        type="button"
+        class="absolute -bottom-2 -right-2 bg-ueal-purple text-white p-1 rounded-lg shadow-md hover:opacity-90 transition"
+        title="Zoom (hook up modal later)"
+      >
+        <span class="material-symbols-outlined text-sm">zoom_in</span>
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+</div>

@@ -1,0 +1,16 @@
+Opsloom patch summary
+
+Included fixes:
+1. Reports Center / Report History now include a Delete action for report records.
+2. Delete confirmation now supports a persistent “Do not show this again” option.
+3. Print Preview now opens the generated PDF inline instead of printing the HTML preview layout.
+4. PDF export regeneration now uses the structured ReportLab builder consistently for repeated headers on all pages.
+5. Generic report print template now avoids duplicated scope sections and shows all selected metrics.
+6. Report scope summary and print grids were adjusted to reduce stretched card heights / wasted whitespace.
+7. User profile now supports profile image upload/removal.
+8. Current user avatar now uses the saved profile image in the top header.
+9. Report export records now store the current user avatar URL.
+
+SMTP note:
+Report emails are skipped with SKIPPED_NO_SMTP until SMTP settings are filled in Settings / Admin.
+Required fields: SMTP host, SMTP port, SMTP user, SMTP password, and SMTP from address.

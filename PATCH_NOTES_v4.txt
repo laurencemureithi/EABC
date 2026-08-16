@@ -1,0 +1,14 @@
+EABC report and workspace patch notes
+
+Included fixes:
+- report header alignment centered and stabilized across page sizes
+- removed fragile fixed print-header behavior that caused broken preview margins and overlapping tables
+- strategic ROI print layout rebuilt into page-safe sections with repeated report header blocks
+- asset profile print layout split into page-safe sections with repeated report header block
+- report scope now shows Engineering where the organizational target is Engineering, while Department remains Production in reports
+- current context now shows Engineering correctly while preserving Production as the parent division label
+- maintenance distribution and breakdown frequency print-preview PDF button restyled for light-theme visibility
+- generic action alerts added for create, update, delete, save, send, and print-preview actions when no explicit alert already exists
+- messages center rebuilt with Outlook-style folders: Inbox, Drafts, Outbox, Sent
+- draft save, outbox queue, outbox send, and delete actions added
+- message stores persisted in datastore.json

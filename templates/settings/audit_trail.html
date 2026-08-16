@@ -1,0 +1,70 @@
+{% extends "layouts/base.html" %}
+{% block title %}Audit Trail • Opsloom{% endblock %}
+{% block content %}
+{% set page_title = "Audit Trail" %}
+{% set title_icon = "history" %}
+{% set page_subtitle = "Detailed operational trace for administrators. Use this instead of interruptive user-facing alerts." %}
+{% set show_system_badge = true %}
+{% set breadcrumbs = [{"label":"Settings / Admin", "href": url_for('settings_admin')}, {"label":"Audit Trail"}] %}
+{% include "partials/title_block.html" %}
+
+<div class="max-w-7xl mx-auto space-y-6">
+  <div class="flex flex-wrap items-center justify-end gap-3">
+    <a href="{{ url_for('audit_trail_export', format='preview', q=audit_q, module=selected_module) }}" target="_blank" class="px-4 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-100">Print Preview</a>
+    <a href="{{ url_for('audit_trail_export', format='preview', q=audit_q, module=selected_module, autoprint=1) }}" target="_blank" class="px-4 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-100">Print</a>
+    <a href="{{ url_for('audit_trail_export', format='pdf', q=audit_q, module=selected_module) }}" class="px-4 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-100">Export PDF</a>
+    <a href="{{ url_for('audit_trail_export', format='xlsx', q=audit_q, module=selected_module) }}" class="px-4 py-2 rounded-lg bg-ueal-gold text-white text-sm font-bold">Export XLSX</a>
+  </div>
+  <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-5">
+    <form method="get" class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+      <div>
+        <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Search</label>
+        <input type="text" name="q" value="{{ audit_q or '' }}" placeholder="Action, user, detail" class="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm">
+      </div>
+      <div>
+        <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Module</label>
+        <select name="module" class="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm">
+          <option value="">All Modules</option>
+          {% for m in audit_modules %}<option value="{{ m }}" {% if selected_module == m %}selected{% endif %}>{{ m|replace('_',' ')|title }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="flex gap-3">
+        <button class="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-3 text-sm font-black">Apply</button>
+        <a href="{{ url_for('audit_trail_page') }}" class="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-3 text-sm font-black text-center">Reset</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="min-w-full table-fixed text-sm">
+        <colgroup><col style="width:16%"><col style="width:18%"><col style="width:12%"><col style="width:14%"><col style="width:32%"><col style="width:8%"></colgroup>
+        <thead class="bg-slate-50 dark:bg-slate-800/50">
+          <tr>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Time</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Action</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Module</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">User</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Detail</th>
+            <th class="px-4 py-3 text-right text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Open</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+          {% for row in audit_rows %}
+          <tr>
+            <td class="px-4 py-3 text-xs text-slate-500 align-top break-words">{{ row.created_at.replace('T',' ') }}</td>
+            <td class="px-4 py-3 font-bold text-slate-900 dark:text-white align-top break-words">{{ row.action }}</td>
+            <td class="px-4 py-3 text-xs uppercase tracking-wider text-slate-500 align-top break-words">{{ row.module }}</td>
+            <td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300 align-top break-words">{{ row.user_name }}</td>
+            <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300 align-top break-words">{{ row.detail }}</td>
+            <td class="px-4 py-3 text-right align-top">{% if row.href %}<a href="{{ row.href }}" class="text-xs font-black text-ueal-purple">Open</a>{% else %}<span class="text-xs text-slate-400">—</span>{% endif %}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">No audit activity matched the current filters.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

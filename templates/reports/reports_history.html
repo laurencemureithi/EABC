@@ -1,0 +1,68 @@
+{% extends "layouts/base.html" %}
+{% block title %}Report History • Opsloom{% endblock %}
+{% block content %}
+{% set page_title = "Report History" %}
+{% set title_icon = "history" %}
+{% set page_subtitle = "Audit trail of generated reports with standardized search, filters, export actions, and paging." %}
+{% set show_system_badge = true %}
+{% set breadcrumbs = [{"label":"Reports", "href": url_for('reports_center')}, {"label":"History"}] %}
+{% include "partials/title_block.html" %}
+<div class="max-w-7xl mx-auto">
+  <div class="bg-white dark:bg-dark-surface rounded-2xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+    <form method="get" action="{{ url_for('reports_history') }}" class="p-4 sm:p-6 border-b border-slate-100 dark:border-dark-border flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 bg-slate-50/50 dark:bg-slate-800/30">
+      <div class="flex flex-col md:flex-row md:items-center gap-3 w-full xl:w-auto">
+        <div class="relative w-full md:w-[360px]"><span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span><input type="text" name="q" value="{{ q or '' }}" placeholder="Search by name, category, scope, user..." class="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-dark-border rounded-lg text-sm outline-none text-slate-900 dark:text-white"></div>
+        <select name="format" class="rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3 py-2 text-sm"><option value="">All Formats</option><option value="pdf" {% if selected_format == 'pdf' %}selected{% endif %}>PDF</option><option value="xlsx" {% if selected_format == 'xlsx' %}selected{% endif %}>Excel</option><option value="csv" {% if selected_format == 'csv' %}selected{% endif %}>CSV</option></select>
+        <select name="status" class="rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3 py-2 text-sm"><option value="">All Status</option><option value="ready" {% if selected_status == 'ready' %}selected{% endif %}>Ready</option><option value="pending" {% if selected_status == 'pending' %}selected{% endif %}>Pending</option></select>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border text-sm font-bold">Apply</button>
+      </div>
+      <div class="flex items-center gap-3">
+        <label class="text-xs font-bold text-slate-500">Rows per page</label>
+        <select name="per_page" class="rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3 py-2 text-sm" onchange="this.form.submit()">{% for n in [10,20,50] %}<option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+        <a href="{{ url_for('reports_generate_step1_get') }}" class="bg-ueal-gold text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-md"><span class="material-symbols-outlined text-lg">add</span> New Report</a>
+      </div>
+    </form>
+
+    <div class="px-6 py-3 border-b border-slate-100 dark:border-dark-border text-xs font-semibold text-slate-500 bg-white dark:bg-dark-surface">Showing {{ showing_start or 0 }}-{{ showing_end or 0 }} of {{ total or 0 }} reports</div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full table-fixed text-sm">
+        <colgroup><col style="width:22%"><col style="width:16%"><col style="width:16%"><col style="width:12%"><col style="width:10%"><col style="width:10%"><col style="width:14%"></colgroup><thead class="bg-slate-50 dark:bg-slate-900/40 text-slate-500 dark:text-slate-300"><tr><th class="text-left px-6 py-3 text-[11px] font-black uppercase tracking-widest">Report</th><th class="text-left px-6 py-3 text-[11px] font-black uppercase tracking-widest">Category</th><th class="text-left px-6 py-3 text-[11px] font-black uppercase tracking-widest">Scope</th><th class="text-left px-6 py-3 text-[11px] font-black uppercase tracking-widest">Date</th><th class="text-left px-6 py-3 text-[11px] font-black uppercase tracking-widest">Format</th><th class="text-left px-6 py-3 text-[11px] font-black uppercase tracking-widest">Status</th><th class="text-right px-6 py-3 text-[11px] font-black uppercase tracking-widest">Actions</th></tr></thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-dark-border">
+          {% if reports and reports|length %}
+            {% for r in reports %}
+              {% set fmt = (r.format or (r.filename.split('.')[-1] if r.filename else 'pdf'))|lower %}
+              <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                <td class="px-6 py-4 align-top break-words"><div class="font-bold text-slate-900 dark:text-white">{{ r.name or 'Report' }}</div><div class="text-[11px] text-slate-500 dark:text-slate-300">{{ r.filename or '' }}</div></td>
+                <td class="px-6 py-4 font-semibold text-slate-700 dark:text-slate-100 align-top break-words">{{ r.category or '' }}</td>
+                <td class="px-6 py-4 text-slate-600 dark:text-slate-200 align-top break-words"><div class="font-semibold">{{ (r.scope_mode or 'department')|replace('_',' ')|title }}</div><div class="text-xs text-slate-500">{{ r.generated_for or r.department or '' }}</div></td>
+                <td class="px-6 py-4 text-slate-600 dark:text-slate-200 align-top break-words">{{ r.date or '' }}</td>
+                <td class="px-6 py-4 align-top"><span class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-100">{% if fmt == 'pdf' %}<span class="material-symbols-outlined text-base text-red-500">picture_as_pdf</span>{% elif fmt == 'xlsx' %}<span class="material-symbols-outlined text-base text-emerald-600">table_view</span>{% else %}<span class="material-symbols-outlined text-base">description</span>{% endif %}{{ fmt }}</span></td>
+                <td class="px-6 py-4 align-top">{% set st = (r.status or 'ready')|lower %}{% if st == 'ready' %}<span class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-900/40"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Ready</span>{% else %}<span class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-900/40"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> {{ st }}</span>{% endif %}</td>
+                <td class="px-6 py-4 text-right whitespace-nowrap align-top">
+                  {% set action_items = [
+                    {'href': url_for('reports_view', rid=r.id), 'label': 'View', 'icon': 'visibility'},
+                    {'href': url_for('reports_export', report_id=r.id, fmt='pdf', inline=1), 'label': 'Print Preview', 'icon': 'print', 'target': '_blank'},
+                    {'href': url_for('reports_export', report_id=r.id, fmt='pdf'), 'label': 'Export PDF', 'icon': 'picture_as_pdf'},
+                    {'href': url_for('reports_export', report_id=r.id, fmt='xlsx'), 'label': 'Export Excel', 'icon': 'table_view'},
+                    {'href': url_for('reports_export', report_id=r.id, fmt='csv'), 'label': 'Export CSV', 'icon': 'description'},
+                    {'type': 'form', 'href': url_for('reports_delete', report_id=r.id), 'label': 'Delete', 'icon': 'delete', 'variant': 'danger', 'confirm_key': 'report_delete', 'confirm_title': 'Delete Report', 'confirm': 'Delete this report? This removes the report record and generated export files.', 'confirm_ok': 'Yes, delete report', 'hidden_inputs': [{'name': 'next', 'value': request.full_path}]}
+                  ] %}
+                  {% include 'partials/table_actions_menu.html' %}
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="7" class="px-6 py-10 text-center text-slate-500 dark:text-slate-300">No reports generated yet. Use <span class="font-bold">New Report</span> to create one.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    {% if total_pages > 1 %}
+    <div class="px-6 py-4 border-t border-slate-200 dark:border-dark-border flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
+      <p class="text-xs font-semibold text-slate-500">Page {{ page }} of {{ total_pages }}</p>
+      <div class="flex items-center gap-2">{% for p in pages %}<a href="{{ url_for('reports_history', q=q, format=selected_format, status=selected_status, per_page=per_page, page=p) }}" class="w-9 h-9 rounded-lg border text-sm font-bold flex items-center justify-center {% if p == page %}bg-ueal-gold text-white border-ueal-gold{% else %}bg-white dark:bg-dark-surface border-slate-200 dark:border-dark-border text-slate-600 dark:text-slate-200{% endif %}">{{ p }}</a>{% endfor %}</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

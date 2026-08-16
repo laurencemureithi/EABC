@@ -1,0 +1,17 @@
+Opsloom patch v4.1
+
+Included:
+- Report generation progress now uses a true viewport modal overlay and is moved to the document body so it appears as a popup instead of below the wizard footer.
+- Progress dialog now shows live elapsed-time / heartbeat messaging even when a long generation stage stays at one percentage for a while.
+- Audit Trail now has:
+  - Print Preview
+  - Print
+  - Export PDF
+  - Export XLSX
+- Audit Trail preview now uses the same print-preview pattern as report previews instead of opening inside the normal system shell.
+- Audit Trail print preview is paged into printable sections with the formal header repeated across pages.
+
+Files changed:
+- templates/reports/reports_generate_step3.html
+- templates/settings/audit_trail.html
+- templates/settings/audit_trail_print.html

@@ -1,0 +1,275 @@
+{# templates/assets/assets_documents_upload.html #}
+{% extends "layouts/base.html" %}
+{% block title %}Upload Document • Opsloom{% endblock %}
+
+{% block page_styles %}
+<style>
+  .upload-dashed-area {
+    background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23CBD5E1' stroke-width='3' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+  }
+  .upload-dashed-area:hover {
+    background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23D4AF37' stroke-width='3' stroke-dasharray='8%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# Breadcrumbs (functional) #}
+{% set breadcrumbs = [
+  {"label":"Asset Register", "href": url_for("assets_master_list")},
+  {"label": asset.asset_name, "href": url_for("assets_profile_get", asset_uid=asset.uid) if asset and asset.uid else None},
+  {"label":"Documents", "href": url_for("assets_documents_get", asset_uid=asset.uid) if asset and asset.uid else None},
+  {"label":"Upload"}
+] %}
+
+<div class="max-w-4xl mx-auto">
+
+  <div class="mb-8">
+    <h1 class="text-3xl font-bold text-slate-900 dark:text-white leading-tight">Upload New Document</h1>
+
+    <nav class="flex items-center gap-2 mt-2 text-[13px] text-slate-500 dark:text-slate-300 font-medium">
+      {% for bc in breadcrumbs %}
+        {% if bc.href %}
+          <a href="{{ bc.href }}" class="hover:text-ueal-purple transition-colors">{{ bc.label }}</a>
+        {% else %}
+          <span class="text-slate-900 dark:text-white">{{ bc.label }}</span>
+        {% endif %}
+        {% if not loop.last %}
+          <span class="material-symbols-outlined text-base text-slate-300">chevron_right</span>
+        {% endif %}
+      {% endfor %}
+    </nav>
+  </div>
+
+  <div class="bg-white dark:bg-dark-surface rounded-2xl border border-slate-200 dark:border-dark-border shadow-xl overflow-hidden mb-10">
+
+    <form
+      method="post"
+      action="{{ url_for('assets_documents_upload_post', asset_uid=asset.uid) }}"
+      enctype="multipart/form-data"
+      class="p-8 space-y-8"
+    >
+
+      {# FILE #}
+      <div class="space-y-3">
+        <label class="text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider block">
+          Document File
+        </label>
+
+        <input
+          id="document_file"
+          name="document_file"
+          type="file"
+          class="hidden"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.webp,.dwg,.dxf"
+        />
+
+        <div
+          class="upload-dashed-area border-2 border-transparent rounded-xl p-10 flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:bg-slate-50 dark:hover:bg-white/5"
+          onclick="document.getElementById('document_file').click()"
+        >
+          <div class="w-16 h-16 bg-slate-100 dark:bg-white/10 rounded-full flex items-center justify-center mb-4">
+            <span class="material-symbols-outlined text-ueal-purple dark:text-ueal-gold text-4xl">cloud_upload</span>
+          </div>
+          <h4 class="text-lg font-bold text-slate-700 dark:text-slate-100">Click to upload or drag and drop</h4>
+          <p class="text-sm text-slate-400 mt-1">
+            Supports PDF, CAD, JPG, PNG (Max {{ (doc_max_mb if doc_max_mb is defined else 50) }}MB)
+          </p>
+          <p id="file_name" class="mt-3 text-xs font-bold text-slate-500 dark:text-slate-300 hidden"></p>
+        </div>
+      </div>
+
+      {# META FIELDS #}
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <div class="space-y-2">
+          <label class="text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider block" for="doc_name">
+            Document Name
+          </label>
+          <input
+            id="doc_name"
+            name="doc_name"
+            type="text"
+            required
+            class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg focus:ring-ueal-gold focus:border-ueal-gold text-sm font-medium transition-all"
+            placeholder="e.g., 2024 Electrical Schematic - Rev B"
+          />
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider block" for="category">
+            Category
+          </label>
+          <div class="relative">
+            <select
+              id="category"
+              name="category"
+              required
+              class="w-full appearance-none px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg focus:ring-ueal-gold focus:border-ueal-gold text-sm font-medium transition-all cursor-pointer"
+            >
+              <option disabled selected value="">Select Category</option>
+              {% for c in (document_categories if document_categories is defined else ["OEM MANUAL","DRAWING","CERTIFICATION","INTERNAL SOP","VENDOR DOCUMENT","GENERAL"]) %}
+                <option value="{{ c }}">{{ c }}</option>
+              {% endfor %}
+            </select>
+            <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+              expand_more
+            </span>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider block" for="version">
+            Version
+          </label>
+          <input
+            id="version"
+            name="version"
+            type="text"
+            class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg focus:ring-ueal-gold focus:border-ueal-gold text-sm font-medium transition-all"
+            placeholder="e.g., v2.4"
+          />
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider block" for="owner">
+            Owner / Uploaded By
+          </label>
+          <input
+            id="owner"
+            name="owner"
+            type="text"
+            class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg focus:ring-ueal-gold focus:border-ueal-gold text-sm font-medium transition-all"
+            value="{{ current_user_name if current_user_name is defined else '' }}"
+            placeholder="e.g., Engineering Team"
+          />
+        </div>
+
+        {# Expiry date drives EXPIRED status automatically if in the past #}
+        <div class="space-y-2">
+          <label class="text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider block" for="expiry_date">
+            Expiry Date (Optional)
+          </label>
+          <input
+            id="expiry_date"
+            name="expiry_date"
+            type="date"
+            class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg focus:ring-ueal-gold focus:border-ueal-gold text-sm font-medium transition-all"
+          />
+          <p class="text-[11px] text-slate-400">
+            If the expiry date is past, the system marks it as <b>Expired</b>.
+          </p>
+        </div>
+
+        {# Review date for SOPs / controlled docs #}
+        <div class="space-y-2">
+          <label class="text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider block" for="review_date">
+            Review Date (Optional)
+          </label>
+          <input
+            id="review_date"
+            name="review_date"
+            type="date"
+            class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg focus:ring-ueal-gold focus:border-ueal-gold text-sm font-medium transition-all"
+          />
+          <p class="text-[11px] text-slate-400">
+            Useful for SOPs and controlled documents (review cycle).
+          </p>
+        </div>
+
+        <div class="md:col-span-2 space-y-2">
+          <label class="text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wider block" for="description">
+            Description
+          </label>
+          <textarea
+            id="description"
+            name="description"
+            rows="4"
+            class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg focus:ring-ueal-gold focus:border-ueal-gold text-sm font-medium transition-all resize-none"
+            placeholder="Internal notes or document summary"
+          ></textarea>
+        </div>
+
+        {# Publish toggle controls APPROVED vs DRAFT (unless expired) #}
+        <div class="md:col-span-2 flex items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-dark-border">
+          <div>
+            <p class="text-sm font-bold text-slate-800 dark:text-slate-100">Publish Immediately</p>
+            <p class="text-xs text-slate-500 dark:text-slate-300">
+              If enabled, status becomes <b>Approved</b>. Otherwise it stays <b>Draft</b>.
+            </p>
+          </div>
+          <label class="inline-flex items-center gap-2 cursor-pointer">
+            <input id="publish_now" name="publish_now" type="checkbox" class="rounded border-slate-300 text-ueal-purple focus:ring-ueal-gold">
+            <span class="text-sm font-bold text-slate-700 dark:text-slate-100">Approve</span>
+          </label>
+        </div>
+
+      </div>
+
+      <div class="pt-6 border-t border-slate-100 dark:border-dark-border flex items-center justify-end gap-4">
+        <a
+          href="{{ url_for('assets_documents_get', asset_uid=asset.uid) }}"
+          class="px-6 py-2.5 border-2 border-slate-300 dark:border-dark-border rounded-lg text-sm font-bold text-slate-600 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-white/5 transition-all uppercase tracking-wide"
+        >
+          Cancel
+        </a>
+
+        <button
+          type="submit"
+          class="px-6 py-2.5 bg-ueal-gold border-2 border-ueal-gold text-white rounded-lg text-sm font-bold shadow-lg hover:bg-opacity-90 transition-all flex items-center gap-2 uppercase tracking-wide"
+        >
+          <span class="material-symbols-outlined text-lg">check_circle</span>
+          Upload &amp; Publish
+        </button>
+      </div>
+
+    </form>
+  </div>
+
+  <div class="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-900/40 rounded-xl p-6 flex gap-4">
+    <div class="w-10 h-10 bg-indigo-100 dark:bg-indigo-800/40 rounded-lg flex items-center justify-center shrink-0">
+      <span class="material-symbols-outlined text-indigo-600 dark:text-indigo-200">info</span>
+    </div>
+    <div>
+      <h4 class="text-sm font-bold text-indigo-900 dark:text-indigo-100">Document Control Guidelines</h4>
+      <p class="text-xs text-indigo-700/80 dark:text-indigo-100/70 leading-relaxed mt-1">
+        Uploaded documents become available to Engineering &amp; Maintenance once published.
+        Keep drawings on latest revision and SOPs aligned to review dates.
+      </p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  (function () {
+    const input = document.getElementById('document_file');
+    const nameEl = document.getElementById('file_name');
+    const drop = document.querySelector('.upload-dashed-area');
+
+    function setName() {
+      if (!input || !input.files || !input.files[0]) return;
+      nameEl.textContent = "Selected: " + input.files[0].name;
+      nameEl.classList.remove('hidden');
+    }
+
+    if (input) input.addEventListener('change', setName);
+
+    // drag & drop
+    if (drop && input) {
+      drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('bg-slate-50'); });
+      drop.addEventListener('dragleave', () => drop.classList.remove('bg-slate-50'));
+      drop.addEventListener('drop', (e) => {
+        e.preventDefault();
+        drop.classList.remove('bg-slate-50');
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+          input.files = e.dataTransfer.files;
+          setName();
+        }
+      });
+    }
+  })();
+</script>
+
+{% endblock %}

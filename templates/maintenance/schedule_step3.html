@@ -1,0 +1,131 @@
+{% extends "layouts/base.html" %}
+{% block title %}Schedule New Maintenance - Step 3 • Opsloom{% endblock %}
+{% block main_wrapper_class %}p-8{% endblock %}
+
+{% block page_styles %}
+<style type="text/tailwindcss">
+  .tech-card { @apply flex flex-col p-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 transition-all hover:shadow-md cursor-pointer; }
+  .tech-card.active { @apply border-ueal-gold bg-ueal-gold/5; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+  <div class="flex justify-between items-end mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Schedule New Maintenance</h1>
+      <nav class="flex items-center gap-2 mt-2 text-[13px] text-slate-500 font-medium">
+        <a href="{{ url_for('maintenance_management') }}" class="hover:text-ueal-purple transition-colors">Maintenance</a>
+        <span class="material-symbols-outlined text-base text-slate-400">chevron_right</span>
+        <span class="text-slate-900 dark:text-slate-300">Schedule New Task</span>
+      </nav>
+    </div>
+    <div class="hidden lg:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm">
+      <span class="w-2 h-2 rounded-full bg-green-500"></span>
+      <span class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">SYSTEM STABLE</span>
+    </div>
+  </div>
+
+  {% if error %}
+  <div class="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm font-medium">
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <form method="POST" enctype="multipart/form-data" action="{{ url_for('maintenance_schedule_step3_post') }}"
+        class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm mb-6 overflow-hidden">
+    <div class="flex border-b border-slate-100 dark:border-slate-800">
+      <div class="flex-1 flex items-center justify-center py-4 gap-3 text-ueal-purple bg-slate-50/50 dark:bg-slate-800/30 border-b-[3px] border-ueal-purple">
+        <span class="w-7 h-7 rounded-full bg-ueal-purple text-white flex items-center justify-center"><span class="material-symbols-outlined text-sm">check</span></span>
+        <span class="text-sm font-bold">Asset &amp; Task Details</span>
+      </div>
+      <div class="flex-1 flex items-center justify-center py-4 gap-3 text-ueal-purple bg-slate-50/50 dark:bg-slate-800/30 border-b-[3px] border-ueal-purple">
+        <span class="w-7 h-7 rounded-full bg-ueal-purple text-white flex items-center justify-center"><span class="material-symbols-outlined text-sm">check</span></span>
+        <span class="text-sm font-bold">Frequency &amp; Priority</span>
+      </div>
+      <div class="flex-1 flex items-center justify-center py-4 gap-3 text-ueal-gold bg-white dark:bg-slate-900 border-b-[3px] border-ueal-gold">
+        <span class="w-7 h-7 rounded-full bg-ueal-gold text-white flex items-center justify-center text-xs font-bold">3</span>
+        <span class="text-sm font-bold">Assignment</span>
+      </div>
+    </div>
+
+    <div class="p-8 space-y-8">
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Technician Assignment</label>
+          <span class="text-[11px] text-slate-400 font-medium">Assign a lead (optional)</span>
+        </div>
+
+        <div class="relative">
+          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">person_search</span>
+          <select name="technician"
+                  class="w-full pl-10 pr-10 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none transition-all text-sm appearance-none">
+            <option value="">Unassigned (decide later)</option>
+            {% for t in tech_rows or [] %}
+              <option value="{{ t.name }}" {% if (form.technician or '') == t.name %}selected{% endif %}>{{ t.name }} — {{ t.role }} • {{ t.availability_score }}% available</option>
+            {% endfor %}
+          </select>
+          <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+        </div>
+
+        <p class="text-[11px] text-slate-400 italic">If unassigned, task will be created as Upcoming without a tech.</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+          {% for row in recommended_technicians or [] %}
+          <button type="button" class="text-left rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-3 hover:border-ueal-gold/60 tech-pick" data-tech-name="{{ row.name }}">
+            <div class="text-sm font-extrabold text-slate-900 dark:text-white">{{ row.name }}</div>
+            <div class="mt-1 text-[11px] text-slate-500">{{ row.meta }}</div>
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Notes (optional)</label>
+        <textarea
+          name="notes"
+          class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none transition-all text-sm resize-none"
+          placeholder="Any special instructions, safety notes, permits, lockout/tagout reminders..."
+          rows="5">{{ form.notes or '' }}</textarea>
+      </div>
+    
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+        <div class="md:col-span-3 text-xs font-bold text-slate-600 uppercase tracking-wider">Maintenance Costing</div>
+        <div>
+          <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Estimated Subtotal</label>
+          <input name="cost_subtotal" type="number" step="0.01" min="0" value="{{ form.cost_subtotal or '' }}" class="mt-2 w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm" placeholder="0.00">
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">VAT %</label>
+          <input name="cost_vat_pct" type="number" step="0.01" min="0" max="100" value="{{ form.cost_vat_pct or 16 }}" class="mt-2 w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm">
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Invoice / Quote</label>
+          <input name="invoice" type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.csv" class="mt-2 w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm">
+        </div>
+        <label class="md:col-span-3 inline-flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200"><input type="checkbox" name="cost_apply_vat" value="1" {% if form.cost_apply_vat %}checked{% endif %}> Apply VAT automatically</label>
+        <p class="md:col-span-3 text-[11px] text-slate-400">If an invoice contains readable totals, the system will use them as a best-effort estimate. You can still override the subtotal manually.</p>
+      </div>
+
+    <div class="p-6 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+      <a href="{{ url_for('maintenance_schedule_step2') }}"
+         class="px-6 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-2">
+        <span class="material-symbols-outlined text-sm">arrow_back</span>
+        Back to Frequency &amp; Priority
+      </a>
+
+      <button type="submit"
+         class="px-8 py-2.5 bg-ueal-gold text-white rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-ueal-gold/90 transition-all shadow-md">
+        <span class="material-symbols-outlined text-base">check_circle</span>
+        FINALIZE &amp; CREATE SCHEDULE
+      </button>
+    </div>
+  </form>
+</div>
+<script>
+document.querySelectorAll('.tech-pick').forEach((btn)=>btn.addEventListener('click',()=>{
+  const sel=document.querySelector('select[name="technician"]');
+  if(sel){ sel.value=btn.dataset.techName; sel.dispatchEvent(new Event('change')); }
+}));
+</script>
+{% endblock %}

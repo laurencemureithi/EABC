@@ -1,0 +1,251 @@
+{% extends "layouts/base.html" %}
+{% block title %}Inventory Valuation Report • Opsloom{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+{% set report_creator = export.user_name or analysis.reported_by or current_user_name %}
+{% include "partials/report_document_header.html" %}
+{% include "partials/report_scope_summary.html" %}
+
+
+<!-- Header -->
+<div class="flex justify-between items-end mb-8">
+  <div>
+    <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Global Inventory Valuation & Stock Health</h1>
+    <nav class="flex items-center gap-2 mt-2 text-[13px] text-slate-500 font-medium">
+      <span class="hover:text-ueal-purple cursor-pointer transition-colors">Reports</span><span class="material-symbols-outlined text-base text-slate-400">chevron_right</span><span class="hover:text-ueal-purple cursor-pointer transition-colors">Inventory</span><span class="material-symbols-outlined text-base text-slate-400">chevron_right</span><span class="text-slate-900 dark:text-slate-300">Stock Health</span>
+    </nav>
+    <p class="text-slate-500 text-sm mt-2 font-medium flex items-center gap-2">
+      <span class="material-symbols-outlined text-sm">calendar_today</span>
+      Period: {{ analysis.start.strftime("%b %d, %Y") }} - {{ analysis.end.strftime("%b %d, %Y") }}
+    </p>
+  </div>
+
+  <div class="flex gap-3 items-center report-action-bar" data-no-print>
+    <div class="hidden lg:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm">
+      <span class="w-2 h-2 rounded-full {{ 'bg-green-500' if export.status=='READY' else 'bg-amber-500' }}"></span>
+      <span class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">{{ export.status or 'READY' }}</span>
+    </div>
+
+    <a href="{{ url_for('reports_generate_step1_get', category=export.category_key) }}" class="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all uppercase tracking-wider">
+      <span class="material-symbols-outlined text-sm">tune</span>
+      Filter
+    </a>
+
+    <a href="{{ url_for('reports_export', report_id=export.id, fmt='pdf', inline=1) }}" data-live-report-action="print" data-live-report-id="{{ export.id }}" class="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all uppercase tracking-wider">
+      <span class="material-symbols-outlined text-sm">print</span>
+      Print
+    </a>
+
+    <div class="relative" data-dd-root>
+      <button type="button" data-dd-btn class="flex items-center gap-2 px-4 py-2 bg-ueal-purple text-white rounded-lg text-xs font-bold hover:opacity-95 transition-all uppercase tracking-wider">
+        <span class="material-symbols-outlined text-sm">download</span>
+        Download
+      </button>
+      <div data-dd-menu class="absolute right-0 mt-2 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg hidden z-20">
+        <a class="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700" data-live-report-action="pdf" data-live-report-id="{{ export.id }}" href="{{ url_for('reports_export', report_id=export.id, fmt='pdf') }}">PDF</a>
+        <a class="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700" href="{{ url_for('reports_export', report_id=export.id, fmt='xlsx') }}">XLSX</a>
+        <a class="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700" href="{{ url_for('reports_export', report_id=export.id, fmt='csv') }}">CSV</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+
+<div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
+  <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Inventory Value</p>
+  <p class="text-3xl font-black text-slate-900 dark:text-white mt-2">KES {{ '{:,.0f}'.format(analysis.kpis.inventory_value or 0) }}</p>
+  
+</div>
+
+<div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
+  <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Stockouts</p>
+  <p class="text-3xl font-black text-slate-900 dark:text-white mt-2">{{ analysis.kpis.stockouts }}</p>
+  
+</div>
+
+<div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
+  <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Critical Low</p>
+  <p class="text-3xl font-black text-slate-900 dark:text-white mt-2">{{ analysis.kpis.critical_low }}</p>
+  
+</div>
+
+<div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm">
+  <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Unique Items</p>
+  <p class="text-3xl font-black text-slate-900 dark:text-white mt-2">{{ analysis.raw.inventory_parts|length }}</p>
+  
+</div>
+
+</div>
+
+<div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm mb-8">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="text-sm font-black tracking-wider uppercase text-slate-700 dark:text-slate-200">Breakdowns Trend (for demand signal)</h2>
+    <div class="flex items-center gap-2">
+      <span class="text-xs font-bold text-slate-500">View</span>
+      <select id="trendGrain" class="text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1">
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+        <option value="quarterly">Quarterly</option>
+        <option value="biannually">Biannually</option>
+        <option value="yearly">Yearly</option>
+      </select>
+      <label class="text-xs font-bold text-slate-500">Year</label>
+      <input id="trendYear" type="number" min="2000" max="2100" value="{{ analysis.end.year if analysis.end else analysis.start.year }}" class="w-24 text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1">
+    </div>
+  </div>
+  <div class="h-[260px]">
+    <canvas id="incTrendChart"></canvas>
+  </div>
+  <div id="quarterPanels" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4"></div>
+</div>
+
+<script>
+  (function(){
+    try {
+      const rid = {{ export.id|tojson }};
+      const sel = document.getElementById('trendGrain');
+      const yearEl = document.getElementById('trendYear');
+      const el = document.getElementById('incTrendChart');
+      if(!sel || !el || typeof Chart === 'undefined') return;
+      let chart = new Chart(el.getContext('2d'), {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'Incidents', data: [], borderWidth: 2, pointRadius: 2 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      });
+      const endpoint = (grain, year) => `/reports/export/${rid}/chart_data?kind=incidents&grain=${encodeURIComponent(grain)}&year=${encodeURIComponent(year || "")}`;
+
+      function renderPanels(data){
+        const holder = document.getElementById('quarterPanels');
+        if(!holder) return;
+        holder.innerHTML = '';
+        const grain = (sel?.value || '').toLowerCase();
+        let panels = [];
+        if(grain === 'quarterly' && Array.isArray(data?.quarter_panels) && data.quarter_panels.length){
+          panels = data.quarter_panels.map(panel => ({ title: `${panel.quarter} Monthly View`, series: panel.series || [] }));
+        } else if((grain === 'biannually' || grain === 'biannual' || grain === 'bi-annual') && Array.isArray(data?.half_panels) && data.half_panels.length){
+          panels = data.half_panels.map(panel => ({ title: `${panel.half} Monthly View`, series: panel.series || [] }));
+        }
+        if(!panels.length){ holder.classList.add('hidden'); return; }
+        holder.classList.remove('hidden');
+        panels.forEach((panel, idx) => {
+          const wrap = document.createElement('div');
+          wrap.className = 'rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50/40 dark:bg-slate-900/40';
+          wrap.innerHTML = `<div class="text-xs font-black uppercase tracking-wider text-slate-500 mb-3">${panel.title}</div><div class="h-[180px]"><canvas id="ip-${idx}"></canvas></div>`;
+          holder.appendChild(wrap);
+          const c = wrap.querySelector('canvas');
+          new Chart(c.getContext('2d'), {
+            type: 'bar',
+            data: { labels: (panel.series||[]).map(x=>x.label), datasets: [{ label: 'Incidents', data: (panel.series||[]).map(x => (typeof x.value === 'number') ? x.value : (x.count||0)), borderWidth: 1 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+          });
+        });
+      }
+
+      async function refresh(useSelectedYear){
+        window.__reportChartsReady = false;
+        try{
+          const grain = sel.value || 'daily';
+          const year = (useSelectedYear && yearEl?.value) ? yearEl.value : '';
+          const res = await fetch(endpoint(grain, year), {credentials: 'same-origin'});
+          const data = await res.json();
+          if(!data || data.ok === false) return;
+          const series = data.series || [];
+          chart.data.labels = series.map(x=>x.label);
+          chart.data.datasets[0].data = series.map(x=> (typeof x.value === 'number') ? x.value : (x.count||0));
+          chart.update();
+          renderPanels(data);
+          window.__reportChartsReady = true;
+          window.dispatchEvent(new CustomEvent('report:charts-ready'));
+        } catch(e){
+          console.warn('incidents trend refresh failed', e);
+        }
+      }
+
+      sel.addEventListener('change', () => refresh(true));
+      yearEl?.addEventListener('change', () => refresh(true));
+      refresh(window.__reportUseSelectedYear === true);
+    } catch(e){
+      console.warn('incidents trend init failed', e);
+    }
+  })();
+</script>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <div class="lg:col-span-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm">
+    <h2 class="text-sm font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 mb-4">Top Items by Value</h2>
+    {% if analysis.inventory_top_value %}
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="text-left text-xs uppercase tracking-wider text-slate-500">
+            <th class="py-2 pr-4">Item</th>
+            <th class="py-2 pr-4">Category</th>
+            <th class="py-2 pr-4">Qty</th>
+            <th class="py-2 pr-4">Unit Price</th>
+            <th class="py-2 pr-4">Value</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+          {% for p in analysis.inventory_top_value %}
+          <tr>
+            <td class="py-2 pr-4 font-semibold text-slate-800 dark:text-slate-100">{{ p.name }}</td>
+            <td class="py-2 pr-4 text-slate-600 dark:text-slate-300">{{ p.category or '—' }}</td>
+            <td class="py-2 pr-4 text-slate-600 dark:text-slate-300">{{ p.qty }}</td>
+            <td class="py-2 pr-4 text-slate-600 dark:text-slate-300">{{ p.unit_price }}</td>
+            <td class="py-2 pr-4 font-semibold text-slate-800 dark:text-slate-100">KES {{ '{:,.0f}'.format(p.value or 0) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p class="text-sm text-slate-500">No inventory data available.</p>
+    {% endif %}
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm">
+    <h2 class="text-sm font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 mb-4">Executive Insights</h2>
+    {% if analysis.insights %}
+      <ul class="list-disc pl-6 space-y-2 text-sm text-slate-700 dark:text-slate-200">
+        {% for s in analysis.insights %}<li>{{ s }}</li>{% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-sm text-slate-500">No insights available.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm mt-6">
+  <h2 class="text-sm font-black tracking-wider uppercase text-slate-700 dark:text-slate-200 mb-4">Inventory (Raw)</h2>
+  {% if analysis.raw.inventory_parts %}
+  <div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs uppercase tracking-wider text-slate-500">
+          <th class="py-2 pr-4">Item</th>
+          <th class="py-2 pr-4">Qty</th>
+          <th class="py-2 pr-4">Min</th>
+          <th class="py-2 pr-4">Unit Price</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+        {% for p in analysis.raw.inventory_parts[:40] %}
+        <tr>
+          <td class="py-2 pr-4 font-semibold text-slate-800 dark:text-slate-100">{{ p.part_name or p.name or p.part or '—' }}</td>
+          <td class="py-2 pr-4 text-slate-600 dark:text-slate-300">{{ p.qty }}</td>
+          <td class="py-2 pr-4 text-slate-600 dark:text-slate-300">{{ p.min_qty or '—' }}</td>
+          <td class="py-2 pr-4 text-slate-600 dark:text-slate-300">{{ p.unit_price or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-sm text-slate-500">No inventory rows in the system.</p>
+  {% endif %}
+</div>
+
+</div>
+{% endblock %}

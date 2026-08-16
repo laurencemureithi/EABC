@@ -1,0 +1,126 @@
+{% extends "layouts/base.html" %}
+{% block title %}Edit Asset • Opsloom{% endblock %}
+
+{% block content %}
+{% set page_title = "Edit Asset" %}
+{% set breadcrumbs = [
+  {"label":"Asset Register", "href": url_for("assets_master_list")},
+  {"label": asset.asset_name, "href": url_for("assets_profile_get", asset_uid=asset.uid)},
+  {"label":"Edit"}
+] %}
+{% include "partials/title_block.html" %}
+
+<div class="max-w-4xl mx-auto">
+  <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+    <div class="p-6 border-b border-slate-100 dark:border-dark-border">
+      <p class="text-sm text-slate-500 dark:text-slate-400">
+        Update asset details. These fields drive the Asset Profile overview cards.
+      </p>
+      {% if error %}
+        <div class="mt-4 p-3 rounded-lg bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-900/30 text-rose-700 dark:text-rose-200 text-sm font-semibold">
+          {{ error }}
+        </div>
+      {% endif %}
+    </div>
+
+    <form method="post" class="p-6 space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Asset Name *</label>
+          <input name="asset_name" value="{{ asset.asset_name }}" class="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2.5 px-3 text-sm font-semibold">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Asset ID *</label>
+          <input name="asset_id" value="{{ asset.asset_id }}" class="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2.5 px-3 text-sm font-semibold">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Section *</label>
+          <select name="section" class="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2.5 px-3 text-sm font-semibold">
+            {% for s in sections %}
+              <option value="{{ s }}" {% if asset.section == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Serial No.</label>
+          <input name="serial_no" value="{{ asset.serial_no or '' }}" class="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2.5 px-3 text-sm font-semibold">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Category</label>
+          <input name="category" value="{{ asset.category or '' }}" class="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2.5 px-3 text-sm font-semibold">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Location</label>
+          <input name="location" value="{{ asset.location or '' }}" class="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2.5 px-3 text-sm font-semibold">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Service Provider</label>
+          <input name="service_provider" value="{{ asset.service_provider or '' }}" class="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2.5 px-3 text-sm font-semibold">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Asset Value</label>
+          <input name="asset_value" value="{{ asset.asset_value or '' }}" class="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2.5 px-3 text-sm font-semibold" placeholder="$45,200.00">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">OEM</label>
+          <input name="oem" value="{{ asset.oem or '' }}" class="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2.5 px-3 text-sm font-semibold">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Manufacturer</label>
+          <input name="manufacturer" value="{{ asset.manufacturer or '' }}" class="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2.5 px-3 text-sm font-semibold">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Model Number</label>
+          <input name="model_number" value="{{ asset.model_number or '' }}" class="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2.5 px-3 text-sm font-semibold">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Power Rating</label>
+          <input name="power_rating" value="{{ asset.power_rating or '' }}" class="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2.5 px-3 text-sm font-semibold">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Supplier</label>
+          <input name="supplier" value="{{ asset.supplier or '' }}" class="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2.5 px-3 text-sm font-semibold">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Installation Date</label>
+          <input name="installation_date" value="{{ asset.installation_date or '' }}" class="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2.5 px-3 text-sm font-semibold" placeholder="YYYY-MM-DD">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Warranty Expiry</label>
+          <input name="warranty_expiry" value="{{ asset.warranty_expiry or '' }}" class="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2.5 px-3 text-sm font-semibold" placeholder="YYYY-MM-DD">
+        </div>
+      </div>
+
+      <div>
+        <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Technical Notes</label>
+        <textarea name="technical_notes" rows="4" class="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2.5 px-3 text-sm font-medium">{{ asset.technical_notes or '' }}</textarea>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <a href="{{ url_for('assets_profile_get', asset_uid=asset.uid) }}"
+           class="px-5 py-2.5 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-sm font-bold text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700">
+          Cancel
+        </a>
+        <button type="submit"
+                class="px-5 py-2.5 rounded-lg bg-ueal-purple text-white text-sm font-bold hover:opacity-95 active:scale-95 transition">
+          Save Changes
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

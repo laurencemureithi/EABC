@@ -1,0 +1,27 @@
+{# templates/partials/asset_status_pill.html #}
+{% set raw = (asset.status or "SYSTEM STABLE") %}
+{% set st = raw|string|lower %}
+
+{# map your internal statuses to UI #}
+{% if st in ["operational", "system stable", "stable"] %}
+  {% set label = "OPERATIONAL" %}
+  {% set icon  = "check_circle" %}
+  {% set pill  = "bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-700/30 dark:text-green-200" %}
+{% elif st in ["maintenance", "in maintenance"] %}
+  {% set label = "IN MAINTENANCE" %}
+  {% set icon  = "build_circle" %}
+  {% set pill  = "bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-700/30 dark:text-amber-200" %}
+{% elif st in ["out_of_service", "out of service", "oos"] %}
+  {% set label = "OUT OF SERVICE" %}
+  {% set icon  = "error" %}
+  {% set pill  = "bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-900/20 dark:border-rose-700/30 dark:text-rose-200" %}
+{% else %}
+  {% set label = raw|upper %}
+  {% set icon  = "info" %}
+  {% set pill  = "bg-slate-50 border-slate-200 text-slate-700 dark:bg-white/5 dark:border-dark-border dark:text-slate-200" %}
+{% endif %}
+
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-bold tracking-wide shadow-sm {{ pill }}">
+  <span class="material-symbols-outlined text-sm">{{ icon }}</span>
+  {{ label }}
+</span>

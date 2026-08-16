@@ -1,0 +1,296 @@
+{% extends "layouts/base.html" %}
+{% block title %}Incident {{ breakdown_id }} • Opsloom{% endblock %}
+
+{% block content %}
+  {% set page_title = "Incident: " ~ (incident_title or breakdown_id) %}
+  {% set breadcrumbs = [
+    {"label":"Breakdowns", "href": url_for("breakdowns")},
+    {"label":"Management", "href": url_for("breakdowns")},
+    {"label": breakdown_id}
+  ] %}
+  {% include "partials/title_block.html" %}
+
+  <div class="max-w-6xl mx-auto -mt-4 mb-6">
+    <div class="text-sm text-slate-500 dark:text-slate-300 flex flex-wrap items-center gap-x-3 gap-y-1">
+      {% if section %}<span class="inline-flex items-center gap-1"><span class="material-symbols-outlined text-base text-slate-400">domain</span>{{ section }}</span>{% endif %}
+      <span class="text-slate-300">•</span>
+      <span class="inline-flex items-center gap-1"><span class="material-symbols-outlined text-base text-slate-400">precision_manufacturing</span>{{ asset_name }}</span>
+      <span class="text-slate-300">•</span>
+      <span class="inline-flex items-center gap-1"><span class="material-symbols-outlined text-base text-slate-400">tag</span>{{ asset_id }}</span>
+      {% if asset_serial_no %}
+        <span class="text-slate-300">•</span>
+        <span class="inline-flex items-center gap-1"><span class="material-symbols-outlined text-base text-slate-400">qr_code_2</span>{{ asset_serial_no }}</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="max-w-6xl mx-auto">
+    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4" data-no-print>
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg shadow-sm">
+          <span class="w-2.5 h-2.5 rounded-full {% if status == 'resolved' %}bg-green-500{% elif status == 'in_progress' %}bg-amber-500{% elif status == 'on_hold' %}bg-slate-400{% else %}bg-red-500{% endif %}"></span>
+          <span class="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">{{ status_label }}</span>
+        </div>
+
+        {% if severity == "critical" %}
+          <span class="bg-red-100 dark:bg-red-900/30 text-red-600 text-[10px] font-bold px-2 py-1 rounded uppercase">Critical</span>
+        {% elif severity == "medium" %}
+          <span class="bg-amber-100 dark:bg-amber-900/30 text-amber-700 text-[10px] font-bold px-2 py-1 rounded uppercase">Medium</span>
+        {% else %}
+          <span class="bg-blue-100 dark:bg-blue-900/30 text-blue-700 text-[10px] font-bold px-2 py-1 rounded uppercase">Low</span>
+        {% endif %}
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <a href="{{ url_for('breakdowns_rca_get', breakdown_id=breakdown_id) }}"
+           class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border px-4 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-300">
+          <span class="material-symbols-outlined text-lg">{% if rca %}edit_note{% else %}fact_check{% endif %}</span>
+          {% if rca %}Edit RCA{% else %}Do RCA{% endif %}
+        </a>
+
+        <a href="{{ url_for('breakdowns_view', breakdown_id=breakdown_id, print=1, autoprint=1) }}"
+           class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border px-4 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-300">
+          <span class="material-symbols-outlined text-lg">print</span> PRINT
+        </a>
+
+        <a href="{{ url_for('breakdowns_update_get', breakdown_id=breakdown_id) }}"
+           class="bg-ueal-gold text-white px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:brightness-105 transition-all shadow-md">
+          <span class="material-symbols-outlined text-lg">edit_document</span> UPDATE INCIDENT
+        </a>
+
+        {% if status != "resolved" %}
+        <form method="post"
+              action="{{ url_for('breakdowns_close', breakdown_id=breakdown_id) }}"
+              data-confirm="close"
+              data-confirm-text="Close this breakdown now? This will mark it as Resolved.">
+          <input type="hidden" name="next" value="{{ url_for('breakdowns_view', breakdown_id=breakdown_id) }}">
+          <button type="submit"
+                  class="btn-success px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-all">
+            <span class="material-symbols-outlined text-lg">check_circle</span> CLOSE INCIDENT
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div class="lg:col-span-7 space-y-6">
+
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/20">
+            <h2 class="font-bold text-slate-900 dark:text-white uppercase text-xs tracking-widest">Breakdown Metadata</h2>
+            <span class="text-[10px] font-bold text-slate-500 dark:text-slate-300 uppercase">{{ breakdown_id }}</span>
+          </div>
+          <div class="p-6 grid grid-cols-2 gap-y-6 gap-x-8">
+            <div>
+              <label class="text-[10px] uppercase font-bold text-slate-400 block mb-1">Asset Name</label>
+              <p class="text-sm font-bold text-ueal-purple">{{ asset_name }}</p>
+            </div>
+            <div>
+              <label class="text-[10px] uppercase font-bold text-slate-400 block mb-1">Asset ID</label>
+              <p class="text-sm font-medium text-slate-800 dark:text-slate-200">{{ asset_id }}</p>
+            </div>
+            <div>
+              <label class="text-[10px] uppercase font-bold text-slate-400 block mb-1">Failure Category</label>
+              <p class="text-sm font-medium text-slate-800 dark:text-slate-200">{{ failure_category }}</p>
+            </div>
+            <div>
+              <label class="text-[10px] uppercase font-bold text-slate-400 block mb-1">Technician</label>
+              <p class="text-sm font-medium text-slate-800 dark:text-slate-200">{{ technician_name }}</p>
+            </div>
+            <div>
+              <label class="text-[10px] uppercase font-bold text-slate-400 block mb-1">Exact Time Reported</label>
+              <div class="flex items-center gap-2 text-sm font-medium text-slate-800 dark:text-slate-200">
+                <span class="material-symbols-outlined text-sm text-slate-400">calendar_today</span>
+                <span>{{ reported_date }}</span>
+                <span class="text-slate-300">|</span>
+                <span class="material-symbols-outlined text-sm text-slate-400">schedule</span>
+                <span>{{ reported_time }} (EAT)</span>
+              </div>
+            </div>
+            <div>
+              <label class="text-[10px] uppercase font-bold text-slate-400 block mb-1">Exact Time Closed</label>
+              <div id="resolvedMeta" class="flex items-center gap-2 text-sm font-medium text-slate-800 dark:text-slate-200">
+                {% if resolved_dt_iso %}
+                  <span class="material-symbols-outlined text-sm text-slate-400">event_available</span>
+                  <span id="resolvedDate">{{ resolved_date }}</span>
+                  <span class="text-slate-300">|</span>
+                  <span class="material-symbols-outlined text-sm text-slate-400">schedule</span>
+                  <span id="resolvedTime">{{ resolved_time }} (EAT)</span>
+                {% else %}
+                  <span class="text-slate-400">Not closed yet</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/20">
+            <h2 class="font-bold text-slate-900 dark:text-white uppercase text-xs tracking-widest">Symptoms</h2>
+          </div>
+          <div class="p-6">
+            <p class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-800/40 p-4 rounded-lg border-l-4 border-ueal-gold">
+              {{ symptoms or "—" }}
+            </p>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/20">
+            <h2 class="font-bold text-slate-900 dark:text-white uppercase text-xs tracking-widest">Initial Diagnosis / Notes</h2>
+          </div>
+          <div class="p-6">
+            <p class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic bg-slate-50 dark:bg-slate-800/40 p-4 rounded-lg border border-slate-100 dark:border-dark-border">
+              {{ notes or "—" }}
+            </p>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/20">
+            <h2 class="font-bold text-slate-900 dark:text-white uppercase text-xs tracking-widest">Live Activity Log</h2>
+          </div>
+          <div class="p-6 space-y-3">
+            {% if progress_log and progress_log|length > 0 %}
+              {% for item in progress_log %}
+                <div class="p-4 rounded-lg border border-slate-100 dark:border-dark-border bg-slate-50 dark:bg-slate-800/40">
+                  <div class="flex items-center justify-between gap-3">
+                    <p class="text-sm font-bold text-slate-800 dark:text-slate-100">{{ item.status|replace("_"," ")|title }}</p>
+                    <p class="text-[11px] text-slate-500">{{ item.ts }}</p>
+                  </div>
+                  {% if item.work_log %}
+                    <p class="text-sm text-slate-600 dark:text-slate-300 mt-2">{{ item.work_log }}</p>
+                  {% endif %}
+                  {% if item.labor_hours %}
+                    <p class="text-[11px] text-slate-500 mt-2 uppercase font-bold">Labor: {{ item.labor_hours }} hrs</p>
+                  {% endif %}
+                  {% if item.findings %}
+                    <p class="text-sm text-slate-600 dark:text-slate-300 mt-2 italic">{{ item.findings }}</p>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            {% else %}
+              <p class="text-sm text-slate-500 dark:text-slate-400">No updates yet. Use <span class="font-bold">Update Incident</span> to add progress.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-5 space-y-6">
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+          <div class="p-6 flex flex-col items-center justify-center text-center border-b border-slate-100 dark:border-dark-border">
+            
+            <h3 class="text-5xl font-black text-ueal-purple dark:text-white tracking-tighter">
+              <p class="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-2">
+  {% if status == "resolved" %}Registered Downtime{% else %}Current Downtime{% endif %}
+</p>
+
+<h3 class="text-5xl font-black tracking-tighter
+           {% if status == "resolved" %}text-emerald-600 dark:text-emerald-400{% else %}text-ueal-purple dark:text-white{% endif %}">
+  <span id="liveDowntimeLabel">{{ downtime_display_label }}</span>
+</h3>
+
+<p class="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
+  {% if status == "resolved" %}
+    This is the downtime captured during the incident window.
+  {% else %}
+    This is computed live from reported time.
+  {% endif %}
+</p>
+
+            </h3>
+            
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/20">
+            <h2 class="font-bold text-slate-900 dark:text-white uppercase text-xs tracking-widest">Cost Summary</h2>
+          </div>
+          <div class="p-6 grid grid-cols-1 gap-3 text-sm">
+            <div class="flex items-center justify-between"><span class="text-slate-500 dark:text-slate-300">Subtotal</span><span class="font-bold text-slate-900 dark:text-white">{{ cost_subtotal|kes2 }}</span></div>
+            <div class="flex items-center justify-between"><span class="text-slate-500 dark:text-slate-300">VAT</span><span class="font-bold text-slate-900 dark:text-white">{{ cost_vat_amount|kes2 }}</span></div>
+            <div class="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-dark-border"><span class="text-slate-500 dark:text-slate-300">Total</span><span class="font-bold text-emerald-700 dark:text-emerald-300">{{ cost_total|kes2 }}</span></div>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/20 flex justify-between items-center">
+            <h2 class="font-bold text-slate-900 dark:text-white uppercase text-xs tracking-widest">Assigned Technician</h2>
+            <span class="flex items-center gap-1.5 text-[10px] font-bold {% if status=='in_progress' %}text-green-600{% else %}text-slate-500{% endif %} uppercase">
+              <span class="w-1.5 h-1.5 rounded-full {% if status=='in_progress' %}bg-green-500{% else %}bg-slate-400{% endif %}"></span>
+              {% if status=='in_progress' %}On Task{% else %}Pending{% endif %}
+            </span>
+          </div>
+          <div class="p-6 flex items-center gap-4">
+            <div class="w-14 h-14 rounded-full bg-ueal-purple flex items-center justify-center text-xl font-bold text-white shadow-inner">
+              {{ technician_initials }}
+            </div>
+            <div class="flex-1">
+              <p class="text-base font-bold text-slate-900 dark:text-white leading-tight">{{ technician_name }}</p>
+              <p class="text-xs text-slate-500 font-medium">Field Technician</p>
+              <div class="mt-3 flex gap-2">
+                <a href="{{ url_for('breakdowns_update_get', breakdown_id=breakdown_id) }}"
+                   class="text-ueal-purple hover:text-ueal-gold transition-colors text-sm font-bold">
+                  Update progress →
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/20 flex justify-between items-center">
+            <h2 class="font-bold text-slate-900 dark:text-white uppercase text-xs tracking-widest">Fault Media ({{ media_count }})</h2>
+          </div>
+          <div class="p-6">
+            {% if media and media|length > 0 %}
+              <div class="grid grid-cols-3 gap-3">
+                {% for img in media[:6] %}
+                <div class="aspect-square bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden border border-slate-100 dark:border-dark-border">
+                  <img alt="Fault Media" class="w-full h-full object-cover" src="{{ img }}">
+                </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="text-sm text-slate-500 dark:text-slate-400">No media uploaded.</p>
+            {% endif %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+
+{% block page_scripts %}
+<script>
+(function(){
+  const url = {{ url_for('api_live_breakdown_detail', breakdown_id=breakdown_id)|tojson }};
+  const downtimeEl = document.getElementById('liveDowntimeLabel');
+  const resolvedMeta = document.getElementById('resolvedMeta');
+  const statusBadge = document.querySelector('[class*="tracking-wider"]');
+  async function tick(){
+    try{
+      const r = await fetch(url, {headers: {'X-Requested-With':'XMLHttpRequest'}});
+      if(!r.ok) return;
+      const data = await r.json();
+      if(downtimeEl && data.downtime_display_label) downtimeEl.textContent = data.downtime_display_label;
+      if(resolvedMeta){
+        if(data.resolved_dt_iso){
+          resolvedMeta.innerHTML = '<span class="material-symbols-outlined text-sm text-slate-400">event_available</span>'+
+            '<span id="resolvedDate">'+data.resolved_date+'</span>'+
+            '<span class="text-slate-300">|</span>'+
+            '<span class="material-symbols-outlined text-sm text-slate-400">schedule</span>'+
+            '<span id="resolvedTime">'+data.resolved_time+' (EAT)</span>';
+        }
+      }
+    }catch(e){}
+  }
+  tick();
+  setInterval(tick, 15000);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en" class="">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}Opsloom{% endblock %}</title>
+
+  <!-- ✅ THEME INIT MUST RUN BEFORE FIRST PAINT -->
+  <script>
+    (function () {
+      try {
+        const saved = localStorage.getItem('theme');
+        const isDark = saved === 'dark';
+        document.documentElement.classList.toggle('dark', isDark);
+
+        // Optional: helps form controls render correctly in dark mode
+        document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+      } catch (e) {}
+    })();
+  </script>
+
+  <!-- OFFLINE CSS (order matters) -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tailwind/tailwind.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/inter/inter.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/material-symbols/material-symbols-outlined.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+
+  <!-- ✅ Chart.js (GLOBAL) -->
+  <script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+
+  {% block page_styles %}{% endblock %}
+</head>
+
+<body class="bg-background-light dark:bg-dark-base text-slate-800 dark:text-slate-100 transition-colors duration-200 {% if request.args.get("print") in ["1", "true", "yes"] %}report-screen-print-mode{% endif %}" {% if request.args.get("autoprint") in ["1", "true", "yes"] %}data-auto-print="1"{% endif %}>
+  <div class="app-container">
+    {% include "partials/sidebar.html" %}
+    <div id="appSidebarOverlay" class="app-sidebar-overlay" onclick="closeAppSidebar()"></div>
+    <div class="flex-1 flex flex-col min-w-0">
+      {% include "partials/top_header.html" %}
+      <main class="main-content flex-1 p-8 {% block main_wrapper_class %}{% endblock %}">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="space-y-3 mb-6" data-no-print>
+              {% for category, message in messages %}
+                <div class="rounded-xl border px-4 py-3 text-sm font-semibold {% if category == 'success' %}bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-900/40 dark:text-emerald-200{% elif category == 'error' %}bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-900/40 dark:text-red-200{% else %}bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-900/40 dark:text-blue-200{% endif %}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <!-- ✅ Close confirmation modal (global) -->
+  <div id="confirmModal" class="fixed inset-0 z-[999] hidden" aria-hidden="true">
+    <div class="absolute inset-0 bg-black/50"></div>
+
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+      <div class="w-full max-w-md rounded-2xl bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border shadow-2xl overflow-hidden">
+        <div class="p-5 border-b border-slate-100 dark:border-dark-border flex items-start gap-3">
+          <div class="w-10 h-10 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center">
+            <span class="material-symbols-outlined text-red-600">warning</span>
+          </div>
+          <div class="flex-1">
+            <p id="confirmModalTitle" class="font-extrabold text-slate-900 dark:text-white">Please Confirm</p>
+            <p id="confirmModalText" class="text-sm text-slate-500 dark:text-slate-300 mt-1">
+              Are you sure you want to close this breakdown?
+            </p>
+          </div>
+          <button type="button" id="confirmModalX"
+                  class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
+                  aria-label="Close modal">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        <div class="p-5 space-y-4">
+          <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+            <input id="confirmNever" type="checkbox" class="rounded border-slate-300 dark:border-dark-border">
+            <span id="confirmNeverLabel">Do not show this again</span>
+          </label>
+
+          <div class="flex items-center justify-end gap-3 pt-2">
+            <button type="button" id="confirmCancel"
+                    class="px-5 py-2.5 rounded-lg border border-slate-200 dark:border-dark-border
+                           bg-white dark:bg-slate-800 text-sm font-bold text-slate-600 dark:text-slate-200
+                           hover:bg-slate-50 dark:hover:bg-slate-700">
+              Cancel
+            </button>
+            <button type="button" id="confirmOk"
+                    class="px-5 py-2.5 rounded-lg bg-red-600 text-white text-sm font-bold
+                           hover:bg-red-700 active:scale-95 transition">
+              <span id="confirmOkLabel">Yes, continue</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  function openAppSidebar() {
+    const sidebar = document.getElementById("appSidebar");
+    const overlay = document.getElementById("appSidebarOverlay");
+    if (!sidebar || !overlay) return;
+    sidebar.classList.add("is-open");
+    overlay.classList.add("is-open");
+    document.body.classList.add("sidebar-open");
+  }
+
+  function closeAppSidebar() {
+    const sidebar = document.getElementById("appSidebar");
+    const overlay = document.getElementById("appSidebarOverlay");
+    if (!sidebar || !overlay) return;
+    sidebar.classList.remove("is-open");
+    overlay.classList.remove("is-open");
+    document.body.classList.remove("sidebar-open");
+  }
+
+  function syncSidebarForViewport() {
+    if (window.innerWidth > 1024) {
+      closeAppSidebar();
+    }
+  }
+
+  // Theme
+  function syncThemeIcon() {
+    const isDark = document.documentElement.classList.contains('dark');
+    const icon = document.getElementById('themeIcon');
+    if (icon) icon.textContent = isDark ? 'dark_mode' : 'light_mode';
+  }
+
+  function setTheme(isDark) {
+    document.documentElement.classList.toggle('dark', isDark);
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+
+    // Optional: improves native widgets
+    document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+
+    syncThemeIcon();
+  }
+
+  function toggleTheme() {
+    const isDark = document.documentElement.classList.contains('dark');
+    setTheme(!isDark);
+  }
+
+  // ✅ Only sync icon here (theme already applied in <head>)
+  (function () {
+    syncThemeIcon();
+
+    window.addEventListener("resize", syncSidebarForViewport);
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeAppSidebar();
+    });
+
+    document.addEventListener("click", function (e) {
+      if (window.innerWidth > 1024) return;
+      const sidebar = document.getElementById("appSidebar");
+      const toggle = e.target.closest('[onclick="openAppSidebar()"]');
+      if (!sidebar || toggle) return;
+      if (!sidebar.contains(e.target)) closeAppSidebar();
+    });
+
+    syncSidebarForViewport();
+  })();
+
+  // Global confirmation modal with per-action "do not show again"
+  (function () {
+    const modal = document.getElementById("confirmModal");
+    const titleEl = document.getElementById("confirmModalTitle");
+    const txt = document.getElementById("confirmModalText");
+    const never = document.getElementById("confirmNever");
+    const neverLabel = document.getElementById("confirmNeverLabel");
+    const btnX = document.getElementById("confirmModalX");
+    const btnCancel = document.getElementById("confirmCancel");
+    const btnOk = document.getElementById("confirmOk");
+    const btnOkLabel = document.getElementById("confirmOkLabel");
+
+    if (!modal || !titleEl || !txt || !never || !btnOk || !btnCancel || !btnX || !btnOkLabel || !neverLabel) return;
+
+    let pendingForm = null;
+    let pendingStorageKey = "";
+
+    function hide() {
+      modal.classList.add("hidden");
+      modal.setAttribute("aria-hidden", "true");
+      pendingForm = null;
+      pendingStorageKey = "";
+      never.checked = false;
+    }
+
+    function show(opts) {
+      const cfg = opts || {};
+      titleEl.textContent = cfg.title || "Please Confirm";
+      txt.textContent = cfg.message || "Are you sure you want to continue?";
+      btnOkLabel.textContent = cfg.okLabel || "Yes, continue";
+      neverLabel.textContent = cfg.skipLabel || "Do not show this again";
+      pendingForm = cfg.form || null;
+      pendingStorageKey = cfg.storageKey || "";
+      modal.classList.remove("hidden");
+      modal.setAttribute("aria-hidden", "false");
+    }
+
+    btnX.addEventListener("click", hide);
+    btnCancel.addEventListener("click", hide);
+
+    btnOk.addEventListener("click", () => {
+      if (never.checked && pendingStorageKey) localStorage.setItem(pendingStorageKey, "1");
+      if (pendingForm) pendingForm.submit();
+      hide();
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !modal.classList.contains("hidden")) hide();
+    });
+
+    document.addEventListener("submit", (e) => {
+      const form = e.target;
+      if (!(form instanceof HTMLFormElement)) return;
+      const scope = (form.getAttribute("data-confirm") || "").trim();
+      if (!scope) return;
+
+      const storageKey = (form.getAttribute("data-confirm-key") || `eabc_skip_confirm_${scope}`).trim();
+      if (localStorage.getItem(storageKey) === "1") return;
+
+      e.preventDefault();
+      show({
+        title: form.getAttribute("data-confirm-title") || "Please Confirm",
+        message: form.getAttribute("data-confirm-text") || "Are you sure you want to continue?",
+        okLabel: form.getAttribute("data-confirm-ok") || "Yes, continue",
+        skipLabel: form.getAttribute("data-confirm-skip-label") || "Do not show this again",
+        storageKey,
+        form,
+      });
+    });
+  })();
+</script>
+
+
+
+<script>
+  // Simple dropdown toggles (used by Reports export menus and any other dropdowns)
+  (function(){
+    function closeAll(exceptRoot){
+      document.querySelectorAll('[data-dd-menu]').forEach(m=>{
+        if(exceptRoot && exceptRoot.contains(m)) return;
+        m.classList.add('hidden');
+      });
+    }
+
+    document.addEventListener('click', function(e){
+      const btn = e.target.closest('[data-dd-btn]');
+      if(btn){
+        const root = btn.closest('[data-dd-root]') || btn.parentElement;
+        const menu = root ? root.querySelector('[data-dd-menu]') : null;
+        if(!menu) return;
+        const isHidden = menu.classList.contains('hidden');
+        closeAll(root);
+        if(isHidden) menu.classList.remove('hidden');
+        else menu.classList.add('hidden');
+        e.preventDefault();
+        return;
+      }
+      // click outside
+      closeAll(null);
+    });
+
+    document.addEventListener('keydown', function(e){
+      if(e.key === 'Escape') closeAll(null);
+    });
+  })();
+</script>
+
+<script>
+  (function(){
+    if (!(document.body && document.body.dataset.autoPrint === '1')) return;
+    let fired = false;
+    function done(){
+      if (fired) return;
+      fired = true;
+      setTimeout(function(){ window.print(); }, 550);
+    }
+    window.addEventListener('report:charts-ready', done, { once: true });
+    window.addEventListener('load', function(){
+      const hasTrendChart = !!document.getElementById('trendGrain');
+      if (!hasTrendChart || window.__reportChartsReady === true) return done();
+      setTimeout(done, 4500);
+    }, { once: true });
+  })();
+</script>
+
+
+<script>
+  (function(){
+    const params = new URLSearchParams(window.location.search || '');
+    const qGrain = (params.get('trend_grain') || '').trim();
+    const qYear = (params.get('trend_year') || '').trim();
+    const grainEl = document.getElementById('trendGrain');
+    const yearEl = document.getElementById('trendYear');
+    if (grainEl && qGrain) grainEl.value = qGrain;
+    if (yearEl && qYear) yearEl.value = qYear;
+    window.__reportUseSelectedYear = Boolean(qGrain || qYear);
+
+    function buildLiveReportUrl(rid, actionName){
+      if (actionName === 'pdf') {
+        return new URL(`/reports/export/${encodeURIComponent(rid)}/pdf`, window.location.origin).toString();
+      }
+      const url = new URL(`/reports/view/${encodeURIComponent(rid)}`, window.location.origin);
+      url.searchParams.set('print', '1');
+      if (actionName === 'print') url.searchParams.set('autoprint', '1');
+      const g = document.getElementById('trendGrain');
+      const y = document.getElementById('trendYear');
+      if (g && g.value) url.searchParams.set('trend_grain', g.value);
+      if (y && y.value) url.searchParams.set('trend_year', y.value);
+      return url.toString();
+    }
+
+    document.querySelectorAll('[data-live-report-action]').forEach((el) => {
+      const rid = el.getAttribute('data-live-report-id');
+      if (!rid) return;
+      const action = el.getAttribute('data-live-report-action');
+      const applyHref = () => {
+        el.setAttribute('href', buildLiveReportUrl(rid, action));
+      };
+      applyHref();
+      const grain = document.getElementById('trendGrain');
+      const year = document.getElementById('trendYear');
+      grain?.addEventListener('change', applyHref);
+      year?.addEventListener('change', applyHref);
+      if (action === 'print') {
+        el.addEventListener('click', function(){ applyHref(); });
+      }
+    });
+  })();
+</script>
+
+{% block page_scripts %}{% endblock %}
+  {% if latest_unread_notification %}
+  <div id="systemToast" class="eabc-toast rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-4" data-no-print style="position:fixed;right:1rem;bottom:1rem;z-index:9999;width:min(26rem,calc(100vw - 2rem));max-width:min(26rem,calc(100vw - 2rem));">
+    <div class="flex items-start gap-3">
+      <span class="material-symbols-outlined text-amber-500 mt-0.5">notifications_active</span>
+      <div class="min-w-0 flex-1">
+        <p class="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Alert</p>
+        <p class="mt-1 font-bold text-slate-900 dark:text-white">{{ latest_unread_notification.title }}</p>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{{ latest_unread_notification.message }}</p>
+        <div class="mt-3 flex items-center gap-2">
+          <a href="{{ url_for('notifications') }}" class="px-3 py-2 rounded-lg bg-ueal-gold text-white text-xs font-black uppercase tracking-wider">Notification Center</a>
+          <button type="button" id="systemToastClose" data-id="{{ latest_unread_notification.id }}" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-black uppercase tracking-wider">Dismiss</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function(){
+      const toast = document.getElementById('systemToast');
+      const btn = document.getElementById('systemToastClose');
+      async function dismiss(){
+        if (!btn) return;
+        const id = btn.getAttribute('data-id');
+        if (!id) return;
+        try { await fetch(`/notifications/${id}/dismiss`, {method:'POST', credentials:'same-origin'}); } catch(e) {}
+      }
+      if (!toast || !btn) return;
+      btn.addEventListener('click', async ()=> { await dismiss(); toast.remove(); });
+      setTimeout(()=>{ if (toast && toast.parentNode) toast.classList.add('opacity-0','translate-y-2'); }, 8000);
+      setTimeout(async ()=>{ if (toast && toast.parentNode) { await dismiss(); toast.remove(); } }, 8600);
+    })();
+  </script>
+  {% endif %}
+
+</body>
+</html>

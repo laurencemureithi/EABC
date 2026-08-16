@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+.env
+.env.*
+.pytest_cache/
+
+# Flask instance/runtime
+instance/*.db
+instance/*.sqlite
+instance/*.sqlite3
+
+# Local uploads / exports
+static/uploads/
+*.log
+
+# Node
+node_modules/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,20 @@
+{% set export_menu_position = export_menu_position|default("down") %}
+{% set export_menu_anchor_classes = "right-0 top-full mt-2" if export_menu_position != "up" else "right-0 bottom-full mb-2" %}
+<div class="relative" data-dd-root>
+  <button type="button"
+          data-dd-btn
+          class="bg-white dark:bg-dark-surface text-slate-700 dark:text-slate-100 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 border border-slate-200 dark:border-dark-border hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+    <span class="material-symbols-outlined text-lg">download</span>
+    {{ button_label|default('EXPORT') }}
+    <span class="material-symbols-outlined text-base text-slate-400">expand_more</span>
+  </button>
+
+  <div data-dd-menu class="hidden absolute {{ export_menu_anchor_classes }} w-48 rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 shadow-2xl p-2 z-40">
+    {% for item in export_links %}
+      <a href="{{ item.href }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+        {% if item.icon %}<span class="material-symbols-outlined text-[18px]">{{ item.icon }}</span>{% endif %}
+        <span>{{ item.label }}</span>
+      </a>
+    {% endfor %}
+  </div>
+</div>

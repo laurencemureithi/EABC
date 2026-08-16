@@ -1,0 +1,73 @@
+{% extends "layouts/base.html" %}
+{% block title %}Maintenance Print • {{ task.task_id }} • Opsloom{% endblock %}
+{% block content %}
+<div class="business-print-shell max-w-5xl mx-auto">
+  {% set document_department = current_department %}
+  {% include "partials/report_document_header.html" %}
+  <div class="business-print-header">
+    <div>
+      <p class="text-[11px] font-black uppercase tracking-[0.25em] text-slate-500">Maintenance Work Order Report</p>
+      <h1 class="mt-2 text-3xl font-black text-slate-900">{{ task.task_title or task.task_id }}</h1>
+      <p class="mt-1 text-sm text-slate-600">Formal PM / corrective task printout for execution control and compliance filing.</p>
+    </div>
+    <div class="business-print-meta">
+      <div><span>Task ID</span><strong>{{ task.task_id or '—' }}</strong></div>
+      <div><span>Status</span><strong>{% if task.completed_overdue %}COMPLETED OVERDUE{% else %}{{ (task.status or '—')|replace('_',' ')|upper }}{% endif %}</strong></div>
+      <div><span>Priority</span><strong>{{ (task.priority or '—')|upper }}</strong></div>
+      <div><span>Technician</span><strong>{{ task.technician or 'Unassigned' }}</strong></div>
+    </div>
+  </div>
+
+  <div class="business-print-kpis">
+    <div class="business-print-kpi"><span>Asset</span><strong>{{ task.asset_name or '—' }}</strong><small>{{ task.asset_id or '—' }}</small></div>
+    <div class="business-print-kpi"><span>Type</span><strong>{{ task.maintenance_type or '—' }}</strong><small>{{ task.frequency or '—' }}</small></div>
+    <div class="business-print-kpi"><span>Due date</span><strong>{{ task.due_date or '—' }}</strong><small>Scheduled execution</small></div>
+    <div class="business-print-kpi"><span>Amount Before VAT</span><strong>{{ (task.cost_subtotal or 0)|kes2 }}</strong><small>Base task cost</small></div>
+    <div class="business-print-kpi"><span>Total Cost</span><strong>{{ (task.cost_total or 0)|kes2 }}</strong><small>Logged cost incl. VAT</small></div>
+  </div>
+
+  <div class="business-print-grid">
+    <section class="business-print-card">
+      <h2>Task Summary</h2>
+      <table class="business-print-table"><tbody>
+        <tr><th>Maintenance type</th><td>{{ task.maintenance_type or '—' }}</td></tr>
+        <tr><th>Frequency</th><td>{{ task.frequency or '—' }}</td></tr>
+        <tr><th>Priority</th><td>{{ (task.priority or '—')|upper }}</td></tr>
+        <tr><th>Status</th><td>{% if task.completed_overdue %}Completed overdue{% else %}{{ (task.status or '—')|replace('_',' ')|title }}{% endif %}</td></tr>
+        <tr><th>Completed at</th><td>{{ task.completed_at or '—' }}{% if task.completed_overdue %}<div class="mt-1 text-amber-700 font-semibold">Completed {{ task.completed_delay_days or 0 }} day(s) after the original due date.</div>{% endif %}</td></tr>
+        <tr><th>Amount before VAT</th><td>{{ (task.cost_subtotal or 0)|kes2 }}</td></tr>
+        <tr><th>VAT rate</th><td>{{ (task.cost_vat_pct or 0) }}%</td></tr>
+        <tr><th>VAT amount</th><td>{{ (task.cost_vat_amount or 0)|kes2 }}</td></tr>
+        <tr><th>Total cost</th><td>{{ (task.cost_total or 0)|kes2 }}</td></tr>
+      </tbody></table>
+    </section>
+    <section class="business-print-card">
+      <h2>Execution Notes</h2>
+      <p class="text-sm leading-6 text-slate-700 whitespace-pre-wrap">{{ task.task_description or '—' }}</p>
+      <div class="mt-4 pt-4 border-t border-slate-200">
+        <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Additional notes</p>
+        <p class="text-sm leading-6 text-slate-700 whitespace-pre-wrap">{{ task.notes or '—' }}</p>
+      </div>
+    </section>
+  </div>
+
+  <section class="business-print-card mt-6">
+    <h2>Completion & Change History</h2>
+    <table class="business-print-table">
+      <thead><tr><th>Timestamp</th><th>Action</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody>
+      {% for item in task.history or [] %}
+        <tr>
+          <td>{{ item.ts or '—' }}</td>
+          <td>{{ item.action or 'update' }}</td>
+          <td>{{ (item.status or '—')|replace('_',' ')|title }}</td>
+          <td>{{ item.notes or item.completion_notes or '—' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4">No update history recorded.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}

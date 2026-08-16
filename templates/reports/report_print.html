@@ -1,0 +1,182 @@
+{% extends "layouts/print.html" %}
+{% block title %}Report Print • {{ export.name }} • Opsloom{% endblock %}
+{% block preview_title %}{{ export.report_title or export.name }}{% endblock %}
+{% block content %}
+<div class="business-print-shell max-w-5xl mx-auto">
+  {% set document_status = export.status or 'READY' %}
+  {% set metric_cards = analysis.selected_metric_cards if analysis.selected_metric_cards else [] %}
+  {% set metric_cards_primary = metric_cards[:8] %}
+  {% set metric_cards_extra = metric_cards[8:] %}
+  {% set metric_card_pages = metric_cards_extra|batch(8, None)|list %}
+
+  <div class="business-print-page">
+    {% include "partials/report_document_header.html" %}
+
+    <div class="business-print-header">
+      <div>
+        <p class="text-[11px] font-black uppercase tracking-[0.25em] text-slate-500">{{ export.category or 'Performance Report' }}</p>
+        <h1 class="mt-2 text-3xl font-black text-slate-900">{{ export.report_title or export.name }}</h1>
+        <p class="mt-2 text-sm text-slate-600">Formal business report prepared for management review, filing, and distribution.</p>
+      </div>
+      <div class="business-print-meta">
+        {% set report_department = export.department or current_department %}
+        {% set report_department_label = report_department_display(report_department) %}
+        <div><span>Scope</span><strong>{{ (export.scope_mode or 'department')|replace('_',' ')|title }}</strong></div>
+        <div><span>Target</span><strong>{{ export.scope_target or export.generated_for or report_department_label }}</strong></div>
+        <div><span>Department</span><strong>{{ report_department_label }}</strong></div>
+        <div><span>Reported by</span><strong>{{ export.user_name or analysis.reported_by or current_user_name }}</strong></div>
+      </div>
+    </div>
+
+    <div class="business-print-kpis">
+      {% if metric_cards_primary %}
+        {% for card in metric_cards_primary %}
+          <div class="business-print-kpi"><span>{{ card.label }}</span><strong>{{ card.value }}</strong><small>{{ export.scope_target or export.generated_for or export.department }}</small></div>
+        {% endfor %}
+      {% else %}
+        <div class="business-print-kpi"><span>Incidents</span><strong>{{ analysis.kpis.incidents or 0 }}</strong><small>Recorded events</small></div>
+        <div class="business-print-kpi"><span>Downtime</span><strong>{{ analysis.kpis.downtime_hours or 0 }}</strong><small>Hours</small></div>
+        <div class="business-print-kpi"><span>Availability</span><strong>{{ analysis.kpis.availability_pct or 0 }}%</strong><small>Operational uptime</small></div>
+        <div class="business-print-kpi"><span>Amount Before VAT</span><strong>{{ (analysis.kpis.combined_cost_subtotal or 0)|kes2 }}</strong><small>Base maintenance + breakdown cost</small></div>
+        <div class="business-print-kpi"><span>Total Cost</span><strong>{{ (analysis.kpis.combined_cost_total or 0)|kes2 }}</strong><small>Maintenance + breakdown cost</small></div>
+      {% endif %}
+    </div>
+
+    <section class="business-print-card mt-6 compact-card">
+      <h2>{{ export.category or 'Report' }} Metrics</h2>
+      <table class="business-print-table compact">
+        <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+        <tbody>
+          {% for card in (metric_cards_primary if metric_cards_primary else analysis.selected_metric_cards) %}
+            <tr><td>{{ card.label }}</td><td>{{ card.value }}</td></tr>
+          {% else %}
+            <tr><td>Incidents</td><td>{{ analysis.kpis.incidents or 0 }}</td></tr>
+            <tr><td>Downtime Hours</td><td>{{ analysis.kpis.downtime_hours or 0 }}</td></tr>
+            <tr><td>Availability</td><td>{{ analysis.kpis.availability_pct or 0 }}%</td></tr>
+            <tr><td>Combined Cost</td><td>{{ (analysis.kpis.combined_cost_total or 0)|kes2 }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  {% for page_cards in metric_card_pages %}
+  <div class="business-print-page">
+    {% include "partials/report_document_header.html" %}
+    <section class="business-print-card compact-card">
+      <h2>{{ export.category or 'Report' }} Metrics (cont.)</h2>
+      <div class="business-print-kpis">
+        {% for card in page_cards if card %}
+          <div class="business-print-kpi"><span>{{ card.label }}</span><strong>{{ card.value }}</strong><small>{{ export.scope_target or export.generated_for or export.department }}</small></div>
+        {% endfor %}
+      </div>
+      <table class="business-print-table compact mt-4">
+        <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+        <tbody>
+          {% for card in page_cards if card %}
+            <tr><td>{{ card.label }}</td><td>{{ card.value }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+  {% endfor %}
+
+  {% if analysis.print_chart_sections %}
+  <div class="business-print-page">
+    {% include "partials/report_document_header.html" %}
+
+    <section class="business-print-card compact-card">
+      <h2>{{ export.category or 'Report' }} Charts</h2>
+      <p class="text-sm text-slate-600">The visual sections below are printed as part of the report and follow the same reporting scope and date window as the selected metrics.</p>
+    </section>
+
+    <div class="business-print-section-stack mt-4">
+      {% for chart in analysis.print_chart_sections %}
+        <section class="business-print-card compact-card print-chart-frame">
+          <div class="head">
+            <div>
+              <h2>{{ chart.title }}</h2>
+              {% if chart.note %}<p class="text-sm text-slate-600 mt-1">{{ chart.note }}</p>{% endif %}
+            </div>
+          </div>
+          <div class="body print-chart-svg">
+            {{ chart.svg|safe }}
+          </div>
+        </section>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="business-print-page">
+    {% include "partials/report_document_header.html" %}
+
+    <div class="business-print-grid">
+      <section class="business-print-card compact-card">
+        <h2>Executive Insights</h2>
+        <table class="business-print-table compact">
+          <thead><tr><th>#</th><th>Insight</th></tr></thead>
+          <tbody>
+            {% for item in analysis.insights %}
+              <tr><td>{{ loop.index }}</td><td>{{ item }}</td></tr>
+            {% else %}
+              <tr><td colspan="2">No executive insights available.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="business-print-card compact-card">
+        <h2>Cost & VAT Summary</h2>
+        <table class="business-print-table compact">
+          <thead><tr><th>Cost Line</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td>Amount Before VAT</td><td>{{ (analysis.kpis.combined_cost_subtotal or 0)|kes2 }}</td></tr>
+            <tr><td>Maintenance VAT</td><td>{{ (analysis.kpis.maintenance_vat_total or 0)|kes2 }}</td></tr>
+            <tr><td>Breakdown VAT</td><td>{{ (analysis.kpis.breakdown_vat_total or 0)|kes2 }}</td></tr>
+            <tr><td>VAT Rate(s)</td><td>{{ analysis.kpis.vat_rate_label or 'No VAT applied' }}</td></tr>
+            <tr><td>Total VAT</td><td>{{ (analysis.kpis.combined_vat_total or 0)|kes2 }}</td></tr>
+            <tr><td>Total Cost</td><td>{{ (analysis.kpis.combined_cost_total or 0)|kes2 }}</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </div>
+
+    <section class="business-print-card mt-6 compact-card">
+      <h2>{{ export.category or 'Report' }} Metric Commentary</h2>
+      <table class="business-print-table compact">
+        <thead><tr><th>Metric</th><th>Value</th><th>Executive Note</th></tr></thead>
+        <tbody>
+          {% for row in analysis.metric_insights %}
+            <tr><td>{{ row.label }}</td><td>{{ row.value }}</td><td>{{ row.detail }}</td></tr>
+          {% else %}
+            <tr><td colspan="3">No selected metric commentary is available for this report.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="business-print-card mt-6 compact-card">
+      <h2>Top Contributors / Exceptions</h2>
+      <table class="business-print-table compact">
+        <thead><tr><th>Type</th><th>Description</th><th>Measure</th></tr></thead>
+        <tbody>
+          {% for name, meta in analysis.top_assets[:6] %}
+            <tr><td>Asset</td><td>{{ name }}</td><td>{{ meta.downtime_hours }} hrs / {{ meta.incidents }} incidents</td></tr>
+          {% endfor %}
+          {% for cause, count in analysis.top_causes[:6] %}
+            <tr><td>Root cause</td><td>{{ cause }}</td><td>{{ count }}</td></tr>
+          {% endfor %}
+          {% for sec in analysis.availability_by_section[:6] %}
+            <tr><td>Section</td><td>{{ sec.section }}</td><td>{{ sec.availability_pct }}%</td></tr>
+          {% endfor %}
+          {% if not analysis.top_assets and not analysis.top_causes and not analysis.availability_by_section %}
+            <tr><td colspan="3">No detailed contributors available for the selected scope.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+</div>
+{% endblock %}

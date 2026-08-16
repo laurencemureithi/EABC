@@ -1,0 +1,139 @@
+{% extends "layouts/base.html" %}
+{% block title %}View Maintenance Task - Opsloom{% endblock %}
+{% block main_wrapper_class %}p-8 space-y-6{% endblock %}
+
+{% block content %}
+{% set page_title = "Maintenance Task • " ~ (task.task_id or "Record") %}
+{% set title_icon = "build_circle" %}
+{% set page_subtitle = "Professional maintenance work order preview with print-ready controls." %}
+{% set show_system_badge = true %}
+{% set breadcrumbs = [
+  {"label":"Maintenance Management", "href": url_for("maintenance_management")},
+  {"label": task.task_id or "Task"}
+] %}
+{% include "partials/title_block.html" %}
+
+<div class="max-w-6xl mx-auto space-y-6">
+  <div class="flex flex-wrap items-center justify-between gap-3" data-no-print>
+    <a href="{{ url_for('maintenance_management') }}" class="px-4 py-2 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">Back to Maintenance</a>
+    <div class="flex flex-wrap items-center gap-3">
+      <a href="{{ url_for('maintenance_view', task_id=task.task_id, print=1, autoprint=1) }}" class="px-4 py-2 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">Print</a>
+      <a href="{{ url_for('maintenance_update_get', task_id=task.task_id) }}"
+         class="px-4 py-2 rounded-lg bg-ueal-gold text-white text-sm font-bold hover:bg-ueal-gold/90 shadow">
+        Update Task
+      </a>
+
+      <form method="post" action="{{ url_for('maintenance_delete', task_id=task.task_id) }}"
+            onsubmit="return confirm('Delete this task? This cannot be undone.');">
+        <button type="submit"
+                class="px-4 py-2 rounded-lg border border-red-300 text-red-600 bg-white hover:bg-red-50 text-sm font-bold">
+          Delete
+        </button>
+      </form>
+    </div>
+  </div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <div class="lg:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-4">
+    <div>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Asset</p>
+      <p class="text-lg font-bold text-slate-900 dark:text-white">{{ task.asset_name }}</p>
+      <p class="text-sm text-slate-500">ID: {{ task.asset_id }}</p>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+      <div>
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Type</p>
+        <p class="text-sm font-bold text-slate-800 dark:text-slate-200">{{ task.maintenance_type }}</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Frequency</p>
+        <p class="text-sm font-bold text-slate-800 dark:text-slate-200">{{ task.frequency }}</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Due Date</p>
+        <p class="text-sm font-bold {% if task.status=='overdue' %}text-red-600{% else %}text-slate-800 dark:text-slate-200{% endif %}">
+          {{ task.due_date or "—" }}
+        </p>
+      </div>
+      <div>
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Priority</p>
+        <p class="text-sm font-bold text-slate-800 dark:text-slate-200">{{ task.priority|upper }}</p>
+      </div>
+    </div>
+
+    <div class="pt-4 border-t border-slate-100 dark:border-slate-800">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Task Description</p>
+      <p class="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{{ task.task_description }}</p>
+    </div>
+
+    <div class="pt-4 border-t border-slate-100 dark:border-slate-800">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Notes</p>
+      <p class="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{{ task.notes or "—" }}</p>
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-4">
+    <div>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</p>
+      {% if task.status == "completed" %}
+        <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-bold">
+          <span class="w-2 h-2 rounded-full bg-green-600"></span> COMPLETED
+        </span>
+      {% elif task.status == "overdue" %}
+        <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-100 text-red-700 text-xs font-bold">
+          <span class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span> OVERDUE
+        </span>
+      {% else %}
+        <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold">
+          <span class="w-2 h-2 rounded-full bg-slate-500"></span> UPCOMING
+        </span>
+      {% endif %}
+    </div>
+
+    <div>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Technician</p>
+      <p class="text-sm font-bold text-slate-800 dark:text-slate-200">{{ task.technician or "Unassigned" }}</p>
+    </div>
+
+    <div>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Created</p>
+      <p class="text-sm text-slate-600 dark:text-slate-300">{{ task.created_at }}</p>
+      <p class="text-xs text-slate-400">By: {{ task.created_by }}</p>
+    </div>
+
+    <div class="pt-4 border-t border-slate-100 dark:border-slate-800">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Cost Summary</p>
+      <div class="grid grid-cols-1 gap-2 text-sm">
+        <div class="flex items-center justify-between"><span class="text-slate-500">Amount Before VAT</span><span class="font-bold text-slate-800 dark:text-slate-200">{{ (task.cost_subtotal or 0)|kes2 }}</span></div>
+        <div class="flex items-center justify-between"><span class="text-slate-500">VAT</span><span class="font-bold text-slate-800 dark:text-slate-200">{{ (task.cost_vat_amount or 0)|kes2 }}</span></div>
+        <div class="flex items-center justify-between"><span class="text-slate-500">VAT %</span><span class="font-bold text-slate-800 dark:text-slate-200">{{ (task.cost_vat_pct if task.cost_vat_pct is not none else 0)|round(2) }}%</span></div>
+        <div class="flex items-center justify-between"><span class="text-slate-500">Total</span><span class="font-bold text-emerald-700 dark:text-emerald-300">{{ (task.cost_total or 0)|kes2 }}</span></div>
+        <div class="flex items-center justify-between"><span class="text-slate-500">Actual Cost Confirmed</span><span class="font-bold {% if task.cost_collected %}text-green-700 dark:text-green-300{% else %}text-amber-700 dark:text-amber-300{% endif %}">{{ 'Yes' if task.cost_collected else 'No' }}</span></div>
+      </div>
+    </div>
+
+    {% if task.status != "completed" %}
+    <form method="post" action="{{ url_for('maintenance_complete', task_id=task.task_id) }}" class="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
+      <label class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Completion Notes</label>
+      <textarea name="completion_notes" rows="3"
+        class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none"></textarea>
+      <label class="inline-flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+        <input type="checkbox" name="cost_collected" value="1" {% if task.cost_collected %}checked{% endif %}> Confirm actual maintenance cost
+      </label>
+      <button type="submit"
+        class="w-full px-4 py-2 rounded-lg btn-success text-sm font-extrabold">
+        Mark Completed
+      </button>
+    </form>
+    {% else %}
+      <div class="pt-4 border-t border-slate-100 dark:border-slate-800">
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Completed At</p>
+        <p class="text-sm text-slate-700 dark:text-slate-200">{{ task.completed_at or "—" }}</p>
+        <p class="text-xs text-slate-500 mt-1 whitespace-pre-wrap">{{ task.completion_notes or "" }}</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+</div>
+{% endblock %}

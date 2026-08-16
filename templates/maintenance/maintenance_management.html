@@ -1,0 +1,841 @@
+{# =========================
+   maintenance_management.html
+   ========================= #}
+{% extends "layouts/base.html" %}
+{% block title %}Maintenance Management - Opsloom{% endblock %}
+
+{% block content %}
+{% set page_title = "Maintenance Management" %}
+{% set title_icon = "build_circle" %}
+{% set page_subtitle = "Central control for preventive and corrective schedules, technician assignments, and print-ready task records." %}
+{% set show_system_badge = true %}
+{% set breadcrumbs = [
+  {"label":"Maintenance", "href": url_for("maintenance_management")},
+  {"label":"Schedules"}
+] %}
+{% include "partials/title_block.html" %}
+
+<!-- KPI Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
+  <div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+    <div class="flex justify-between items-start">
+      <div>
+        <p class="text-sm font-medium text-slate-500">Total PMs Scheduled</p>
+        <h3 class="text-3xl font-bold mt-1 text-slate-900 dark:text-white" id="maintenanceKpiPmMonth">{{ kpi_total_pm_month }}</h3>
+      </div>
+      <div class="p-2 bg-slate-50 dark:bg-slate-800 text-ueal-purple rounded-lg">
+        <span class="material-symbols-outlined">calendar_today</span>
+      </div>
+    </div>
+    <p class="mt-4 text-xs text-slate-400">For Current Month</p>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+    <div class="flex justify-between items-start">
+      <div>
+        <p class="text-sm font-medium text-slate-500">Overdue Tasks</p>
+        <h3 class="text-3xl font-bold mt-1 text-red-500" id="maintenanceKpiOverdue">{{ kpi_overdue }}</h3>
+      </div>
+      <div class="p-2 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-lg">
+        <span class="material-symbols-outlined">notification_important</span>
+      </div>
+    </div>
+    <p class="mt-4 text-xs text-slate-400"><span class="text-red-500 font-bold">Requires attention</span></p>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+    <div class="flex justify-between items-start">
+      <div>
+        <p class="text-sm font-medium text-slate-500">Upcoming (7 Days)</p>
+        <h3 class="text-3xl font-bold mt-1 text-slate-900 dark:text-white" id="maintenanceKpiUpcoming">{{ kpi_upcoming_7 }}</h3>
+      </div>
+      <div class="p-2 bg-amber-50 dark:bg-amber-900/20 text-amber-500 rounded-lg">
+        <span class="material-symbols-outlined">upcoming</span>
+      </div>
+    </div>
+    <p class="mt-4 text-xs text-slate-400">Resource allocation pending</p>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+    <div class="flex justify-between items-start">
+      <div>
+        <p class="text-sm font-medium text-slate-500">PM Compliance Rate</p>
+        <h3 class="text-3xl font-bold mt-1 text-slate-900 dark:text-white"><span id="maintenanceKpiCompliance">{{ "%.1f"|format(kpi_compliance_rate) }}</span>%</h3>
+      </div>
+      {% set circ = 125.6 %}
+      {% set offset = circ - (circ * (kpi_compliance_rate / 100.0)) %}
+      <div class="relative w-12 h-12">
+        <svg class="w-full h-full transform -rotate-90">
+          <circle class="text-slate-100 dark:text-slate-800" cx="24" cy="24" fill="transparent" r="20" stroke="currentColor" stroke-width="4"></circle>
+          <circle id="maintenanceComplianceRing" class="text-ueal-gold" cx="24" cy="24" fill="transparent" r="20" stroke="currentColor"
+                  stroke-dasharray="{{ circ }}" stroke-dashoffset="{{ offset }}" stroke-width="4"></circle>
+        </svg>
+      </div>
+    </div>
+    <p class="mt-4 text-xs text-slate-400">Annual target: 98%</p>
+  </div>
+  <div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+    <div class="flex justify-between items-start gap-3">
+      <div>
+        <p class="text-sm font-medium text-slate-500">Actual Maintenance Cost</p>
+        <h3 class="text-3xl font-bold mt-1 text-slate-900 dark:text-white">{{ kpi_cost_total|kes0 }}</h3>
+      </div>
+      <div class="p-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-lg">
+        <span class="material-symbols-outlined">payments</span>
+      </div>
+    </div>
+    <p class="mt-3 text-xs text-slate-500">Scheduled cost plan this year: <span class="font-extrabold text-slate-700 dark:text-slate-200">{{ (kpi_estimated_cost_total or 0)|kes0 }}</span></p>
+    <p class="mt-1 text-[11px] text-slate-400">This updates only after a task is completed and the actual maintenance cost is confirmed.</p>
+  </div>
+</div>
+
+<!-- Table Card -->
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+  <form method="GET" class="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
+    <!-- Left: Search + Filters -->
+    <div class="flex items-center gap-3 w-full">
+      <div class="relative flex-1 min-w-[240px]">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+        <input name="q" value="{{ q or '' }}"
+               class="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
+               placeholder="Search machines, IDs, task title, technician..." type="text"/>
+      </div>
+
+      <!-- Filters button + popover -->
+      <div class="relative">
+        <button type="button" id="filterBtn"
+                class="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2">
+          <span class="material-symbols-outlined text-base">filter_list</span>
+          Filters
+        </button>
+
+        <div id="filterPanel"
+             class="hidden absolute left-0 sm:left-auto sm:right-0 mt-2 w-full sm:w-[380px] max-w-[96vw] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl p-4 z-30">
+          <div class="flex items-center justify-between mb-3">
+            <div class="text-sm font-extrabold text-slate-900 dark:text-white">Filters</div>
+            <button type="button" id="filterClose"
+                    class="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center">
+              <span class="material-symbols-outlined text-slate-500">close</span>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div class="col-span-2">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Section</label>
+              <select name="section" class="mt-1 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-ueal-purple/20 outline-none text-slate-700 dark:text-slate-300">
+                <option value="">All Sections</option>
+                {% for s in sections %}
+                  <option value="{{ s }}" {% if selected_section == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div>
+              <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Type</label>
+              <select name="type" class="mt-1 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-ueal-purple/20 outline-none text-slate-700 dark:text-slate-300">
+                <option value="">All Types</option>
+                <option value="PM" {% if selected_type == 'PM' %}selected{% endif %}>Preventive (PM)</option>
+                <option value="CM" {% if selected_type == 'CM' %}selected{% endif %}>Corrective (CM)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Frequency</label>
+              <select name="frequency" class="mt-1 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-ueal-purple/20 outline-none text-slate-700 dark:text-slate-300">
+                <option value="">All Frequencies</option>
+                {% for f in ['Daily','Weekly','Monthly','Quarterly','Bi-Annually','Annually','One-time'] %}
+                  <option value="{{ f }}" {% if selected_frequency == f %}selected{% endif %}>{{ f }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-span-2">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Technician</label>
+              <select name="technician" class="mt-1 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-ueal-purple/20 outline-none text-slate-700 dark:text-slate-300">
+                <option value="">All Technicians</option>
+                {% for t in technicians %}
+                  <option value="{{ t }}" {% if selected_technician == t %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div>
+              <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Status</label>
+              <select name="status" class="mt-1 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-ueal-purple/20 outline-none text-slate-700 dark:text-slate-300">
+                <option value="">All Status</option>
+                <option value="upcoming" {% if selected_status == 'upcoming' %}selected{% endif %}>Upcoming</option>
+                <option value="overdue" {% if selected_status == 'overdue' %}selected{% endif %}>Overdue</option>
+                <option value="completed" {% if selected_status == 'completed' %}selected{% endif %}>Completed</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Due range</label>
+              <div class="mt-1 flex items-center gap-2">
+                <input name="due_from" value="{{ selected_due_from or '' }}" type="date"
+                       class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-sm outline-none text-slate-700 dark:text-slate-300"/>
+                <span class="text-xs text-slate-400">to</span>
+                <input name="due_to" value="{{ selected_due_to or '' }}" type="date"
+                       class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-sm outline-none text-slate-700 dark:text-slate-300"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 flex items-center justify-between">
+            <a href="{{ url_for('maintenance_management') }}"
+               class="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+              Clear
+            </a>
+            <button type="submit"
+                    class="px-4 py-2 rounded-lg bg-ueal-purple text-white text-sm font-bold hover:bg-ueal-purple/90">
+              Apply
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Actions -->
+    <div class="flex items-center gap-3 w-full lg:w-auto justify-end" data-no-print>
+      {% set export_links = [
+        {"href": url_for('maintenance_export', fmt='csv', q=q, section=selected_section, type=selected_type, frequency=selected_frequency, technician=selected_technician, status=selected_status, due_from=selected_due_from, due_to=selected_due_to), "icon": "description", "label": "Export CSV"},
+        {"href": url_for('maintenance_export', fmt='xlsx', q=q, section=selected_section, type=selected_type, frequency=selected_frequency, technician=selected_technician, status=selected_status, due_from=selected_due_from, due_to=selected_due_to), "icon": "table_view", "label": "Export Excel"},
+        {"href": url_for('maintenance_export', fmt='pdf', q=q, section=selected_section, type=selected_type, frequency=selected_frequency, technician=selected_technician, status=selected_status, due_from=selected_due_from, due_to=selected_due_to), "icon": "picture_as_pdf", "label": "Export PDF"}
+      ] %}
+      {% set button_label = 'EXPORT' %}
+      {% include 'partials/export_menu.html' %}
+
+      <a href="{{ url_for('maintenance_schedule_step1') }}"
+         class="bg-ueal-gold text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-ueal-gold/90 transition-shadow shadow-md">
+        <span class="material-symbols-outlined text-lg">add</span> SCHEDULE NEW PM
+      </a>
+      <a href="{{ url_for('maintenance_calendar') }}"
+         class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+        View Calendar
+      </a>
+    </div>
+  </form>
+
+  <div class="overflow-x-auto">
+    <table class="w-full text-left">
+      <thead>
+      <tr class="bg-slate-50 dark:bg-slate-800/50 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
+        <th class="px-6 py-4">Asset Name / ID</th>
+        <th class="px-6 py-4">Type</th>
+        <th class="px-6 py-4">Frequency</th>
+        <th class="px-6 py-4">Next Due Date</th>
+        <th class="px-6 py-4">Technician</th>
+        <th class="px-6 py-4">Status</th>
+        <th class="px-6 py-4 text-right">Actions</th>
+      </tr>
+      </thead>
+
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+      {% for t in tasks %}
+        <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+          <td class="px-6 py-5">
+            <div class="flex flex-col">
+              <span class="font-bold text-slate-800 dark:text-slate-100">{{ t.asset_name }}</span>
+              <span class="text-xs text-slate-500 mt-1">ID: {{ t.asset_id }}</span>
+              <span class="text-[10px] text-slate-400 mt-1">{{ t.section }}</span>
+            </div>
+          </td>
+
+          <td class="px-6 py-5">
+            {% if t.maintenance_type == "PM" %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-ueal-purple/10 text-ueal-purple">PM</span>
+            {% else %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-ueal-gold/10 text-ueal-gold">CM</span>
+            {% endif %}
+          </td>
+
+          <td class="px-6 py-5">
+            <span class="text-sm dark:text-slate-300 font-medium">{{ t.frequency }}</span>
+          </td>
+
+          <td class="px-6 py-5 {% if t.status == 'overdue' %}text-red-500{% endif %}">
+            <div class="flex flex-col">
+              <span class="text-sm font-semibold dark:text-slate-300">{{ t.due_date }}</span>
+              {% if t.status == "overdue" %}
+                <span class="text-[10px]">Overdue</span>
+              {% elif t.status == "completed" %}
+                <span class="text-[10px] text-green-600 font-bold">Completed</span>
+              {% else %}
+                <span class="text-[10px] text-slate-400">Scheduled</span>
+              {% endif %}
+            </div>
+          </td>
+
+          <td class="px-6 py-5">
+            <div class="flex items-center gap-2">
+              <div class="w-6 h-6 rounded-full bg-ueal-gold/20 flex items-center justify-center text-[10px] font-bold text-ueal-purple">
+                {{ (t.technician_initials or "NA") }}
+              </div>
+              <span class="text-sm dark:text-slate-300">{{ t.technician or "Unassigned" }}</span>
+            </div>
+          </td>
+
+          <td class="px-6 py-5">
+            {% if t.status == "overdue" %}
+              <span class="inline-flex items-center gap-1.5 text-xs font-bold text-red-500">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span> Overdue
+              </span>
+            {% elif t.status == "completed" %}
+              <span class="inline-flex items-center gap-1.5 text-xs font-bold text-green-600">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-600"></span> Completed
+              </span>
+            {% else %}
+              <span class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500">
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Upcoming
+              </span>
+            {% endif %}
+          </td>
+
+          <td class="px-6 py-5 text-right">
+            {% set action_items = [
+              {"href": url_for('maintenance_view', task_id=t.task_id), "icon": "visibility", "label": "Preview"},
+              {"href": url_for('maintenance_view', task_id=t.task_id) ~ '?print=1&autoprint=1', "icon": "print", "label": "Print"},
+              {"href": url_for('maintenance_update_get', task_id=t.task_id), "icon": "edit", "label": "Update"},
+              {"type": "form", "href": url_for('maintenance_delete', task_id=t.task_id), "icon": "delete", "label": "Delete", "variant": "danger", "confirm": "Delete this task? This cannot be undone."}
+            ] %}
+            {% include 'partials/table_actions_menu.html' %}
+          </td>
+        </tr>
+      {% endfor %}
+
+      {% if tasks|length == 0 %}
+        <tr>
+          <td colspan="7" class="px-6 py-10 text-center text-slate-500 dark:text-slate-300">
+            No schedules found.
+          </td>
+        </tr>
+      {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <div class="p-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/30 dark:bg-slate-900/50">
+    <div class="flex items-center gap-6 flex-wrap">
+      <p class="text-[13px] text-slate-500">
+        Showing {{ showing_from }}-{{ showing_to }} of {{ total }} records
+      </p>
+
+      <div class="flex items-center gap-3 pl-0 sm:pl-6 sm:border-l border-slate-200 dark:border-slate-800">
+        <label class="text-[13px] text-slate-500 font-medium">Rows per page:</label>
+        <div class="relative">
+          <select name="per_page" form="perPageForm"
+                  class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded py-1 pl-2 pr-8 text-[13px] font-bold focus:ring-1 focus:ring-ueal-purple/20 outline-none text-slate-700 dark:text-slate-300 appearance-none cursor-pointer">
+            {% for n in [5,10,20,50] %}
+              <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }}</option>
+            {% endfor %}
+          </select>
+          <span class="material-symbols-outlined absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">expand_more</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-1">
+      {% for p in pages %}
+        {% if p == "…" %}
+          <span class="px-2 text-slate-400 text-xs font-bold">...</span>
+        {% else %}
+          <a href="{{ url_for('maintenance_management',
+                              q=q, section=selected_section, type=selected_type, frequency=selected_frequency,
+                              technician=selected_technician, status=selected_status,
+                              due_from=selected_due_from, due_to=selected_due_to,
+                              per_page=per_page, page=p) }}"
+             class="w-8 h-8 flex items-center justify-center rounded
+                    {% if page == p %}bg-ueal-purple text-white shadow-md{% else %}hover:bg-slate-200 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300{% endif %}">
+            {{ p }}
+          </a>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Analytics row -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+
+  <!-- Maintenance Distribution -->
+  <div class="lg:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+    <div class="p-5 border-b border-slate-200 dark:border-slate-800">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h3 class="text-base font-extrabold text-slate-900 dark:text-white">Maintenance Distribution</h3>
+          <p class="text-xs text-slate-500 mt-1">PM vs CM over time. Filter by section or specific asset.</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button type="button" id="mdToggle"
+                  class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2">
+            <span class="material-symbols-outlined text-sm" id="mdToggleIcon">expand_more</span>
+            <span id="mdToggleText">Show Filters</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Legend -->
+      <div class="flex items-center gap-4 mt-4">
+        <span class="inline-flex items-center gap-2 text-[11px] font-bold text-slate-500">
+          <span class="w-2 h-2 rounded-full bg-ueal-purple"></span> PREVENTIVE (PM)
+        </span>
+        <span class="inline-flex items-center gap-2 text-[11px] font-bold text-slate-500">
+          <span class="w-2 h-2 rounded-full bg-ueal-gold"></span> CORRECTIVE (CM)
+        </span>
+      </div>
+
+      <!-- Controls (collapsible) -->
+      <div id="mdControls" class="mt-4 hidden">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+          <div class="md:col-span-4">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Timeline</label>
+            <div class="relative mt-1">
+              <select id="mdRange"
+                      class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-sm outline-none text-slate-700 dark:text-slate-300">
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+                <option value="mtd" selected>Month to Date</option>
+                <option value="ytd">Year to Date</option>
+                <option value="q1">Q1 (Jan-Mar)</option>
+                <option value="q2">Q2 (Apr-Jun)</option>
+                <option value="q3">Q3 (Jul-Sep)</option>
+                <option value="q4">Q4 (Oct-Dec)</option>
+              </select>
+              <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">expand_more</span>
+            </div>
+          </div>
+
+          <div class="md:col-span-4">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Section</label>
+            <div class="relative mt-1">
+              <select id="mdSection"
+                      class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-sm outline-none text-slate-700 dark:text-slate-300">
+                <option value="">All Sections</option>
+                {% for s in sections %}
+                  <option value="{{ s }}">{{ s }}</option>
+                {% endfor %}
+              </select>
+              <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">expand_more</span>
+            </div>
+          </div>
+
+          <div class="md:col-span-4">
+            <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Asset</label>
+            <div class="relative mt-1">
+              <select id="mdAsset"
+                      class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-sm outline-none text-slate-700 dark:text-slate-300">
+                <option value="">All Assets</option>
+              </select>
+              <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">expand_more</span>
+            </div>
+          </div>
+
+          <div class="md:col-span-12 flex items-center justify-between gap-3">
+            <div id="mdMeta" class="text-xs text-slate-500">
+              Loading distribution…
+            </div>
+            <button type="button" id="mdReset"
+                    class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700">
+              Reset
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="p-5">
+      <div class="w-full relative" style="height: 320px;">
+        <canvas id="mdChart"></canvas>
+        <div id="mdFallback" class="hidden mt-3 text-sm text-slate-500">
+          Chart library not found. Ensure Chart.js exists at <b>static/vendor/chartjs/chart.umd.min.js</b>.
+        </div>
+      </div>
+      <div class="mt-4 pt-4 border-t border-slate-200 dark:border-dark-border">
+        <label class="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">Executive Notes / Insights</label>
+        <textarea id="mdNotes" rows="3" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 px-3 text-sm text-slate-700 dark:text-slate-200" placeholder="Optional management notes to include in the printed/exported report."></textarea>
+        <div class="mt-3 flex flex-wrap items-center justify-end gap-2">
+          <button type="button" id="mdPrintBtn" class="px-3 py-2 rounded-lg text-xs font-extrabold border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">Print</button>
+          <button type="button" data-md-export="pdf" class="px-3 py-2 rounded-lg text-xs font-extrabold bg-ueal-purple text-white">PDF</button>
+          <button type="button" data-md-export="xlsx" class="px-3 py-2 rounded-lg text-xs font-extrabold border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">Excel</button>
+          <button type="button" data-md-export="csv" class="px-3 py-2 rounded-lg text-xs font-extrabold border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">CSV</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-dark-surface p-6 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-sm font-extrabold tracking-wide text-slate-800 dark:text-white">Technician Workload</p>
+            <p id="taNote" class="text-xs text-slate-500 dark:text-slate-400 mt-1">Loading technician availability…</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <a href="{{ url_for('technicians_management') }}" class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">Directory</a>
+            <button type="button" id="taRefresh" class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-ueal-purple/10 text-ueal-purple">Refresh</button>
+          </div>
+        </div>
+        <div id="taList" class="mt-5 space-y-3"></div>
+      </div>
+    </div>
+
+</div>
+
+<!-- Hidden per-page form -->
+<form id="perPageForm" method="GET" class="hidden">
+  <input name="q" value="{{ q or '' }}">
+  <input name="section" value="{{ selected_section or '' }}">
+  <input name="type" value="{{ selected_type or '' }}">
+  <input name="frequency" value="{{ selected_frequency or '' }}">
+  <input name="technician" value="{{ selected_technician or '' }}">
+  <input name="status" value="{{ selected_status or '' }}">
+  <input name="due_from" value="{{ selected_due_from or '' }}">
+  <input name="due_to" value="{{ selected_due_to or '' }}">
+  <input name="page" value="1">
+</form>
+
+<script>
+  // Per-page (selector lives outside the form)
+  (function(){
+    const sel = document.querySelector('select[name="per_page"][form="perPageForm"]');
+    if (!sel) return;
+    sel.addEventListener('change', () => document.getElementById('perPageForm').submit());
+  })();
+
+  // Filter popover
+  (function(){
+    const btn = document.getElementById('filterBtn');
+    const panel = document.getElementById('filterPanel');
+    const closeBtn = document.getElementById('filterClose');
+
+    function closePanel(){ panel?.classList.add('hidden'); }
+
+    btn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      panel?.classList.toggle('hidden');
+    });
+
+    closeBtn?.addEventListener('click', closePanel);
+
+    document.addEventListener('click', (e) => {
+      if (!panel || panel.classList.contains('hidden')) return;
+      if (panel.contains(e.target) || btn.contains(e.target)) return;
+      closePanel();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closePanel();
+    });
+  })();
+
+  // Collapsible Maintenance Distribution controls (hidden by default + remember state)
+  (function(){
+    const KEY = 'eabc_md_filters_open';
+    const toggle = document.getElementById('mdToggle');
+    const controls = document.getElementById('mdControls');
+    const icon = document.getElementById('mdToggleIcon');
+    const text = document.getElementById('mdToggleText');
+
+    if (!toggle || !controls || !icon || !text) return;
+
+    function applyState(open){
+      controls.classList.toggle('hidden', !open);
+      icon.textContent = open ? 'expand_less' : 'expand_more';
+      text.textContent = open ? 'Hide Filters' : 'Show Filters';
+    }
+
+    const saved = localStorage.getItem(KEY);
+    const open = saved === '1';
+    applyState(open);
+
+    toggle.addEventListener('click', () => {
+      const nowOpen = controls.classList.contains('hidden');
+      applyState(nowOpen);
+      localStorage.setItem(KEY, nowOpen ? '1' : '0');
+    });
+  })();
+
+  // Maintenance Distribution
+  (function(){
+    const rangeEl = document.getElementById('mdRange');
+    const sectionEl = document.getElementById('mdSection');
+    const assetEl = document.getElementById('mdAsset');
+    const metaEl = document.getElementById('mdMeta');
+    const resetBtn = document.getElementById('mdReset');
+    const canvas = document.getElementById('mdChart');
+    const fallback = document.getElementById('mdFallback');
+
+    let chart = null;
+
+    function setMeta(text){ if (metaEl) metaEl.textContent = text; }
+
+    async function loadAssetsForSection(section){
+      assetEl.innerHTML = '<option value="">All Assets</option>';
+      if (!section) return;
+
+      try{
+        const res = await fetch(`{{ url_for('maintenance_assets_by_section') }}?section=${encodeURIComponent(section)}`, {
+          headers: { 'Accept': 'application/json' }
+        });
+        const data = await res.json();
+        const assets = Array.isArray(data.assets) ? data.assets : [];
+        for (const a of assets){
+          const opt = document.createElement('option');
+          opt.value = a.uid || '';
+          opt.textContent = `${a.asset_name || 'Asset'} (${a.asset_id || '—'})`;
+          assetEl.appendChild(opt);
+        }
+      }catch(e){}
+    }
+
+    async function fetchDistribution(){
+      const range = (rangeEl?.value || 'mtd');
+      const section = (sectionEl?.value || '');
+      const asset_uid = (assetEl?.value || '');
+
+      const qs = new URLSearchParams();
+      qs.set('range', range);
+      if (section) qs.set('section', section);
+      if (asset_uid) qs.set('asset_uid', asset_uid);
+
+      try{
+        const res = await fetch(`/api/maintenance/distribution?${qs.toString()}`, {
+          headers: { 'Accept': 'application/json' }
+        });
+        if (!res.ok) throw new Error('bad response');
+        return await res.json();
+      }catch(e){
+        return null;
+      }
+    }
+
+    function renderChart(payload){
+      if (!payload){
+        setMeta('Distribution not available for the selected filters. Refresh the card or confirm matching schedules exist in the selected period.');
+        if (chart) { chart.destroy(); chart = null; }
+        return;
+      }
+
+      const labels = payload.labels || [];
+      const pm = (payload.series && payload.series.pm) ? payload.series.pm : [];
+      const cm = (payload.series && payload.series.cm) ? payload.series.cm : [];
+      const totalPm = pm.reduce((a,b)=>a+(Number(b)||0),0);
+      const totalCm = cm.reduce((a,b)=>a+(Number(b)||0),0);
+
+      const scopeParts = [];
+      if (payload.filters?.section) scopeParts.push(payload.filters.section);
+      if (payload.filters?.asset_uid) scopeParts.push('Asset selected');
+      const scopeLabel = scopeParts.length ? scopeParts.join(' • ') : 'All';
+
+      setMeta(`Scope: ${scopeLabel} • PM: ${totalPm} • CM: ${totalCm}`);
+
+      if (typeof Chart === 'undefined'){
+        fallback?.classList.remove('hidden');
+        return;
+      }
+      fallback?.classList.add('hidden');
+
+      const cfg = {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            { label: 'PM', data: pm, backgroundColor: 'rgba(107, 86, 182, 0.85)' },
+            { label: 'CM', data: cm, backgroundColor: 'rgba(217, 169, 66, 0.85)' }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { enabled: true } },
+          scales: {
+            x: { stacked: true, grid: { display: false } },
+            y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }
+          }
+        }
+      };
+
+      if (chart) chart.destroy();
+      chart = new Chart(canvas.getContext('2d'), cfg);
+    }
+
+    async function refresh(){
+      setMeta('Loading distribution…');
+      const payload = await fetchDistribution();
+      renderChart(payload);
+    }
+
+    sectionEl?.addEventListener('change', async () => {
+      await loadAssetsForSection(sectionEl.value);
+      await refresh();
+    });
+    assetEl?.addEventListener('change', refresh);
+    rangeEl?.addEventListener('change', refresh);
+
+    resetBtn?.addEventListener('click', async () => {
+      rangeEl.value = 'mtd';
+      sectionEl.value = '';
+      assetEl.innerHTML = '<option value="">All Assets</option>';
+      await refresh();
+    });
+
+    (async function init(){
+      const presetSection = "{{ selected_section or '' }}";
+      if (presetSection){
+        sectionEl.value = presetSection;
+        await loadAssetsForSection(presetSection);
+      }
+      function exportUrl(fmt){
+        const qs = new URLSearchParams();
+        qs.set('format', fmt);
+        qs.set('range', rangeEl?.value || 'mtd');
+        if (sectionEl?.value) qs.set('section', sectionEl.value);
+        if (assetEl?.value) qs.set('asset_uid', assetEl.value);
+        const notes = document.getElementById('mdNotes');
+        if (notes?.value.trim()) qs.set('notes', notes.value.trim());
+        return `/maintenance/distribution/export?${qs.toString()}`;
+      }
+
+      document.querySelectorAll('[data-md-export]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          window.open(exportUrl(btn.getAttribute('data-md-export') || 'pdf'), '_blank');
+        });
+      });
+      document.getElementById('mdPrintBtn')?.addEventListener('click', () => {
+        window.open(exportUrl('html') + '&autoprint=1', '_blank');
+      });
+
+      await refresh();
+    })();
+  })();
+
+  // Technician Availability (Maintenance) — keep WIP
+  (function(){
+    const listEl = document.getElementById('taList');
+    const noteEl = document.getElementById('taNote');
+    const refreshBtn = document.getElementById('taRefresh');
+
+    function initials(name){
+      const n = (name || '').trim();
+      if (!n) return 'NA';
+      const parts = n.split(/\s+/).filter(Boolean);
+      if (parts.length === 1) return parts[0].slice(0,2).toUpperCase();
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+
+    function pill(label, kind){
+      const base = 'inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold';
+      if (kind === 'ok') return `<span class="${base} bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400">${label}</span>`;
+      if (kind === 'warn') return `<span class="${base} bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400">${label}</span>`;
+      return `<span class="${base} bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400">${label}</span>`;
+    }
+
+    function scoreToFlag(active){
+      if (active <= 1) return { txt: 'Available', kind: 'ok' };
+      if (active <= 3) return { txt: 'Moderate', kind: 'warn' };
+      return { txt: 'High Load', kind: 'bad' };
+    }
+
+    async function fetchAvailability(){
+      try{
+        const res = await fetch('/api/maintenance/technicians?range=30d', { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) throw new Error('bad response');
+        return await res.json();
+      }catch(e){
+        return null;
+      }
+    }
+
+    function render(payload){
+      listEl.innerHTML = '';
+
+      if (!payload){
+        noteEl.textContent = 'Technician availability is currently unavailable. Refresh the card or confirm technician and schedule data are available.';
+        return;
+      }
+
+      noteEl.textContent = payload.note || 'WIP: Live workload from maintenance tasks.';
+      const rows = Array.isArray(payload.rows) ? payload.rows : [];
+
+      if (!rows.length){
+        listEl.innerHTML = `<div class="text-sm text-slate-500">No technician data.</div>`;
+        return;
+      }
+
+      for (const r of rows){
+        const name = r.name || 'Unassigned';
+        const active = Number(r.active || 0);
+        const dueSoon = Number(r.due_soon || 0);
+
+        const flag = scoreToFlag(active);
+
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/40';
+
+        row.innerHTML = `
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-10 h-10 rounded-full bg-ueal-purple/10 flex items-center justify-center text-sm font-extrabold text-ueal-purple">
+              ${initials(name)}
+            </div>
+            <div class="min-w-0">
+              <div class="text-sm font-extrabold text-slate-900 dark:text-white truncate">${name}</div>
+              <div class="text-[11px] text-slate-500">
+                Active: <span class="font-bold text-slate-700 dark:text-slate-300">${active}</span>
+                • Due soon: <span class="font-bold ${dueSoon>0?'text-amber-600':'text-slate-700 dark:text-slate-300'}">${dueSoon}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 shrink-0">
+            ${pill(flag.txt, flag.kind)}
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+              ${active} ACTIVE
+            </span>
+          </div>
+        `;
+        listEl.appendChild(row);
+      }
+    }
+
+    async function refresh(){
+      noteEl.textContent = 'Loading technician availability…';
+      const payload = await fetchAvailability();
+      render(payload);
+    }
+
+    refreshBtn?.addEventListener('click', refresh);
+    refresh();
+  })();
+</script>
+{% endblock %}
+
+
+{% block page_scripts %}
+<script>
+(function(){
+  const url = {{ url_for('api_live_maintenance_kpis')|tojson }};
+  const circ = 125.6;
+  function setText(id, value){ const el = document.getElementById(id); if(el) el.textContent = value; }
+  async function refreshKpis(){
+    try{
+      const r = await fetch(url, {cache:'no-store', headers:{'X-Requested-With':'XMLHttpRequest'}});
+      if(!r.ok) return;
+      const k = await r.json();
+      setText('maintenanceKpiPmMonth', Number(k.kpi_total_pm_month || 0));
+      setText('maintenanceKpiOverdue', Number(k.kpi_overdue || 0));
+      setText('maintenanceKpiUpcoming', Number(k.kpi_upcoming_7 || 0));
+      setText('maintenanceKpiCompliance', Number(k.kpi_compliance_rate || 0).toFixed(1));
+      const ring = document.getElementById('maintenanceComplianceRing');
+      if(ring){
+        const offset = circ - (circ * (Math.max(0, Math.min(100, Number(k.kpi_compliance_rate || 0))) / 100));
+        ring.setAttribute('stroke-dashoffset', String(offset));
+      }
+    }catch(e){}
+  }
+  refreshKpis();
+  setInterval(refreshKpis, 1000);
+})();
+</script>
+{% endblock %}

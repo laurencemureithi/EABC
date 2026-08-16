@@ -1,0 +1,44 @@
+EABC REPORTS / PRINT / MAINTENANCE PATCH NOTES
+=============================================
+
+Patched areas
+-------------
+1. Strategic Improvement ROI & Action Plan report remodelled.
+   - Reduced wasted whitespace.
+   - Replaced weak layout with operational KPI, exposure, action plan, candidate projects, and ROI data gap sections.
+   - Added dedicated print template for the strategic report.
+   - Ensured report uses the executing user name instead of "System".
+
+2. Print behavior standardised.
+   - Added autoprint parameter to report, maintenance, breakdown, asset, and inventory print entry points that were missing it.
+   - Generic report print now uses the dedicated print layout.
+
+3. Print header overlap bug fixed.
+   - Removed fixed-position print header behavior that caused the logo/header to fall inside tables/cards on later pages.
+   - Added safer print table/header break handling.
+
+4. Maintenance wording cleaned up.
+   - "Collected Maintenance Cost" -> "Actual Maintenance Cost"
+   - "Collected" -> "Actual Cost Confirmed"
+   - "Mark cost as collected" -> "Confirm actual maintenance cost"
+   - Helper text updated to explain scheduled cost vs confirmed actual cost clearly.
+
+5. Maintenance schedule print expanded.
+   - Added date range filter (from / to).
+   - Added status filter (all / upcoming / overdue / completed).
+   - Added detailed task register below the machine frequency matrix.
+   - Calendar print link now opens the selected month period by default.
+
+6. Data / export cleanup.
+   - Maintenance export now respects asset_uid filter.
+   - Maintenance export column wording changed to "Actual Cost Confirmed".
+   - Chart print fallback uses user name instead of "System" where available.
+
+Validation performed
+--------------------
+- Python syntax compile: app.py
+- Jinja syntax parse: updated templates
+
+Note
+----
+This patch addresses the report/print/maintenance issues requested and nearby defects found during code review. It is not a full live end-to-end runtime QA across every screen in the system.

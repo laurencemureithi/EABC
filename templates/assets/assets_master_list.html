@@ -1,0 +1,882 @@
+{% extends "layouts/base.html" %}
+{% block title %}Asset Register • Opsloom{% endblock %}
+
+{% block content %}
+  {% set page_title = "Asset Register" %}
+  {% set title_icon = "precision_manufacturing" %}
+  {% set page_subtitle = "Standardized master asset view with search, export, print-ready profiles, and row-level actions." %}
+  {% set show_system_badge = true %}
+  {% set breadcrumbs = [
+    {"label":"Asset Register", "href": url_for("assets_master_list")},
+    {"label":"Master List"}
+  ] %}
+  {% include "partials/title_block.html" %}
+
+  <div class="max-w-6xl mx-auto space-y-6">
+
+    <!-- KPI CARDS -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div class="bg-white dark:bg-dark-surface p-6 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Total Assets</p>
+            <h3 class="text-3xl font-bold mt-1 text-slate-900 dark:text-white">{{ kpi_total }}</h3>
+          </div>
+          <div class="p-2 bg-slate-50 dark:bg-slate-800 text-ueal-purple dark:text-ueal-gold rounded-lg">
+            <span class="material-symbols-outlined">inventory_2</span>
+          </div>
+        </div>
+        <p class="mt-4 text-xs text-slate-400">Registered in Opsloom</p>
+      </div>
+
+      <div class="bg-white dark:bg-dark-surface p-6 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Operational</p>
+            <h3 class="text-3xl font-bold mt-1 text-green-600 dark:text-green-400">{{ kpi_operational }}</h3>
+          </div>
+          <div class="p-2 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-lg">
+            <span class="material-symbols-outlined">check_circle</span>
+          </div>
+        </div>
+        <p class="mt-4 text-xs text-slate-400">{{ "%.1f"|format(kpi_availability) }}% Availability</p>
+      </div>
+
+      <div class="bg-white dark:bg-dark-surface p-6 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Under Maintenance</p>
+            <h3 class="text-3xl font-bold mt-1 text-amber-500">{{ kpi_maintenance }}</h3>
+          </div>
+          <div class="p-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-lg">
+            <span class="material-symbols-outlined">build_circle</span>
+          </div>
+        </div>
+        <p class="mt-4 text-xs text-slate-400">Active work orders</p>
+      </div>
+
+      <div class="bg-white dark:bg-dark-surface p-6 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Out of Service</p>
+            <h3 class="text-3xl font-bold mt-1 text-red-500 dark:text-red-400">{{ kpi_oos }}</h3>
+          </div>
+          <div class="p-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
+            <span class="material-symbols-outlined">report</span>
+          </div>
+        </div>
+        <p class="mt-4 text-xs text-slate-400">Critical failures</p>
+      </div>
+    </div>
+
+    <!-- TABLE CARD -->
+    <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden flex flex-col">
+
+      <!-- FILTER FORM (server-side) -->
+      <form id="filterForm" method="get" action="{{ url_for('assets_master_list') }}">
+        <div class="p-4 border-b border-slate-200 dark:border-dark-border flex flex-wrap gap-4 items-center justify-between">
+
+          <div class="flex items-center gap-4 flex-1 min-w-[300px]">
+            <div class="relative flex-1 max-w-md">
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+              <input
+                name="q"
+                id="searchInput"
+                value="{{ q }}"
+                class="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
+                placeholder="Search assets by name, ID or serial..."
+                type="text"
+              />
+            </div>
+
+            <!-- Section auto-applies -->
+            <div class="relative">
+              <select
+                name="section"
+                id="sectionSelect"
+                class="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 pl-3 pr-10 text-sm focus:ring-2 focus:ring-ueal-purple/20 outline-none text-slate-700 dark:text-slate-300 appearance-none cursor-pointer">
+                <option value="">All Sections</option>
+                {% for s in sections %}
+                  <option value="{{ s }}" {% if selected_section == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+              </select>
+              <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+            </div>
+
+            <input type="hidden" name="per_page" value="{{ per_page }}">
+            <input type="hidden" name="page" value="1">
+          </div>
+
+          <div class="flex items-center gap-3" data-no-print>
+            <button type="button" id="toggleFilters"
+              class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-300">
+              <span class="material-symbols-outlined text-lg text-slate-400">filter_list</span>
+              Filters
+            </button>
+
+            {% set export_links = [
+              {"href": url_for('assets_export', fmt='csv', q=q, section=selected_section, status=selected_status, criticality=selected_criticality), "icon": "description", "label": "Export CSV"},
+              {"href": url_for('assets_export', fmt='xlsx', q=q, section=selected_section, status=selected_status, criticality=selected_criticality), "icon": "table_view", "label": "Export Excel"},
+              {"href": url_for('assets_export', fmt='pdf', q=q, section=selected_section, status=selected_status, criticality=selected_criticality), "icon": "picture_as_pdf", "label": "Export PDF"}
+            ] %}
+            {% include 'partials/export_menu.html' %}
+
+            <a href="{{ url_for('assets_add_step1_get') }}"
+               class="bg-ueal-gold text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:opacity-90 transition-shadow shadow-md">
+              <span class="material-symbols-outlined text-lg">add</span>
+              ADD NEW ASSET
+            </a>
+          </div>
+        </div>
+
+        <!-- Hidden filter panel -->
+        <div id="filterPanel" class="hidden p-4 border-b border-slate-200 dark:border-dark-border bg-slate-50/40 dark:bg-slate-800/30">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+            <div class="relative">
+              <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 block">Status</label>
+              <select name="status"
+                      class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 pl-3 pr-10 text-sm font-semibold text-slate-700 dark:text-slate-200 appearance-none">
+                <option value="" {% if not selected_status %}selected{% endif %}>All</option>
+                <option value="operational" {% if selected_status == "operational" %}selected{% endif %}>Operational</option>
+                <option value="maintenance" {% if selected_status == "maintenance" %}selected{% endif %}>Maintenance</option>
+                <option value="out_of_service" {% if selected_status == "out_of_service" %}selected{% endif %}>Out of Service</option>
+              </select>
+              <span class="material-symbols-outlined absolute right-2 top-1/2 translate-y-2 text-slate-400 pointer-events-none">expand_more</span>
+            </div>
+
+            <div class="relative">
+              <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 block">Criticality</label>
+              <select name="criticality"
+                      class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 pl-3 pr-10 text-sm font-semibold text-slate-700 dark:text-slate-200 appearance-none">
+                <option value="" {% if not selected_criticality %}selected{% endif %}>All</option>
+                <option value="A" {% if selected_criticality == "A" %}selected{% endif %}>A</option>
+                <option value="B" {% if selected_criticality == "B" %}selected{% endif %}>B</option>
+                <option value="C" {% if selected_criticality == "C" %}selected{% endif %}>C</option>
+              </select>
+              <span class="material-symbols-outlined absolute right-2 top-1/2 translate-y-2 text-slate-400 pointer-events-none">expand_more</span>
+            </div>
+
+            <div class="flex items-end gap-3">
+              <button type="submit"
+                class="bg-ueal-purple text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:opacity-95 transition-all active:scale-95">
+                Apply Filters
+              </button>
+
+              <a href="{{ url_for('assets_master_list') }}"
+                 class="px-5 py-2.5 rounded-lg text-sm font-bold border border-slate-200 dark:border-dark-border text-slate-600 dark:text-slate-200 bg-white dark:bg-dark-surface hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+                Reset
+              </a>
+            </div>
+
+          </div>
+        </div>
+      </form>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left">
+          <thead>
+            <tr class="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold tracking-wider">
+              <th class="px-6 py-4">Asset ID</th>
+              <th class="px-6 py-4">Asset Name</th>
+              <th class="px-6 py-4">Section</th>
+              <th class="px-6 py-4">Serial No.</th>
+              <th class="px-6 py-4">Status</th>
+              <th class="px-6 py-4">Criticality</th>
+              <th class="px-6 py-4 text-center">Actions</th>
+            </tr>
+          </thead>
+
+          <tbody class="divide-y divide-slate-100 dark:divide-dark-border">
+            {% if assets and assets|length > 0 %}
+              {% for a in assets %}
+                <tr class="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
+                  <td class="px-6 py-5 font-bold text-ueal-purple dark:text-ueal-gold text-sm">{{ a.asset_id }}</td>
+
+                  <td class="px-6 py-5">
+                    <div class="flex items-center gap-3">
+                      {% if a.photo_url %}
+                        <img src="{{ a.photo_url }}" class="w-10 h-10 rounded-lg object-cover border border-slate-200 dark:border-dark-border" alt="photo"/>
+                      {% else %}
+                        <div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-dark-border flex items-center justify-center">
+                          <span class="material-symbols-outlined text-slate-400 text-lg">image</span>
+                        </div>
+                      {% endif %}
+                      <div class="flex flex-col">
+                        <span class="font-bold text-slate-800 dark:text-white">{{ a.asset_name }}</span>
+                        <span class="text-xs text-slate-400">Manufacturer: {{ a.manufacturer or "—" }}</span>
+                      </div>
+                    </div>
+                  </td>
+
+                  <td class="px-6 py-5">
+                    <span class="text-sm font-medium text-slate-600 dark:text-slate-400">{{ a.section }}</span>
+                  </td>
+
+                  <td class="px-6 py-5">
+                    <code class="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-700 dark:text-slate-300">{{ a.serial_no or "—" }}</code>
+                  </td>
+
+                  <td class="px-6 py-5">
+                    {% if a.status == "operational" %}
+                      <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">OPERATIONAL</span>
+                    {% elif a.status == "maintenance" %}
+                      <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">MAINTENANCE</span>
+                    {% else %}
+                      <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400">OUT OF SERVICE</span>
+                    {% endif %}
+                  </td>
+
+                  <td class="px-6 py-5">
+                    {% set c = a.criticality %}
+                    {% if c == "A" %}
+                      <div class="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 flex items-center justify-center font-bold text-xs border-2 border-white dark:border-dark-surface shadow-sm" title="Criticality A">A</div>
+                    {% elif c == "B" %}
+                      <div class="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 flex items-center justify-center font-bold text-xs border-2 border-white dark:border-dark-surface shadow-sm" title="Criticality B">B</div>
+                    {% else %}
+                      <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 flex items-center justify-center font-bold text-xs border-2 border-white dark:border-dark-surface shadow-sm" title="Criticality C">C</div>
+                    {% endif %}
+                  </td>
+
+                  <td class="px-6 py-5 text-center">
+                    {% set action_items = [
+                      {"href": url_for('assets_profile_get', asset_uid=a.uid), "icon": "visibility", "label": "Preview"},
+                      {"href": url_for('assets_profile_get', asset_uid=a.uid) ~ '?print=1&autoprint=1', "icon": "print", "label": "Print"},
+                      {"href": url_for('assets_edit_get', asset_uid=a.uid), "icon": "edit", "label": "Edit"},
+                      {"type": "form", "href": url_for('assets_delete', asset_uid=a.uid), "icon": "delete", "label": "Delete", "variant": "danger", "confirm": "Delete this asset permanently? This cannot be undone.", "hidden_inputs": [{"name": "next", "value": request.full_path}]}
+                    ] %}
+                    {% include 'partials/table_actions_menu.html' %}
+                  </td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="7" class="px-6 py-10 text-center text-slate-500 dark:text-slate-400">
+                  No assets found. Click <span class="font-bold">ADD NEW ASSET</span> to register one.
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- FOOTER: rows-per-page + pagination -->
+      <div class="p-4 border-t border-slate-200 dark:border-dark-border flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/30 dark:bg-slate-800/30">
+        <div class="flex items-center gap-6">
+          <p class="text-[13px] text-slate-500 dark:text-slate-400">
+            Showing {{ showing_from }}-{{ showing_to }} of {{ total }} records
+          </p>
+
+          <form method="get" action="{{ url_for('assets_master_list') }}" class="flex items-center gap-3 pl-6 border-l border-slate-200 dark:border-dark-border">
+            <input type="hidden" name="q" value="{{ q }}">
+            <input type="hidden" name="section" value="{{ selected_section }}">
+            <input type="hidden" name="status" value="{{ selected_status }}">
+            <input type="hidden" name="criticality" value="{{ selected_criticality }}">
+            <input type="hidden" name="page" value="1">
+
+            <label class="text-[13px] text-slate-500 dark:text-slate-400 font-medium">Rows per page:</label>
+            <div class="relative">
+              <select name="per_page" onchange="this.form.submit()"
+                class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded py-1 pl-2 pr-8 text-[13px] font-bold focus:ring-1 focus:ring-ueal-purple/20 outline-none text-slate-700 dark:text-slate-300 appearance-none cursor-pointer">
+                <option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
+                <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+                <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+              </select>
+              <span class="material-symbols-outlined absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">expand_more</span>
+            </div>
+          </form>
+        </div>
+
+        <div class="flex items-center gap-1">
+          <a class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 {% if page <= 1 %}pointer-events-none opacity-30{% endif %}"
+             href="{{ url_for('assets_master_list',
+                page=page-1,
+                q=q,
+                section=selected_section,
+                status=selected_status,
+                criticality=selected_criticality,
+                per_page=per_page
+             ) }}">
+            <span class="material-symbols-outlined">chevron_left</span>
+          </a>
+
+          {% for p in range(1, total_pages + 1) %}
+            {% if p <= 3 or p == total_pages or (p >= page-1 and p <= page+1) %}
+              {% if p == page %}
+                <span class="w-8 h-8 flex items-center justify-center rounded bg-ueal-purple text-white text-xs font-bold shadow-md">{{ p }}</span>
+              {% else %}
+                <a class="w-8 h-8 flex items-center justify-center rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300 transition-colors"
+                   href="{{ url_for('assets_master_list',
+                      page=p,
+                      q=q,
+                      section=selected_section,
+                      status=selected_status,
+                      criticality=selected_criticality,
+                      per_page=per_page
+                   ) }}">{{ p }}</a>
+              {% endif %}
+            {% elif p == 4 %}
+              <span class="px-2 text-slate-400 text-xs font-bold">...</span>
+            {% endif %}
+          {% endfor %}
+
+          <a class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 {% if page >= total_pages %}pointer-events-none opacity-30{% endif %}"
+             href="{{ url_for('assets_master_list',
+                page=page+1,
+                q=q,
+                section=selected_section,
+                status=selected_status,
+                criticality=selected_criticality,
+                per_page=per_page
+             ) }}">
+            <span class="material-symbols-outlined">chevron_right</span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===========================================================
+         SMART ASSET INSIGHTS (DASHBOARD BELOW TABLE)
+         =========================================================== -->
+    <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+
+      <div class="p-5 border-b border-slate-200 dark:border-dark-border flex items-start justify-between gap-4">
+        <div>
+          <h3 class="text-lg font-extrabold text-slate-900 dark:text-white">Smart Asset Insights</h3>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Slice the fleet by section, status, and criticality. Then export exactly what you selected.
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <a id="btnDownloadPdf"
+             href="{{ url_for('assets_master_list') }}"
+             class="px-4 py-2 rounded-lg text-sm font-bold bg-ueal-purple text-white hover:opacity-95 transition">
+            Download PDF
+          </a>
+          <button id="btnPrint"
+            class="px-4 py-2 rounded-lg text-sm font-bold border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+            Print
+          </button>
+        </div>
+      </div>
+
+      <div class="p-5 space-y-5">
+
+        <!-- Quick stats -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="rounded-xl border border-slate-200 dark:border-dark-border p-4 bg-slate-50/40 dark:bg-slate-800/30">
+            <div class="flex items-center justify-between">
+              <p class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Selection Size</p>
+              <span class="material-symbols-outlined text-slate-400">tune</span>
+            </div>
+            <div class="mt-2 text-3xl font-extrabold text-slate-900 dark:text-white" id="selCount">0</div>
+            <div class="mt-2 text-xs text-slate-500 dark:text-slate-400" id="selMeta">—</div>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 dark:border-dark-border p-4">
+            <p class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Status Split</p>
+            <div class="mt-3 h-[180px]">
+              <canvas id="statusDonut"></canvas>
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 dark:border-dark-border p-4">
+            <p class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Status by Section</p>
+            <div class="mt-3 h-[180px]">
+              <canvas id="sectionBar"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="rounded-xl border border-slate-200 dark:border-dark-border p-4">
+            <p class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-3">Sections</p>
+            <div id="sectionChips" class="flex flex-wrap gap-2"></div>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 dark:border-dark-border p-4">
+            <p class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-3">Status</p>
+            <div class="flex flex-wrap gap-2">
+              <button data-status="" class="statusChip px-3 py-1.5 rounded-full text-xs font-black border border-slate-200 dark:border-dark-border">ALL</button>
+              <button data-status="operational" class="statusChip px-3 py-1.5 rounded-full text-xs font-black border border-slate-200 dark:border-dark-border">OPERATIONAL</button>
+              <button data-status="maintenance" class="statusChip px-3 py-1.5 rounded-full text-xs font-black border border-slate-200 dark:border-dark-border">MAINTENANCE</button>
+              <button data-status="out_of_service" class="statusChip px-3 py-1.5 rounded-full text-xs font-black border border-slate-200 dark:border-dark-border">OUT OF SERVICE</button>
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 dark:border-dark-border p-4">
+            <p class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-3">Criticality</p>
+            <div class="flex flex-wrap gap-2">
+              <button data-crit="" class="critChip px-3 py-1.5 rounded-full text-xs font-black border border-slate-200 dark:border-dark-border">ALL</button>
+              <button data-crit="A" class="critChip px-3 py-1.5 rounded-full text-xs font-black border border-slate-200 dark:border-dark-border">A</button>
+              <button data-crit="B" class="critChip px-3 py-1.5 rounded-full text-xs font-black border border-slate-200 dark:border-dark-border">B</button>
+              <button data-crit="C" class="critChip px-3 py-1.5 rounded-full text-xs font-black border border-slate-200 dark:border-dark-border">C</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div class="rounded-xl border border-slate-200 dark:border-dark-border overflow-hidden">
+          <div class="p-4 border-b border-slate-200 dark:border-dark-border flex items-center justify-between">
+            <div>
+              <p class="text-sm font-extrabold text-slate-900 dark:text-white">Selected Machines</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400" id="resultsHint">—</p>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left" id="resultsTable">
+              <thead>
+                <tr class="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold tracking-wider">
+                  <th class="px-6 py-3">Asset ID</th>
+                  <th class="px-6 py-3">Asset Name</th>
+                  <th class="px-6 py-3">Section</th>
+                  <th class="px-6 py-3">Status</th>
+                  <th class="px-6 py-3">Criticality</th>
+                  <th class="px-6 py-3">Serial</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-dark-border" id="resultsBody">
+                <tr>
+                  <td colspan="6" class="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
+                    Loading selection engine…
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Toggle filter panel
+    (function () {
+      const btn = document.getElementById("toggleFilters");
+      const panel = document.getElementById("filterPanel");
+      if (btn && panel) btn.addEventListener("click", () => panel.classList.toggle("hidden"));
+    })();
+
+    // Section auto-apply (server-side filter)
+    (function () {
+      const section = document.getElementById("sectionSelect");
+      const form = document.getElementById("filterForm");
+      if (section && form) section.addEventListener("change", () => form.submit());
+    })();
+
+    // Search: small debounce then submit
+    (function () {
+      const input = document.getElementById("searchInput");
+      const form = document.getElementById("filterForm");
+      if (!input || !form) return;
+      let t = null;
+      input.addEventListener("input", () => {
+        clearTimeout(t);
+        t = setTimeout(() => form.submit(), 450);
+      });
+    })();
+  </script>
+
+  <script>
+    // ============================
+    // Smart Asset Insights Engine
+    // ============================
+    (function () {
+      const apiUrl = "/api/assets/dashboard";
+
+      const sectionChips = document.getElementById("sectionChips");
+      const selCount = document.getElementById("selCount");
+      const selMeta = document.getElementById("selMeta");
+      const resultsHint = document.getElementById("resultsHint");
+      const resultsBody = document.getElementById("resultsBody");
+
+      const btnPrint = document.getElementById("btnPrint");
+      const btnDownloadPdf = document.getElementById("btnDownloadPdf");
+
+      let allAssets = [];
+      let selectedSections = new Set(); // empty => ALL
+      let selectedStatus = "";          // "" => ALL
+      let selectedCrit = "";            // "" => ALL
+
+      let donutChart = null;
+      let barChart = null;
+
+      function norm(s){ return (s || "").toString().trim(); }
+
+      function statusLabel(st){
+        st = norm(st);
+        if (st === "operational") return "Operational";
+        if (st === "maintenance") return "Maintenance";
+        return "Out of Service";
+      }
+
+      function buildQueryForReport(){
+        const params = new URLSearchParams();
+        if (selectedSections.size > 0) {
+          selectedSections.forEach(s => params.append("section", s));
+        }
+        if (selectedStatus) params.set("status", selectedStatus);
+        if (selectedCrit) params.set("criticality", selectedCrit);
+        return params.toString();
+      }
+
+      function chipClass(active){
+        return active
+          ? "px-3 py-1.5 rounded-full text-xs font-black bg-ueal-purple text-white"
+          : "px-3 py-1.5 rounded-full text-xs font-black border border-slate-200 dark:border-dark-border text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition";
+      }
+
+      function renderSectionChips(sections){
+        if (!sectionChips) return;
+        sectionChips.innerHTML = "";
+
+        const allBtn = document.createElement("button");
+        allBtn.type = "button";
+        allBtn.textContent = "ALL";
+        allBtn.className = chipClass(selectedSections.size === 0);
+        allBtn.addEventListener("click", () => {
+          selectedSections = new Set();
+          renderSectionChips(sections);
+          refresh();
+        });
+        sectionChips.appendChild(allBtn);
+
+        sections.forEach(sec => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.textContent = sec;
+          b.className = chipClass(selectedSections.has(sec));
+          b.addEventListener("click", () => {
+            if (selectedSections.has(sec)) selectedSections.delete(sec);
+            else selectedSections.add(sec);
+            renderSectionChips(sections);
+            refresh();
+          });
+          sectionChips.appendChild(b);
+        });
+      }
+
+      function setChipActive(groupSelector, attr, value){
+        document.querySelectorAll(groupSelector).forEach(btn => {
+          const v = btn.getAttribute(attr) || "";
+          const active = (v === value);
+          btn.className = active
+            ? "px-3 py-1.5 rounded-full text-xs font-black bg-ueal-purple text-white"
+            : "px-3 py-1.5 rounded-full text-xs font-black border border-slate-200 dark:border-dark-border text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition";
+        });
+      }
+
+      function bindStatusAndCritChips(){
+        document.querySelectorAll(".statusChip").forEach(btn => {
+          btn.addEventListener("click", () => {
+            selectedStatus = btn.getAttribute("data-status") || "";
+            setChipActive(".statusChip", "data-status", selectedStatus);
+            refresh();
+          });
+        });
+        document.querySelectorAll(".critChip").forEach(btn => {
+          btn.addEventListener("click", () => {
+            selectedCrit = btn.getAttribute("data-crit") || "";
+            setChipActive(".critChip", "data-crit", selectedCrit);
+            refresh();
+          });
+        });
+
+        setChipActive(".statusChip", "data-status", "");
+        setChipActive(".critChip", "data-crit", "");
+      }
+
+      function filterAssets(){
+        return allAssets.filter(a => {
+          const secOk = (selectedSections.size === 0) || selectedSections.has(norm(a.section));
+          const stOk  = (!selectedStatus) || norm(a.status) === selectedStatus;
+          const cOk   = (!selectedCrit) || norm(a.criticality) === selectedCrit;
+          return secOk && stOk && cOk;
+        });
+      }
+
+      function countByStatus(items){
+        const out = { operational: 0, maintenance: 0, out_of_service: 0 };
+        items.forEach(a => {
+          const s = norm(a.status);
+          if (s === "operational") out.operational++;
+          else if (s === "maintenance") out.maintenance++;
+          else out.out_of_service++;
+        });
+        return out;
+      }
+
+      function countBySectionAndStatus(items){
+        const map = {};
+        items.forEach(a => {
+          const sec = norm(a.section) || "Unspecified";
+          map[sec] = map[sec] || { operational: 0, maintenance: 0, out_of_service: 0 };
+          const s = norm(a.status);
+          if (s === "operational") map[sec].operational++;
+          else if (s === "maintenance") map[sec].maintenance++;
+          else map[sec].out_of_service++;
+        });
+        const sections = Object.keys(map).sort((x,y)=>x.localeCompare(y));
+        return { sections, map };
+      }
+
+      function renderCharts(items){
+        if (typeof Chart === "undefined") {
+          console.error("Chart.js not loaded. Include it in base.html (chart.umd.min.js or CDN).");
+          return;
+        }
+
+        const st = countByStatus(items);
+        const donutCtx = document.getElementById("statusDonut");
+        const barCtx = document.getElementById("sectionBar");
+
+        if (!donutCtx || !barCtx) return;
+
+        if (donutChart) donutChart.destroy();
+        if (barChart) barChart.destroy();
+
+        donutChart = new Chart(donutCtx, {
+          type: "doughnut",
+          data: {
+            labels: ["Operational", "Maintenance", "Out of Service"],
+            datasets: [{ data: [st.operational, st.maintenance, st.out_of_service] }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: "bottom" } }
+          }
+        });
+
+        const ss = countBySectionAndStatus(items);
+        barChart = new Chart(barCtx, {
+          type: "bar",
+          data: {
+            labels: ss.sections,
+            datasets: [
+              { label: "Operational", data: ss.sections.map(s => ss.map[s].operational) },
+              { label: "Maintenance", data: ss.sections.map(s => ss.map[s].maintenance) },
+              { label: "Out of Service", data: ss.sections.map(s => ss.map[s].out_of_service) },
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+            plugins: { legend: { position: "bottom" } }
+          }
+        });
+      }
+
+      function renderResults(items){
+        if (!resultsBody) return;
+
+        if (!items.length) {
+          resultsBody.innerHTML = `
+            <tr>
+              <td colspan="6" class="px-6 py-10 text-center text-slate-500 dark:text-slate-400">
+                No machines match the current selection.
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        const rows = items.slice(0, 200).map(a => `
+          <tr class="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
+            <td class="px-6 py-4 font-bold text-ueal-purple dark:text-ueal-gold text-sm">${norm(a.asset_id)}</td>
+            <td class="px-6 py-4">
+              <div class="flex flex-col">
+                <span class="font-bold text-slate-800 dark:text-white">${norm(a.asset_name)}</span>
+                <span class="text-xs text-slate-400">Manufacturer: ${norm(a.manufacturer) || "—"}</span>
+              </div>
+            </td>
+            <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">${norm(a.section) || "—"}</td>
+            <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">${statusLabel(a.status)}</td>
+            <td class="px-6 py-4 text-sm font-black text-slate-700 dark:text-slate-200">${norm(a.criticality) || "—"}</td>
+            <td class="px-6 py-4 text-xs text-slate-600 dark:text-slate-300">${norm(a.serial_no) || "—"}</td>
+          </tr>
+        `).join("");
+
+        resultsBody.innerHTML = rows;
+
+        if (items.length > 200) {
+          resultsBody.insertAdjacentHTML("beforeend", `
+            <tr>
+              <td colspan="6" class="px-6 py-4 text-center text-xs text-slate-500 dark:text-slate-400">
+                Showing first 200 results. Use PDF export for the full list.
+              </td>
+            </tr>
+          `);
+        }
+      }
+
+      function refresh(){
+        const items = filterAssets();
+
+        if (selCount) selCount.textContent = items.length.toString();
+
+        const secTxt = selectedSections.size === 0 ? "All sections" : Array.from(selectedSections).join(", ");
+        const stTxt = selectedStatus ? statusLabel(selectedStatus) : "All statuses";
+        const cTxt = selectedCrit ? ("Criticality " + selectedCrit) : "All criticalities";
+
+        if (selMeta) selMeta.textContent = `${secTxt} • ${stTxt} • ${cTxt}`;
+        if (resultsHint) resultsHint.textContent = `Selection: ${secTxt} | ${stTxt} | ${cTxt}`;
+
+        renderCharts(items);
+        renderResults(items);
+
+        if (btnDownloadPdf) {
+          const qs = buildQueryForReport();
+          btnDownloadPdf.href = "/assets/report/pdf" + (qs ? ("?" + qs) : "");
+        }
+      }
+
+      function printSelection(){
+        const items = filterAssets();
+        const title = "Asset Register Report";
+        const sub = (selMeta && selMeta.textContent) ? selMeta.textContent : "";
+        const headerSrc = new URL("{{ url_for('static', filename='brand/opsloom_header.png') }}", window.location.origin).href;
+        const generatedAt = new Date().toLocaleString();
+
+        const html = `
+          <html>
+            <head>
+              <title>${title}</title>
+              <style>
+                :root { color-scheme: light; }
+                body { font-family: Arial, sans-serif; padding: 22px; color: #0f172a; }
+                .doc-header { margin-bottom: 14px; }
+                .doc-header img { display:block; width:100%; max-width:100%; height:auto; }
+                .doc-meta { display:flex; justify-content:space-between; align-items:flex-end; gap:16px; border-bottom:1px solid #cbd5e1; padding:8px 0 12px; margin-bottom:16px; }
+                .doc-meta-left small, .doc-meta-right small { display:block; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.12em; font-weight:700; }
+                .doc-meta-left strong, .doc-meta-right strong { display:block; margin-top:4px; font-size:12px; color:#0f172a; }
+                h1 { margin: 0 0 6px; font-size: 20px; }
+                .sub { margin: 0 0 14px; color: #475569; font-size: 12px; }
+                table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                th, td { border: 1px solid #dbe2ea; padding: 8px; text-align: left; }
+                th { background: #f5f3ff; color:#312e81; }
+                @media print { body { padding: 0; } }
+              </style>
+            </head>
+            <body>
+              <div class="doc-header"><img src="${headerSrc}" alt="Opsloom corporate header"></div>
+              <div class="doc-meta">
+                <div class="doc-meta-left"><small>{{ current_department_display|upper }}</small><strong>${title}</strong></div>
+                <div class="doc-meta-right"><small>Generated</small><strong>${generatedAt}</strong></div>
+              </div>
+              <h1>${title}</h1>
+              <p class="sub">${sub}</p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Asset ID</th>
+                    <th>Asset Name</th>
+                    <th>Section</th>
+                    <th>Status</th>
+                    <th>Criticality</th>
+                    <th>Serial</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${items.map(a => `
+                    <tr>
+                      <td>${norm(a.asset_id)}</td>
+                      <td>${norm(a.asset_name)}</td>
+                      <td>${norm(a.section)}</td>
+                      <td>${statusLabel(a.status)}</td>
+                      <td>${norm(a.criticality) || "—"}</td>
+                      <td>${norm(a.serial_no) || "—"}</td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </body>
+          </html>
+        `;
+
+        const w = window.open("", "_blank");
+        if (!w) {
+          alert("Popup blocked. Please allow popups to print.");
+          return;
+        }
+        w.document.open();
+        w.document.write(html);
+        w.document.close();
+
+        // Print AFTER the new document finishes loading
+        w.onload = () => {
+          w.focus();
+          w.print();
+        };
+      }
+
+      async function init(){
+        bindStatusAndCritChips();
+
+        if (resultsBody) {
+          resultsBody.innerHTML = `
+            <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500 dark:text-slate-400">Loading…</td></tr>
+          `;
+        }
+
+        let res;
+        try {
+          res = await fetch(apiUrl, { headers: { "Accept": "application/json" } });
+        } catch (e) {
+          console.error(e);
+          if (resultsBody) {
+            resultsBody.innerHTML = `
+              <tr><td colspan="6" class="px-6 py-8 text-center text-rose-600">Network error. Check server/API.</td></tr>
+            `;
+          }
+          return;
+        }
+
+        if (!res.ok) {
+          if (resultsBody) {
+            resultsBody.innerHTML = `
+              <tr><td colspan="6" class="px-6 py-8 text-center text-rose-600">Failed to load assets dashboard data.</td></tr>
+            `;
+          }
+          return;
+        }
+
+        const data = await res.json();
+        allAssets = (data.assets || []).map(x => ({
+          uid: x.uid,
+          asset_id: x.asset_id,
+          asset_name: x.asset_name,
+          section: x.section,
+          status: x.status,
+          criticality: x.criticality,
+          serial_no: x.serial_no,
+          manufacturer: x.manufacturer
+        }));
+
+        const sections = Array.from(new Set(allAssets.map(a => norm(a.section)).filter(Boolean)))
+          .sort((a,b)=>a.localeCompare(b));
+        renderSectionChips(sections);
+
+        if (btnPrint) btnPrint.addEventListener("click", printSelection);
+
+        refresh();
+      }
+
+      init().catch(err => {
+        console.error(err);
+        if (resultsBody) {
+          resultsBody.innerHTML = `
+            <tr><td colspan="6" class="px-6 py-8 text-center text-rose-600">Dashboard error. Check console.</td></tr>
+          `;
+        }
+      });
+    })();
+  </script>
+{% endblock %}

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Global Inventory Dashboard - Opsloom System</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#5b13ec",
+                        "gold": "#1554FF",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#161022",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #dfdbe6; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-[#131118] dark:text-white min-h-screen">
+<div class="flex h-screen overflow-hidden">
+<!-- Sidebar Navigation -->
+<aside class="w-64 flex-shrink-0 border-r border-[#dfdbe6] dark:border-white/10 bg-white dark:bg-[#1c142e] flex flex-col justify-between p-4">
+<div class="flex flex-col gap-8">
+<div class="flex items-center gap-3 px-2">
+<div class="bg-primary rounded-lg p-2 text-white">
+<span class="material-symbols-outlined">factory</span>
+</div>
+<div class="flex flex-col">
+<h1 class="text-[#131118] dark:text-white text-base font-bold leading-none">Opsloom System</h1>
+<p class="text-[#6f6189] text-[10px] font-medium uppercase tracking-wider">Engineering Asset Core</p>
+</div>
+</div>
+<nav class="flex flex-col gap-1">
+<div class="flex items-center gap-3 px-3 py-2 text-[#6f6189] hover:bg-background-light dark:hover:bg-white/5 rounded-lg cursor-pointer">
+<span class="material-symbols-outlined">dashboard</span>
+<p class="text-sm font-medium">Dashboard</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary text-white shadow-md shadow-primary/20">
+<span class="material-symbols-outlined">inventory_2</span>
+<p class="text-sm font-medium">Global Inventory</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-[#6f6189] hover:bg-background-light dark:hover:bg-white/5 rounded-lg cursor-pointer">
+<span class="material-symbols-outlined">build</span>
+<p class="text-sm font-medium">Maintenance</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-[#6f6189] hover:bg-background-light dark:hover:bg-white/5 rounded-lg cursor-pointer">
+<span class="material-symbols-outlined">precision_manufacturing</span>
+<p class="text-sm font-medium">Assets</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-[#6f6189] hover:bg-background-light dark:hover:bg-white/5 rounded-lg cursor-pointer">
+<span class="material-symbols-outlined">local_shipping</span>
+<p class="text-sm font-medium">Suppliers</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 text-[#6f6189] hover:bg-background-light dark:hover:bg-white/5 rounded-lg cursor-pointer">
+<span class="material-symbols-outlined">analytics</span>
+<p class="text-sm font-medium">Reports</p>
+</div>
+</nav>
+</div>
+<button class="flex items-center justify-center gap-2 rounded-lg h-10 px-4 bg-background-light dark:bg-white/5 text-[#131118] dark:text-white text-sm font-bold border border-[#dfdbe6] dark:border-white/10">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+<span class="truncate">Global Settings</span>
+</button>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col overflow-y-auto custom-scrollbar">
+<!-- Top Header -->
+<header class="flex items-center justify-between border-b border-[#dfdbe6] dark:border-white/10 bg-white/80 dark:bg-[#1c142e]/80 backdrop-blur-md px-8 py-4 sticky top-0 z-10">
+<div class="flex items-center gap-6">
+<h2 class="text-[#131118] dark:text-white text-xl font-bold tracking-tight">Global Inventory Dashboard</h2>
+<div class="relative w-64">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#6f6189] text-xl">search</span>
+<input class="w-full bg-background-light dark:bg-white/5 border-none rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-1 focus:ring-primary text-[#131118] dark:text-white" placeholder="Search parts..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex gap-2">
+<button class="p-2 rounded-lg bg-background-light dark:bg-white/5 text-[#131118] dark:text-white hover:bg-[#dfdbe6] dark:hover:bg-white/10 relative">
+<span class="material-symbols-outlined text-[22px]">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-[#1c142e]"></span>
+</button>
+<button class="p-2 rounded-lg bg-background-light dark:bg-white/5 text-[#131118] dark:text-white hover:bg-[#dfdbe6] dark:hover:bg-white/10">
+<span class="material-symbols-outlined text-[22px]">chat_bubble</span>
+</button>
+</div>
+<div class="w-px h-8 bg-[#dfdbe6] dark:border-white/10"></div>
+<div class="flex items-center gap-3">
+<div class="text-right hidden sm:block">
+<p class="text-sm font-bold text-[#131118] dark:text-white">Alex Johnson</p>
+<p class="text-[10px] text-[#6f6189] font-medium uppercase leading-none">Plant Manager</p>
+</div>
+<div class="size-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center overflow-hidden">
+<div class="w-full h-full bg-center bg-cover" data-alt="Profile photo of user" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuArE1DNq_ZGCj0iNxEIQ4qUghTp4M7tq1I6JiomyHnc5FgL02bJkuAAj7hVDTIk8Sgc1IFECGFhwpPGNmGi5yHpVsDaSSJUeh6UGSs2hf0kd-H-RjlHwcK6UaeXs7qxwrqf9hzIOo7uhfs179vOrGiRgis21C7V35SmPG3QlQUB73_sNXBfF6UC12mSchKjERJW58bOIszSs0nStaeGxEm8k_RlirQNVs3um7EBXNsD8Php_TPPku8riQ5_37Ubn4KnOMPUkaz53A");'></div>
+</div>
+</div>
+</div>
+</header>
+<div class="p-8 flex flex-col gap-6">
+<!-- Filter Bar -->
+<div class="flex flex-wrap items-center gap-3">
+<button class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#1c142e] border border-[#dfdbe6] dark:border-white/10 rounded-lg text-sm font-medium">
+<span class="material-symbols-outlined text-[20px] text-primary">filter_list</span>
+<span>Filter by Section</span>
+<span class="material-symbols-outlined text-[18px]">expand_more</span>
+</button>
+<button class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#1c142e] border border-[#dfdbe6] dark:border-white/10 rounded-lg text-sm font-medium">
+<span>Supplier</span>
+<span class="material-symbols-outlined text-[18px]">expand_more</span>
+</button>
+<button class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#1c142e] border border-[#dfdbe6] dark:border-white/10 rounded-lg text-sm font-medium">
+<span>Criticality</span>
+<span class="material-symbols-outlined text-[18px]">expand_more</span>
+</button>
+<div class="ml-auto flex items-center gap-2">
+<p class="text-xs font-medium text-[#6f6189]">Last sync: Just now</p>
+<button class="p-1 rounded bg-background-light dark:bg-white/5">
+<span class="material-symbols-outlined text-[18px] block">refresh</span>
+</button>
+</div>
+</div>
+<!-- KPI Metrics -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<div class="bg-white dark:bg-[#1c142e] rounded-xl p-6 border border-[#dfdbe6] dark:border-white/10 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-primary/10 rounded-lg text-primary">
+<span class="material-symbols-outlined">payments</span>
+</div>
+<span class="text-green-500 text-xs font-bold">+2.4%</span>
+</div>
+<p class="text-[#6f6189] text-xs font-semibold uppercase tracking-wider">Total Inventory Value</p>
+<p class="text-[#131118] dark:text-white text-3xl font-bold mt-1">$142,500</p>
+</div>
+<div class="bg-white dark:bg-[#1c142e] rounded-xl p-6 border border-[#dfdbe6] dark:border-white/10 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-blue-100 rounded-lg text-blue-600">
+<span class="material-symbols-outlined">inventory</span>
+</div>
+</div>
+<p class="text-[#6f6189] text-xs font-semibold uppercase tracking-wider">Unique SKUs</p>
+<p class="text-[#131118] dark:text-white text-3xl font-bold mt-1">842</p>
+</div>
+<div class="bg-white dark:bg-[#1c142e] rounded-xl p-6 border border-red-200 dark:border-red-900 shadow-sm relative overflow-hidden">
+<div class="absolute top-0 right-0 p-1 bg-red-500 text-white text-[10px] font-bold px-2 rounded-bl-lg animate-pulse">CRITICAL</div>
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-red-100 rounded-lg text-red-600">
+<span class="material-symbols-outlined">error</span>
+</div>
+</div>
+<p class="text-red-600 dark:text-red-400 text-xs font-semibold uppercase tracking-wider">Critical Out of Stock</p>
+<p class="text-[#131118] dark:text-white text-3xl font-bold mt-1">8</p>
+</div>
+<div class="bg-white dark:bg-[#1c142e] rounded-xl p-6 border border-[#dfdbe6] dark:border-white/10 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-amber-100 rounded-lg text-amber-600">
+<span class="material-symbols-outlined">shopping_cart</span>
+</div>
+<span class="text-[#6f6189] text-xs font-bold">Processing</span>
+</div>
+<p class="text-[#6f6189] text-xs font-semibold uppercase tracking-wider">Active Purchase Orders</p>
+<p class="text-[#131118] dark:text-white text-3xl font-bold mt-1">14</p>
+</div>
+</div>
+<!-- Middle Row: Charts -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<!-- Bar Chart Card -->
+<div class="bg-white dark:bg-[#1c142e] rounded-xl p-6 border border-[#dfdbe6] dark:border-white/10 shadow-sm flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-bold text-[#131118] dark:text-white">Stock Value by Section</h3>
+<button class="text-primary text-xs font-bold uppercase tracking-wider hover:underline">View Breakdown</button>
+</div>
+<div class="flex items-end gap-6 h-64 px-4 pb-2">
+<div class="flex-1 flex flex-col items-center gap-2 group">
+<div class="w-full bg-primary/20 rounded-t-md hover:bg-primary transition-colors cursor-pointer relative" style="height: 60%;">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-[#131118] text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">$42k</div>
+</div>
+<span class="text-[11px] font-bold text-[#6f6189] uppercase tracking-tighter">Pharma</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-2 group">
+<div class="w-full bg-primary/20 rounded-t-md hover:bg-primary transition-colors cursor-pointer relative" style="height: 85%;">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-[#131118] text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">$61k</div>
+</div>
+<span class="text-[11px] font-bold text-[#6f6189] uppercase tracking-tighter">Acaricide</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-2 group">
+<div class="w-full bg-gold/30 rounded-t-md hover:bg-gold transition-colors cursor-pointer relative" style="height: 40%;">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-[#131118] text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">$28k</div>
+</div>
+<span class="text-[11px] font-bold text-[#6f6189] uppercase tracking-tighter">Seeds</span>
+</div>
+<div class="flex-1 flex flex-col items-center gap-2 group">
+<div class="w-full bg-primary/20 rounded-t-md hover:bg-primary transition-colors cursor-pointer relative" style="height: 25%;">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-[#131118] text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">$11k</div>
+</div>
+<span class="text-[11px] font-bold text-[#6f6189] uppercase tracking-tighter">Livestock</span>
+</div>
+</div>
+</div>
+<!-- Doughnut Distribution -->
+<div class="bg-white dark:bg-[#1c142e] rounded-xl p-6 border border-[#dfdbe6] dark:border-white/10 shadow-sm">
+<h3 class="font-bold text-[#131118] dark:text-white mb-6">Stock Status Distribution</h3>
+<div class="flex items-center justify-center gap-12 py-4">
+<div class="relative size-44">
+<svg class="size-full -rotate-90" viewbox="0 0 36 36">
+<!-- In Stock -->
+<circle class="stroke-green-500" cx="18" cy="18" fill="none" r="16" stroke-dasharray="70, 100" stroke-width="4"></circle>
+<!-- Low Stock -->
+<circle class="stroke-gold" cx="18" cy="18" fill="none" r="16" stroke-dasharray="20, 100" stroke-dashoffset="-70" stroke-width="4"></circle>
+<!-- Out of Stock -->
+<circle class="stroke-red-500" cx="18" cy="18" fill="none" r="16" stroke-dasharray="10, 100" stroke-dashoffset="-90" stroke-width="4"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<p class="text-2xl font-bold leading-none">842</p>
+<p class="text-[10px] uppercase font-semibold text-[#6f6189]">Items</p>
+</div>
+</div>
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3">
+<div class="w-3 h-3 rounded-full bg-green-500"></div>
+<div>
+<p class="text-xs font-bold leading-none">In Stock</p>
+<p class="text-[10px] text-[#6f6189]">589 parts (70%)</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-3 h-3 rounded-full bg-gold"></div>
+<div>
+<p class="text-xs font-bold leading-none">Low Stock</p>
+<p class="text-[10px] text-[#6f6189]">168 parts (20%)</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-3 h-3 rounded-full bg-red-500"></div>
+<div>
+<p class="text-xs font-bold leading-none">Out of Stock</p>
+<p class="text-[10px] text-[#6f6189]">85 parts (10%)</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Row: Table and Quick Actions -->
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
+<!-- Critical Alerts Table -->
+<div class="xl:col-span-2 bg-white dark:bg-[#1c142e] rounded-xl border border-[#dfdbe6] dark:border-white/10 shadow-sm overflow-hidden flex flex-col">
+<div class="px-6 py-4 border-b border-[#dfdbe6] dark:border-white/10 flex justify-between items-center bg-red-50/30 dark:bg-red-900/5">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-red-500">warning</span>
+<h3 class="font-bold text-[#131118] dark:text-white">Critical Inventory Alerts</h3>
+</div>
+<span class="text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded-full">8 items need attention</span>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-background-light dark:bg-white/5 border-b border-[#dfdbe6] dark:border-white/10">
+<tr>
+<th class="px-6 py-3 text-[11px] font-bold text-[#6f6189] uppercase tracking-wider">Part Name</th>
+<th class="px-6 py-3 text-[11px] font-bold text-[#6f6189] uppercase tracking-wider">Associated Asset</th>
+<th class="px-6 py-3 text-[11px] font-bold text-[#6f6189] uppercase tracking-wider">Stock Level</th>
+<th class="px-6 py-3 text-[11px] font-bold text-[#6f6189] uppercase tracking-wider">Lead Time</th>
+<th class="px-6 py-3"></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-[#dfdbe6] dark:divide-white/10">
+<tr class="hover:bg-background-light dark:hover:bg-white/5 transition-colors">
+<td class="px-6 py-4">
+<p class="text-sm font-bold text-[#131118] dark:text-white">HEPA Filter-99</p>
+<p class="text-[10px] text-[#6f6189]">SKU: PH-90122</p>
+</td>
+<td class="px-6 py-4">
+<span class="text-xs font-medium px-2 py-1 bg-primary/10 text-primary rounded">Air Scrubber Unit B</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col gap-1 w-24">
+<div class="flex justify-between items-end">
+<span class="text-[10px] font-bold text-red-600">0/2</span>
+</div>
+<div class="h-1.5 w-full bg-[#dfdbe6] dark:bg-white/10 rounded-full overflow-hidden">
+<div class="h-full bg-red-500" style="width: 0%"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-sm font-medium">14 Days</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary hover:text-primary/80">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-background-light dark:hover:bg-white/5 transition-colors">
+<td class="px-6 py-4">
+<p class="text-sm font-bold text-[#131118] dark:text-white">Conveyor Belt X1</p>
+<p class="text-[10px] text-[#6f6189]">SKU: AC-45521</p>
+</td>
+<td class="px-6 py-4">
+<span class="text-xs font-medium px-2 py-1 bg-primary/10 text-primary rounded">Packaging Line 1</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col gap-1 w-24">
+<div class="flex justify-between items-end">
+<span class="text-[10px] font-bold text-gold">1/5</span>
+</div>
+<div class="h-1.5 w-full bg-[#dfdbe6] dark:bg-white/10 rounded-full overflow-hidden">
+<div class="h-full bg-gold" style="width: 20%"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-sm font-medium">7 Days</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary hover:text-primary/80">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-background-light dark:hover:bg-white/5 transition-colors">
+<td class="px-6 py-4">
+<p class="text-sm font-bold text-[#131118] dark:text-white">Shaft Seal 40mm</p>
+<p class="text-[10px] text-[#6f6189]">SKU: LS-11223</p>
+</td>
+<td class="px-6 py-4">
+<span class="text-xs font-medium px-2 py-1 bg-primary/10 text-primary rounded">Mixer Reactor R4</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col gap-1 w-24">
+<div class="flex justify-between items-end">
+<span class="text-[10px] font-bold text-red-600">0/1</span>
+</div>
+<div class="h-1.5 w-full bg-[#dfdbe6] dark:bg-white/10 rounded-full overflow-hidden">
+<div class="h-full bg-red-500" style="width: 0%"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-sm font-medium">21 Days</td>
+<td class="px-6 py-4 text-right">
+<button class="text-primary hover:text-primary/80">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-3 bg-white dark:bg-[#1c142e] text-center border-t border-[#dfdbe6] dark:border-white/10">
+<button class="text-sm font-bold text-primary hover:underline">View All Alerts (8)</button>
+</div>
+</div>
+<!-- Quick Actions Panel -->
+<div class="bg-white dark:bg-[#1c142e] rounded-xl border border-[#dfdbe6] dark:border-white/10 shadow-sm flex flex-col p-6">
+<h3 class="font-bold text-[#131118] dark:text-white mb-6">Quick Actions</h3>
+<div class="flex flex-col gap-3">
+<button class="w-full flex items-center justify-between px-4 py-4 bg-primary text-white rounded-lg font-bold hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined">shopping_cart_checkout</span>
+<span>Bulk Order Low Stock</span>
+</div>
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+<button class="w-full flex items-center justify-between px-4 py-4 border border-[#dfdbe6] dark:border-white/10 text-[#131118] dark:text-white rounded-lg font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined">description</span>
+<span>Generate Audit Report</span>
+</div>
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+<button class="w-full flex items-center justify-between px-4 py-4 border border-[#dfdbe6] dark:border-white/10 text-[#131118] dark:text-white rounded-lg font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined">group</span>
+<span>Manage Suppliers</span>
+</div>
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+<button class="w-full flex items-center justify-between px-4 py-4 border border-[#dfdbe6] dark:border-white/10 text-[#131118] dark:text-white rounded-lg font-bold hover:bg-background-light dark:hover:bg-white/5 transition-all">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined">qr_code_scanner</span>
+<span>Scan New Spare Part</span>
+</div>
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+<div class="mt-auto pt-6 border-t border-[#dfdbe6] dark:border-white/10 flex items-center gap-3">
+<div class="size-10 bg-gold/10 rounded-full flex items-center justify-center text-gold">
+<span class="material-symbols-outlined">lightbulb</span>
+</div>
+<div class="flex-1">
+<p class="text-[11px] font-bold text-gold uppercase tracking-tighter">Optimization Tip</p>
+<p class="text-[10px] text-[#6f6189] leading-tight">Consolidating HEPA filter orders could save 12% in shipping costs.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

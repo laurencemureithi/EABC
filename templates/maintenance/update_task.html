@@ -1,0 +1,141 @@
+{% extends "layouts/base.html" %}
+{% block title %}Update Maintenance Task - Opsloom{% endblock %}
+{% block main_wrapper_class %}p-8{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+  <div class="flex items-end justify-between mb-6 gap-4">
+    <div>
+      <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Update Maintenance Task</h1>
+      <p class="text-sm text-slate-500 mt-1">Task ID: <span class="font-bold">{{ task.task_id }}</span></p>
+    </div>
+    <a href="{{ url_for('maintenance_view', task_id=task.task_id) }}"
+       class="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+      Back
+    </a>
+  </div>
+
+  {% if error %}
+    <div class="mb-4 p-3 rounded-lg bg-red-50 text-red-700 border border-red-200 text-sm font-bold">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('maintenance_update_post', task_id=task.task_id) }}"
+        class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-6">
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="space-y-1">
+        <label class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Status</label>
+        <select name="status" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none">
+          <option value="upcoming" {% if task.status=="upcoming" %}selected{% endif %}>Upcoming</option>
+          <option value="overdue" {% if task.status=="overdue" %}selected{% endif %}>Overdue</option>
+          <option value="completed" {% if task.status=="completed" %}selected{% endif %}>Completed</option>
+        </select>
+      </div>
+      <div class="space-y-1">
+        <label class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Type</label>
+        <select name="maintenance_type" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none">
+          <option value="PM" {% if task.maintenance_type=="PM" %}selected{% endif %}>Preventive (PM)</option>
+          <option value="CM" {% if task.maintenance_type=="CM" %}selected{% endif %}>Corrective (CM)</option>
+        </select>
+      </div>
+      <div class="space-y-1">
+        <label class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Frequency</label>
+        <select name="frequency" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none">
+          {% for f in ['Daily','Weekly','Monthly','Quarterly','Bi-Annually','Annually','One-time'] %}
+            <option value="{{ f }}" {% if task.frequency==f %}selected{% endif %}>{{ f }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="space-y-1">
+        <label class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Due Date</label>
+        <input name="due_date" value="{{ task.due_date or '' }}" type="date"
+               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none" />
+      </div>
+      <div class="space-y-1 md:col-span-2">
+        <label class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Assigned Technician</label>
+        <select name="technician" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none">
+          <option value="">Unassigned</option>
+          {% for row in tech_rows or [] %}
+            <option value="{{ row.name }}" {% if (task.technician or '') == row.name %}selected{% endif %}>{{ row.name }} — {{ row.availability_score }}% available</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="space-y-1">
+        <label class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Task Title</label>
+        <input name="task_title" value="{{ task.task_title or '' }}"
+               class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none" />
+      </div>
+      <div class="space-y-1">
+        <label class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Priority</label>
+        <select name="priority" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none">
+          <option value="low" {% if task.priority=="low" %}selected{% endif %}>Low</option>
+          <option value="medium" {% if task.priority=="medium" %}selected{% endif %}>Medium</option>
+          <option value="high" {% if task.priority=="high" %}selected{% endif %}>High</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="space-y-1">
+      <label class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Task Description</label>
+      <textarea name="task_description" rows="4"
+        class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none resize-none">{{ task.task_description or '' }}</textarea>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="space-y-1">
+        <label class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Notes</label>
+        <textarea name="notes" rows="3" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none resize-none">{{ task.notes or '' }}</textarea>
+      </div>
+      <div class="space-y-1">
+        <label class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Completion Notes</label>
+        <textarea name="completion_notes" rows="3" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none resize-none">{{ task.completion_notes or '' }}</textarea>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+      <div class="space-y-1">
+        <label class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Amount Before VAT</label>
+        <input name="cost_subtotal" type="number" step="0.01" min="0" value="{{ task.cost_subtotal if task.cost_subtotal is not none else '' }}" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none" />
+      </div>
+      <div class="space-y-1">
+        <label class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">VAT %</label>
+        <input name="cost_vat_pct" type="number" step="0.01" min="0" max="100" value="{{ task.cost_vat_pct if task.cost_vat_pct is not none else 16 }}" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none" />
+      </div>
+      <div class="space-y-1">
+        <label class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Invoice / Receipt</label>
+        <input name="invoice" type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.csv" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none" />
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+        <input type="checkbox" name="cost_apply_vat" value="1" {% if task.cost_apply_vat %}checked{% endif %}> Apply VAT automatically
+      </label>
+      <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+        <input type="checkbox" name="cost_collected" value="1" {% if task.cost_collected %}checked{% endif %}> Confirm actual maintenance cost
+      </label>
+      <div class="space-y-1">
+        <label class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Completed At</label>
+        <input name="completed_at" type="datetime-local" value="{{ (task.completed_at or '')[:16] if task.completed_at else '' }}" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm outline-none" />
+      </div>
+    </div>
+
+    <div class="flex items-center justify-end gap-3 pt-2">
+      <a href="{{ url_for('maintenance_view', task_id=task.task_id) }}"
+         class="px-5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+        Cancel
+      </a>
+      <button type="submit"
+              class="px-6 py-2 rounded-lg bg-ueal-gold text-white text-sm font-extrabold hover:bg-ueal-gold/90 shadow">
+        Save Updates
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

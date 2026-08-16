@@ -1,0 +1,163 @@
+{% extends "layouts/base.html" %}
+{% block title %}Messages Center • Opsloom{% endblock %}
+{% block content %}
+{% set page_title = "Messages Center" %}
+{% set title_icon = "chat" %}
+{% set page_subtitle = "Internal mail workspace with folders for inbox, drafts, outbox, and sent items." %}
+{% set show_system_badge = true %}
+{% set breadcrumbs = [{"label":"Settings / Admin", "href": url_for('settings_admin')}, {"label":"Messages Center"}] %}
+{% include "partials/title_block.html" %}
+
+<div class="max-w-7xl mx-auto grid grid-cols-1 xl:grid-cols-[16rem_23rem_minmax(0,1fr)] gap-6">
+  <aside class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+      <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-200">Mail Folders</h2>
+    </div>
+    <div class="p-3 space-y-2">
+      {% set folders = [('inbox','Inbox', folder_counts.inbox, folder_counts.unread, 'inbox'), ('drafts','Drafts', folder_counts.drafts, 0, 'draft'), ('outbox','Outbox', folder_counts.outbox, 0, 'outbox'), ('sent','Sent', folder_counts.sent, 0, 'send')] %}
+      {% for key, label, count, unread, icon in folders %}
+      <a href="{{ url_for('messages_center', folder=key) }}" class="flex items-center justify-between rounded-xl border px-4 py-3 transition-all {% if selected_folder == key %}border-ueal-gold bg-ueal-gold/10 text-ueal-purple dark:text-ueal-gold{% else %}border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-200{% endif %}">
+        <span class="flex items-center gap-3 font-semibold">
+          <span class="material-symbols-outlined text-[18px]">{{ icon }}</span>
+          {{ label }}
+        </span>
+        <span class="flex items-center gap-2">
+          {% if unread and unread > 0 %}<span class="min-w-[20px] h-5 px-1 rounded-full bg-ueal-gold text-white text-[10px] font-black flex items-center justify-center">{{ unread }}</span>{% endif %}
+          <span class="text-xs font-black">{{ count }}</span>
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <section class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+    <div class="p-4 border-b border-slate-200 dark:border-slate-800 space-y-3">
+      <div class="flex items-center justify-between gap-3">
+        <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-200">{{ selected_folder|title }}</h2>
+        <a href="{{ url_for('messages_center', folder=selected_folder) }}" class="text-xs font-black text-ueal-purple dark:text-ueal-gold">Refresh</a>
+      </div>
+      <form method="get" class="relative">
+        <input type="hidden" name="folder" value="{{ selected_folder }}">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+        <input type="text" name="q" value="{{ message_q or '' }}" placeholder="Search {{ selected_folder }}" class="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+      </form>
+    </div>
+    <div class="divide-y divide-slate-100 dark:divide-slate-800 max-h-[42rem] overflow-y-auto">
+      {% for row in messages %}
+      {% set unread = current_user_email not in (row.is_read_by or []) and current_user_email in (row.recipient_emails or []) %}
+      <a href="{{ url_for('messages_center', folder=selected_folder, open=row.id, q=message_q) }}" class="block px-4 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/40 {% if open_message and open_message.id == row.id %}bg-ueal-purple/5{% endif %}">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              {% if unread %}<span class="w-2 h-2 rounded-full bg-ueal-gold"></span>{% endif %}
+              <p class="font-bold text-sm truncate text-slate-900 dark:text-white">{{ row.subject }}</p>
+            </div>
+            <p class="mt-1 text-xs text-slate-500">
+              {% if selected_folder == 'sent' %}To {{ (row.recipient_emails or [])|join(', ') }}{% elif selected_folder in ['drafts','outbox'] %}Draft by {{ row.sender_name }}{% else %}{{ row.sender_name }}{% endif %}
+              • {{ (row.updated_at or row.created_at or '').replace('T',' ') }}
+            </p>
+            <p class="mt-2 text-xs text-slate-600 dark:text-slate-300 line-clamp-2">{{ row.body }}</p>
+          </div>
+        </div>
+      </a>
+      {% else %}
+      <div class="px-4 py-8 text-sm text-slate-500">No messages matched your search.</div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="space-y-6">
+    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+      {% if open_message %}
+      <div class="p-5 border-b border-slate-200 dark:border-slate-800">
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h2 class="text-xl font-black text-slate-900 dark:text-white">{{ open_message.subject }}</h2>
+            <p class="mt-1 text-sm text-slate-500">From {{ open_message.sender_name }} ({{ open_message.sender_email }})</p>
+            <p class="mt-1 text-xs text-slate-400">To {{ (open_message.recipient_emails or [])|join(', ') }}</p>
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            {% if selected_folder in ['inbox','sent'] %}
+            <a href="{{ url_for('messages_center', folder=selected_folder, reply=open_message.id) }}" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-black">Reply</a>
+            <a href="{{ url_for('messages_center', folder=selected_folder, forward=open_message.id) }}" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-black">Forward</a>
+            {% elif selected_folder == 'drafts' %}
+            <form method="post" action="{{ url_for('messages_delete_draft', message_id=open_message.id) }}">
+              <button class="px-3 py-2 rounded-lg border border-rose-200 text-rose-700 text-xs font-black">Delete Draft</button>
+            </form>
+            {% elif selected_folder == 'outbox' %}
+            <form method="post" action="{{ url_for('messages_send_outbox', message_id=open_message.id) }}">
+              <button class="px-3 py-2 rounded-lg bg-ueal-gold text-white text-xs font-black">Send Now</button>
+            </form>
+            <form method="post" action="{{ url_for('messages_delete_outbox', message_id=open_message.id) }}">
+              <button class="px-3 py-2 rounded-lg border border-rose-200 text-rose-700 text-xs font-black">Delete</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="p-5 space-y-5">
+        <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 p-4 text-sm leading-7 whitespace-pre-wrap text-slate-700 dark:text-slate-200">{{ open_message.body }}</div>
+        {% if open_message.attachments %}
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-3">Attachments</p>
+          <div class="space-y-2">
+            {% for att in open_message.attachments %}
+            <a href="{{ att.url }}" target="_blank" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-3 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800">
+              <span>{{ att.name }}</span>
+              <span class="material-symbols-outlined text-base">attach_file</span>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="p-8 text-center text-slate-500">Select a message to view the conversation.</div>
+      {% endif %}
+    </div>
+
+    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+        <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-200">Compose Message</h2>
+      </div>
+      <form method="post" action="{{ url_for('messages_send') }}" enctype="multipart/form-data" class="p-5 space-y-4">
+        <input type="hidden" name="thread_id" value="{{ compose_prefill.thread_id or '' }}">
+        <input type="hidden" name="forwarded_from" value="{{ compose_prefill.forwarded_from or '' }}">
+        <input type="hidden" name="draft_id" value="{{ compose_prefill.draft_id or '' }}">
+        <input type="hidden" name="outbox_id" value="{{ compose_prefill.outbox_id or '' }}">
+        <div>
+          <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Recipients</label>
+          <select name="recipient_emails" multiple class="w-full min-h-[9rem] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm">
+            {% set prefill_recipients = compose_prefill.recipient_emails or [] %}
+            {% for row in users %}
+            <option value="{{ row.email }}" {% if row.email in prefill_recipients %}selected{% endif %}>{{ row.name }} • {{ row.role }} • {{ row.email }}</option>
+            {% endfor %}
+          </select>
+          <p class="mt-2 text-[11px] text-slate-400">Hold Ctrl/Cmd to select multiple users.</p>
+        </div>
+        <div>
+          <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Additional email(s)</label>
+          <input type="text" name="recipient_manual" placeholder="opsloom.ke@gmail.com, david.kimani@opsloom.co.ke" class="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm">
+        </div>
+        <div>
+          <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Subject</label>
+          <input type="text" name="subject" value="{{ compose_prefill.subject or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm">
+        </div>
+        <div>
+          <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Message</label>
+          <textarea name="body" rows="10" class="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm">{{ compose_prefill.body or '' }}</textarea>
+        </div>
+        <div>
+          <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Attachments</label>
+          <input type="file" name="attachments" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.webp" class="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm">
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <button name="message_action" value="draft" class="rounded-lg border border-slate-300 dark:border-slate-600 py-3 text-sm font-black text-slate-700 dark:text-slate-200">Save Draft</button>
+          <button name="message_action" value="outbox" class="rounded-lg border border-ueal-purple/30 bg-ueal-purple/5 py-3 text-sm font-black text-ueal-purple dark:text-ueal-gold">Queue Outbox</button>
+          <button name="message_action" value="send" class="rounded-lg bg-ueal-gold text-white py-3 text-sm font-black">Send Now</button>
+        </div>
+      </form>
+    </div>
+  </section>
+</div>
+{% endblock %}

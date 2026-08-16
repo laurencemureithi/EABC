@@ -1,0 +1,166 @@
+{# templates/assets/assets_documents_upload_success.html #}
+{% extends "layouts/base.html" %}
+{% block title %}Document Uploaded Successfully • Opsloom{% endblock %}
+
+{% block content %}
+
+<div class="max-w-2xl mx-auto py-10">
+
+  <div class="text-center mb-10">
+    <div class="inline-flex items-center justify-center w-20 h-20 bg-emerald-100 dark:bg-emerald-900/20 rounded-full mb-6">
+      <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-300 text-5xl">check_circle</span>
+    </div>
+
+    <h1 class="text-3xl font-bold text-slate-900 dark:text-white mb-2">
+      {% if (doc.status or "")|lower == "approved" %}
+        Document Successfully Published
+      {% elif (doc.status or "")|lower == "expired" %}
+        Document Uploaded (Expired)
+      {% else %}
+        Document Uploaded (Draft)
+      {% endif %}
+    </h1>
+
+    <p class="text-slate-500 dark:text-slate-300 text-sm max-w-md mx-auto leading-relaxed">
+      The file has been indexed and linked to the
+      <span class="font-semibold text-slate-700 dark:text-slate-100">{{ asset.asset_name }}</span>.
+    </p>
+
+    <nav class="flex items-center justify-center gap-2 mt-4 text-[13px] text-slate-500 dark:text-slate-300 font-medium">
+      {% for bc in breadcrumbs %}
+        {% if bc.href %}
+          <a href="{{ bc.href }}" class="hover:text-ueal-purple transition-colors">{{ bc.label }}</a>
+        {% else %}
+          <span class="text-slate-900 dark:text-white">{{ bc.label }}</span>
+        {% endif %}
+        {% if not loop.last %}
+          <span class="material-symbols-outlined text-base text-slate-300">chevron_right</span>
+        {% endif %}
+      {% endfor %}
+    </nav>
+  </div>
+
+  <div class="bg-white dark:bg-dark-surface rounded-2xl border border-slate-200 dark:border-dark-border shadow-sm p-6 mb-8">
+    <div class="flex items-start gap-6">
+
+      {# File-type icon block #}
+      {% set ext = (doc.file_ext or "")|lower %}
+      <div class="w-16 h-16 rounded-xl flex items-center justify-center shrink-0
+                  {% if ext == 'pdf' %}bg-red-50 dark:bg-red-900/20
+                  {% elif ext in ['png','jpg','jpeg','webp'] %}bg-indigo-50 dark:bg-indigo-900/20
+                  {% elif ext in ['xls','xlsx','csv'] %}bg-emerald-50 dark:bg-emerald-900/20
+                  {% elif ext in ['dwg','dxf'] %}bg-amber-50 dark:bg-amber-900/20
+                  {% else %}bg-slate-50 dark:bg-white/10{% endif %}">
+        {% if ext == 'pdf' %}
+          <span class="material-symbols-outlined text-red-600 dark:text-red-300 text-4xl" style="font-variation-settings: 'FILL' 1;">picture_as_pdf</span>
+        {% elif ext in ['png','jpg','jpeg','webp'] %}
+          <span class="material-symbols-outlined text-indigo-600 dark:text-indigo-300 text-4xl">image</span>
+        {% elif ext in ['xls','xlsx','csv'] %}
+          <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-300 text-4xl">table_chart</span>
+        {% elif ext in ['dwg','dxf'] %}
+          <span class="material-symbols-outlined text-amber-600 dark:text-amber-300 text-4xl">architecture</span>
+        {% else %}
+          <span class="material-symbols-outlined text-slate-500 dark:text-slate-200 text-4xl">description</span>
+        {% endif %}
+      </div>
+
+      <div class="flex-1 grid grid-cols-2 gap-y-4">
+        <div class="col-span-2">
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Document Name</label>
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-sm font-bold text-slate-900 dark:text-white">{{ doc.name or "—" }}</p>
+
+            {# Status badge #}
+            {% set st = (doc.status or 'draft')|lower %}
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase
+              {% if st == 'approved' %}
+                bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-200
+              {% elif st == 'expired' %}
+                bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-200
+              {% else %}
+                bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-200
+              {% endif %}
+            ">
+              {{ st }}
+            </span>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Category</label>
+          <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">{{ doc.category or "—" }}</p>
+        </div>
+
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Version</label>
+          <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">{{ doc.version or "—" }}</p>
+        </div>
+
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Date Uploaded</label>
+          <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">{{ doc.uploaded_at or "—" }}</p>
+        </div>
+
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">File Size</label>
+          <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">{{ doc.size_label or "—" }}</p>
+        </div>
+
+        <div class="col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+          <div class="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-white/5 p-4">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Uploaded By</p>
+            <p class="text-xs font-bold text-slate-800 dark:text-slate-100 mt-1">{{ doc.uploaded_by or "—" }}</p>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-white/5 p-4">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Control Dates</p>
+            <p class="text-xs font-semibold text-slate-700 dark:text-slate-200 mt-1">
+              Review: {{ doc.review_date or "—" }} &nbsp; • &nbsp; Expiry: {{ doc.expiry_date or "—" }}
+            </p>
+            <p class="text-[11px] text-slate-500 dark:text-slate-300 mt-1 leading-snug">
+              If expiry is in the past, the system marks this document as <b>expired</b>.
+            </p>
+          </div>
+        </div>
+
+        {% if doc.description %}
+          <div class="col-span-2 mt-2">
+            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Description</label>
+            <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{{ doc.description }}</p>
+          </div>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+
+  <div class="flex flex-col gap-4">
+    <a
+      href="{{ doc.file_path }}"
+      target="_blank"
+      class="w-full bg-ueal-gold text-white font-bold py-4 rounded-xl shadow-lg shadow-ueal-gold/20 transition-all flex items-center justify-center gap-2 tracking-wide uppercase text-sm hover:bg-opacity-90"
+    >
+      <span class="material-symbols-outlined">visibility</span>
+      View Document
+    </a>
+
+    <a
+      href="{{ url_for('assets_documents_get', asset_uid=asset.uid) }}"
+      class="w-full bg-white dark:bg-dark-surface border-2 border-slate-200 dark:border-dark-border hover:border-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-600 dark:text-slate-200 font-bold py-4 rounded-xl transition-all tracking-wide uppercase text-sm text-center"
+    >
+      Back to Asset Repository
+    </a>
+  </div>
+
+  <div class="mt-8 text-center">
+    <a
+      href="{{ url_for('assets_documents_upload_get', asset_uid=asset.uid) }}"
+      class="text-ueal-purple hover:text-ueal-gold font-bold text-sm inline-flex items-center justify-center gap-2 mx-auto transition-colors"
+    >
+      <span class="material-symbols-outlined text-lg">add_circle_outline</span>
+      Upload Another Document
+    </a>
+  </div>
+
+</div>
+{% endblock %}

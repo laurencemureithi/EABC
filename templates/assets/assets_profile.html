@@ -1,0 +1,266 @@
+{# templates/assets/assets_profile.html #}
+{% extends "layouts/base.html" %}
+{% block title %}Asset Profile • Opsloom{% endblock %}
+
+{% block content %}
+{% set breadcrumbs = [
+  {"label":"Asset Register", "href": url_for("assets_master_list")},
+  {"label": asset.asset_name}
+] %}
+
+<div class="max-w-6xl mx-auto">
+
+  {# Overview already has a big photo card, so hide the header thumbnail #}
+  {% set header_show_image = false %}
+  {% include "partials/asset_profile_header.html" %}
+
+  {% set current_tab = "overview" %}
+  {% include "partials/asset_profile_tabs.html" %}
+
+  <div class="space-y-6">
+    <div class="grid grid-cols-12 gap-8">
+
+      <!-- Left column -->
+      <div class="col-span-12 lg:col-span-5 space-y-6">
+
+        <!-- Photo card -->
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+          <div class="aspect-video w-full relative bg-slate-100 dark:bg-slate-800">
+            {% if asset.photo_url %}
+              <img src="{{ asset.photo_url }}" alt="Asset photo" class="w-full h-full object-cover"/>
+            {% else %}
+              <div class="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                <span class="material-symbols-outlined text-6xl">image</span>
+                <p class="text-xs font-bold mt-2">No photo uploaded</p>
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="p-5 flex justify-between items-center bg-slate-50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-dark-border">
+            <div class="flex flex-col">
+              <span class="text-xs text-slate-400 font-bold uppercase">Asset ID</span>
+              <span class="font-bold text-ueal-purple dark:text-ueal-gold">{{ asset.asset_id }}</span>
+            </div>
+
+            <a href="{{ url_for('assets_edit_get', asset_uid=asset.uid) }}"
+               class="bg-ueal-gold text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-sm hover:opacity-90">
+              <span class="material-symbols-outlined text-sm">edit</span>
+              Edit Asset Info
+            </a>
+          </div>
+        </div>
+
+        <!-- Criticality + MTBF -->
+        <div class="grid grid-cols-2 gap-4">
+          <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex flex-col items-center text-center">
+            <span class="text-[10px] text-slate-400 font-bold uppercase mb-2">Criticality Index</span>
+            {% if asset.criticality == "A" %}
+              <div class="w-14 h-14 rounded-full bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-300 flex items-center justify-center text-2xl font-black border-4 border-red-50 dark:border-red-900/10">A</div>
+              <span class="text-[11px] text-red-500 dark:text-red-300 font-bold mt-2 uppercase">High Impact</span>
+            {% elif asset.criticality == "B" %}
+              <div class="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-300 flex items-center justify-center text-2xl font-black border-4 border-amber-50 dark:border-amber-900/10">B</div>
+              <span class="text-[11px] text-amber-500 dark:text-amber-300 font-bold mt-2 uppercase">Medium</span>
+            {% else %}
+              <div class="w-14 h-14 rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 flex items-center justify-center text-2xl font-black border-4 border-blue-50 dark:border-blue-900/10">C</div>
+              <span class="text-[11px] text-blue-500 dark:text-blue-300 font-bold mt-2 uppercase">Low</span>
+            {% endif %}
+          </div>
+
+          <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex flex-col items-center text-center">
+            <span class="text-[10px] text-slate-400 font-bold uppercase mb-2">MTBF (EST)</span>
+            <div class="w-14 h-14 rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 flex items-center justify-center text-xl font-black border-4 border-blue-50 dark:border-blue-900/10">
+              {% if mtbf_hours %}{{ mtbf_hours }}h{% else %}—{% endif %}
+            </div>
+            <span class="text-[11px] text-blue-500 dark:text-blue-300 font-bold mt-2 uppercase">Hours Active</span>
+          </div>
+        </div>
+
+        <!-- Purchase & OEM -->
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm">
+          <div class="px-5 py-4 border-b border-slate-100 dark:border-dark-border">
+            <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2 uppercase tracking-wide">
+              <span class="material-symbols-outlined text-ueal-purple dark:text-ueal-gold text-lg">info</span>
+              Purchase &amp; OEM Info
+            </h3>
+          </div>
+          <div class="p-5 space-y-4">
+            <div class="grid grid-cols-2 gap-y-4 gap-x-6">
+              <div>
+                <p class="text-[10px] text-slate-400 uppercase font-bold">Installation Date</p>
+                <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ asset.installation_date or "—" }}</p>
+              </div>
+              <div>
+                <p class="text-[10px] text-slate-400 uppercase font-bold">Primary Supplier</p>
+                <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ asset.supplier or "—" }}</p>
+              </div>
+              <div>
+                <p class="text-[10px] text-slate-400 uppercase font-bold">OEM</p>
+                <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ asset.oem or "—" }}</p>
+              </div>
+              <div>
+                <p class="text-[10px] text-slate-400 uppercase font-bold">Warranty Expiry</p>
+                <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ asset.warranty_expiry or "—" }}</p>
+              </div>
+              <div class="col-span-2">
+                <p class="text-[10px] text-slate-400 uppercase font-bold">Asset Value</p>
+                <p class="text-sm font-bold text-ueal-purple dark:text-ueal-gold">{{ asset.asset_value or "—" }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right column -->
+      <div class="col-span-12 lg:col-span-7 space-y-8">
+
+        <!-- Asset Snapshot (expanded) -->
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/30">
+            <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2 uppercase tracking-wide">
+              <span class="material-symbols-outlined text-ueal-purple dark:text-ueal-gold text-lg">fact_check</span>
+              Asset Snapshot
+            </h3>
+          </div>
+
+          <div class="p-6">
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-y-6 gap-x-8">
+
+              <div class="space-y-1.5">
+                <p class="text-[10px] text-slate-400 uppercase font-bold px-1">Asset ID</p>
+                <div class="bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-dark-border px-3 py-1.5 rounded-lg">
+                  <p class="text-[15px] font-bold text-slate-700 dark:text-slate-200">{{ asset.asset_id }}</p>
+                </div>
+              </div>
+
+              <div class="space-y-1.5">
+                <p class="text-[10px] text-slate-400 uppercase font-bold px-1">Category</p>
+                <div class="bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-dark-border px-3 py-1.5 rounded-lg">
+                  <p class="text-[15px] font-bold text-slate-700 dark:text-slate-200">{{ asset.category or "—" }}</p>
+                </div>
+              </div>
+
+              <div class="space-y-1.5">
+                <p class="text-[10px] text-slate-400 uppercase font-bold px-1">Section</p>
+                <div class="bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-dark-border px-3 py-1.5 rounded-lg">
+                  <p class="text-[15px] font-bold text-slate-700 dark:text-slate-200">{{ asset.section }}</p>
+                </div>
+              </div>
+
+              <div class="space-y-1.5">
+                <p class="text-[10px] text-slate-400 uppercase font-bold px-1">Location</p>
+                <div class="bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-dark-border px-3 py-1.5 rounded-lg">
+                  <p class="text-[15px] font-bold text-slate-700 dark:text-slate-200">{{ asset.location or "—" }}</p>
+                </div>
+              </div>
+
+              <div class="space-y-1.5">
+                <p class="text-[10px] text-slate-400 uppercase font-bold px-1">Service Provider</p>
+                <div class="bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-dark-border px-3 py-1.5 rounded-lg">
+                  <p class="text-[15px] font-bold text-slate-700 dark:text-slate-200">{{ asset.service_provider or "—" }}</p>
+                </div>
+              </div>
+
+              <div class="space-y-1.5">
+                <p class="text-[10px] text-slate-400 uppercase font-bold px-1">Asset Value</p>
+                <div class="bg-ueal-purple/5 dark:bg-ueal-gold/10 border border-ueal-purple/10 dark:border-ueal-gold/20 px-3 py-1.5 rounded-lg">
+                  <p class="text-[15px] font-bold text-ueal-purple dark:text-ueal-gold">{{ asset.asset_value or "—" }}</p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Maintenance Activity -->
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border flex items-center justify-between">
+            <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2 uppercase tracking-wide">
+              <span class="material-symbols-outlined text-ueal-purple dark:text-ueal-gold text-lg">history</span>
+              Recent Maintenance Activity
+            </h3>
+            <a href="{{ url_for('assets_maintenance_history_get', asset_uid=asset.uid) }}" class="text-ueal-gold text-xs font-bold hover:underline">VIEW ALL</a>
+          </div>
+
+          <div class="divide-y divide-slate-100 dark:divide-dark-border">
+            {% if recent_maintenance and recent_maintenance|length > 0 %}
+              {% for t in recent_maintenance %}
+                <div class="px-6 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                  <div>
+                    <p class="text-sm font-bold text-slate-800 dark:text-slate-100">{{ t.task_title or "Maintenance Task" }}</p>
+                    <p class="text-[11px] text-slate-500 dark:text-slate-400">Scheduled maintenance on {{ t.due_date or "—" }}</p>
+                  </div>
+                  {% if t.status == "completed" %}
+                    <span class="px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 text-[10px] font-bold">COMPLETED</span>
+                  {% elif t.status == "overdue" %}
+                    <span class="px-2.5 py-1 rounded-full bg-rose-100 dark:bg-rose-900/20 text-rose-700 dark:text-rose-200 text-[10px] font-bold">OVERDUE</span>
+                  {% else %}
+                    <span class="px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-200 text-[10px] font-bold">UPCOMING</span>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            {% else %}
+              <div class="px-6 py-6 text-sm text-slate-500 dark:text-slate-400">
+                No maintenance activity found for this asset yet.
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Recent Breakdown Incidents -->
+        <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border flex items-center justify-between">
+            <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2 uppercase tracking-wide">
+              <span class="material-symbols-outlined text-red-500 text-lg">report_problem</span>
+              Recent Breakdown Incidents
+            </h3>
+            <a href="{{ url_for('breakdowns') }}" class="text-ueal-gold text-xs font-bold hover:underline">OPEN LOGS</a>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold tracking-wider">
+                  <th class="px-6 py-3">Incident Description</th>
+                  <th class="px-6 py-3">Date</th>
+                  <th class="px-6 py-3 text-center">Downtime</th>
+                  <th class="px-6 py-3 text-right">Status</th>
+                </tr>
+              </thead>
+
+              <tbody class="divide-y divide-slate-100 dark:divide-dark-border">
+                {% if recent_breakdowns and recent_breakdowns|length > 0 %}
+                  {% for b in recent_breakdowns %}
+                    <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                      <td class="px-6 py-4">
+                        <a class="text-sm font-bold text-slate-800 dark:text-slate-100 hover:underline"
+                           href="{{ url_for('breakdowns_view', breakdown_id=b.breakdown_id) }}">
+                          {{ b.incident_title }}
+                        </a>
+                      </td>
+                      <td class="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400">{{ b.reported_date }}</td>
+                      <td class="px-6 py-4 text-xs font-bold text-slate-700 dark:text-slate-200 text-center">{{ b.downtime }}</td>
+                      <td class="px-6 py-4 text-right">
+                        <span class="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200 text-[10px] font-bold">
+                          {{ b.status_label|upper }}
+                        </span>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                {% else %}
+                  <tr>
+                    <td colspan="4" class="px-6 py-6 text-sm text-slate-500 dark:text-slate-400">
+                      No breakdowns logged for this asset yet.
+                    </td>
+                  </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

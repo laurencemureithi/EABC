@@ -1,0 +1,27 @@
+{% set department_name = current_department %}
+{% if export is defined and export.department %}{% set department_name = export.department %}{% endif %}
+{% set raw_department = document_department or department_name or current_department %}
+{% set report_department_label = report_department_display(raw_department) %}
+<div class="eabc-doc-header mb-6 print:mb-4">
+  <div class="eabc-doc-header-banner">
+    <div class="eabc-doc-header-brand">
+      <img src="{{ url_for('static', filename='brand/opsloom_wordmark_dark.png') }}" alt="Opsloom" class="eabc-doc-header-logo">
+      <div class="eabc-doc-header-address" aria-label="Opsloom address block">
+        {% for line in ultravetis_address_lines %}
+          <div>{{ line }}</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% if document_department is defined or department_name %}
+  <div class="eabc-doc-header-meta mt-2 flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+    <div class="eabc-doc-header-department">{{ report_department_label|upper }}</div>
+    {% if document_status is defined and document_status %}
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-200">
+        <span class="w-1.5 h-1.5 rounded-full {{ 'bg-green-500' if document_status == 'READY' else 'bg-amber-500' }}"></span>
+        {{ document_status }}
+      </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>

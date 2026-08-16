@@ -1,0 +1,8 @@
+Opsloom export fix v4.2
+
+Fixed only the report export path:
+- Removed the export-time server error affecting PDF, XLSX and CSV downloads.
+- PDF export now uses the same printable HTML report view as Print Preview whenever HTML-to-PDF rendering is available.
+- CSV export now writes a stable structured report dataset with metrics, insights, causes, assets and actions.
+- XLSX export now produces styled sheets with wrapped text, frozen panes, filters, borders and auto-sized columns based on content.
+- Existing report register logic remains intact.

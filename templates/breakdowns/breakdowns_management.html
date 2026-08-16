@@ -1,0 +1,909 @@
+{# =========================
+   breakdowns_management.html
+   ========================= #}
+{% extends "layouts/base.html" %}
+{% block title %}Breakdowns • Opsloom{% endblock %}
+
+{% block content %}
+  {% set page_title = "Breakdowns Management" %}
+  {% set title_icon = "troubleshoot" %}
+  {% set page_subtitle = "Track incidents, preview individual breakdown records, and export filtered management views." %}
+  {% set show_system_badge = true %}
+  {% set breadcrumbs = [
+    {"label":"Breakdowns", "href": url_for("breakdowns")},
+    {"label":"Management"}
+  ] %}
+  {% include "partials/title_block.html" %}
+
+  <div class="max-w-6xl mx-auto space-y-6">
+
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 breakdown-kpi-grid">
+      <div class="bg-white dark:bg-dark-surface p-6 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Active Breakdowns</p>
+            <h3 class="text-3xl font-bold mt-1 text-red-500" id="kpiActive">{{ kpi_active_breakdowns }}</h3>
+          </div>
+          <div class="p-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
+            <span class="material-symbols-outlined">priority_high</span>
+          </div>
+        </div>
+        <p class="mt-4 text-xs text-slate-400">
+          {% if kpi_active_delta >= 0 %}
+            <span class="text-red-500 font-bold" id="kpiActiveDelta">↑ {{ kpi_active_delta }}</span>
+          {% else %}
+            <span class="text-green-500 font-bold" id="kpiActiveDelta">↓ {{ (kpi_active_delta * -1) }}</span>
+          {% endif %}
+          since yesterday
+        </p>
+      </div>
+
+      <div class="bg-white dark:bg-dark-surface p-6 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">MTTR (Mean Time To Repair)</p>
+            <h3 class="text-3xl font-bold mt-1 text-slate-900 dark:text-white">
+              <span id="kpiMttr">{{ "%.1f"|format(kpi_mttr_hours) }}</span>
+              <span class="text-sm font-normal text-slate-400">hrs</span>
+            </h3>
+          </div>
+          <div class="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg">
+            <span class="material-symbols-outlined">timer</span>
+          </div>
+        </div>
+        <p class="mt-4 text-xs text-slate-400">
+          <span id="kpiMttrTrend"
+                class="{% if kpi_mttr_trend <= 0 %}text-green-500{% else %}text-red-500{% endif %} font-bold">
+            {% if kpi_mttr_trend <= 0 %}↓{% else %}↑{% endif %} {{ "%.0f"|format(kpi_mttr_trend|abs) }}%
+          </span>
+          vs last month
+        </p>
+      </div>
+
+      <div class="bg-white dark:bg-dark-surface p-6 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Total Downtime (MTD)</p>
+            <h3 class="text-3xl font-bold mt-1 text-slate-900 dark:text-white">
+              <span id="kpiDowntimeMtd">{{ "%.0f"|format(kpi_downtime_mtd_hours) }}</span>
+              <span class="text-sm font-normal text-slate-400">hrs</span>
+            </h3>
+          </div>
+          <div class="p-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-lg">
+            <span class="material-symbols-outlined">query_builder</span>
+          </div>
+        </div>
+        <p class="mt-4 text-xs text-slate-400">Across {{ kpi_facilities }} sections</p>
+      </div>
+
+      <div class="bg-white dark:bg-dark-surface p-6 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Uptime Rate</p>
+            <h3 class="text-3xl font-bold mt-1 text-slate-900 dark:text-white">
+              <span id="kpiUptime">{{ "%.1f"|format(kpi_uptime_rate) }}</span>%
+            </h3>
+          </div>
+          <div class="p-2 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-lg">
+            <span class="material-symbols-outlined">check_circle</span>
+          </div>
+        </div>
+        <p class="mt-4 text-xs text-slate-400">Target: {{ "%.1f"|format(kpi_uptime_target) }}%</p>
+      </div>
+
+      <div class="bg-white dark:bg-dark-surface p-6 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Breakdown Cost</p>
+            <h3 class="text-3xl font-bold mt-1 text-slate-900 dark:text-white">{{ kpi_cost_total|kes0 }}</h3>
+          </div>
+          <div class="p-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg">
+            <span class="material-symbols-outlined">payments</span>
+          </div>
+        </div>
+        <p class="mt-4 text-xs text-slate-400">Logged cost across incidents</p>
+      </div>
+    </div>
+
+    <!-- TABLE CARD -->
+    <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden flex flex-col">
+
+      <!-- FILTER FORM -->
+      <form id="filterForm" method="get" action="{{ url_for('breakdowns') }}">
+        <div class="p-4 border-b border-slate-200 dark:border-dark-border flex flex-wrap gap-4 items-center justify-between">
+          <div class="flex items-center gap-4 flex-1 min-w-[280px]">
+            <div class="relative flex-1 max-w-md">
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+              <input
+                name="q"
+                id="searchInput"
+                value="{{ q }}"
+                class="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
+                placeholder="Search by asset, technician, breakdown ID, or title..."
+                type="text"
+              />
+            </div>
+
+            <input type="hidden" name="per_page" value="{{ per_page }}">
+            <input type="hidden" name="page" value="1">
+          </div>
+
+          <div class="flex items-center gap-3">
+            <button type="button" id="toggleFilters"
+              class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-300">
+              <span class="material-symbols-outlined text-lg text-slate-400">filter_list</span>
+              Filters
+            </button>
+
+            {% set export_links = [
+              {"href": url_for('breakdowns_export', q=q, status=selected_status, severity=selected_severity, technician=selected_technician, dt_from=selected_dt_from, dt_to=selected_dt_to, format='csv'), "icon": "description", "label": "Export CSV"},
+              {"href": url_for('breakdowns_export', q=q, status=selected_status, severity=selected_severity, technician=selected_technician, dt_from=selected_dt_from, dt_to=selected_dt_to, format='xlsx'), "icon": "table_view", "label": "Export Excel"},
+              {"href": url_for('breakdowns_export', q=q, status=selected_status, severity=selected_severity, technician=selected_technician, dt_from=selected_dt_from, dt_to=selected_dt_to, format='pdf'), "icon": "picture_as_pdf", "label": "Export PDF"}
+            ] %}
+            {% set button_label = 'EXPORT' %}
+            {% include 'partials/export_menu.html' %}
+
+            <a href="{{ url_for('breakdowns_new_step1_get') }}"
+               class="bg-ueal-gold text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:opacity-90 transition-shadow shadow-md">
+              <span class="material-symbols-outlined text-lg">add</span>
+              LOG BREAKDOWN
+            </a>
+          </div>
+        </div>
+
+        <!-- Filter panel -->
+        <div id="filterPanel" class="hidden border-b border-slate-200 dark:border-dark-border bg-slate-50/40 dark:bg-slate-800/30">
+          <div class="px-4 pt-4 pb-3 flex items-center justify-between">
+            <div class="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+              <span class="material-symbols-outlined text-slate-400">tune</span>
+              <span class="text-xs font-extrabold uppercase tracking-widest">Filters</span>
+            </div>
+
+            <button type="button" id="closeFilters"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
+                           border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800
+                           hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200">
+              <span class="material-symbols-outlined text-base">close</span>
+              Close
+            </button>
+          </div>
+
+          <div class="px-4 pb-4 space-y-4">
+            <div class="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-4">
+              <div class="lg:col-span-2">
+                <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 block">
+                  From (Date &amp; Time)
+                </label>
+                <input type="datetime-local"
+                       name="dt_from"
+                       value="{{ selected_dt_from or '' }}"
+                       class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 px-3 text-sm font-semibold text-slate-700 dark:text-slate-200"/>
+              </div>
+
+              <div class="lg:col-span-2">
+                <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 block">
+                  To (Date &amp; Time)
+                </label>
+                <input type="datetime-local"
+                       name="dt_to"
+                       value="{{ selected_dt_to or '' }}"
+                       class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 px-3 text-sm font-semibold text-slate-700 dark:text-slate-200"/>
+              </div>
+
+              <div class="lg:col-span-1">
+                <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 block">Status</label>
+                <div class="relative">
+                  <select name="status"
+                          class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 pl-3 pr-10 text-sm font-semibold text-slate-700 dark:text-slate-200 appearance-none">
+                    <option value="" {% if not selected_status %}selected{% endif %}>All</option>
+                    <option value="open" {% if selected_status=="open" %}selected{% endif %}>Open</option>
+                    <option value="in_progress" {% if selected_status=="in_progress" %}selected{% endif %}>In Progress</option>
+                    <option value="on_hold" {% if selected_status=="on_hold" %}selected{% endif %}>On Hold</option>
+                    <option value="resolved" {% if selected_status=="resolved" %}selected{% endif %}>Resolved</option>
+                  </select>
+                  <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+                </div>
+              </div>
+
+              <div class="lg:col-span-1">
+                <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 block">Severity</label>
+                <div class="relative">
+                  <select name="severity"
+                          class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 pl-3 pr-10 text-sm font-semibold text-slate-700 dark:text-slate-200 appearance-none">
+                    <option value="" {% if not selected_severity %}selected{% endif %}>All</option>
+                    <option value="critical" {% if selected_severity=="critical" %}selected{% endif %}>Critical</option>
+                    <option value="medium" {% if selected_severity=="medium" %}selected{% endif %}>Medium</option>
+                    <option value="low" {% if selected_severity=="low" %}selected{% endif %}>Low</option>
+                  </select>
+                  <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+                </div>
+              </div>
+
+              <div class="lg:col-span-2">
+                <label class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 block">Technician</label>
+                <div class="relative">
+                  <select name="technician"
+                          class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 pl-3 pr-10 text-sm font-semibold text-slate-700 dark:text-slate-200 appearance-none">
+                    <option value="" {% if not selected_technician %}selected{% endif %}>All</option>
+                    {% if technicians and technicians|length > 0 %}
+                      {% for t in technicians %}
+                        <option value="{{ t }}" {% if selected_technician == t %}selected{% endif %}>{{ t }}</option>
+                      {% endfor %}
+                    {% endif %}
+                  </select>
+                  <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-2 border-t border-slate-200/70 dark:border-dark-border">
+              <button type="submit"
+                class="bg-ueal-purple text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:opacity-95 transition-all active:scale-95">
+                Apply
+              </button>
+
+              <a href="{{ url_for('breakdowns') }}"
+                 class="px-5 py-2.5 rounded-lg text-sm font-bold border border-slate-200 dark:border-dark-border text-slate-600 dark:text-slate-200 bg-white dark:bg-dark-surface hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+                Reset
+              </a>
+            </div>
+          </div>
+        </div>
+      </form>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left">
+          <thead>
+            <tr class="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold tracking-wider">
+              <th class="px-6 py-4">Asset Name / ID</th>
+              <th class="px-6 py-4">Date &amp; Time</th>
+              <th class="px-6 py-4">Severity</th>
+              <th class="px-6 py-4">Status</th>
+              <th class="px-6 py-4">Technician</th>
+              <th class="px-6 py-4 text-right">Actions</th>
+            </tr>
+          </thead>
+
+          <tbody class="divide-y divide-slate-100 dark:divide-dark-border">
+            {% if breakdowns and breakdowns|length > 0 %}
+              {% for b in breakdowns %}
+              <tr class="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
+                <td class="px-6 py-5">
+                  <div class="flex flex-col">
+                    <span class="font-bold text-slate-800 dark:text-white">{{ b.asset_name }}</span>
+                    <span class="text-xs text-slate-500 dark:text-slate-400 mt-1">ID: {{ b.asset_id }}</span>
+
+                    {% if b.incident_title %}
+                      <span class="text-xs text-slate-600 dark:text-slate-300 mt-1 font-semibold">
+                        {{ b.incident_title }}
+                      </span>
+                    {% endif %}
+
+                    <span class="text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-bold">{{ b.breakdown_id }}</span>
+                  </div>
+                </td>
+
+                <td class="px-6 py-5">
+                  <div class="flex flex-col">
+                    <span class="text-sm dark:text-slate-300">{{ b.reported_date }}</span>
+                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ b.reported_time }}</span>
+                  </div>
+                </td>
+
+                <td class="px-6 py-5">
+                  {% if b.severity == "critical" %}
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">CRITICAL</span>
+                  {% elif b.severity == "medium" %}
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">MEDIUM</span>
+                  {% else %}
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">LOW</span>
+                  {% endif %}
+                </td>
+
+                <td class="px-6 py-5">
+                  {% if b.status == "open" %}
+                    <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-red-500">
+                      <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> Open
+                    </span>
+                  {% elif b.status == "in_progress" %}
+                    <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-500">
+                      <span class="w-2 h-2 rounded-full bg-amber-500"></span> In Progress
+                    </span>
+                  {% elif b.status == "on_hold" %}
+                    <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 dark:text-slate-300">
+                      <span class="w-2 h-2 rounded-full bg-slate-400"></span> On Hold
+                    </span>
+                  {% else %}
+                    <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-green-600 dark:text-green-400">
+                      <span class="w-2 h-2 rounded-full bg-green-500"></span> Resolved
+                    </span>
+                  {% endif %}
+                </td>
+
+                <td class="px-6 py-5">
+                  {% if b.technician_name %}
+                    <div class="flex items-center gap-2">
+                      <div class="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-700 dark:text-slate-300">
+                        {{ b.technician_initials }}
+                      </div>
+                      <span class="text-sm dark:text-slate-300">{{ b.technician_name }}</span>
+                    </div>
+                  {% else %}
+                    <span class="text-sm text-slate-400 italic">Unassigned</span>
+                  {% endif %}
+                </td>
+
+                <td class="px-6 py-5 text-right">
+                  {% set action_items = [
+                    {"href": url_for('breakdowns_view', breakdown_id=b.breakdown_id), "icon": "visibility", "label": "Preview"},
+                    {"href": url_for('breakdowns_view', breakdown_id=b.breakdown_id) ~ '?print=1&autoprint=1', "icon": "print", "label": "Print"},
+                    {"href": url_for('breakdowns_update_get', breakdown_id=b.breakdown_id), "icon": "edit", "label": "Update"},
+                    {"type": "form", "href": url_for('breakdowns_close', breakdown_id=b.breakdown_id), "icon": "check_circle", "label": "Close Incident", "hidden_inputs": [{"name": "next", "value": url_for('breakdowns', q=q, status=selected_status, severity=selected_severity, technician=selected_technician, dt_from=selected_dt_from, dt_to=selected_dt_to, per_page=per_page, page=page)}]} if b.status != 'resolved' else none,
+                    {"type": "form", "href": url_for('breakdowns_delete', breakdown_id=b.breakdown_id), "icon": "delete", "label": "Delete", "variant": "danger", "confirm": "Delete this breakdown? This cannot be undone.", "hidden_inputs": [{"name": "next", "value": url_for('breakdowns', q=q, status=selected_status, severity=selected_severity, technician=selected_technician, dt_from=selected_dt_from, dt_to=selected_dt_to, per_page=per_page, page=page)}]}
+                  ]|select %}
+                  {% include 'partials/table_actions_menu.html' %}
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="6" class="px-6 py-10 text-center text-slate-500 dark:text-slate-400">
+                  No breakdowns found. Click <span class="font-bold">LOG BREAKDOWN</span> to register one.
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- FOOTER -->
+      <div class="p-4 border-t border-slate-200 dark:border-dark-border flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/30 dark:bg-slate-800/30">
+        <div class="flex items-center gap-6">
+          <p class="text-[13px] text-slate-500 dark:text-slate-400">
+            Showing {{ showing_from }}-{{ showing_to }} of {{ total }} records
+          </p>
+
+          <form method="get" action="{{ url_for('breakdowns') }}" class="flex items-center gap-3 pl-6 border-l border-slate-200 dark:border-dark-border">
+            <input type="hidden" name="q" value="{{ q }}">
+            <input type="hidden" name="status" value="{{ selected_status }}">
+            <input type="hidden" name="severity" value="{{ selected_severity }}">
+            <input type="hidden" name="technician" value="{{ selected_technician }}">
+            <input type="hidden" name="dt_from" value="{{ selected_dt_from }}">
+            <input type="hidden" name="dt_to" value="{{ selected_dt_to }}">
+            <input type="hidden" name="page" value="1">
+
+            <label class="text-[13px] text-slate-500 dark:text-slate-400 font-medium">Rows per page:</label>
+            <div class="relative">
+              <select name="per_page" onchange="this.form.submit()"
+                class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded py-1 pl-2 pr-8 text-[13px] font-bold focus:ring-1 focus:ring-ueal-purple/20 outline-none text-slate-700 dark:text-slate-300 appearance-none cursor-pointer">
+                <option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
+                <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+                <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+              </select>
+              <span class="material-symbols-outlined absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">expand_more</span>
+            </div>
+          </form>
+        </div>
+
+        <div class="flex items-center gap-1">
+          <a class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 {% if page<=1 %}pointer-events-none opacity-30{% endif %}"
+             href="{{ url_for('breakdowns', q=q, status=selected_status, severity=selected_severity, technician=selected_technician, dt_from=selected_dt_from, dt_to=selected_dt_to, per_page=per_page, page=page-1) }}">
+            <span class="material-symbols-outlined">chevron_left</span>
+          </a>
+
+          {% for p in pages %}
+            {% if p == "…" %}
+              <span class="px-2 text-slate-400 text-xs font-bold">…</span>
+            {% else %}
+              <a href="{{ url_for('breakdowns', q=q, status=selected_status, severity=selected_severity, technician=selected_technician, dt_from=selected_dt_from, dt_to=selected_dt_to, per_page=per_page, page=p) }}"
+                 class="w-8 h-8 flex items-center justify-center rounded text-xs font-bold transition-colors
+                        {% if p==page %}bg-ueal-purple text-white shadow-md{% else %}hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300{% endif %}">
+                {{ p }}
+              </a>
+            {% endif %}
+          {% endfor %}
+
+          <a class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 {% if page>=total_pages %}pointer-events-none opacity-30{% endif %}"
+             href="{{ url_for('breakdowns', q=q, status=selected_status, severity=selected_severity, technician=selected_technician, dt_from=selected_dt_from, dt_to=selected_dt_to, per_page=per_page, page=page+1) }}">
+            <span class="material-symbols-outlined">chevron_right</span>
+          </a>
+        </div>
+      </div>
+
+    </div>
+
+    {# =========================
+       INSIGHTS ROW (Frequency + Technician Workload)
+       MOVED BELOW THE TABLE
+       ========================= #}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Breakdown Frequency (WORKING) -->
+      <div class="lg:col-span-2 bg-white dark:bg-dark-surface p-6 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="text-sm font-extrabold tracking-wide text-slate-800 dark:text-white">Breakdown Frequency</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" id="freqSubtitle">Loading…</p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <div class="relative">
+              <select id="freqRange"
+                      class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 pl-3 pr-10 text-sm font-bold text-slate-700 dark:text-slate-200 appearance-none">
+                <option value="7d" selected>Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+                <option value="qtr">Quarter</option>
+                <option value="custom">Custom</option>
+              </select>
+              <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+            </div>
+
+            <button type="button" id="freqRefresh"
+                    class="px-3 py-2 rounded-lg text-xs font-extrabold border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200">
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <!-- Quarter / Custom controls -->
+        <div id="freqExtraControls" class="hidden mt-4 p-4 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/40 dark:bg-slate-800/30">
+          <!-- Quarter controls -->
+          <div id="qtrControls" class="hidden items-end gap-3 flex-wrap">
+            <div>
+              <label class="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400 block mb-1">Year</label>
+              <input id="freqYear" type="number" min="2000" max="2100"
+                     class="w-28 bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 px-3 text-sm font-bold text-slate-700 dark:text-slate-200"
+                     value="{{ now().year if now is defined else '' }}">
+            </div>
+
+            <div class="relative">
+              <label class="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400 block mb-1">Quarter</label>
+              <select id="freqQuarter"
+                      class="w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 pl-3 pr-10 text-sm font-bold text-slate-700 dark:text-slate-200 appearance-none">
+                <option value="1">Q1 (Jan–Mar)</option>
+                <option value="2">Q2 (Apr–Jun)</option>
+                <option value="3">Q3 (Jul–Sep)</option>
+                <option value="4">Q4 (Oct–Dec)</option>
+              </select>
+              <span class="material-symbols-outlined absolute right-2 top-[34px] text-slate-400 pointer-events-none">expand_more</span>
+            </div>
+          </div>
+
+          <!-- Custom controls -->
+          <div id="customControls" class="hidden items-end gap-3 flex-wrap">
+            <div>
+              <label class="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400 block mb-1">From</label>
+              <input id="freqFrom" type="date"
+                     class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 px-3 text-sm font-bold text-slate-700 dark:text-slate-200">
+            </div>
+            <div>
+              <label class="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400 block mb-1">To</label>
+              <input id="freqTo" type="date"
+                     class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 px-3 text-sm font-bold text-slate-700 dark:text-slate-200">
+            </div>
+          </div>
+
+          <div class="mt-3 flex items-center justify-end">
+            <button type="button" id="freqApply"
+                    class="bg-ueal-purple text-white px-4 py-2 rounded-lg text-xs font-extrabold hover:opacity-95 active:scale-95">
+              Apply
+            </button>
+          </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="mt-5">
+          <div class="flex items-center justify-between">
+            <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Incidents</div>
+            <div class="text-xs text-slate-500 dark:text-slate-400">
+              Total: <span class="font-extrabold text-slate-800 dark:text-white" id="freqTotal">—</span>
+            </div>
+          </div>
+
+          <div class="mt-3 grid grid-cols-12 gap-2 items-end" id="freqBars" style="min-height: 140px;">
+            {# bars injected by JS #}
+          </div>
+
+          <div class="mt-3 text-xs text-slate-500 dark:text-slate-400" id="freqLegend">
+            Tip: switch to Quarter or Custom to compare longer periods.
+          </div>
+
+          <div class="mt-3 text-xs text-red-600 dark:text-red-400 font-bold hidden" id="freqError"></div>
+
+
+          <div class="mt-4 pt-4 border-t border-slate-200 dark:border-dark-border">
+            <label class="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">Executive Notes / Insights</label>
+            <textarea id="freqNotes" rows="3" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 px-3 text-sm text-slate-700 dark:text-slate-200" placeholder="Optional management notes to include in the printed/exported report."></textarea>
+            <div class="mt-3 flex flex-wrap items-center justify-end gap-2">
+              <button type="button" id="freqPrintBtn" class="px-3 py-2 rounded-lg text-xs font-extrabold border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">Print</button>
+              <button type="button" data-freq-export="pdf" class="px-3 py-2 rounded-lg text-xs font-extrabold bg-ueal-purple text-white">PDF</button>
+              <button type="button" data-freq-export="xlsx" class="px-3 py-2 rounded-lg text-xs font-extrabold border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">Excel</button>
+              <button type="button" data-freq-export="csv" class="px-3 py-2 rounded-lg text-xs font-extrabold border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">CSV</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-dark-surface p-6 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-sm font-extrabold tracking-wide text-slate-800 dark:text-white">Technician Workload</p>
+            <p id="btwNote" class="text-xs text-slate-500 dark:text-slate-400 mt-1">Loading live workload…</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <a href="{{ url_for('technicians_management') }}" class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">Directory</a>
+            <button type="button" id="btwRefresh" class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-ueal-purple/10 text-ueal-purple">Refresh</button>
+          </div>
+        </div>
+        <div id="btwList" class="mt-5 space-y-3"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Filters panel
+    (function () {
+      const btn = document.getElementById("toggleFilters");
+      const closeBtn = document.getElementById("closeFilters");
+      const panel = document.getElementById("filterPanel");
+
+      function toggle(show) {
+        if (!panel) return;
+        if (show === true) panel.classList.remove("hidden");
+        else if (show === false) panel.classList.add("hidden");
+        else panel.classList.toggle("hidden");
+      }
+
+      if (btn && panel) btn.addEventListener("click", () => toggle());
+      if (closeBtn) closeBtn.addEventListener("click", () => toggle(false));
+    })();
+
+    // Debounced search
+    (function () {
+      const input = document.getElementById("searchInput");
+      const form = document.getElementById("filterForm");
+      if (!input || !form) return;
+      let t = null;
+      input.addEventListener("input", () => {
+        clearTimeout(t);
+        t = setTimeout(() => form.submit(), 450);
+      });
+    })();
+
+    // ✅ Realtime KPI refresh (every second)
+    (function(){
+      const a = document.getElementById("kpiActive");
+      const ad = document.getElementById("kpiActiveDelta");
+      const mttr = document.getElementById("kpiMttr");
+      const mttrTrend = document.getElementById("kpiMttrTrend");
+      const d = document.getElementById("kpiDowntimeMtd");
+      const u = document.getElementById("kpiUptime");
+
+      function setTrend(el, pct){
+        const n = Number(pct || 0);
+        const up = n > 0;
+        const icon = up ? "↑" : "↓";
+        el.textContent = `${icon} ${Math.abs(Math.round(n))}%`;
+        el.classList.remove("text-green-500","text-red-500");
+        el.classList.add(up ? "text-red-500" : "text-green-500");
+      }
+
+      async function tick(){
+        try{
+          const res = await fetch("/api/breakdowns/kpi", {cache:"no-store"});
+          if(!res.ok) return;
+          const j = await res.json();
+
+          if(a) a.textContent = j.active;
+
+          if(ad){
+            const delta = Number(j.active_delta || 0);
+            if(delta >= 0){
+              ad.textContent = `↑ ${delta}`;
+              ad.classList.remove("text-green-500");
+              ad.classList.add("text-red-500");
+            }else{
+              ad.textContent = `↓ ${Math.abs(delta)}`;
+              ad.classList.remove("text-red-500");
+              ad.classList.add("text-green-500");
+            }
+          }
+
+          if(mttr) mttr.textContent = Number(j.mttr_hours || 0).toFixed(1);
+          if(mttrTrend) setTrend(mttrTrend, j.mttr_trend);
+          if(d) d.textContent = Math.round(Number(j.downtime_mtd_hours || 0));
+          if(u) u.textContent = Number(j.uptime_rate || 0).toFixed(1);
+        }catch(e){}
+      }
+
+      tick();
+      setInterval(tick, 1000);
+    })();
+
+    // ✅ Breakdown Frequency (WORKING)
+    (function(){
+      const rangeSel = document.getElementById("freqRange");
+      const refreshBtn = document.getElementById("freqRefresh");
+      const applyBtn = document.getElementById("freqApply");
+
+      const extra = document.getElementById("freqExtraControls");
+      const qtrControls = document.getElementById("qtrControls");
+      const customControls = document.getElementById("customControls");
+
+      const yearEl = document.getElementById("freqYear");
+      const qEl = document.getElementById("freqQuarter");
+      const fromEl = document.getElementById("freqFrom");
+      const toEl = document.getElementById("freqTo");
+
+      const bars = document.getElementById("freqBars");
+      const total = document.getElementById("freqTotal");
+      const subtitle = document.getElementById("freqSubtitle");
+      const err = document.getElementById("freqError");
+
+      function showExtra(mode){
+        if(!extra || !qtrControls || !customControls) return;
+        if(mode === "qtr"){
+          extra.classList.remove("hidden");
+          qtrControls.classList.remove("hidden");
+          customControls.classList.add("hidden");
+          qtrControls.classList.add("flex");
+          customControls.classList.remove("flex");
+        }else if(mode === "custom"){
+          extra.classList.remove("hidden");
+          customControls.classList.remove("hidden");
+          qtrControls.classList.add("hidden");
+          customControls.classList.add("flex");
+          qtrControls.classList.remove("flex");
+        }else{
+          extra.classList.add("hidden");
+          qtrControls.classList.add("hidden");
+          customControls.classList.add("hidden");
+          qtrControls.classList.remove("flex");
+          customControls.classList.remove("flex");
+        }
+      }
+
+      function labelFor(mode){
+        if(mode === "7d") return "Last 7 days";
+        if(mode === "30d") return "Last 30 days";
+        if(mode === "qtr"){
+          const y = yearEl && yearEl.value ? yearEl.value : "";
+          const q = qEl && qEl.value ? qEl.value : "";
+          return `Quarter Q${q} ${y}`.trim();
+        }
+        if(mode === "custom"){
+          const f = fromEl && fromEl.value ? fromEl.value : "";
+          const t = toEl && toEl.value ? toEl.value : "";
+          return (f && t) ? `Custom: ${f} → ${t}` : "Custom range";
+        }
+        return "—";
+      }
+
+      function setError(msg){
+        if(!err) return;
+        if(!msg){
+          err.classList.add("hidden");
+          err.textContent = "";
+        }else{
+          err.classList.remove("hidden");
+          err.textContent = msg;
+        }
+      }
+
+      function renderChart(labels, values){
+        if(!bars) return;
+        bars.innerHTML = "";
+        const maxVal = Math.max(1, ...values);
+
+        const n = labels.length;
+        const cols = Math.min(12, Math.max(7, Math.ceil(n)));
+        bars.className = `mt-3 grid gap-2 items-end`;
+        bars.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+        bars.style.minHeight = "140px";
+
+        for(let i=0;i<n;i++){
+          const v = Number(values[i] || 0);
+          const h = Math.round((v / maxVal) * 100);
+
+          const wrap = document.createElement("div");
+          wrap.className = "flex flex-col items-center gap-2";
+
+          const bar = document.createElement("div");
+          bar.className = "w-full rounded-lg bg-ueal-purple/20 dark:bg-ueal-purple/20 overflow-hidden";
+          bar.style.height = "110px";
+          bar.title = `${labels[i]}: ${v}`;
+
+          const fill = document.createElement("div");
+          fill.className = "w-full bg-ueal-purple";
+          fill.style.height = `${h}%`;
+          fill.style.marginTop = `${100 - h}%`;
+
+          bar.appendChild(fill);
+
+          const lab = document.createElement("div");
+          lab.className = "text-[10px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400 truncate max-w-[80px]";
+          lab.textContent = labels[i];
+
+          const val = document.createElement("div");
+          val.className = "text-[11px] font-extrabold text-slate-800 dark:text-white";
+          val.textContent = v;
+
+          wrap.appendChild(val);
+          wrap.appendChild(bar);
+          wrap.appendChild(lab);
+
+          bars.appendChild(wrap);
+        }
+      }
+
+      async function load(mode){
+        setError("");
+        const params = new URLSearchParams();
+        params.set("range", mode);
+
+        if(mode === "qtr"){
+          if(yearEl && yearEl.value) params.set("year", yearEl.value);
+          if(qEl && qEl.value) params.set("quarter", qEl.value);
+        }
+        if(mode === "custom"){
+          if(fromEl && fromEl.value) params.set("from", fromEl.value);
+          if(toEl && toEl.value) params.set("to", toEl.value);
+        }
+
+        try{
+          const res = await fetch(`/api/breakdowns/frequency?${params.toString()}`, {cache:"no-store"});
+          if(!res.ok){
+            setError("Frequency data unavailable (API error).");
+            subtitle && (subtitle.textContent = labelFor(mode));
+            return;
+          }
+          const j = await res.json();
+
+          const labels = Array.isArray(j.labels) ? j.labels : [];
+          const values = Array.isArray(j.values) ? j.values : [];
+          const sum = Number(j.total || 0);
+
+          subtitle && (subtitle.textContent = labelFor(mode));
+          total && (total.textContent = String(sum));
+
+          if(labels.length === 0){
+            renderChart(["No data"], [0]);
+            return;
+          }
+
+          renderChart(labels, values);
+        }catch(e){
+          setError("Frequency data unavailable (network error).");
+          subtitle && (subtitle.textContent = labelFor(mode));
+        }
+      }
+
+      function onModeChange(){
+        const mode = rangeSel ? rangeSel.value : "7d";
+        showExtra(mode);
+        if(mode === "qtr" || mode === "custom"){
+          subtitle && (subtitle.textContent = labelFor(mode));
+          return;
+        }
+        load(mode);
+      }
+
+      if(rangeSel) rangeSel.addEventListener("change", onModeChange);
+      if(refreshBtn) refreshBtn.addEventListener("click", () => load(rangeSel ? rangeSel.value : "7d"));
+      if(applyBtn) applyBtn.addEventListener("click", () => load(rangeSel ? rangeSel.value : "7d"));
+      if (yearEl && !yearEl.value) yearEl.value = String(new Date().getFullYear());
+
+      function exportUrl(fmt){
+        const qs = new URLSearchParams();
+        const mode = rangeSel?.value || '7d';
+        qs.set('format', fmt);
+        qs.set('range', mode);
+        if (mode === 'qtr') {
+          if (yearEl?.value) qs.set('year', yearEl.value);
+          if (qEl?.value) qs.set('quarter', qEl.value);
+        }
+        if (mode === 'custom') {
+          if (fromEl?.value) qs.set('from', fromEl.value);
+          if (toEl?.value) qs.set('to', toEl.value);
+        }
+        const notes = document.getElementById('freqNotes');
+        if (notes?.value.trim()) qs.set('notes', notes.value.trim());
+        return `/breakdowns/frequency/export?${qs.toString()}`;
+      }
+
+      document.querySelectorAll('[data-freq-export]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          window.open(exportUrl(btn.getAttribute('data-freq-export') || 'pdf'), '_blank');
+        });
+      });
+      document.getElementById('freqPrintBtn')?.addEventListener('click', () => {
+        window.open(exportUrl('html') + '&autoprint=1', '_blank');
+      });
+
+      onModeChange();
+    })();
+
+    // Technician workload live card
+    (function(){
+      const listEl = document.getElementById("btwList");
+      const noteEl = document.getElementById("btwNote");
+      const refreshBtn = document.getElementById("btwRefresh");
+      if(!listEl || !noteEl) return;
+      function pill(label, cls){ return `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold ${cls}">${label}</span>`; }
+      async function fetchRows(){
+        const res = await fetch('/api/technicians/workload', {headers:{'Accept':'application/json'}});
+        if(!res.ok) throw new Error('bad response');
+        return await res.json();
+      }
+      function render(payload){
+        listEl.innerHTML='';
+        noteEl.textContent = payload?.note || 'Live workload across active breakdowns and PM queues.';
+        const rows = Array.isArray(payload?.rows) ? payload.rows.slice(0,4) : [];
+        if(!rows.length){
+          listEl.innerHTML = '<div class="text-sm text-slate-500">No technician workload found.</div>';
+          return;
+        }
+        rows.forEach((r)=>{
+          const load = Number(r.active||0) + Number(r.open_pm||0);
+          const flag = load <= 1 ? pill('Available','bg-green-50 text-green-700') : (load <= 3 ? pill('Balanced','bg-amber-50 text-amber-700') : pill('High Load','bg-red-50 text-red-700'));
+          const row = document.createElement('div');
+          row.className = 'flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/40 dark:bg-slate-900/40';
+          row.innerHTML = `<div class="min-w-0"><div class="text-sm font-extrabold text-slate-900 dark:text-white truncate">${r.name||'Technician'}</div><div class="text-[11px] text-slate-500">Active BD: <span class="font-bold">${r.active||0}</span> • Open PM: <span class="font-bold">${r.open_pm||0}</span></div></div><div class="text-right">${flag}<div class="mt-1 text-[11px] text-slate-500">Availability ${r.availability_score||0}%</div></div>`;
+          listEl.appendChild(row);
+        });
+      }
+      async function refresh(){
+        noteEl.textContent='Loading live workload…';
+        try{ render(await fetchRows()); }catch(e){ noteEl.textContent='Technician workload unavailable.'; listEl.innerHTML=''; }
+      }
+      refreshBtn?.addEventListener('click', refresh);
+      refresh();
+    })();
+
+  </script>
+{% endblock %}
+
+
+{% block page_scripts %}
+<script>
+(function(){
+  const url = {{ url_for('api_live_breakdowns_kpis')|tojson }};
+  const fmtNum = v => Number(v || 0).toFixed(1);
+  function setDelta(val){
+    const el = document.getElementById('kpiActiveDelta');
+    if(!el) return;
+    const n = Number(val || 0);
+    el.textContent = (n >= 0 ? '↑ ' + n : '↓ ' + Math.abs(n));
+    el.className = (n >= 0 ? 'text-red-500' : 'text-green-500') + ' font-bold';
+  }
+  function setTrend(val){
+    const el = document.getElementById('kpiMttrTrend');
+    if(!el) return;
+    const n = Number(val || 0);
+    el.textContent = (n <= 0 ? '↓ ' : '↑ ') + Math.abs(Math.round(n)) + '%';
+    el.className = (n <= 0 ? 'text-green-500' : 'text-red-500') + ' font-bold';
+  }
+  async function refreshKpis(){
+    try{
+      const r = await fetch(url, {headers: {'X-Requested-With':'XMLHttpRequest'}});
+      if(!r.ok) return;
+      const data = await r.json();
+      const map = {
+        kpiActive: data.active,
+        kpiMttr: fmtNum(data.mttr_hours),
+        kpiDowntimeMtd: Math.round(Number(data.downtime_mtd_hours || 0)),
+        kpiUptime: fmtNum(data.uptime_rate)
+      };
+      Object.entries(map).forEach(([id, value]) => { const el = document.getElementById(id); if(el) el.textContent = value; });
+      setDelta(data.active_delta);
+      setTrend(data.mttr_trend);
+    }catch(e){}
+  }
+  refreshKpis();
+  setInterval(refreshKpis, 1000);
+})();
+</script>
+{% endblock %}

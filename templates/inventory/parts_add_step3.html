@@ -1,0 +1,184 @@
+{% extends "layouts/base.html" %}
+{% block title %}Add New Part • Step 3 • Opsloom{% endblock %}
+
+{% block content %}
+{% set page_title = "Add New Part" %}
+{% set title_icon = "inventory_2" %}
+{% set page_subtitle = "Complete technical specifications, compatibility, and supporting documents." %}
+{% set show_system_badge = true %}
+{% set breadcrumbs = [{"label":"Inventory", "href": url_for("inventory_management")}, {"label":"Add New Part"}] %}
+{% include "partials/title_block.html" %}
+
+<div class="max-w-4xl mx-auto mb-4 flex justify-end" data-no-print>
+  <a class="text-slate-500 hover:text-slate-700 flex items-center gap-1 text-sm font-medium transition-colors" href="{{ url_for('inventory_management') }}"><span class="material-symbols-outlined text-lg">close</span> Cancel</a>
+</div>
+
+<!-- Stepper -->
+<div class="max-w-4xl mx-auto mb-8 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-full bg-green-500 text-white flex items-center justify-center font-bold shadow-md shadow-green-500/20">
+        <span class="material-symbols-outlined">check</span>
+      </div>
+      <div>
+        <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Basic Info</p>
+        <p class="text-[10px] text-slate-400 font-medium italic">Completed</p>
+      </div>
+    </div>
+
+    <div class="stepper-line active"></div>
+
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-full bg-green-500 text-white flex items-center justify-center font-bold shadow-md shadow-green-500/20">
+        <span class="material-symbols-outlined">check</span>
+      </div>
+      <div>
+        <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Stock &amp; Financials</p>
+        <p class="text-[10px] text-slate-400 font-medium italic">Completed</p>
+      </div>
+    </div>
+
+    <div class="stepper-line active"></div>
+
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-full bg-ueal-gold text-white flex items-center justify-center font-bold shadow-md shadow-ueal-gold/20">3</div>
+      <div>
+        <p class="text-xs font-bold text-ueal-gold uppercase tracking-wider">Technical Specs</p>
+        <p class="text-[10px] text-ueal-gold/70 font-medium">Compatibility &amp; Docs</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-4xl mx-auto bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
+  <form method="post" action="{{ url_for('inventory_add_step3_post') }}" enctype="multipart/form-data" class="p-8">
+    {% if error %}
+      <div class="mb-6 p-4 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm font-semibold">
+        {{ error }}
+      </div>
+    {% endif %}
+
+    <div class="space-y-10">
+      <section>
+        <h2 class="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+          <span class="material-symbols-outlined text-ueal-purple">settings_suggest</span> Manufacturer &amp; Identification
+        </h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="space-y-2">
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider" for="manufacturer">
+              Manufacturer / OEM <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="manufacturer"
+              name="manufacturer"
+              value="{{ (form.manufacturer or '') }}"
+              class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-ueal-gold focus:border-ueal-gold transition-all"
+              placeholder="e.g., InductoTherm Global"
+              type="text"
+              required
+            />
+          </div>
+
+          <div class="space-y-2">
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider" for="model_number">
+              Model Number <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="model_number"
+              name="model_number"
+              value="{{ (form.model_number or '') }}"
+              class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-ueal-gold focus:border-ueal-gold transition-all"
+              placeholder="e.g., IT-H01-X"
+              type="text"
+              required
+            />
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+          <span class="material-symbols-outlined text-ueal-purple">description</span> Detailed Specs &amp; Documents
+        </h2>
+
+        <div class="space-y-6">
+          <div class="space-y-2">
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider" for="tech_specs">
+              Technical Specifications <span class="text-red-500">*</span>
+            </label>
+            <textarea
+              id="tech_specs"
+              name="tech_specs"
+              class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-ueal-gold focus:border-ueal-gold transition-all min-h-[140px]"
+              placeholder="Power rating, dimensions, materials, tolerance, fitting type, etc."
+              required
+            >{{ (form.tech_specs or '') }}</textarea>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Part photo -->
+            <div class="space-y-2">
+              <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Part Visual</label>
+              <div class="border-2 border-dashed border-slate-200 rounded-xl p-6 bg-slate-50/50">
+                <input
+                  type="file"
+                  name="part_photo"
+                  accept=".png,.jpg,.jpeg,.webp"
+                  class="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-white file:text-slate-700 hover:file:bg-slate-100"
+                />
+                <p class="text-[10px] text-slate-400 mt-2">PNG/JPG/WEBP. Max 5MB.</p>
+
+                {% if form.photo_url %}
+                  <div class="mt-3 flex items-center gap-3">
+                    <img src="{{ form.photo_url }}" alt="Part photo" class="w-14 h-14 rounded-lg object-cover border border-slate-200">
+                    <span class="text-xs font-semibold text-slate-600">Existing photo will be kept unless replaced.</span>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Datasheet/manual -->
+            <div class="space-y-2">
+              <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Datasheet / Manual</label>
+              <div class="border-2 border-dashed border-slate-200 rounded-xl p-6 bg-slate-50/50">
+                <input
+                  type="file"
+                  name="part_doc"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.webp"
+                  class="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-white file:text-slate-700 hover:file:bg-slate-100"
+                />
+                <p class="text-[10px] text-slate-400 mt-2">PDF/DOCX/XLSX/CSV/IMG. Max 10MB.</p>
+
+                {% if form.doc_url %}
+                  <p class="mt-3 text-xs font-semibold text-slate-600">
+                    Existing document will be kept unless replaced.
+                  </p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="mt-12 pt-8 border-t border-slate-100 flex items-center justify-between">
+      <a
+        href="{{ url_for('inventory_add_step2_get') }}"
+        class="px-6 py-2.5 border border-slate-200 rounded-lg text-sm font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all flex items-center gap-2 group"
+      >
+        <span class="material-symbols-outlined text-sm group-hover:-translate-x-0.5 transition-transform">arrow_back</span>
+        Back
+      </a>
+
+      <button
+        type="submit"
+        class="px-8 py-2.5 bg-ueal-gold text-white rounded-lg text-sm font-bold shadow-lg shadow-ueal-gold/30 hover:bg-opacity-90 transition-all flex items-center gap-2 group"
+      >
+        <span class="material-symbols-outlined text-sm">save</span>
+        FINALIZE &amp; SAVE PART
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

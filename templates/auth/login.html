@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en" class="">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login • Opsloom</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tailwind/tailwind.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/inter/inter.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/material-symbols/material-symbols-outlined.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <script>
+    (function(){
+      try {
+        const saved = localStorage.getItem('theme');
+        const isDark = saved === 'dark';
+        document.documentElement.classList.toggle('dark', isDark);
+        document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+      } catch(e){}
+    })();
+  </script>
+  <style>
+    body.auth-body {
+      min-height: 100vh;
+      margin: 0;
+      background: #f1f5f9;
+      color: #0f172a;
+      font-family: Inter, system-ui, sans-serif;
+    }
+    .dark body.auth-body { background: #020617; color: #f8fafc; }
+    .auth-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+    }
+    .auth-brand {
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(140deg, #0B1020 0%, #12224B 52%, #1554FF 100%);
+      color: #fff;
+    }
+    .auth-brand::before,
+    .auth-brand::after {
+      content: "";
+      position: absolute;
+      border-radius: 999px;
+      filter: blur(16px);
+      opacity: 0.45;
+    }
+    .auth-brand::before {
+      width: 360px;
+      height: 360px;
+      background: rgba(21,84,255,.28);
+      top: -80px;
+      right: -90px;
+    }
+    .auth-brand::after {
+      width: 300px;
+      height: 300px;
+      background: rgba(255,255,255,.12);
+      bottom: -90px;
+      left: -70px;
+    }
+    .auth-brand-inner {
+      position: relative;
+      z-index: 2;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 52px 44px;
+    }
+    .auth-logo-row { display: flex; align-items: center; gap: 16px; width: 100%; }
+    .auth-logo-mark {
+      width: 58px; height: 58px; border-radius: 18px; background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.14); display:flex; align-items:center; justify-content:center;
+      box-shadow: 0 16px 30px rgba(15,23,42,.18);
+    }
+    .auth-kicker { font-size: 12px; letter-spacing: .22em; text-transform: uppercase; font-weight: 800; color: rgba(255,255,255,.75); }
+    .auth-title { margin-top: 18px; font-size: 60px; line-height: 1.02; font-weight: 900; max-width: 620px; }
+    .auth-copy { margin-top: 22px; max-width: 560px; color: rgba(255,255,255,.82); font-size: 18px; line-height: 1.7; }
+    .auth-stat-grid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; }
+    .auth-stat { border:1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.08); backdrop-filter: blur(10px); border-radius: 20px; padding: 18px; }
+    .auth-card-wrap { display:flex; align-items:center; justify-content:center; padding: 32px; }
+    .auth-card {
+      width: 100%; max-width: 620px; background: #fff; border:1px solid #dbe2ea; border-radius: 28px;
+      box-shadow: 0 28px 60px rgba(15,23,42,.10); overflow:hidden;
+    }
+    .dark .auth-card { background:#0f172a; border-color:#1e293b; box-shadow: 0 32px 70px rgba(0,0,0,.32); }
+    .auth-card-head { padding: 28px 32px; background: #f8fafc; border-bottom:1px solid #e2e8f0; }
+    .dark .auth-card-head { background:#111827; border-color:#1f2937; }
+    .auth-card-body { padding: 28px 32px 32px; }
+    .auth-label { display:block; font-size:11px; font-weight:800; letter-spacing:.2em; text-transform:uppercase; color:#94a3b8; margin-bottom:10px; }
+    .auth-input, .auth-select {
+      width:100%; border-radius:18px; border:1px solid #cbd5e1; background:#fff; padding:14px 16px; font-size:14px; outline:none;
+      transition: border-color .2s ease, box-shadow .2s ease;
+    }
+    .dark .auth-input, .dark .auth-select { background:#020617; border-color:#334155; color:#fff; }
+    .auth-input:focus, .auth-select:focus { border-color:#1554FF; box-shadow: 0 0 0 4px rgba(21,84,255,.12); }
+    .auth-primary {
+      width:100%; border:none; border-radius:18px; background:#1554FF; color:#fff; padding:15px 18px; font-size:13px;
+      font-weight:900; letter-spacing:.16em; text-transform:uppercase; box-shadow: 0 18px 32px rgba(21,84,255,.24);
+    }
+    .auth-secondary-grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; }
+    .auth-secondary, .auth-secondary-btn {
+      display:flex; align-items:center; justify-content:center; gap:10px; width:100%; padding:14px 16px; border-radius:18px;
+      border:1px solid #d6dee8; background:#fff; color:#0f172a; font-size:14px; font-weight:800;
+    }
+    .dark .auth-secondary, .dark .auth-secondary-btn { background:#020617; border-color:#334155; color:#f8fafc; }
+    .auth-secondary:hover, .auth-secondary-btn:hover { background:#f8fafc; }
+    .dark .auth-secondary:hover, .dark .auth-secondary-btn:hover { background:#0f172a; }
+    .auth-divider { display:flex; align-items:center; gap:12px; margin: 24px 0; color:#94a3b8; font-size:11px; font-weight:900; letter-spacing:.16em; text-transform:uppercase; }
+    .auth-divider::before, .auth-divider::after { content:""; height:1px; flex:1; background:#e2e8f0; }
+    .dark .auth-divider::before, .dark .auth-divider::after { background:#1e293b; }
+    .auth-help-box, .auth-user-box {
+      border:1px solid #e2e8f0; background:#f8fafc; border-radius:22px; padding:18px;
+    }
+    .dark .auth-help-box, .dark .auth-user-box { border-color:#1e293b; background:#020617; }
+    .auth-user-grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; }
+    .auth-demo {
+      margin-top: 16px; padding: 14px 16px; border-radius: 18px; background: rgba(21,84,255,.06); border:1px solid rgba(21,84,255,.12);
+      color:#1554FF; font-size:13px;
+    }
+    .dark .auth-demo { background: rgba(21,84,255,.08); border-color: rgba(21,84,255,.16); color: #f8fafc; }
+    @media (max-width: 1100px) {
+      .auth-shell { grid-template-columns: 1fr; }
+      .auth-brand { display:none; }
+      .auth-card-wrap { padding: 24px 16px; }
+    }
+    @media (max-width: 640px) {
+      .auth-card-head, .auth-card-body { padding-left: 20px; padding-right: 20px; }
+      .auth-secondary-grid, .auth-user-grid { grid-template-columns: 1fr; }
+      .auth-logo-mark-image { width:min(260px, 100%); }
+      .auth-brand-image { max-height:72px; }
+    }
+
+    /* Responsive login polish */
+    .auth-brand-wordmark {
+      width: min(270px, 100%);
+      max-width: 100%;
+      height: auto;
+      display: block;
+      object-fit: contain;
+      filter: drop-shadow(0 10px 26px rgba(11,16,32,.24));
+    }
+    .auth-logo-row { align-items: flex-start; }
+    @media (max-width: 1100px) {
+      .auth-shell {
+        grid-template-columns: 1fr;
+        background: linear-gradient(180deg, #0B1020 0%, #12224B 32%, #eef2ff 32%, #f8fafc 100%);
+      }
+      .auth-brand {
+        display: block;
+        min-height: clamp(210px, 34vh, 320px);
+      }
+      .auth-brand::before { width: 220px; height: 220px; top: -60px; right: -40px; }
+      .auth-brand::after { width: 180px; height: 180px; bottom: -50px; left: -40px; }
+      .auth-brand-inner {
+        justify-content: flex-start;
+        gap: 18px;
+        padding: 26px 20px 70px;
+      }
+      .auth-brand-inner > div:last-child { display: none; }
+      .auth-kicker { margin-top: 20px !important; }
+      .auth-title {
+        margin-top: 14px;
+        font-size: clamp(2.05rem, 7vw, 3rem);
+        max-width: none;
+      }
+      .auth-copy {
+        margin-top: 14px;
+        max-width: none;
+        font-size: 15px;
+        line-height: 1.55;
+      }
+      .auth-card-wrap {
+        padding: 0 16px 24px;
+        margin-top: -44px;
+        position: relative;
+        z-index: 3;
+        background: transparent !important;
+      }
+      .auth-card {
+        max-width: 100%;
+        border-radius: 24px;
+      }
+    }
+    @media (max-width: 640px) {
+      .auth-brand { min-height: 220px; }
+      .auth-brand-inner { padding: 20px 16px 64px; }
+      .auth-brand-wordmark { width: min(320px, 86vw); }
+      .auth-title { font-size: 2.15rem; }
+      .auth-copy { font-size: 14px; line-height: 1.5; }
+      .auth-card-head, .auth-card-body { padding-left: 18px; padding-right: 18px; }
+    }
+    @media (max-width: 420px) {
+      .auth-title { font-size: 1.9rem; }
+      .auth-card-wrap { padding-left: 12px; padding-right: 12px; }
+    }
+
+  </style>
+</head>
+<body class="auth-body">
+  <div class="auth-shell">
+    <section class="auth-brand" style="background:linear-gradient(140deg,#0B1020 0%,#12224B 52%,#1554FF 100%);">
+      <div class="auth-brand-inner">
+        <div>
+          <div class="auth-logo-row">
+            <img src="{{ url_for('static', filename='img/ops_black-removebg.png') }}" alt="Opsloom" class="auth-brand-image auth-brand-wordmark">
+          </div>
+          <p class="auth-kicker" style="margin-top:48px;">Secure Access Portal</p>
+          <h2 class="auth-title">Engineering Asset &amp; Breakdown Core</h2>
+          <p class="auth-copy">Sign in with your company account, choose your operating department, and continue into the Opsloom workspace with the right permissions and communication profile.</p>
+        </div>
+        <div class="auth-stat-grid">
+          <div class="auth-stat"><p class="auth-kicker" style="color:rgba(255,255,255,.62);">Modules</p><p style="margin-top:10px;font-size:34px;font-weight:900;">6+</p></div>
+          <div class="auth-stat"><p class="auth-kicker" style="color:rgba(255,255,255,.62);">Reports</p><p style="margin-top:10px;font-size:34px;font-weight:900;">Live</p></div>
+          <div class="auth-stat"><p class="auth-kicker" style="color:rgba(255,255,255,.62);">Access</p><p style="margin-top:10px;font-size:34px;font-weight:900;">Role-based</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="auth-card-wrap" style="background:linear-gradient(180deg,rgba(248,250,252,0.96),rgba(241,245,249,0.98));">
+      <div class="auth-card">
+        <div class="auth-card-head">
+          <p class="auth-kicker" style="color:#94a3b8;">System Access</p>
+          <h2 style="margin-top:8px;font-size:44px;font-weight:900;line-height:1.05;color:#0f172a;" class="dark:text-white">Sign In</h2>
+          <p style="margin-top:10px;font-size:15px;color:#64748b;" class="dark:text-slate-300">Use your active company account to access the correct department workspace.</p>
+        </div>
+
+        <div class="auth-card-body">
+          {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+              <div class="space-y-3 mb-6">
+                {% for category, message in messages %}
+                  <div class="rounded-2xl border px-4 py-3 text-sm font-semibold {% if category == 'success' %}bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-900/30 dark:text-emerald-200{% elif category == 'error' %}bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-900/30 dark:text-red-200{% else %}bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-900/30 dark:text-blue-200{% endif %}">{{ message }}</div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          {% endwith %}
+
+          <form method="post" action="{{ url_for('login_submit') }}" class="space-y-5">
+            <input type="hidden" name="next" value="{{ request.args.get('next','') }}">
+            <div>
+              <label class="auth-label">Company Email</label>
+              <input name="email" type="email" required value="{{ remembered_email or '' }}" placeholder="Enter your company email" class="auth-input">
+            </div>
+            <div>
+              <label class="auth-label">Password</label>
+              <input name="password" type="password" required placeholder="Enter password" class="auth-input">
+            </div>
+            <div>
+              <label class="auth-label">Department</label>
+              <select name="department" class="auth-select">
+                {% for dep in departments %}<option value="{{ dep }}" {% if dep == selected_department %}selected{% endif %}>{{ dep }}</option>{% endfor %}
+              </select>
+            </div>
+            <button class="auth-primary">Login</button>
+          </form>
+
+          <div class="auth-divider">Or continue with</div>
+
+          <div class="auth-secondary-grid">
+            <a href="{{ url_for('login_google', email=remembered_email, department=selected_department) }}" class="auth-secondary"><span class="material-symbols-outlined">google</span>Login with Google</a>
+            <form method="post" action="{{ url_for('forgot_password') }}">
+              <input type="hidden" name="email" value="{{ remembered_email or '' }}"><input type="hidden" name="department" value="{{ selected_department }}">
+              <button class="auth-secondary-btn" type="submit"><span class="material-symbols-outlined">lock_reset</span>Forgot Password</button>
+            </form>
+          </div>
+
+          <div class="auth-help-box" style="margin-top:18px;">
+            <div style="margin-bottom:12px;padding:12px 14px;border-radius:16px;background:rgba(21,84,255,.06);border:1px solid rgba(21,84,255,.12);font-size:13px;color:#475569;">
+              <strong>Password Help:</strong> {{ password_reset_help }}
+              <div style="margin-top:4px;">Support contact: {{ company_contact_email }}</div>
+            </div>
+            <h3 style="font-size:13px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:#334155;" class="dark:text-slate-100">Need Access?</h3>
+            <p style="margin-top:10px;font-size:14px;color:#64748b;" class="dark:text-slate-300">Request credentials under your company email and the admin team can enable access after approval.</p>
+            <form method="post" action="{{ url_for('request_credentials') }}" class="mt-4 flex flex-col sm:flex-row gap-3">
+              <input type="email" name="email" value="{{ remembered_email or '' }}" placeholder="opsloom.ke@gmail.com" class="auth-input" style="flex:1;">
+              <input type="hidden" name="department" value="{{ selected_department }}">
+              <button class="auth-primary" style="width:auto; padding-left:20px; padding-right:20px; box-shadow:none;">Request Credentials</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
