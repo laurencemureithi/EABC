@@ -247,7 +247,7 @@
           <div class="p-6">
             {% if media and media|length > 0 %}
               <div class="grid grid-cols-3 gap-3">
-                {% for img in media[:6] %}
+                {% for img in (media or []) | slice(0, 6) %}
                 <div class="aspect-square bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden border border-slate-100 dark:border-dark-border">
                   <img alt="Fault Media" class="w-full h-full object-cover" src="{{ img }}">
                 </div>

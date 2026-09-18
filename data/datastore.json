@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "saved_at": "2026-09-18T08:35:15",
+  "saved_at": "2026-09-18T10:04:48.137Z",
   "COMPANIES": [
     {
       "id": "comp-opsloom",
@@ -18,7 +18,10 @@
       "accent_color": "#F59E0B",
       "created_at": "2026-01-01T00:00:00",
       "is_active": true,
-      "is_default": true
+      "is_default": true,
+      "logo_light_url": "/static/brand/opsloom_wordmark_light.png",
+      "logo_dark_url": "/static/brand/opsloom_wordmark_dark.png",
+      "show_brand_name": false
     },
     {
       "id": "comp-ultravetis",
@@ -30,26 +33,401 @@
       "address": "Shanghai Road, Off Enterprise Road, Industrial Area",
       "city": "Nairobi",
       "country": "Kenya",
-      "logo_url": "/static/brand/ultravetis_header.png",
+      "logo_url": "/static/brand/ultravetis_logo.png",
       "primary_color": "#059669",
       "secondary_color": "#064e3b",
       "accent_color": "#10b981",
       "created_at": "2026-01-15T00:00:00",
       "is_active": true,
-      "is_default": false
+      "is_default": false,
+      "logo_light_url": "/static/brand/ultravetis_logo.png",
+      "logo_dark_url": "/static/brand/ultravetis_logo.png",
+      "show_brand_name": false
     }
   ],
-  "ASSETS": [],
-  "BREAKDOWNS": [],
-  "MAINTENANCE_TASKS": [],
-  "INVENTORY_PARTS": [],
+  "ASSETS": [
+    {
+      "uid": "ast-krones-vfs",
+      "asset_id": "AST-001",
+      "asset_name": "High-Speed Rotary Filling Machine",
+      "section": "Filling Line",
+      "serial_no": "KR-2023-8841",
+      "manufacturer": "Krones AG",
+      "department": "Engineering",
+      "model_number": "Modulfill VFS-60",
+      "power_rating": "45 kW",
+      "supplier": "Krones East Africa Ltd",
+      "installation_date": "2023-04-10",
+      "year_of_manufacture": "2023",
+      "warranty_expiry": "2027-04-10",
+      "technical_notes": "Primary bottling unit. 60-valve counter-pressure monoblock with clean-in-place manifolds.",
+      "status": "breakdown",
+      "criticality": "A",
+      "registered_at": "2024-01-10T08:30:00",
+      "downtime_hours": 3.5,
+      "status_history": [
+        {
+          "status": "operational",
+          "timestamp": "2024-01-10T08:30:00",
+          "reason": "Commissioning"
+        }
+      ]
+    },
+    {
+      "uid": "ast-smi-packer",
+      "asset_id": "AST-002",
+      "asset_name": "Automatic Case Packer WP-600",
+      "section": "Packaging",
+      "serial_no": "SMI-CP-992",
+      "manufacturer": "SMI Group",
+      "department": "Engineering",
+      "model_number": "WP 600 Continuous",
+      "power_rating": "22 kW",
+      "supplier": "Packaging Systems Kenya",
+      "installation_date": "2022-09-15",
+      "year_of_manufacture": "2022",
+      "warranty_expiry": "2025-09-15",
+      "technical_notes": "Wraparound corrugated case packer with hot-melt Nordson adhesive unit.",
+      "status": "operational",
+      "criticality": "B",
+      "registered_at": "2024-01-11T10:00:00",
+      "downtime_hours": 1.75,
+      "status_history": [
+        {
+          "status": "operational",
+          "timestamp": "2024-01-11T10:00:00",
+          "reason": "Initial load"
+        }
+      ]
+    },
+    {
+      "uid": "ast-tetra-cip",
+      "asset_id": "AST-003",
+      "asset_name": "Ultra-Clean CIP Sanitation Skid",
+      "section": "Utilities",
+      "serial_no": "TP-CIP-441",
+      "manufacturer": "Tetra Pak",
+      "department": "Engineering",
+      "model_number": "Sanitary Plus 4-Channel",
+      "power_rating": "30 kW",
+      "supplier": "Tetra Pak Nairobi",
+      "installation_date": "2024-02-01",
+      "year_of_manufacture": "2024",
+      "warranty_expiry": "2028-02-01",
+      "technical_notes": "Automated 4-tank CIP loop with conductivity-controlled caustic and acid dosing.",
+      "status": "operational",
+      "criticality": "A",
+      "registered_at": "2024-02-02T11:20:00",
+      "downtime_hours": 0.8,
+      "status_history": [
+        {
+          "status": "operational",
+          "timestamp": "2024-02-02T11:20:00",
+          "reason": "New install"
+        }
+      ]
+    },
+    {
+      "uid": "ast-thermax-boiler",
+      "asset_id": "AST-004",
+      "asset_name": "Industrial Steam Boiler 5T",
+      "section": "Utilities",
+      "serial_no": "TX-BLR-012",
+      "manufacturer": "Thermax Ltd",
+      "department": "Engineering",
+      "model_number": "Combipac 5000",
+      "power_rating": "75 kW",
+      "supplier": "Thermax Steam Systems",
+      "installation_date": "2021-06-20",
+      "year_of_manufacture": "2021",
+      "warranty_expiry": "2024-06-20",
+      "technical_notes": "Packaged smoke tube boiler rated for 12 bar gauge operating pressure.",
+      "status": "maintenance",
+      "criticality": "A",
+      "registered_at": "2024-01-05T09:00:00",
+      "downtime_hours": 8,
+      "status_history": [
+        {
+          "status": "maintenance",
+          "timestamp": "2026-09-17T08:00:00",
+          "reason": "Scheduled Quarter Descaling"
+        }
+      ]
+    },
+    {
+      "uid": "ast-enercon-sealer",
+      "asset_id": "AST-005",
+      "asset_name": "Continuous Induction Foil Sealer",
+      "section": "Filling Line",
+      "serial_no": "EN-FS-103",
+      "manufacturer": "Enercon Industries",
+      "department": "Engineering",
+      "model_number": "Super Seal Touch 700",
+      "power_rating": "6 kW",
+      "supplier": "Enercon UK / Techchem",
+      "installation_date": "2023-11-12",
+      "year_of_manufacture": "2023",
+      "warranty_expiry": "2026-11-12",
+      "technical_notes": "High-frequency cap foil induction sealing head with water-cooled flux tunnel.",
+      "status": "breakdown",
+      "criticality": "B",
+      "registered_at": "2024-01-15T14:00:00",
+      "downtime_hours": 4.5,
+      "status_history": [
+        {
+          "status": "breakdown",
+          "timestamp": "2026-09-17T14:30:00",
+          "reason": "Inverter thermal fault"
+        }
+      ]
+    },
+    {
+      "uid": "ast-abb-palletizer",
+      "asset_id": "AST-006",
+      "asset_name": "Automated Palletizing Robotic Cell",
+      "section": "Logistics & Warehousing",
+      "serial_no": "IRB-660-312",
+      "manufacturer": "ABB Robotics",
+      "department": "Engineering",
+      "model_number": "IRB 660-250/3.15",
+      "power_rating": "18 kW",
+      "supplier": "ABB Automation Kenya",
+      "installation_date": "2024-03-05",
+      "year_of_manufacture": "2024",
+      "warranty_expiry": "2027-03-05",
+      "technical_notes": "4-axis articulated industrial robot cell with integrated vacuum gripper tooling.",
+      "status": "operational",
+      "criticality": "B",
+      "registered_at": "2024-03-06T10:30:00",
+      "downtime_hours": 1.2,
+      "status_history": [
+        {
+          "status": "operational",
+          "timestamp": "2024-03-06T10:30:00",
+          "reason": "Commissioning"
+        }
+      ]
+    }
+  ],
+  "BREAKDOWNS": [
+    {
+      "asset_uid": "ast-krones-vfs",
+      "asset_id": "AST-001",
+      "asset_name": "High-Speed Rotary Filling Machine",
+      "section": "Filling Line",
+      "severity": "High",
+      "reported_by": "Test Engineer",
+      "assigned_to": "On-Duty Technician",
+      "root_cause": "",
+      "action_taken": "",
+      "status": "open",
+      "downtime_hours": 0,
+      "duration_mins": 0,
+      "reported_dt": "2026-09-18 10:04",
+      "id": "bk-53ad3dc9",
+      "breakdown_id": "BK-2026-003"
+    },
+    {
+      "id": "bk-2026-001",
+      "breakdown_id": "BK-2026-001",
+      "asset_uid": "ast-enercon-sealer",
+      "asset_id": "AST-005",
+      "asset_name": "Continuous Induction Foil Sealer",
+      "section": "Filling Line",
+      "incident_title": "Induction Coil Overheating & Inverter Thermal Trip",
+      "problem_description": "Induction tunnel temperature spiked above 85\u00b0C causing the main IGBT inverter board to trip with Error E-04. Caps passing through without hermetic seal.",
+      "reported_by": "David Kimani",
+      "assigned_to": "Sarah Njeri",
+      "reported_dt": "2026-09-17 14:30",
+      "severity": "Critical",
+      "status": "open",
+      "downtime_hours": 4.5,
+      "duration_mins": 270,
+      "root_cause": "Cooling fluid flow restriction and sediment buildup in primary heat exchanger coil.",
+      "action_taken": "Inspected recirculating chiller pump and flushed sediment from heat exchanger.",
+      "parts_replaced": [],
+      "resolution_notes": "",
+      "resolved_at": null
+    },
+    {
+      "id": "bk-2026-002",
+      "breakdown_id": "BK-2026-002",
+      "asset_uid": "ast-smi-packer",
+      "asset_id": "AST-002",
+      "asset_name": "Automatic Case Packer WP-600",
+      "section": "Packaging",
+      "incident_title": "Pneumatic Gripper Cylinder Jamming on Infeed Table",
+      "problem_description": "Case feed pusher cylinder failed to retract within cycle timeout (1200ms). Carton blanks misaligned and blocked the infeed magazine.",
+      "reported_by": "James Omondi",
+      "assigned_to": "David Kimani",
+      "reported_dt": "2026-09-14 09:15",
+      "severity": "Medium",
+      "status": "resolved",
+      "downtime_hours": 1.75,
+      "duration_mins": 105,
+      "root_cause": "Worn piston cup seal and contamination in 5/2 pilot solenoid valve.",
+      "action_taken": "Replaced pneumatic cylinder seal kit and flushed airline FRL filter.",
+      "parts_replaced": [
+        "Pneumatic Gripper Seal Kit 40mm"
+      ],
+      "resolution_notes": "System re-calibrated. Ran 150 test cycles under load with zero misfeeds.",
+      "resolved_at": "2026-09-14 11:00"
+    }
+  ],
+  "MAINTENANCE_TASKS": [
+    {
+      "id": "pm-2026-001",
+      "task_id": "PM-2026-001",
+      "title": "Monthly Valve Timing, Lubrication & Rotary Seal Overhaul",
+      "asset_uid": "ast-krones-vfs",
+      "asset_id": "AST-001",
+      "asset_name": "High-Speed Rotary Filling Machine",
+      "section": "Filling Line",
+      "task_type": "Preventive",
+      "frequency": "Monthly",
+      "priority": "High",
+      "due_date": "2026-09-25",
+      "assigned_to": "David Kimani",
+      "status": "scheduled",
+      "cost": 18500,
+      "cost_collected": false,
+      "notes": "Check all 60 filling head diaphragm seals, torque rotary manifold bolts, check food-grade grease reservoirs."
+    },
+    {
+      "id": "pm-2026-002",
+      "task_id": "PM-2026-002",
+      "title": "Quarterly Boiler Safety Relief Valve Testing & Descaling",
+      "asset_uid": "ast-thermax-boiler",
+      "asset_id": "AST-004",
+      "asset_name": "Industrial Steam Boiler 5T",
+      "section": "Utilities",
+      "task_type": "Preventive",
+      "frequency": "Quarterly",
+      "priority": "High",
+      "due_date": "2026-09-19",
+      "assigned_to": "Faith Mumbua",
+      "status": "in_progress",
+      "cost": 45000,
+      "cost_collected": false,
+      "notes": "Hydrostatic check on dual safety relief valves. Chemical descaling circulation through water tube banks."
+    },
+    {
+      "id": "pm-2026-003",
+      "task_id": "PM-2026-003",
+      "title": "Bi-Weekly CIP Conductivity Meter & Flow Sensor Calibration",
+      "asset_uid": "ast-tetra-cip",
+      "asset_id": "AST-003",
+      "asset_name": "Ultra-Clean CIP Sanitation Skid",
+      "section": "Utilities",
+      "task_type": "Inspection",
+      "frequency": "Bi-Weekly",
+      "priority": "Medium",
+      "due_date": "2026-09-22",
+      "assigned_to": "Sarah Njeri",
+      "status": "scheduled",
+      "cost": 8000,
+      "cost_collected": false,
+      "notes": "Buffer solution 1413 \u00b5S/cm calibration on Endress+Hauser conductivity probes."
+    },
+    {
+      "id": "pm-2026-004",
+      "task_id": "PM-2026-004",
+      "title": "Weekly Palletizer Harmonic Drive Greasing & Cable Harness Check",
+      "asset_uid": "ast-abb-palletizer",
+      "asset_id": "AST-006",
+      "asset_name": "Automated Palletizing Robotic Cell",
+      "section": "Logistics & Warehousing",
+      "task_type": "Preventive",
+      "frequency": "Weekly",
+      "priority": "Medium",
+      "due_date": "2026-09-15",
+      "completed_at": "2026-09-15T15:30:00",
+      "assigned_to": "James Omondi",
+      "status": "completed",
+      "cost": 12000,
+      "cost_collected": true,
+      "notes": "Lubricated axis 1-4 gearboxes with Molywhite RE No.00 grease. Inspected flex energy chain."
+    }
+  ],
+  "INVENTORY_PARTS": [
+    {
+      "id": "prt-001",
+      "uid": "prt-001",
+      "part_number": "PRT-PN-040",
+      "part_name": "Pneumatic Gripper Seal Kit 40mm",
+      "category": "Pneumatic",
+      "qty": 8,
+      "min_qty": 5,
+      "unit_price": 4200,
+      "location": "Rack B-03",
+      "supplier": "Festo Kenya",
+      "critical": true,
+      "notes": "Fits SMI WP-600 Case Packer infeed and Krones secondary pick-up."
+    },
+    {
+      "id": "prt-002",
+      "uid": "prt-002",
+      "part_number": "PRT-MC-025",
+      "part_name": "High-Temperature Silicone Tri-Clamp Gasket 2.5\"",
+      "category": "Mechanical",
+      "qty": 24,
+      "min_qty": 10,
+      "unit_price": 1850,
+      "location": "Bin M-12",
+      "supplier": "Spirax Sarco",
+      "critical": false,
+      "notes": "Food-grade EPDM/PTFE lined for CIP sanitation skids."
+    },
+    {
+      "id": "prt-003",
+      "uid": "prt-003",
+      "part_number": "PRT-EL-018",
+      "part_name": "Photoelectric Optical Sensor M18 PNP NO/NC",
+      "category": "Sensors & Controls",
+      "qty": 3,
+      "min_qty": 6,
+      "unit_price": 8500,
+      "location": "Drawer E-04",
+      "supplier": "Omron Electronics",
+      "critical": true,
+      "notes": "Low stock warning! Used on conveyor accumulation gates."
+    },
+    {
+      "id": "prt-004",
+      "uid": "prt-004",
+      "part_number": "PRT-EL-040",
+      "part_name": "Solid State Relay 40A 240VAC Hockey Puck",
+      "category": "Electrical",
+      "qty": 12,
+      "min_qty": 4,
+      "unit_price": 3600,
+      "location": "Cabinet E-02",
+      "supplier": "Schneider Electric",
+      "critical": false,
+      "notes": "Heating element PID controllers."
+    },
+    {
+      "id": "prt-005",
+      "uid": "prt-005",
+      "part_number": "PRT-MC-045",
+      "part_name": "Rotary Shaft Oil Seal 45x65x10 NBR Dual Lip",
+      "category": "Mechanical",
+      "qty": 15,
+      "min_qty": 8,
+      "unit_price": 1250,
+      "location": "Bin M-07",
+      "supplier": "SKF Bearings Nairobi",
+      "critical": false,
+      "notes": "General rotary pump seal replacements."
+    }
+  ],
   "SPARE_PARTS": [],
   "ASSET_DOCUMENTS": [],
   "REPORT_EXPORTS": [
     {
       "id": "379897c6cb3343159a85d2783ad83393",
-      "name": "Executive Strategic Dashboard • 2026-04-01 to 2026-04-25",
-      "report_title": "Executive Strategic Dashboard • 2026-04-01 to 2026-04-25",
+      "name": "Executive Strategic Dashboard \u2022 2026-04-01 to 2026-04-25",
+      "report_title": "Executive Strategic Dashboard \u2022 2026-04-01 to 2026-04-25",
       "category": "Strategic ROI",
       "category_key": "strategic_roi",
       "department": "Engineering",
@@ -78,6 +456,15 @@
     }
   ],
   "AUDIT_TRAIL": [
+    {
+      "id": "aud-1789725888137",
+      "timestamp": "2026-09-18T10:04:48.137Z",
+      "user_name": "System User",
+      "action": "Breakdown Reported",
+      "module": "Breakdowns",
+      "details": "Logged incident BK-2026-003 for High-Speed Rotary Filling Machine",
+      "ip": "127.0.0.1"
+    },
     {
       "id": "6a97f1503bb34f848f5b7cbe0b7feb31",
       "action": "User login",
@@ -231,6 +618,16 @@
     "password_reset_help": "Contact Opsloom support or your system administrator to reset your password."
   },
   "SYSTEM_NOTIFICATIONS": [
+    {
+      "id": "notif-1789725888137",
+      "title": "Incident Reported",
+      "message": "High-Speed Rotary Filling Machine: undefined",
+      "type": "error",
+      "created_at": "2026-09-18T10:04:48.137Z",
+      "read": false,
+      "href": "/breakdowns/bk-53ad3dc9",
+      "module": "breakdowns"
+    },
     {
       "id": "notif-system-stable",
       "title": "System stable",

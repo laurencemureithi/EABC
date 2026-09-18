@@ -144,15 +144,28 @@
 
         <!-- Logo Upload Section -->
         <div class="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-slate-900/40 p-4">
-          <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400 mb-2">Company Brand Logo</label>
-          <div class="flex items-center gap-4">
-            <div class="w-16 h-16 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border p-2 flex items-center justify-center shadow-inner flex-shrink-0">
+          <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400 mb-2">Company Profile Image & Brand Logo</label>
+          <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div class="w-16 h-16 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-dark-border p-2 flex items-center justify-center shadow-sm flex-shrink-0">
               <img id="logoPreviewImg" src="{{ target_comp.logo_url or '/static/brand/opsloom_wordmark_light.png' }}" alt="Logo preview" class="max-h-full max-w-full object-contain">
             </div>
-            <div class="flex-1 space-y-2">
-              <input type="file" name="logo_file" id="logoFileInput" accept="image/png, image/jpeg, image/svg+xml, image/webp" class="text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-950 dark:file:text-blue-300 hover:file:bg-blue-100 cursor-pointer">
-              <input type="text" name="logo_url" id="logoUrlInput" value="{{ target_comp.logo_url or '' }}" placeholder="Or paste image URL" class="w-full rounded-md border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-2.5 py-1 text-xs">
+            <div class="flex-1 w-full space-y-2">
+              <div class="flex flex-wrap items-center gap-2">
+                <label for="logoFileInput" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-300 text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/50 cursor-pointer transition-all">
+                  <span class="material-symbols-outlined text-sm">cloud_upload</span> Choose Image File
+                </label>
+                <input type="file" name="logo_file" id="logoFileInput" accept="image/png, image/jpeg, image/svg+xml, image/webp" class="hidden">
+                <span id="selectedFileName" class="text-xs text-slate-500 italic truncate max-w-[200px]">No file chosen</span>
+              </div>
+              <input type="text" name="logo_url" id="logoUrlInput" value="{{ target_comp.logo_url or '' }}" placeholder="Or paste image URL (https://... or /static/...)" class="w-full rounded-md border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs">
             </div>
+          </div>
+          <!-- Quick Preset Badges -->
+          <div class="mt-3 pt-2.5 border-t border-slate-200/80 dark:border-dark-border/80 flex flex-wrap items-center gap-1.5">
+            <span class="text-[10px] uppercase font-bold text-slate-400 mr-1">Presets:</span>
+            <button type="button" onclick="choosePresetLogo('/static/brand/ultravetis_logo.png')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border hover:border-blue-400 hover:text-blue-600 transition">Ultravetis Logo</button>
+            <button type="button" onclick="choosePresetLogo('/static/brand/opsloom_wordmark_light.png')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border hover:border-blue-400 hover:text-blue-600 transition">EABC Core Light</button>
+            <button type="button" onclick="choosePresetLogo('/static/brand/opsloom_wordmark_dark.png')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border hover:border-blue-400 hover:text-blue-600 transition">EABC Core Dark</button>
           </div>
           <p class="text-[11px] text-slate-400 mt-2">Appears on navigation header, sidebar, login portal, audit trail, and generated PDF reports.</p>
         </div>
@@ -279,19 +292,28 @@
       aText.addEventListener('input', (e) => { if (e.target.value.startsWith('#')) { aPicker.value = e.target.value; updateBlend(); } });
     }
 
-    // Logo image preview
+    // Logo image preview & preset handlers
     const fileInput = document.getElementById('logoFileInput');
     const urlInput = document.getElementById('logoUrlInput');
     const previewImg = document.getElementById('logoPreviewImg');
+    const fileNameDisplay = document.getElementById('selectedFileName');
+
+    window.choosePresetLogo = function(url) {
+      if (urlInput) urlInput.value = url;
+      if (previewImg) previewImg.src = url;
+      if (fileNameDisplay) fileNameDisplay.textContent = url.split('/').pop();
+    };
 
     if (fileInput) {
       fileInput.addEventListener('change', function() {
         if (this.files && this.files[0]) {
+          const file = this.files[0];
+          if (fileNameDisplay) fileNameDisplay.textContent = file.name;
           const reader = new FileReader();
           reader.onload = function(e) {
             previewImg.src = e.target.result;
           };
-          reader.readAsDataURL(this.files[0]);
+          reader.readAsDataURL(file);
         }
       });
     }

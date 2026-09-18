@@ -1,18 +1,47 @@
 <aside id="appSidebar" class="app-sidebar sidebar-bg w-64 flex-shrink-0 flex flex-col text-white h-screen relative">
   <!-- Brand -->
   <div class="p-4 sm:p-5 flex items-center justify-between gap-3 border-b border-white/10">
-    <a href="{{ url_for('dashboard') }}" class="opsloom-sidebar-wordmark min-w-0 flex-1 flex items-center gap-3">
-      <div class="h-10 w-10 rounded-xl flex items-center justify-center p-1.5 bg-white/10 border border-white/15 flex-shrink-0 shadow-sm overflow-hidden">
-        <img src="{{ active_company.logo_url or url_for('static', filename='brand/opsloom_wordmark_light.png') }}" alt="{{ active_company.name }}" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='/static/brand/opsloom_wordmark_light.png';">
-      </div>
-      <div class="min-w-0 flex-1">
-        <div class="font-bold text-sm text-white truncate leading-tight">{{ active_company.name }}</div>
-        <div class="text-[10px] text-white/60 font-mono uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
-          <span class="w-1.5 h-1.5 rounded-full" style="background-color: {{ active_company.accent_color or '#F59E0B' }};"></span>
-          {{ active_company.code }}
+    {% if active_company.show_brand_name %}
+      <!-- Mode 1: Emblem + Text beside logo (For logos without built-in name) -->
+      <a href="{{ url_for('dashboard') }}" class="opsloom-sidebar-wordmark min-w-0 flex-1 flex items-center gap-3 group">
+        <div class="h-10 w-10 rounded-xl flex items-center justify-center p-1.5 bg-white/10 border border-white/15 flex-shrink-0 shadow-sm overflow-hidden group-hover:bg-white/15 transition">
+          <!-- Dark theme logo -->
+          <img src="{{ active_company.logo_dark_url or active_company.logo_url or url_for('static', filename='brand/opsloom_wordmark_dark.png') }}"
+               alt="{{ active_company.name }}"
+               class="hidden dark:block max-h-full max-w-full object-contain"
+               onerror="this.onerror=null; this.src='/static/brand/opsloom_wordmark_dark.png';">
+          <!-- Light theme logo -->
+          <img src="{{ active_company.logo_light_url or active_company.logo_url or url_for('static', filename='brand/opsloom_wordmark_light.png') }}"
+               alt="{{ active_company.name }}"
+               class="block dark:hidden max-h-full max-w-full object-contain"
+               onerror="this.onerror=null; this.src='/static/brand/opsloom_wordmark_light.png';">
         </div>
-      </div>
-    </a>
+        <div class="min-w-0 flex-1">
+          <div class="font-bold text-sm text-white truncate leading-tight">{{ active_company.name }}</div>
+          <div class="text-[10px] text-white/70 font-mono uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 {% if system_badge_state == 'stable' %}bg-emerald-400{% elif system_badge_state == 'warning' %}bg-amber-400{% else %}bg-rose-400{% endif %}"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 {% if system_badge_state == 'stable' %}bg-emerald-500{% elif system_badge_state == 'warning' %}bg-amber-500{% else %}bg-rose-500{% endif %}"></span>
+            </span>
+            {{ active_company.code }}
+          </div>
+        </div>
+      </a>
+    {% else %}
+      <!-- Mode 2: Standalone Brand Logo Image (Default for brand wordmarks) -->
+      <a href="{{ url_for('dashboard') }}" class="opsloom-sidebar-brand-standalone min-w-0 flex-1 flex items-center justify-start py-0.5 group" title="{{ active_company.name }} ({{ active_company.code }})">
+        <!-- Dark Theme Logo (shown when dark theme is active) -->
+        <img src="{{ active_company.logo_dark_url or active_company.logo_url or url_for('static', filename='brand/opsloom_wordmark_dark.png') }}"
+             alt="{{ active_company.name }}"
+             class="hidden dark:block h-9 sm:h-10 max-w-[185px] w-auto object-contain object-left transition group-hover:opacity-90"
+             onerror="this.onerror=null; this.src='/static/brand/opsloom_wordmark_dark.png';">
+        <!-- Light Theme Logo (shown when light theme is active) -->
+        <img src="{{ active_company.logo_light_url or active_company.logo_url or url_for('static', filename='brand/opsloom_wordmark_light.png') }}"
+             alt="{{ active_company.name }}"
+             class="block dark:hidden h-9 sm:h-10 max-w-[185px] w-auto object-contain object-left transition group-hover:opacity-90"
+             onerror="this.onerror=null; this.src='/static/brand/opsloom_wordmark_light.png';">
+      </a>
+    {% endif %}
     <button type="button" class="app-mobile-only w-9 h-9 rounded-lg border border-white/10 bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition" onclick="closeAppSidebar()" aria-label="Close navigation">
       <span class="material-symbols-outlined text-[18px]">close</span>
     </button>

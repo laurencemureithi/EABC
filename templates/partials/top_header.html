@@ -1,81 +1,91 @@
-<header class="app-topbar h-16 bg-white/95 dark:bg-dark-surface/95 border-b border-slate-200 dark:border-dark-border flex items-center justify-between px-4 sm:px-8 z-10 shrink-0 gap-2 sm:gap-3">
-  <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+<header class="app-topbar h-16 bg-white/95 dark:bg-dark-surface/95 border-b border-slate-200 dark:border-dark-border flex items-center justify-between px-3 sm:px-6 z-20 shrink-0 gap-2">
+  <!-- Brand & Navigation Toggle -->
+  <div class="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
     <button
       type="button"
-      class="app-mobile-only w-9 h-9 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-200 items-center justify-center hover:border-ueal-gold hover:text-ueal-purple transition flex-shrink-0"
+      class="app-mobile-only w-9 h-9 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-200 flex items-center justify-center hover:border-ueal-gold hover:text-ueal-purple transition flex-shrink-0"
       onclick="openAppSidebar()"
       aria-label="Open navigation"
+      id="mobileNavToggleBtn"
     >
       <span class="material-symbols-outlined text-[20px]">menu</span>
     </button>
     <div class="flex items-center gap-2 sm:gap-2.5 min-w-0">
       <div class="w-8 h-8 rounded-lg border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-800 p-1 flex items-center justify-center flex-shrink-0 shadow-sm">
-        <img src="{{ active_company.logo_url or url_for('static', filename='brand/opsloom_wordmark_light.png') }}" alt="{{ active_company.name }}" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='/static/brand/opsloom_wordmark_light.png';">
+        <img src="{{ url_for('static', filename='brand/opsloom_wordmark_light.png') }}" alt="EABC Core" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='/static/brand/opsloom_wordmark_light.png';">
       </div>
       <div class="app-topbar-brand-copy flex flex-col items-start min-w-0">
         <div class="flex items-center gap-1.5 max-w-full">
-          <p class="app-topbar-title text-sm sm:text-base font-black text-slate-900 dark:text-white leading-none tracking-tight truncate">{{ active_company.name }}</p>
-          <span class="text-[9px] font-mono font-black uppercase tracking-wider px-1.5 py-0.5 rounded text-white flex-shrink-0" style="background-color: {{ active_company.primary_color }};">{{ active_company.code }}</span>
+          <span class="app-topbar-title text-base sm:text-lg font-black leading-none tracking-tight" style="color: {{ active_company.primary_color or '#1554FF' }};">EABC</span>
+          <span class="text-[9px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/60 flex-shrink-0">CORE</span>
         </div>
-        <p class="app-topbar-subtitle text-[10px] text-slate-500 dark:text-slate-400 font-medium tracking-wide uppercase mt-0.5 truncate hidden sm:block">
-          {{ active_company.industry or 'Asset Management Workspace' }}
+        <p class="app-topbar-subtitle text-[9px] sm:text-[10.5px] text-slate-500 dark:text-slate-400 font-bold tracking-wider uppercase mt-0.5 whitespace-nowrap">
+          Engineering Asset & Breakdown Core
         </p>
       </div>
     </div>
   </div>
 
-  <div class="app-topbar-meta flex items-center gap-4">
-    <div class="app-topbar-actions flex items-center gap-1.5 mr-2">
-      <a class="app-topbar-icon app-topbar-notifications w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors relative"
-         href="{{ url_for('notifications') }}">
-        <span class="material-symbols-outlined">notifications</span>
+  <!-- Actions & User Profile -->
+  <div class="app-topbar-meta flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
+    <div class="app-topbar-actions flex items-center gap-1 sm:gap-1.5">
+      <!-- Notifications -->
+      <a class="app-topbar-icon app-topbar-notifications w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors relative flex-shrink-0"
+         href="{{ url_for('notifications') }}"
+         title="Notifications"
+         id="topbarNotifBtn">
+        <span class="material-symbols-outlined text-[19px] sm:text-[21px]">notifications</span>
         {% if unread_notifications_count and unread_notifications_count > 0 %}
-        <span class="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-dark-surface"></span>
+        <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-dark-surface"></span>
         {% endif %}
       </a>
 
-      <a class="app-topbar-icon app-topbar-messages w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors relative"
-         href="{{ url_for('messages_center') }}">
-        <span class="material-symbols-outlined">chat</span>
+      <!-- Messages -->
+      <a class="app-topbar-icon app-topbar-messages w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors relative flex-shrink-0"
+         href="{{ url_for('messages_center') }}"
+         title="Internal Messages"
+         id="topbarMessagesBtn">
+        <span class="material-symbols-outlined text-[19px] sm:text-[21px]">chat</span>
         {% if unread_messages_count and unread_messages_count > 0 %}
-        <span class="absolute top-2 right-2 min-w-[16px] h-4 px-1 rounded-full bg-ueal-gold text-white text-[9px] font-black flex items-center justify-center">{{ unread_messages_count if unread_messages_count < 10 else '9+' }}</span>
+        <span class="absolute top-1 right-1 min-w-[14px] h-3.5 px-1 rounded-full bg-ueal-gold text-white text-[8px] font-black flex items-center justify-center">{{ unread_messages_count if unread_messages_count < 10 else '9+' }}</span>
         {% endif %}
       </a>
 
-      <a class="app-topbar-icon app-topbar-help w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
-         href="{{ url_for('help_page') }}">
-        <span class="material-symbols-outlined">help</span>
+      <!-- Help (Desktop only) -->
+      <a class="app-topbar-icon app-topbar-help hidden sm:flex w-9 h-9 items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors flex-shrink-0"
+         href="{{ url_for('help_page') }}"
+         title="System Documentation"
+         id="topbarHelpBtn">
+        <span class="material-symbols-outlined text-[20px]">help</span>
       </a>
 
+      <!-- Dark / Light Theme Toggle -->
       <button
-  class="app-topbar-icon app-topbar-theme w-10 h-10 flex items-center justify-center rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border hover:bg-white dark:hover:bg-slate-700 hover:border-ueal-gold active:scale-95 text-slate-500 dark:text-slate-300 transition-all cursor-pointer shadow-sm"
-  onclick="toggleTheme()"
-  type="button"
-  title="Toggle Theme">
-
-  <span id="themeIcon" class="material-symbols-outlined text-[20px]">light_mode</span>
-</button>
-
-
+        class="app-topbar-icon app-topbar-theme w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border hover:bg-white dark:hover:bg-slate-700 hover:border-ueal-gold active:scale-95 text-slate-500 dark:text-slate-300 transition-all cursor-pointer shadow-sm flex-shrink-0"
+        onclick="toggleTheme()"
+        type="button"
+        title="Toggle Theme"
+        id="topbarThemeToggleBtn">
+        <span id="themeIcon" class="material-symbols-outlined text-[18px] sm:text-[20px]">light_mode</span>
+      </button>
     </div>
 
-    <div class="h-8 w-[1px] bg-slate-200 dark:bg-dark-border"></div>
+    <div class="hidden sm:block h-6 w-[1px] bg-slate-200 dark:border-dark-border"></div>
 
-    <a class="app-user-chip flex items-center gap-3 pl-2" href="{{ url_for('profile') }}">
-      <div class="text-right hidden sm:block">
-        <p class="text-sm font-bold leading-none text-slate-900 dark:text-white">{{ current_user_name }}</p>
-        <p class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase mt-1">{{ current_user_role }}</p>
+    <!-- User Profile Chip -->
+    <a class="app-user-chip flex items-center gap-2 sm:gap-2.5 flex-shrink-0 pl-1" href="{{ url_for('profile') }}" id="topbarUserChip">
+      <div class="text-right hidden md:block">
+        <p class="text-xs font-bold leading-none text-slate-900 dark:text-white">{{ current_user_name }}</p>
+        <p class="text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase mt-1">{{ current_user_role }}</p>
       </div>
 
-<div class="w-10 h-10 rounded-full border-2 border-ueal-gold overflow-hidden shrink-0 shadow-sm ring-2 ring-transparent hover:ring-ueal-gold/20 transition-all cursor-pointer flex items-center justify-center bg-slate-100 dark:bg-slate-800">
-  {% if current_user_avatar_url %}
-    <img alt="User avatar" class="w-full h-full object-cover" src="{{ current_user_avatar_url }}"/>
-  {% else %}
-    <span class="material-symbols-outlined text-[28px] text-slate-500 dark:text-slate-300">account_circle</span>
-  {% endif %}
-</div>
-
-
+      <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-ueal-gold overflow-hidden shrink-0 shadow-sm ring-2 ring-transparent hover:ring-ueal-gold/20 transition-all cursor-pointer flex items-center justify-center bg-slate-100 dark:bg-slate-800">
+        {% if current_user_avatar_url %}
+          <img alt="User avatar" class="w-full h-full object-cover" src="{{ current_user_avatar_url }}"/>
+        {% else %}
+          <span class="material-symbols-outlined text-[22px] sm:text-[24px] text-slate-500 dark:text-slate-300">account_circle</span>
+        {% endif %}
+      </div>
     </a>
   </div>
 </header>

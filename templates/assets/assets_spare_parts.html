@@ -222,7 +222,7 @@
                         </p>
 
                         {% if p.uid or p.id %}
-                          <p class="text-[10px] font-mono text-slate-400">UID: {{ ((p.uid or p.id) or '')[:8] }}</p>
+                          <p class="text-[10px] font-mono text-slate-400">UID: {{ ((p.uid or p.id) or '') | slice(0, 8) }}</p>
                         {% endif %}
                       </div>
                     </td>

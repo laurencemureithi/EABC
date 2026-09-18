@@ -746,30 +746,40 @@ img, svg, canvas, video {
     max-width: 100%;
   }
   .app-topbar-brand-copy {
-    max-width: min(50vw, 15rem);
+    min-width: 0;
+    max-width: none;
+    overflow: visible;
   }
   .app-topbar-title {
-    font-size: 1rem !important;
+    font-size: 1.05rem !important;
   }
   .app-topbar-subtitle {
-    font-size: 10px !important;
-    letter-spacing: .06em !important;
-    max-width: 100%;
+    font-size: 9.5px !important;
+    letter-spacing: .03em !important;
+    white-space: nowrap !important;
+    max-width: none !important;
   }
   .app-topbar-meta {
     margin-left: auto;
     gap: .375rem !important;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
   }
   .app-topbar-actions {
     gap: .25rem !important;
     margin-right: 0 !important;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
   }
   .app-topbar-icon {
     width: 2.25rem;
     height: 2.25rem;
+    flex-shrink: 0;
   }
-  .app-topbar .h-8.w-\[1px\] {
+  .app-topbar .h-8.w-\[1px\],
+  .app-topbar .h-6.w-\[1px\] {
     display: none;
   }
   .opsloom-sidebar-wordmark img {
@@ -806,10 +816,7 @@ img, svg, canvas, video {
     max-width: min(19rem, 92vw);
   }
   .app-topbar-brand-copy {
-    max-width: min(44vw, 12rem);
-  }
-  .app-topbar-subtitle {
-    display: none;
+    max-width: none;
   }
   .app-topbar-help {
     display: none !important;
@@ -835,15 +842,21 @@ img, svg, canvas, video {
     padding: .75rem !important;
   }
   .app-topbar-title {
-    font-size: .875rem !important;
+    font-size: .95rem !important;
   }
   .app-topbar-brand-copy {
-    max-width: 38vw;
+    min-width: 0;
+    max-width: none;
+    overflow: visible;
   }
   .app-topbar-notifications,
-  .app-topbar-messages {
-    width: 2rem;
-    height: 2rem;
+  .app-topbar-messages,
+  .app-topbar-theme,
+  .app-user-chip > div:last-child {
+    width: 2rem !important;
+    height: 2rem !important;
+    min-width: 2rem !important;
+    flex-shrink: 0 !important;
   }
 }
 

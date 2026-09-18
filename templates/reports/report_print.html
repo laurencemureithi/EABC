@@ -5,9 +5,9 @@
 <div class="business-print-shell max-w-5xl mx-auto">
   {% set document_status = export.status or 'READY' %}
   {% set metric_cards = analysis.selected_metric_cards if analysis.selected_metric_cards else [] %}
-  {% set metric_cards_primary = metric_cards[:8] %}
-  {% set metric_cards_extra = metric_cards[8:] %}
-  {% set metric_card_pages = metric_cards_extra|batch(8, None)|list %}
+  {% set metric_cards_primary = (metric_cards or []) | slice(0, 8) %}
+  {% set metric_cards_extra = (metric_cards or []) | slice(8) %}
+  {% set metric_card_pages = (metric_cards_extra or []) | batch(8, None) | list %}
 
   <div class="business-print-page">
     {% include "partials/report_document_header.html" %}
@@ -162,13 +162,13 @@
       <table class="business-print-table compact">
         <thead><tr><th>Type</th><th>Description</th><th>Measure</th></tr></thead>
         <tbody>
-          {% for name, meta in analysis.top_assets[:6] %}
+          {% for name, meta in (analysis.top_assets or []) | slice(0, 6) %}
             <tr><td>Asset</td><td>{{ name }}</td><td>{{ meta.downtime_hours }} hrs / {{ meta.incidents }} incidents</td></tr>
           {% endfor %}
-          {% for cause, count in analysis.top_causes[:6] %}
+          {% for cause, count in (analysis.top_causes or []) | slice(0, 6) %}
             <tr><td>Root cause</td><td>{{ cause }}</td><td>{{ count }}</td></tr>
           {% endfor %}
-          {% for sec in analysis.availability_by_section[:6] %}
+          {% for sec in (analysis.availability_by_section or []) | slice(0, 6) %}
             <tr><td>Section</td><td>{{ sec.section }}</td><td>{{ sec.availability_pct }}%</td></tr>
           {% endfor %}
           {% if not analysis.top_assets and not analysis.top_causes and not analysis.availability_by_section %}
