@@ -13,10 +13,20 @@ import { urlFor, registerNunjucksFilters } from './src/helpers.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Ensure upload directories exist
-const uploadDir = path.join(__dirname, 'static/uploads/companies');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+// Environment check for serverless hosts (Vercel, AWS Lambda, etc.)
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+
+// Ensure upload directories exist (In serverless environments, /var/task is read-only; /tmp is writable)
+const uploadDir = isServerless
+  ? path.join('/tmp', 'uploads', 'companies')
+  : path.join(__dirname, 'static/uploads/companies');
+
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (err) {
+  console.warn(`[Warning] Could not initialize upload directory at ${uploadDir}:`, err.message);
 }
 
 // Multer storage for company logos and profile images
@@ -80,8 +90,13 @@ app.use(
 
 // Serve static assets
 app.use('/static', express.static(path.join(__dirname, 'static')));
-app.use('/static/uploads', express.static(path.join(__dirname, 'static/uploads')));
-app.use('/uploads', express.static(path.join(__dirname, 'static/uploads/companies')));
+if (isServerless) {
+  app.use('/static/uploads/companies', express.static(uploadDir));
+  app.use('/uploads', express.static(uploadDir));
+} else {
+  app.use('/static/uploads', express.static(path.join(__dirname, 'static/uploads')));
+  app.use('/uploads', express.static(path.join(__dirname, 'static/uploads/companies')));
+}
 
 // Flash message utility
 function flash(req, category, message) {

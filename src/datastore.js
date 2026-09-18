@@ -1,8 +1,16 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { fileURLToPath } from 'url';
 
-const DATASTORE_PATH = path.resolve('data/datastore.json');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const IS_SERVERLESS = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+const SEED_DATASTORE_PATH = path.resolve(__dirname, '../data/datastore.json');
+const RUNTIME_DATASTORE_PATH = IS_SERVERLESS
+  ? path.join('/tmp', 'opsloom_datastore.json')
+  : SEED_DATASTORE_PATH;
 
 // Default initial state
 let store = {
@@ -31,8 +39,23 @@ let currentDepartment = 'Engineering';
 
 export function loadDatastore() {
   try {
-    if (fs.existsSync(DATASTORE_PATH)) {
-      const raw = fs.readFileSync(DATASTORE_PATH, 'utf8');
+    if (IS_SERVERLESS) {
+      // In serverless, initialize /tmp with the bundled seed data on first invocation
+      if (!fs.existsSync(RUNTIME_DATASTORE_PATH) && fs.existsSync(SEED_DATASTORE_PATH)) {
+        try {
+          fs.copyFileSync(SEED_DATASTORE_PATH, RUNTIME_DATASTORE_PATH);
+        } catch (copyErr) {
+          console.warn('Could not copy seed datastore to /tmp:', copyErr.message);
+        }
+      }
+    }
+
+    const pathInUse = fs.existsSync(RUNTIME_DATASTORE_PATH)
+      ? RUNTIME_DATASTORE_PATH
+      : (fs.existsSync(SEED_DATASTORE_PATH) ? SEED_DATASTORE_PATH : null);
+
+    if (pathInUse && fs.existsSync(pathInUse)) {
+      const raw = fs.readFileSync(pathInUse, 'utf8');
       const parsed = JSON.parse(raw);
       store = { ...store, ...parsed };
     }
@@ -47,13 +70,13 @@ export function loadDatastore() {
 export function saveDatastore() {
   try {
     store.saved_at = new Date().toISOString();
-    const dir = path.dirname(DATASTORE_PATH);
+    const dir = path.dirname(RUNTIME_DATASTORE_PATH);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(DATASTORE_PATH, JSON.stringify(store, null, 2), 'utf8');
+    fs.writeFileSync(RUNTIME_DATASTORE_PATH, JSON.stringify(store, null, 2), 'utf8');
   } catch (err) {
-    console.error('Failed to save datastore.json:', err);
+    console.warn('Failed to save datastore.json (in-memory state retained):', err.message);
   }
 }
 
