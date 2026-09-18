@@ -25,7 +25,7 @@
     <div class="eabc-doc-header-department">{{ report_department_label|upper }}</div>
     {% if document_status is defined and document_status %}
       <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-200">
-        <span class="w-1.5 h-1.5 rounded-full {{ 'bg-green-500' if document_status == 'READY' else 'bg-amber-500' }}"></span>
+        <span class="w-2 h-2 rounded-full {{ 'bg-green-500' if document_status == 'READY' else 'bg-amber-500' }} animate-pulse"></span>
         {{ document_status }}
       </div>
     {% endif %}

@@ -2,13 +2,13 @@
   "name": "eabc",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server.js",
   "type": "module",
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js",
     "build": "echo 'Build complete'",
-    "lint": "echo 'Lint complete'",
+    "lint": "node -c server.js src/datastore.js src/helpers.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

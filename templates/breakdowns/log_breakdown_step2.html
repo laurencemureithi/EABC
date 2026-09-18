@@ -7,9 +7,8 @@
     <div>
       <div class="flex items-center gap-6">
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Log New Breakdown</h1>
-        <div class="hidden lg:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm">
-          <span class="w-2 h-2 rounded-full bg-green-500"></span>
-          <span class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">SYSTEM STABLE</span>
+        <div class="hidden lg:flex items-center">
+          {% include "partials/system_health_badge.html" %}
         </div>
       </div>
       <nav class="flex items-center gap-2 mt-2 text-[13px] text-slate-500 font-medium">

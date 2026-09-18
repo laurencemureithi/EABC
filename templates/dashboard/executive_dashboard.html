@@ -23,17 +23,9 @@
     </div>
 
     <div class="flex flex-col sm:flex-row items-start sm:items-center lg:items-end gap-3 w-full lg:w-auto">
-      {% if kpi_uptime_rate >= kpi_uptime_target %}
-        <div id="dashboardHealthBadge" class="hidden lg:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
-          <span id="dashboardHealthDot" class="w-2 h-2 rounded-full bg-green-500"></span>
-          <span id="dashboardHealthText">SYSTEM STABLE</span>
-        </div>
-      {% else %}
-        <div id="dashboardHealthBadge" class="hidden lg:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
-          <span id="dashboardHealthDot" class="w-2 h-2 rounded-full bg-red-500"></span>
-          <span id="dashboardHealthText">SYSTEM AT RISK</span>
-        </div>
-      {% endif %}
+      <div class="hidden lg:flex items-center">
+        {% include "partials/system_health_badge.html" %}
+      </div>
 
       <form id="strategicExportForm" method="GET" action="{{ url_for('dashboard_strategic_export') }}" class="flex flex-wrap items-end justify-start lg:justify-end gap-2 w-full sm:w-auto">
         <div>

@@ -1,0 +1,21 @@
+<!-- Dynamic System Stability Badge with Defined Operational Terms -->
+<div class="relative inline-flex items-center" data-system-health-root>
+  <button type="button" 
+          onclick="openSystemHealthModal()"
+          class="flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all cursor-pointer shadow-sm
+          {% if system_badge_state == 'stable' %}
+            bg-emerald-50/90 hover:bg-emerald-100/90 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 border-emerald-200 dark:border-emerald-800/80 text-emerald-700 dark:text-emerald-300
+          {% elif system_badge_state == 'warning' %}
+            bg-amber-50/90 hover:bg-amber-100/90 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 border-amber-200 dark:border-amber-800/80 text-amber-700 dark:text-amber-300
+          {% else %}
+            bg-rose-50/90 hover:bg-rose-100/90 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 border-rose-200 dark:border-rose-800/80 text-rose-700 dark:text-rose-300
+          {% endif %}"
+          title="Click to view EABC System Stability Terms & Operational Metrics">
+    <span class="relative flex h-2.5 w-2.5 shrink-0">
+      <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 {% if system_badge_state == 'stable' %}bg-emerald-400{% elif system_badge_state == 'warning' %}bg-amber-400{% else %}bg-rose-400{% endif %}"></span>
+      <span class="relative inline-flex rounded-full h-2.5 w-2.5 {% if system_badge_state == 'stable' %}bg-emerald-500{% elif system_badge_state == 'warning' %}bg-amber-500{% else %}bg-rose-500{% endif %} animate-pulse"></span>
+    </span>
+    <span class="text-[11px] font-black tracking-wider uppercase whitespace-nowrap">{{ system_badge_text|default('SYSTEM STABLE') }}</span>
+    <span class="material-symbols-outlined text-[14px] opacity-60">info</span>
+  </button>
+</div>

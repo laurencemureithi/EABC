@@ -43,7 +43,7 @@
                   <input type="hidden" name="sync_presets" value="1">
                 </div>
                 <div class="text-[11px] {{ 'text-emerald-600 dark:text-emerald-400' if row.active else 'text-slate-400' }} font-medium flex items-center gap-1">
-                  <span class="w-1.5 h-1.5 rounded-full {{ 'bg-emerald-500' if row.active else 'bg-slate-400' }}"></span>
+                  <span class="w-1.5 h-1.5 rounded-full {{ 'bg-emerald-500 animate-pulse' if row.active else 'bg-slate-400' }}"></span>
                   {{ 'Active Access' if row.active else 'Suspended' }}
                 </div>
               </form>

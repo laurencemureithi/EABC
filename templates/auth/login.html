@@ -205,15 +205,15 @@
       <div class="auth-brand-inner">
         <div>
           <div class="auth-logo-row flex items-center gap-3">
-            <div class="h-12 w-12 rounded-xl bg-white/10 p-2 flex items-center justify-center border border-white/20 shadow-inner flex-shrink-0">
-              <img src="{{ url_for('static', filename='brand/opsloom_wordmark_light.png') }}" alt="EABC Core" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='/static/brand/opsloom_wordmark_light.png';">
+            <div class="h-12 w-12 rounded-xl bg-white/10 p-2 flex items-center justify-center border border-white/20 shadow-inner flex-shrink-0 overflow-hidden">
+              <img src="{{ active_company.logo_light_url or active_company.logo_url or '/static/brand/opsloom_wordmark_light.png' }}" alt="{{ active_company.name }}" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='/static/brand/opsloom_wordmark_light.png';">
             </div>
             <div class="text-xs uppercase font-mono tracking-widest text-white/90 bg-white/15 px-2.5 py-1 rounded-md border border-white/20 font-bold">
-              EABC v4.2
+              <span class="text-white font-black">EABC</span> v4.2
             </div>
           </div>
           <p class="auth-kicker" style="margin-top:36px;">Enterprise Engineering Platform</p>
-          <h2 class="auth-title">Engineering Asset & Breakdown Core</h2>
+          <h2 class="auth-title">Engineering Asset &amp; Breakdown Core</h2>
           <p class="auth-copy">Integrated reliability engineering, predictive breakdown tracking, and multi-tenant plant management. Sign in to access your assigned company workspace.</p>
         </div>
         <div class="auth-stat-grid">
@@ -232,8 +232,8 @@
             <h2 style="margin-top:4px;font-size:32px;font-weight:900;line-height:1.05;color:#0f172a;" class="dark:text-white">Sign In</h2>
             <p style="margin-top:6px;font-size:13px;color:#64748b;" class="dark:text-slate-300">Enter your credentials to access your company workspace.</p>
           </div>
-          <div class="w-12 h-12 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border p-2 flex items-center justify-center flex-shrink-0 shadow-sm">
-            <img src="{{ url_for('static', filename='brand/opsloom_wordmark_light.png') }}" alt="EABC Core" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='/static/brand/opsloom_wordmark_light.png';">
+          <div class="w-12 h-12 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border p-2 flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden">
+            <img src="{{ active_company.logo_light_url or active_company.logo_url or '/static/brand/opsloom_wordmark_light.png' }}" alt="{{ active_company.name }}" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='/static/brand/opsloom_wordmark_light.png';">
           </div>
         </div>
 
@@ -251,11 +251,11 @@
             <input type="hidden" name="next" value="{{ request.args.get('next','') }}">
             <div>
               <label class="auth-label" for="loginEmail">Company Email</label>
-              <input id="loginEmail" name="email" type="email" required value="{{ remembered_email or '' }}" placeholder="name@company.com" class="auth-input">
+              <input id="loginEmail" name="email" type="email" required value="{{ remembered_email or '' }}" placeholder="engineer@company.com" class="auth-input">
             </div>
             <div>
               <label class="auth-label" for="loginPassword">Password</label>
-              <input id="loginPassword" name="password" type="password" required placeholder="Enter password" class="auth-input">
+              <input id="loginPassword" name="password" type="password" required placeholder="••••••••••••" class="auth-input">
             </div>
             <button class="auth-primary" id="loginSubmitBtn" style="background-color: {{ active_company.primary_color or '#1554FF' }};">Sign In to Workspace</button>
           </form>
@@ -272,15 +272,18 @@
 
           <div class="auth-help-box" style="margin-top:18px;">
             <div style="margin-bottom:12px;padding:12px 14px;border-radius:16px;background:rgba(21,84,255,.06);border:1px solid rgba(21,84,255,.12);font-size:13px;color:#475569;">
-              <strong>Password Help:</strong> {{ password_reset_help }}
-              <div style="margin-top:4px;">Support contact: {{ company_contact_email }}</div>
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-[18px] text-blue-600">verified_user</span>
+                <strong>Enterprise Security Notice:</strong>
+              </div>
+              <div style="margin-top:4px;">All login attempts are monitored and recorded. For credential assistance or access provisioning, contact {{ company_contact_email or 'system support' }}.</div>
             </div>
             <h3 style="font-size:13px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:#334155;" class="dark:text-slate-100">Need Access?</h3>
-            <p style="margin-top:10px;font-size:14px;color:#64748b;" class="dark:text-slate-300">Request credentials under your company email and the admin team can enable access after approval.</p>
+            <p style="margin-top:10px;font-size:14px;color:#64748b;" class="dark:text-slate-300">Request access under your registered corporate email for administrative review.</p>
             <form method="post" action="{{ url_for('request_credentials') }}" class="mt-4 flex flex-col sm:flex-row gap-3">
-              <input type="email" name="email" value="{{ remembered_email or '' }}" placeholder="opsloom.ke@gmail.com" class="auth-input" style="flex:1;">
+              <input type="email" name="email" value="{{ remembered_email or '' }}" placeholder="engineer@company.com" class="auth-input" style="flex:1;" required>
               <input type="hidden" name="department" value="{{ selected_department }}">
-              <button class="auth-primary" style="width:auto; padding-left:20px; padding-right:20px; box-shadow:none;">Request Credentials</button>
+              <button class="auth-primary" style="width:auto; padding-left:20px; padding-right:20px; box-shadow:none;">Request Access</button>
             </form>
           </div>
         </div>

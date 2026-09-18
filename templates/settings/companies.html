@@ -142,32 +142,121 @@
           </div>
         </div>
 
-        <!-- Logo Upload Section -->
-        <div class="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-slate-900/40 p-4">
-          <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400 mb-2">Company Profile Image & Brand Logo</label>
-          <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div class="w-16 h-16 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-dark-border p-2 flex items-center justify-center shadow-sm flex-shrink-0">
-              <img id="logoPreviewImg" src="{{ target_comp.logo_url or '/static/brand/opsloom_wordmark_light.png' }}" alt="Logo preview" class="max-h-full max-w-full object-contain">
+        <!-- Brand Logo & Theme Adaptation Customization -->
+        <div class="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-slate-900/40 p-4 space-y-4">
+          <div class="flex items-center justify-between">
+            <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-300">Brand Imagery &amp; Theme Adaptation</label>
+            <span class="text-[10px] text-blue-600 dark:text-blue-400 font-bold">Theme-Aware Logos</span>
+          </div>
+
+          <!-- Light Theme Logo Config -->
+          <div class="p-3 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800/60 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[16px] text-amber-500">light_mode</span>
+                Light Theme Logo (Used in Light Surfaces &amp; Reports)
+              </span>
             </div>
-            <div class="flex-1 w-full space-y-2">
-              <div class="flex flex-wrap items-center gap-2">
-                <label for="logoFileInput" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-300 text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/50 cursor-pointer transition-all">
-                  <span class="material-symbols-outlined text-sm">cloud_upload</span> Choose Image File
-                </label>
-                <input type="file" name="logo_file" id="logoFileInput" accept="image/png, image/jpeg, image/svg+xml, image/webp" class="hidden">
-                <span id="selectedFileName" class="text-xs text-slate-500 italic truncate max-w-[200px]">No file chosen</span>
+            <div class="flex items-center gap-3">
+              <div class="w-14 h-14 rounded-lg bg-slate-100 border border-slate-200 p-1.5 flex items-center justify-center flex-shrink-0 overflow-hidden shadow-inner">
+                <img id="logoLightPreview" src="{{ target_comp.logo_light_url or target_comp.logo_url or '/static/brand/opsloom_wordmark_light.png' }}" alt="Light logo" class="max-h-full max-w-full object-contain">
               </div>
-              <input type="text" name="logo_url" id="logoUrlInput" value="{{ target_comp.logo_url or '' }}" placeholder="Or paste image URL (https://... or /static/...)" class="w-full rounded-md border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs">
+              <div class="flex-1 min-w-0 space-y-1.5">
+                <div class="flex items-center gap-2">
+                  <label for="logoLightFileInput" class="px-2.5 py-1 rounded bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-300 text-[11px] font-bold hover:bg-blue-100 cursor-pointer transition">
+                    Upload File
+                  </label>
+                  <input type="file" name="logo_light_file" id="logoLightFileInput" accept="image/png, image/jpeg, image/svg+xml, image/webp" class="hidden">
+                  <span id="lightFileName" class="text-[11px] text-slate-400 truncate">No file chosen</span>
+                </div>
+                <input type="text" name="logo_light_url" id="logoLightUrlInput" value="{{ target_comp.logo_light_url or target_comp.logo_url or '' }}" placeholder="Image URL (e.g. /static/brand/opsloom_wordmark_light.png)" class="w-full rounded border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-900 px-2.5 py-1 text-xs">
+              </div>
+            </div>
+            <!-- Presets for Light -->
+            <div class="flex flex-wrap items-center gap-1.5 pt-1 text-[10px]">
+              <span class="text-slate-400 font-bold uppercase">Presets:</span>
+              <button type="button" onclick="setLightLogo('/static/brand/opsloom_wordmark_light.png')" class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition font-medium">Opsloom Light Wordmark</button>
+              <button type="button" onclick="setLightLogo('/static/brand/ultravetis_logo.png')" class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition font-medium">Ultravetis Logo</button>
             </div>
           </div>
-          <!-- Quick Preset Badges -->
-          <div class="mt-3 pt-2.5 border-t border-slate-200/80 dark:border-dark-border/80 flex flex-wrap items-center gap-1.5">
-            <span class="text-[10px] uppercase font-bold text-slate-400 mr-1">Presets:</span>
-            <button type="button" onclick="choosePresetLogo('/static/brand/ultravetis_logo.png')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border hover:border-blue-400 hover:text-blue-600 transition">Ultravetis Logo</button>
-            <button type="button" onclick="choosePresetLogo('/static/brand/opsloom_wordmark_light.png')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border hover:border-blue-400 hover:text-blue-600 transition">EABC Core Light</button>
-            <button type="button" onclick="choosePresetLogo('/static/brand/opsloom_wordmark_dark.png')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border hover:border-blue-400 hover:text-blue-600 transition">EABC Core Dark</button>
+
+          <!-- Dark Theme Logo Config -->
+          <div class="p-3 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800/60 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[16px] text-indigo-400">dark_mode</span>
+                Dark Theme Logo (Used in Dark Surfaces &amp; Dark Mode)
+              </span>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="w-14 h-14 rounded-lg bg-slate-900 border border-slate-700 p-1.5 flex items-center justify-center flex-shrink-0 overflow-hidden shadow-inner">
+                <img id="logoDarkPreview" src="{{ target_comp.logo_dark_url or target_comp.logo_url or '/static/brand/opsloom_wordmark_dark.png' }}" alt="Dark logo" class="max-h-full max-w-full object-contain">
+              </div>
+              <div class="flex-1 min-w-0 space-y-1.5">
+                <div class="flex items-center gap-2">
+                  <label for="logoDarkFileInput" class="px-2.5 py-1 rounded bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-300 text-[11px] font-bold hover:bg-blue-100 cursor-pointer transition">
+                    Upload File
+                  </label>
+                  <input type="file" name="logo_dark_file" id="logoDarkFileInput" accept="image/png, image/jpeg, image/svg+xml, image/webp" class="hidden">
+                  <span id="darkFileName" class="text-[11px] text-slate-400 truncate">No file chosen</span>
+                </div>
+                <input type="text" name="logo_dark_url" id="logoDarkUrlInput" value="{{ target_comp.logo_dark_url or target_comp.logo_url or '' }}" placeholder="Image URL (e.g. /static/brand/opsloom_wordmark_dark.png)" class="w-full rounded border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-900 px-2.5 py-1 text-xs">
+              </div>
+            </div>
+            <!-- Presets for Dark -->
+            <div class="flex flex-wrap items-center gap-1.5 pt-1 text-[10px]">
+              <span class="text-slate-400 font-bold uppercase">Presets:</span>
+              <button type="button" onclick="setDarkLogo('/static/brand/opsloom_wordmark_dark.png')" class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition font-medium">Opsloom Dark Wordmark</button>
+              <button type="button" onclick="setDarkLogo('/static/img/ops_white-removebg.png')" class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition font-medium">Opsloom White Icon</button>
+              <button type="button" onclick="setDarkLogo('/static/brand/ultravetis_logo.png')" class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition font-medium">Ultravetis Logo</button>
+            </div>
           </div>
-          <p class="text-[11px] text-slate-400 mt-2">Appears on navigation header, sidebar, login portal, audit trail, and generated PDF reports.</p>
+
+          <!-- Brand Name Field Activation Toggle -->
+          <div class="p-3.5 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800/60">
+            <label class="flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" name="show_brand_name" id="showBrandNameToggle" value="true" {% if target_comp.show_brand_name %}checked{% endif %} class="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500">
+              <div>
+                <span class="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                  Activate Company Name next to Logo
+                </span>
+                <span class="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5 leading-relaxed">
+                  Enable this if your logo is an emblem/icon that does not bear the name, so the brand name text appears beside it. Leave unchecked if your logo is already a wordmark containing the brand name.
+                </span>
+              </div>
+            </label>
+          </div>
+
+          <!-- Live Sidebar Header Simulator -->
+          <div class="p-3.5 rounded-lg border border-slate-200 dark:border-dark-border bg-slate-100 dark:bg-slate-900/80 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-black uppercase tracking-wider text-slate-500">Live Sidebar Top Simulator</span>
+              <button type="button" id="toggleSimThemeBtn" class="text-[10px] font-bold px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-blue-500 transition">
+                Toggle Dark / Light Simulation
+              </button>
+            </div>
+
+            <!-- Simulated Sidebar Header Shell -->
+            <div id="simulatedSidebarHeader" class="p-3 rounded-lg border transition-all flex items-center justify-between" style="background-color: #0F172A; border-color: rgba(255,255,255,0.1);">
+              <div id="simModeBrandOnly" class="flex items-center gap-2">
+                <img id="simLogoImg" src="{{ target_comp.logo_dark_url or target_comp.logo_url or '/static/brand/opsloom_wordmark_dark.png' }}" alt="Simulated Logo" class="h-9 max-w-[180px] w-auto object-contain">
+              </div>
+              <div id="simModeWithText" class="hidden flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-white/10 p-1 flex items-center justify-center border border-white/20">
+                  <img id="simLogoEmblem" src="{{ target_comp.logo_dark_url or target_comp.logo_url or '/static/brand/opsloom_wordmark_dark.png' }}" alt="Emblem" class="max-h-full max-w-full object-contain">
+                </div>
+                <div>
+                  <div id="simNameText" class="text-xs font-bold text-white truncate max-w-[140px]">{{ target_comp.name or 'Company Name' }}</div>
+                  <div class="text-[9px] text-white/70 font-mono uppercase flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    <span id="simCodeText">{{ target_comp.code or 'COMP' }}</span>
+                  </div>
+                </div>
+              </div>
+              <span class="material-symbols-outlined text-white/40 text-[18px]">close</span>
+            </div>
+            <div class="text-[10px] text-slate-400 text-center">Simulated appearance at the top of the sidebar navigation</div>
+          </div>
         </div>
 
         <!-- Color Scheme Customizer -->
@@ -292,38 +381,138 @@
       aText.addEventListener('input', (e) => { if (e.target.value.startsWith('#')) { aPicker.value = e.target.value; updateBlend(); } });
     }
 
-    // Logo image preview & preset handlers
-    const fileInput = document.getElementById('logoFileInput');
-    const urlInput = document.getElementById('logoUrlInput');
-    const previewImg = document.getElementById('logoPreviewImg');
-    const fileNameDisplay = document.getElementById('selectedFileName');
+    // Light & Dark Logo handlers
+    const lightFileInput = document.getElementById('logoLightFileInput');
+    const lightUrlInput = document.getElementById('logoLightUrlInput');
+    const lightPreview = document.getElementById('logoLightPreview');
+    const lightFileName = document.getElementById('lightFileName');
 
-    window.choosePresetLogo = function(url) {
-      if (urlInput) urlInput.value = url;
-      if (previewImg) previewImg.src = url;
-      if (fileNameDisplay) fileNameDisplay.textContent = url.split('/').pop();
+    const darkFileInput = document.getElementById('logoDarkFileInput');
+    const darkUrlInput = document.getElementById('logoDarkUrlInput');
+    const darkPreview = document.getElementById('logoDarkPreview');
+    const darkFileName = document.getElementById('darkFileName');
+
+    const showBrandNameToggle = document.getElementById('showBrandNameToggle');
+    const simShell = document.getElementById('simulatedSidebarHeader');
+    const simModeBrandOnly = document.getElementById('simModeBrandOnly');
+    const simModeWithText = document.getElementById('simModeWithText');
+    const simLogoImg = document.getElementById('simLogoImg');
+    const simLogoEmblem = document.getElementById('simLogoEmblem');
+    const simNameText = document.getElementById('simNameText');
+    const simCodeText = document.getElementById('simCodeText');
+    const toggleSimThemeBtn = document.getElementById('toggleSimThemeBtn');
+    let simIsDark = true;
+
+    function updateSimulation() {
+      const activeLogo = simIsDark ? (darkUrlInput.value.trim() || '/static/brand/opsloom_wordmark_dark.png') : (lightUrlInput.value.trim() || '/static/brand/opsloom_wordmark_light.png');
+      simLogoImg.src = activeLogo;
+      simLogoEmblem.src = activeLogo;
+
+      if (showBrandNameToggle.checked) {
+        simModeBrandOnly.classList.add('hidden');
+        simModeWithText.classList.remove('hidden');
+      } else {
+        simModeBrandOnly.classList.remove('hidden');
+        simModeWithText.classList.add('hidden');
+      }
+
+      if (simIsDark) {
+        simShell.style.backgroundColor = '#0F172A';
+        simShell.style.borderColor = 'rgba(255,255,255,0.1)';
+        simNameText.className = 'text-xs font-bold text-white truncate max-w-[140px]';
+        toggleSimThemeBtn.textContent = 'Simulating: Dark Mode (Click for Light)';
+      } else {
+        simShell.style.backgroundColor = '#FFFFFF';
+        simShell.style.borderColor = '#E2E8F0';
+        simNameText.className = 'text-xs font-bold text-slate-900 truncate max-w-[140px]';
+        toggleSimThemeBtn.textContent = 'Simulating: Light Mode (Click for Dark)';
+      }
+    }
+
+    window.setLightLogo = function(url) {
+      if (lightUrlInput) lightUrlInput.value = url;
+      if (lightPreview) lightPreview.src = url;
+      if (lightFileName) lightFileName.textContent = url.split('/').pop();
+      updateSimulation();
     };
 
-    if (fileInput) {
-      fileInput.addEventListener('change', function() {
+    window.setDarkLogo = function(url) {
+      if (darkUrlInput) darkUrlInput.value = url;
+      if (darkPreview) darkPreview.src = url;
+      if (darkFileName) darkFileName.textContent = url.split('/').pop();
+      updateSimulation();
+    };
+
+    if (lightFileInput) {
+      lightFileInput.addEventListener('change', function() {
         if (this.files && this.files[0]) {
           const file = this.files[0];
-          if (fileNameDisplay) fileNameDisplay.textContent = file.name;
+          if (lightFileName) lightFileName.textContent = file.name;
           const reader = new FileReader();
           reader.onload = function(e) {
-            previewImg.src = e.target.result;
+            lightPreview.src = e.target.result;
+            if (!simIsDark) updateSimulation();
           };
           reader.readAsDataURL(file);
         }
       });
     }
-    if (urlInput) {
-      urlInput.addEventListener('input', function() {
-        if (this.value.trim().length > 3) {
-          previewImg.src = this.value.trim();
+
+    if (darkFileInput) {
+      darkFileInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+          const file = this.files[0];
+          if (darkFileName) darkFileName.textContent = file.name;
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            darkPreview.src = e.target.result;
+            if (simIsDark) updateSimulation();
+          };
+          reader.readAsDataURL(file);
         }
       });
     }
+
+    if (lightUrlInput) {
+      lightUrlInput.addEventListener('input', function() {
+        lightPreview.src = this.value.trim() || '/static/brand/opsloom_wordmark_light.png';
+        if (!simIsDark) updateSimulation();
+      });
+    }
+
+    if (darkUrlInput) {
+      darkUrlInput.addEventListener('input', function() {
+        darkPreview.src = this.value.trim() || '/static/brand/opsloom_wordmark_dark.png';
+        if (simIsDark) updateSimulation();
+      });
+    }
+
+    if (showBrandNameToggle) {
+      showBrandNameToggle.addEventListener('change', updateSimulation);
+    }
+
+    if (toggleSimThemeBtn) {
+      toggleSimThemeBtn.addEventListener('click', function() {
+        simIsDark = !simIsDark;
+        updateSimulation();
+      });
+    }
+
+    const nameInput = document.querySelector('input[name="name"]');
+    const codeInput = document.querySelector('input[name="code"]');
+    if (nameInput) {
+      nameInput.addEventListener('input', function() {
+        if (simNameText) simNameText.textContent = this.value || 'Company Name';
+      });
+    }
+    if (codeInput) {
+      codeInput.addEventListener('input', function() {
+        if (simCodeText) simCodeText.textContent = (this.value || 'COMP').toUpperCase();
+      });
+    }
+
+    // Initialize simulation state
+    updateSimulation();
   })();
 </script>
 {% endblock %}

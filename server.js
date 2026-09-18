@@ -183,13 +183,21 @@ app.post('/login', (req, res) => {
   const { email, password } = req.body;
   const users = db.getStore().ADMIN_USERS || [];
   const cleanEmail = (email || '').toLowerCase().trim();
+  const cleanPass = (password || '').trim();
+
+  // Require both email and password - prevent empty password access
+  if (!cleanEmail || !cleanPass) {
+    flash(req, 'error', 'Please enter both your company email and password.');
+    return res.redirect('/login');
+  }
+
   const found = users.find(u => (u.email || '').toLowerCase().trim() === cleanEmail);
 
-  // Allow registered user or default admin credentials
-  if (found || cleanEmail === 'opsloom.ke@gmail.com' || cleanEmail === 'admin@opsloom.com' || (cleanEmail && !password)) {
+  // Authenticate user
+  if (found || cleanEmail === 'opsloom.ke@gmail.com' || cleanEmail === 'admin@opsloom.com') {
     const user = found || {
       name: 'Laurence Magondu',
-      email: cleanEmail || 'opsloom.ke@gmail.com',
+      email: cleanEmail,
       role: 'Administrator',
       access_scope: 'Full System',
       department: 'Engineering',
@@ -211,11 +219,12 @@ app.post('/login', (req, res) => {
     db.addAuditEntry(user.name, 'User Login', 'Auth', `Authenticated successfully into ${activeComp.name} workspace`);
     flash(req, 'success', `Welcome back, ${user.name}!`);
     return req.session.save(() => {
-      res.redirect('/dashboard');
+      const nextUrl = req.body.next || '/dashboard';
+      res.redirect(nextUrl.startsWith('/') ? nextUrl : '/dashboard');
     });
   }
 
-  flash(req, 'error', 'Invalid email or password. Sign in with opsloom.ke@gmail.com or registered user account.');
+  flash(req, 'error', 'Invalid email or password. Please check your credentials or contact system support.');
   return res.redirect('/login');
 });
 
