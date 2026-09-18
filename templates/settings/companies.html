@@ -1,0 +1,307 @@
+{% extends "layouts/base.html" %}
+{% block title %}Company Workspaces & Branding • {{ active_company.name }}{% endblock %}
+{% block content %}
+{% set page_title = "Company Workspaces & Branding" %}
+{% set title_icon = "domain" %}
+{% set page_subtitle = "Create and configure company workspaces, upload brand logos, define color palettes, and manage organization-level tenancy." %}
+{% set show_system_badge = true %}
+{% set breadcrumbs = [{"label":"Settings / Admin", "href": url_for('settings_admin')}, {"label":"Company Workspaces"}] %}
+{% include "partials/title_block.html" %}
+
+<div class="max-w-7xl mx-auto space-y-8">
+  <!-- Active Workspace Bar -->
+  <div class="rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4" style="border-left: 4px solid {{ active_company.primary_color }};">
+    <div class="flex items-center gap-4">
+      <div class="w-14 h-14 rounded-xl flex items-center justify-center p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-dark-border shadow-inner">
+        <img src="{{ active_company.logo_url }}" alt="{{ active_company.name }}" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='/static/brand/opsloom_wordmark_light.png';">
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-black uppercase tracking-wider px-2 py-0.5 rounded text-white" style="background-color: {{ active_company.primary_color }};">Active Workspace</span>
+          <span class="text-xs font-bold text-slate-500">ID: {{ active_company.code }}</span>
+        </div>
+        <h2 class="text-lg font-bold text-slate-900 dark:text-white mt-1">{{ active_company.name }}</h2>
+        <p class="text-xs text-slate-500">{{ active_company.industry or 'Enterprise Asset Management' }} &bull; {{ active_company.city or 'Nairobi' }}, {{ active_company.country or 'Kenya' }}</p>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+      <span class="text-xs font-bold text-slate-500 mr-1">Switch Workspace:</span>
+      {% for comp in companies %}
+      <a href="{{ url_for('admin_companies_switch', company_id=comp.id) }}" 
+         class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 border {{ 'shadow-sm text-white' if comp.id == active_company.id else 'bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-dark-border hover:border-slate-400' }}"
+         style="{% if comp.id == active_company.id %}background-color: {{ comp.primary_color }}; border-color: {{ comp.primary_color }};{% endif %}">
+        <span class="w-2 h-2 rounded-full" style="background-color: {{ comp.primary_color }};"></span>
+        {{ comp.code }}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+    <!-- Companies List (Left 7 Cols) -->
+    <div class="xl:col-span-7 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-sm overflow-hidden flex flex-col">
+      <div class="px-6 py-4 border-b border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-slate-800/30 flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-black uppercase tracking-[0.18em]">Registered Companies</h2>
+          <p class="mt-1 text-xs text-slate-500">Organizations configured in this multi-tenant CMMS platform.</p>
+        </div>
+        <a href="{{ url_for('admin_companies_page') }}" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-[16px]">add</span>
+          New Company
+        </a>
+      </div>
+
+      <div class="divide-y divide-slate-100 dark:divide-dark-border flex-1">
+        {% for comp in companies %}
+        <div class="p-5 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-dark-border overflow-hidden shadow-sm">
+              <img src="{{ comp.logo_url }}" alt="{{ comp.name }}" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='/static/brand/opsloom_wordmark_light.png';">
+            </div>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-bold text-slate-900 dark:text-white text-base">{{ comp.name }}</span>
+                <span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono">{{ comp.code }}</span>
+                {% if comp.id == active_company.id %}
+                <span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">Current</span>
+                {% endif %}
+              </div>
+              <p class="text-xs text-slate-500 mt-1">{{ comp.industry or 'Industrial Engineering' }} &bull; {{ comp.contact_email or 'No email' }}</p>
+              
+              <!-- Color Swatches Preview -->
+              <div class="flex items-center gap-3 mt-2.5">
+                <div class="flex items-center -space-x-1">
+                  <span class="w-5 h-5 rounded-full border-2 border-white dark:border-dark-surface shadow-sm" style="background-color: {{ comp.primary_color }};" title="Primary: {{ comp.primary_color }}"></span>
+                  <span class="w-5 h-5 rounded-full border-2 border-white dark:border-dark-surface shadow-sm" style="background-color: {{ comp.secondary_color }};" title="Secondary: {{ comp.secondary_color }}"></span>
+                  <span class="w-5 h-5 rounded-full border-2 border-white dark:border-dark-surface shadow-sm" style="background-color: {{ comp.accent_color }};" title="Accent: {{ comp.accent_color }}"></span>
+                </div>
+                <div class="h-3 w-16 rounded-full overflow-hidden shadow-inner flex" title="Palette Blend">
+                  <div class="h-full flex-1" style="background: linear-gradient(to right, {{ comp.primary_color }}, {{ comp.secondary_color }}, {{ comp.accent_color }});"></div>
+                </div>
+                <span class="text-[11px] text-slate-400">
+                  {{ company_stats[comp.id].users_count if company_stats and comp.id in company_stats else '1' }} user(s)
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 self-end sm:self-center">
+            {% if comp.id != active_company.id %}
+            <a href="{{ url_for('admin_companies_switch', company_id=comp.id) }}" class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 transition-colors">
+              Switch
+            </a>
+            {% endif %}
+            <a href="{{ url_for('admin_companies_page', edit=comp.id) }}" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors">
+              Edit
+            </a>
+            {% if companies|length > 1 %}
+            <form method="post" action="{{ url_for('admin_companies_delete', company_id=comp.id) }}" onsubmit="return confirm('Delete {{ comp.name }} workspace? This action cannot be undone.');">
+              <button type="submit" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors" title="Delete Company">
+                <span class="material-symbols-outlined text-[18px]">delete</span>
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Company Creation / Edit Form (Right 5 Cols) -->
+    <div class="xl:col-span-5 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-sm p-6">
+      {% set is_edit = edit_company is not none and edit_company %}
+      {% set target_comp = edit_company if is_edit else {} %}
+
+      <div class="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-dark-border">
+        <div>
+          <h2 class="text-sm font-black uppercase tracking-[0.18em]">{{ 'Edit Company Details' if is_edit else 'Create New Company' }}</h2>
+          <p class="text-xs text-slate-500 mt-0.5">{{ 'Update workspace branding & details' if is_edit else 'Add a new organization workspace' }}</p>
+        </div>
+        {% if is_edit %}
+        <a href="{{ url_for('admin_companies_page') }}" class="text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline">New Form</a>
+        {% endif %}
+      </div>
+
+      <form method="post" action="{{ url_for('admin_companies_edit', company_id=target_comp.id) if is_edit else url_for('admin_companies_create') }}" enctype="multipart/form-data" class="mt-5 space-y-4">
+        <div>
+          <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1.5">Company Legal Name *</label>
+          <input type="text" name="name" value="{{ target_comp.name or '' }}" placeholder="e.g. Acme Manufacturing Ltd" required
+                 class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1.5">Company Code / ID *</label>
+            <input type="text" name="code" value="{{ target_comp.code or '' }}" placeholder="ACME" {% if is_edit %}readonly{% endif %} required
+                   class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm uppercase font-mono font-bold focus:ring-2 focus:ring-blue-500 {% if is_edit %}opacity-60 cursor-not-allowed{% endif %}">
+          </div>
+          <div>
+            <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1.5">Industry Sector</label>
+            <input type="text" name="industry" value="{{ target_comp.industry or '' }}" placeholder="e.g. Pharmaceuticals"
+                   class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500">
+          </div>
+        </div>
+
+        <!-- Logo Upload Section -->
+        <div class="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-slate-900/40 p-4">
+          <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400 mb-2">Company Brand Logo</label>
+          <div class="flex items-center gap-4">
+            <div class="w-16 h-16 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border p-2 flex items-center justify-center shadow-inner flex-shrink-0">
+              <img id="logoPreviewImg" src="{{ target_comp.logo_url or '/static/brand/opsloom_wordmark_light.png' }}" alt="Logo preview" class="max-h-full max-w-full object-contain">
+            </div>
+            <div class="flex-1 space-y-2">
+              <input type="file" name="logo_file" id="logoFileInput" accept="image/png, image/jpeg, image/svg+xml, image/webp" class="text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-950 dark:file:text-blue-300 hover:file:bg-blue-100 cursor-pointer">
+              <input type="text" name="logo_url" id="logoUrlInput" value="{{ target_comp.logo_url or '' }}" placeholder="Or paste image URL" class="w-full rounded-md border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-2.5 py-1 text-xs">
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2">Appears on navigation header, sidebar, login portal, audit trail, and generated PDF reports.</p>
+        </div>
+
+        <!-- Color Scheme Customizer -->
+        <div class="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-slate-900/40 p-4">
+          <div class="flex items-center justify-between mb-2">
+            <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Brand Color Palette & Harmony</label>
+            <span class="text-[11px] text-slate-400">Live Blend Preview</span>
+          </div>
+          
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <span class="block text-[10px] font-bold text-slate-500 mb-1">Primary</span>
+              <div class="flex items-center gap-2">
+                <input type="color" name="primary_color" id="primaryColorPicker" value="{{ target_comp.primary_color or '#1554FF' }}" class="w-9 h-9 rounded-lg border border-slate-200 dark:border-dark-border cursor-pointer p-0.5">
+                <input type="text" id="primaryColorText" value="{{ target_comp.primary_color or '#1554FF' }}" class="w-full rounded border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-2 py-1 text-xs font-mono">
+              </div>
+            </div>
+            <div>
+              <span class="block text-[10px] font-bold text-slate-500 mb-1">Secondary</span>
+              <div class="flex items-center gap-2">
+                <input type="color" name="secondary_color" id="secondaryColorPicker" value="{{ target_comp.secondary_color or '#0B1020' }}" class="w-9 h-9 rounded-lg border border-slate-200 dark:border-dark-border cursor-pointer p-0.5">
+                <input type="text" id="secondaryColorText" value="{{ target_comp.secondary_color or '#0B1020' }}" class="w-full rounded border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-2 py-1 text-xs font-mono">
+              </div>
+            </div>
+            <div>
+              <span class="block text-[10px] font-bold text-slate-500 mb-1">Accent</span>
+              <div class="flex items-center gap-2">
+                <input type="color" name="accent_color" id="accentColorPicker" value="{{ target_comp.accent_color or '#F59E0B' }}" class="w-9 h-9 rounded-lg border border-slate-200 dark:border-dark-border cursor-pointer p-0.5">
+                <input type="text" id="accentColorText" value="{{ target_comp.accent_color or '#F59E0B' }}" class="w-full rounded border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-2 py-1 text-xs font-mono">
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Interactive Blend Strip -->
+          <div class="mt-3 p-3 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 space-y-2">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">System Blend Preview</div>
+            <div id="blendGradientStrip" class="h-6 rounded-md shadow-inner transition-all" style="background: linear-gradient(to right, {{ target_comp.primary_color or '#1554FF' }}, {{ target_comp.secondary_color or '#0B1020' }}, {{ target_comp.accent_color or '#F59E0B' }});"></div>
+            <div class="flex items-center justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+              <span id="previewBadge" class="px-2 py-0.5 rounded text-white text-[10px] font-bold" style="background-color: {{ target_comp.primary_color or '#1554FF' }};">Header / Nav Highlight</span>
+              <span id="previewAccent" class="px-2 py-0.5 rounded text-white text-[10px] font-bold" style="background-color: {{ target_comp.accent_color or '#F59E0B' }};">Action Accent</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contact & Address -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1.5">Official Email</label>
+            <input type="email" name="contact_email" value="{{ target_comp.contact_email or '' }}" placeholder="contact@company.com"
+                   class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2 text-sm">
+          </div>
+          <div>
+            <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1.5">Telephone</label>
+            <input type="text" name="contact_phone" value="{{ target_comp.contact_phone or '' }}" placeholder="+254 700 000000"
+                   class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2 text-sm">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1.5">City</label>
+            <input type="text" name="city" value="{{ target_comp.city or 'Nairobi' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2 text-sm">
+          </div>
+          <div>
+            <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1.5">Country</label>
+            <input type="text" name="country" value="{{ target_comp.country or 'Kenya' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2 text-sm">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1.5">Street Address</label>
+          <input type="text" name="address" value="{{ target_comp.address or '' }}" placeholder="Industrial Area, Shanghai Road"
+                 class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2 text-sm">
+        </div>
+
+        <div class="pt-2 flex items-center gap-3">
+          <button type="submit" class="flex-1 py-3 px-4 rounded-xl text-white font-bold text-sm shadow-md hover:brightness-110 transition-all" style="background-color: {{ active_company.primary_color }};">
+            {{ 'Save Changes' if is_edit else 'Establish Company Workspace' }}
+          </button>
+          {% if is_edit %}
+          <a href="{{ url_for('admin_companies_page') }}" class="px-4 py-3 rounded-xl border border-slate-200 dark:border-dark-border text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+            Cancel
+          </a>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const pPicker = document.getElementById('primaryColorPicker');
+    const pText = document.getElementById('primaryColorText');
+    const sPicker = document.getElementById('secondaryColorPicker');
+    const sText = document.getElementById('secondaryColorText');
+    const aPicker = document.getElementById('accentColorPicker');
+    const aText = document.getElementById('accentColorText');
+    const strip = document.getElementById('blendGradientStrip');
+    const pBadge = document.getElementById('previewBadge');
+    const aBadge = document.getElementById('previewAccent');
+
+    function updateBlend() {
+      const p = pPicker.value;
+      const s = sPicker.value;
+      const a = aPicker.value;
+      strip.style.background = `linear-gradient(to right, ${p}, ${s}, ${a})`;
+      pBadge.style.backgroundColor = p;
+      aBadge.style.backgroundColor = a;
+    }
+
+    if (pPicker && pText) {
+      pPicker.addEventListener('input', (e) => { pText.value = e.target.value; updateBlend(); });
+      pText.addEventListener('input', (e) => { if (e.target.value.startsWith('#')) { pPicker.value = e.target.value; updateBlend(); } });
+    }
+    if (sPicker && sText) {
+      sPicker.addEventListener('input', (e) => { sText.value = e.target.value; updateBlend(); });
+      sText.addEventListener('input', (e) => { if (e.target.value.startsWith('#')) { sPicker.value = e.target.value; updateBlend(); } });
+    }
+    if (aPicker && aText) {
+      aPicker.addEventListener('input', (e) => { aText.value = e.target.value; updateBlend(); });
+      aText.addEventListener('input', (e) => { if (e.target.value.startsWith('#')) { aPicker.value = e.target.value; updateBlend(); } });
+    }
+
+    // Logo image preview
+    const fileInput = document.getElementById('logoFileInput');
+    const urlInput = document.getElementById('logoUrlInput');
+    const previewImg = document.getElementById('logoPreviewImg');
+
+    if (fileInput) {
+      fileInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            previewImg.src = e.target.result;
+          };
+          reader.readAsDataURL(this.files[0]);
+        }
+      });
+    }
+    if (urlInput) {
+      urlInput.addEventListener('input', function() {
+        if (this.value.trim().length > 3) {
+          previewImg.src = this.value.trim();
+        }
+      });
+    }
+  })();
+</script>
+{% endblock %}

@@ -25,6 +25,19 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/material-symbols/material-symbols-outlined.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
 
+  {% if active_company %}
+  <style id="company-dynamic-palette">
+    :root {
+      --opsloom-blue: {{ active_company.primary_color }};
+      --opsloom-navy: {{ active_company.secondary_color }};
+      --opsloom-accent: {{ active_company.accent_color }};
+      --company-primary: {{ active_company.primary_color }};
+      --company-secondary: {{ active_company.secondary_color }};
+      --company-accent: {{ active_company.accent_color }};
+    }
+  </style>
+  {% endif %}
+
   <!-- ✅ Chart.js (GLOBAL) -->
   <script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
 

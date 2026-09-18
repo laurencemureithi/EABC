@@ -5,11 +5,18 @@
 <div class="eabc-doc-header mb-6 print:mb-4">
   <div class="eabc-doc-header-banner">
     <div class="eabc-doc-header-brand">
-      <img src="{{ url_for('static', filename='brand/opsloom_wordmark_dark.png') }}" alt="Opsloom" class="eabc-doc-header-logo">
-      <div class="eabc-doc-header-address" aria-label="Opsloom address block">
-        {% for line in ultravetis_address_lines %}
-          <div>{{ line }}</div>
-        {% endfor %}
+      <img src="{{ active_company.logo_url or url_for('static', filename='brand/opsloom_wordmark_dark.png') }}" alt="{{ active_company.name }}" class="eabc-doc-header-logo object-contain" onerror="this.onerror=null; this.src='/static/brand/opsloom_wordmark_dark.png';">
+      <div class="eabc-doc-header-address" aria-label="Company address block">
+        {% if active_company.address or active_company.city %}
+          <div class="font-bold text-slate-800">{{ active_company.name }}</div>
+          {% if active_company.address %}<div>{{ active_company.address }}</div>{% endif %}
+          <div>{{ active_company.city }}, {{ active_company.country }}</div>
+          {% if active_company.contact_email %}<div>{{ active_company.contact_email }}{% if active_company.contact_phone %} &bull; {{ active_company.contact_phone }}{% endif %}</div>{% endif %}
+        {% else %}
+          {% for line in ultravetis_address_lines %}
+            <div>{{ line }}</div>
+          {% endfor %}
+        {% endif %}
       </div>
     </div>
   </div>

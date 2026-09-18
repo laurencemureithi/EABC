@@ -22,8 +22,32 @@
         <tbody class="divide-y divide-slate-100 dark:divide-dark-border">
           {% for row in admin_users %}
           <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
-            <td class="px-6 py-4 align-top"><div class="font-bold text-slate-900 dark:text-white">{{ row.name }}</div><div class="text-xs text-slate-500">{{ row.email }}</div><div class="text-[11px] text-slate-400 mt-1">{{ row.department or 'Engineering' }}</div></td>
-            <td class="px-6 py-4 align-top"><div class="font-semibold">{{ row.role }}</div><div class="text-xs text-slate-500 mt-1">{{ 'Active' if row.active else 'Inactive' }}</div></td>
+            <td class="px-6 py-4 align-top">
+              <div class="font-bold text-slate-900 dark:text-white">{{ row.name }}</div>
+              <div class="text-xs text-slate-500">{{ row.email }}</div>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="text-[11px] text-slate-400">{{ row.department or 'Engineering' }}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-bold uppercase">
+                  {% if row.company_id == 'all' or not row.company_id %}All Companies{% else %}{% set cobj = (all_companies | selectattr('id', 'equalto', row.company_id) | first) %}{{ cobj.code if cobj else row.company_id }}{% endif %}
+                </span>
+              </div>
+            </td>
+            <td class="px-6 py-4 align-top">
+              <form method="post" action="{{ url_for('admin_users_update_role', user_id=row.id) }}" class="flex flex-col gap-1.5">
+                <div class="flex items-center gap-1.5">
+                  <select name="role" onchange="this.form.submit()" class="text-xs font-bold rounded border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-2 py-1 focus:ring-1 focus:ring-blue-500 cursor-pointer">
+                    {% for r in available_roles %}
+                    <option value="{{ r }}" {% if row.role == r %}selected{% endif %}>{{ r }}</option>
+                    {% endfor %}
+                  </select>
+                  <input type="hidden" name="sync_presets" value="1">
+                </div>
+                <div class="text-[11px] {{ 'text-emerald-600 dark:text-emerald-400' if row.active else 'text-slate-400' }} font-medium flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full {{ 'bg-emerald-500' if row.active else 'bg-slate-400' }}"></span>
+                  {{ 'Active Access' if row.active else 'Suspended' }}
+                </div>
+              </form>
+            </td>
             <td class="px-6 py-4 align-top">{{ row.access_scope }}</td>
             <td class="px-6 py-4 align-top"><div class="flex flex-wrap gap-2">{% for perm in row.permissions or [] %}<span class="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-200">{{ perm|replace('_',' ') }}</span>{% endfor %}</div></td>
             <td class="px-6 py-4 text-right align-top">
@@ -47,10 +71,29 @@
     <h2 class="text-sm font-black uppercase tracking-[0.18em]">{{ 'Edit Access User' if edit_user else 'Add Access User' }}</h2>
     <form method="post" action="{{ url_for('admin_users_create') }}" class="mt-4 space-y-4">
       <input type="hidden" name="user_id" value="{{ form_user.id or '' }}">
-      <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Full Name</label><input name="name" value="{{ form_user.name or '' }}" placeholder="Full name" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
-      <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Email</label><input name="email" value="{{ form_user.email or '' }}" placeholder="Email" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+      <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Full Name</label><input name="name" value="{{ form_user.name or '' }}" placeholder="Full name" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm" required></div>
+      <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Email</label><input name="email" value="{{ form_user.email or '' }}" placeholder="Email" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm" required></div>
+      
+      <div>
+        <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Company Workspace Assignment</label>
+        <select name="company_id" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">
+          <option value="all" {% if (form_user.company_id or 'all') == 'all' %}selected{% endif %}>All Companies (Super Admin / Global Access)</option>
+          {% for comp in all_companies %}
+          <option value="{{ comp.id }}" {% if form_user.company_id == comp.id %}selected{% endif %}>{{ comp.name }} ({{ comp.code }})</option>
+          {% endfor %}
+        </select>
+        <p class="text-[11px] text-slate-400 mt-1">Users restricted to a specific company can only log in to that workspace.</p>
+      </div>
+
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Role</label><select name="role" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">{% for role_name in permission_presets.keys() %}<option value="{{ role_name }}" {% if (form_user.role == role_name) or (not form_user and role_name == 'Viewer') %}selected{% endif %}>{{ role_name }}</option>{% endfor %}</select></div>
+        <div>
+          <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Role</label>
+          <select name="role" id="roleSelector" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">
+            {% for role_name in available_roles %}
+            <option value="{{ role_name }}" {% if (form_user.role == role_name) or (not form_user and role_name == 'Viewer') %}selected{% endif %}>{{ role_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
         <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Access Scope</label><select name="access_scope" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"><option {% if (form_user.access_scope or '') == 'Department' %}selected{% endif %}>Department</option><option {% if (form_user.access_scope or '') == 'Full System' %}selected{% endif %}>Full System</option><option {% if (form_user.access_scope or '') == 'Section' %}selected{% endif %}>Section</option><option {% if (form_user.access_scope or '') == 'Read Only' %}selected{% endif %}>Read Only</option></select></div>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Department</label><select name="department" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">{% for dep in departments %}<option value="{{ dep }}" {% if (form_user.department or current_department) == dep %}selected{% endif %}>{{ dep }}</option>{% endfor %}</select></div><div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">{% if edit_user %}Reset Password{% else %}Initial Password{% endif %}</label><input name="password" type="text" placeholder="{% if edit_user %}Leave blank to keep current password{% else %}Required for new user{% endif %}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm" {% if not edit_user %}required{% endif %}></div></div>

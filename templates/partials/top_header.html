@@ -1,19 +1,27 @@
-<header class="app-topbar h-16 bg-white/95 dark:bg-dark-surface/95 border-b border-slate-200 dark:border-dark-border flex items-center justify-between px-8 z-10 shrink-0 gap-3">
-  <div class="flex items-center gap-3 min-w-0">
+<header class="app-topbar h-16 bg-white/95 dark:bg-dark-surface/95 border-b border-slate-200 dark:border-dark-border flex items-center justify-between px-4 sm:px-8 z-10 shrink-0 gap-2 sm:gap-3">
+  <div class="flex items-center gap-2 sm:gap-3 min-w-0">
     <button
       type="button"
-      class="app-mobile-only w-10 h-10 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-200 items-center justify-center hover:border-ueal-gold hover:text-ueal-purple transition"
+      class="app-mobile-only w-9 h-9 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-200 items-center justify-center hover:border-ueal-gold hover:text-ueal-purple transition flex-shrink-0"
       onclick="openAppSidebar()"
       aria-label="Open navigation"
     >
-      <span class="material-symbols-outlined">menu</span>
+      <span class="material-symbols-outlined text-[20px]">menu</span>
     </button>
-    <div class="app-topbar-brand-copy flex flex-col items-start min-w-0">
-    <p class="app-topbar-title text-2xl font-black text-ueal-purple dark:text-white leading-none tracking-tight truncate">EABC</p>
-    <p class="app-topbar-subtitle text-[11px] text-slate-500 dark:text-slate-400 font-medium tracking-wide uppercase mt-0.5 truncate">
-      Engineering Asset &amp; Breakdown Core
-    </p>
-  </div>
+    <div class="flex items-center gap-2 sm:gap-2.5 min-w-0">
+      <div class="w-8 h-8 rounded-lg border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-800 p-1 flex items-center justify-center flex-shrink-0 shadow-sm">
+        <img src="{{ active_company.logo_url or url_for('static', filename='brand/opsloom_wordmark_light.png') }}" alt="{{ active_company.name }}" class="max-h-full max-w-full object-contain" onerror="this.onerror=null; this.src='/static/brand/opsloom_wordmark_light.png';">
+      </div>
+      <div class="app-topbar-brand-copy flex flex-col items-start min-w-0">
+        <div class="flex items-center gap-1.5 max-w-full">
+          <p class="app-topbar-title text-sm sm:text-base font-black text-slate-900 dark:text-white leading-none tracking-tight truncate">{{ active_company.name }}</p>
+          <span class="text-[9px] font-mono font-black uppercase tracking-wider px-1.5 py-0.5 rounded text-white flex-shrink-0" style="background-color: {{ active_company.primary_color }};">{{ active_company.code }}</span>
+        </div>
+        <p class="app-topbar-subtitle text-[10px] text-slate-500 dark:text-slate-400 font-medium tracking-wide uppercase mt-0.5 truncate hidden sm:block">
+          {{ active_company.industry or 'Asset Management Workspace' }}
+        </p>
+      </div>
+    </div>
   </div>
 
   <div class="app-topbar-meta flex items-center gap-4">

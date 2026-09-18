@@ -23,6 +23,10 @@
     "@fontsource/inter": "^5.2.8",
     "@fontsource/material-icons": "^5.2.7",
     "@fontsource/material-symbols-outlined": "^5.2.33",
-    "chart.js": "^4.5.1"
+    "chart.js": "^4.5.1",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "nunjucks": "^3.2.4"
   }
 }

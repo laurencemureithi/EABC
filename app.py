@@ -340,10 +340,12 @@ INVENTORY_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "parts")
 INVENTORY_DOC_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "part_docs")
 MESSAGE_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "messages")
 USER_PROFILE_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "users")
+COMPANY_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "companies")
 _safe_makedirs(INVENTORY_UPLOAD_DIR)
 _safe_makedirs(INVENTORY_DOC_UPLOAD_DIR)
 _safe_makedirs(MESSAGE_UPLOAD_DIR)
 _safe_makedirs(USER_PROFILE_UPLOAD_DIR)
+_safe_makedirs(COMPANY_UPLOAD_DIR)
 
 INVENTORY_CATEGORIES = ["Electrical", "Mechanical", "Control", "Pneumatic", "Power Transmission"]
 
@@ -478,7 +480,13 @@ def default_technician_directory() -> list[dict]:
 ROLE_PERMISSION_PRESETS = {
     "Administrator": ["dashboard", "assets", "breakdowns", "maintenance", "inventory", "reports", "settings_manage", "users_manage", "notifications_manage", "technicians_manage"],
     "Engineering Manager": ["dashboard", "assets", "breakdowns", "maintenance", "inventory", "reports", "settings_manage", "notifications_manage", "technicians_manage"],
+    "Operations Manager": ["dashboard", "assets", "breakdowns", "maintenance", "inventory", "reports", "settings_manage", "technicians_manage"],
+    "Plant Engineer": ["dashboard", "assets", "breakdowns", "maintenance", "inventory", "reports"],
+    "Maintenance Lead": ["dashboard", "assets", "breakdowns", "maintenance", "inventory", "technicians_manage"],
+    "Technician": ["dashboard", "assets", "breakdowns", "maintenance"],
+    "Inventory Officer": ["dashboard", "assets", "inventory", "reports"],
     "Supervisor": ["dashboard", "assets", "breakdowns", "maintenance", "inventory", "reports"],
+    "Quality & Safety Auditor": ["dashboard", "assets", "reports", "settings_manage"],
     "Viewer": ["dashboard", "assets", "reports"],
 }
 
@@ -486,6 +494,82 @@ ROLE_PERMISSION_PRESETS = {
 def default_permissions_for_role(role: str) -> list[str]:
     role = (role or "Viewer").strip()
     return list(ROLE_PERMISSION_PRESETS.get(role, ROLE_PERMISSION_PRESETS["Viewer"]))
+
+
+def default_companies() -> list[dict]:
+    return [
+        {
+            "id": "comp-opsloom",
+            "name": "Opsloom Engineering Core",
+            "code": "OPSLOOM",
+            "industry": "Engineering Reliability & Plant Asset Management",
+            "contact_email": "opsloom.ke@gmail.com",
+            "contact_phone": "+254 20 2358205",
+            "address": "Shanghai Road, Industrial Area",
+            "city": "Nairobi",
+            "country": "Kenya",
+            "logo_url": "/static/brand/opsloom_wordmark_light.png",
+            "primary_color": "#1554FF",
+            "secondary_color": "#0B1020",
+            "accent_color": "#F59E0B",
+            "created_at": "2026-01-01T00:00:00",
+            "is_active": True,
+            "is_default": True,
+        },
+        {
+            "id": "comp-ultravetis",
+            "name": "Ultravetis East Africa",
+            "code": "ULTRAVETIS",
+            "industry": "Veterinary Pharmaceuticals & Crop Protection",
+            "contact_email": "info@ultravetis.com",
+            "contact_phone": "+254 20 2358200",
+            "address": "Shanghai Road, Off Enterprise Road, Industrial Area",
+            "city": "Nairobi",
+            "country": "Kenya",
+            "logo_url": "/static/brand/ultravetis_header.png",
+            "primary_color": "#059669",
+            "secondary_color": "#064e3b",
+            "accent_color": "#10b981",
+            "created_at": "2026-01-15T00:00:00",
+            "is_active": True,
+            "is_default": False,
+        },
+    ]
+
+
+COMPANIES: list[dict] = default_companies()
+
+
+def get_active_company(requested_id: str | None = None) -> dict:
+    global COMPANIES
+    if not COMPANIES:
+        COMPANIES = default_companies()
+
+    target_id = (requested_id or "").strip()
+    if not target_id:
+        try:
+            target_id = (session.get("active_company_id") or "").strip()
+        except Exception:
+            target_id = ""
+
+    if not target_id:
+        try:
+            user = _current_user_record() or {}
+            user_comp = (user.get("company_id") or "").strip()
+            if user_comp and user_comp != "all":
+                target_id = user_comp
+        except Exception:
+            pass
+
+    if target_id:
+        c = next((item for item in COMPANIES if item.get("id") == target_id or item.get("code", "").upper() == target_id.upper()), None)
+        if c:
+            return c
+
+    default_comp = next((item for item in COMPANIES if item.get("is_default") and item.get("is_active", True)), None)
+    if not default_comp:
+        default_comp = next((item for item in COMPANIES if item.get("is_active", True)), None)
+    return default_comp or default_companies()[0]
 
 
 def default_admin_users() -> list[dict]:
@@ -497,6 +581,7 @@ def default_admin_users() -> list[dict]:
             "role": "Administrator",
             "access_scope": "Full System",
             "department": "Engineering",
+            "company_id": "all",
             "active": True,
             "password_hash": generate_password_hash("Admin@123"),
             "permissions": default_permissions_for_role("Administrator"),
@@ -526,6 +611,7 @@ def _normalize_user_record(row: dict) -> dict:
     out.setdefault("role", "Viewer")
     out.setdefault("access_scope", "Department")
     out.setdefault("department", "Engineering")
+    out.setdefault("company_id", "all")
     out.setdefault("active", True)
     perms = out.get("permissions")
     if not isinstance(perms, list) or not perms:
@@ -1122,6 +1208,7 @@ def _default_store() -> dict:
     return {
         "version": 2,
         "saved_at": "",
+        "COMPANIES": default_companies(),
         "ASSETS": [],
         "BREAKDOWNS": [],
         "MAINTENANCE_TASKS": [],
@@ -1198,7 +1285,7 @@ def _report_progress_fail(job_id: str | None, error: str = "Generation failed"):
 
 
 def _load_store_into_memory():
-    global ASSETS, BREAKDOWNS, MAINTENANCE_TASKS, INVENTORY_PARTS, SPARE_PARTS, ASSET_DOCUMENTS, REPORT_EXPORTS, AUDIT_TRAIL, SYSTEM_SETTINGS, SYSTEM_NOTIFICATIONS, TECHNICIAN_DIRECTORY, ADMIN_USERS, INTERNAL_MESSAGES, DRAFT_MESSAGES, OUTBOX_MESSAGES
+    global ASSETS, BREAKDOWNS, MAINTENANCE_TASKS, INVENTORY_PARTS, SPARE_PARTS, ASSET_DOCUMENTS, REPORT_EXPORTS, AUDIT_TRAIL, SYSTEM_SETTINGS, SYSTEM_NOTIFICATIONS, TECHNICIAN_DIRECTORY, ADMIN_USERS, INTERNAL_MESSAGES, DRAFT_MESSAGES, OUTBOX_MESSAGES, COMPANIES
     try:
         if not os.path.exists(DATASTORE_PATH):
             _save_store_from_memory()
@@ -1206,6 +1293,7 @@ def _load_store_into_memory():
         with open(DATASTORE_PATH, "r", encoding="utf-8") as f:
             data = json.load(f) or {}
         # Backward/forward compatible keys
+        COMPANIES = list(data.get("COMPANIES") or default_companies())
         ASSETS = list(data.get("ASSETS") or [])
         BREAKDOWNS = list(data.get("BREAKDOWNS") or [])
         MAINTENANCE_TASKS = list(data.get("MAINTENANCE_TASKS") or [])
@@ -1226,6 +1314,7 @@ def _load_store_into_memory():
     except Exception:
         # If the file is corrupt, keep app running with empty stores.
         # (You can delete data/datastore.json to reset.)
+        COMPANIES = default_companies()
         ASSETS = []
         BREAKDOWNS = []
         MAINTENANCE_TASKS = []
@@ -1247,6 +1336,7 @@ def _save_store_from_memory():
     payload = {
         "version": 2,
         "saved_at": datetime.now().isoformat(timespec="seconds"),
+        "COMPANIES": COMPANIES,
         "ASSETS": ASSETS,
         "BREAKDOWNS": BREAKDOWNS,
         "MAINTENANCE_TASKS": MAINTENANCE_TASKS,
@@ -1409,15 +1499,21 @@ def report_department_display(dept: str | None) -> str:
 
 @app.context_processor
 def inject_template_helpers():
+    comp = get_active_company()
     return {
         'report_department_display': report_department_display,
         'scope_unit_display': get_scope_unit_display,
         'ultravetis_address_lines': ULTRAVETIS_ADDRESS_LINES,
+        'active_company': comp,
+        'all_companies': [c for c in COMPANIES if c.get("is_active", True)],
+        'available_roles': list(ROLE_PERMISSION_PRESETS.keys()),
+        'permission_presets': ROLE_PERMISSION_PRESETS,
     }
 
 def base_ctx(active_nav: str) -> dict:
     user = _current_user_record() or {}
     latest_unread = next((n for n in SYSTEM_NOTIFICATIONS if not n.get("is_read") and n.get("should_toast", False)), None)
+    active_comp = get_active_company()
     return dict(
         active_nav=active_nav,
         current_user_name=user.get("name") or "Guest User",
@@ -1442,6 +1538,9 @@ def base_ctx(active_nav: str) -> dict:
         current_user_avatar_url=user.get("profile_image_url") or None,
         settings=SYSTEM_SETTINGS,
         permission_presets=ROLE_PERMISSION_PRESETS,
+        available_roles=list(ROLE_PERMISSION_PRESETS.keys()),
+        active_company=active_comp,
+        all_companies=[c for c in COMPANIES if c.get("is_active", True)],
     )
 
 
@@ -2862,6 +2961,8 @@ def home():
 def login():
     active_users = [_normalize_user_record(u) for u in ADMIN_USERS if u.get("active", True)] or [_normalize_user_record(default_admin_users()[0])]
     preferred_department = (request.args.get("department") or session.get("current_department") or get_current_department() or "Engineering").strip()
+    target_comp = request.args.get("company") or session.get("active_company_id") or ""
+    active_comp = get_active_company(target_comp)
     return render_template(
         "auth/login.html",
         departments=DEPARTMENTS,
@@ -2870,7 +2971,9 @@ def login():
         known_users=[],
         demo_admin_email="opsloom.ke@gmail.com",
         password_reset_help=SYSTEM_SETTINGS.get("password_reset_help") or "Contact your administrator for help.",
-        company_contact_email=SYSTEM_SETTINGS.get("company_contact_email") or "opsloom.ke@gmail.com",
+        company_contact_email=active_comp.get("contact_email") or SYSTEM_SETTINGS.get("company_contact_email") or "opsloom.ke@gmail.com",
+        active_company=active_comp,
+        all_companies=[c for c in COMPANIES if c.get("is_active", True)],
     )
 
 
@@ -2879,10 +2982,13 @@ def login_submit():
     email = (request.form.get("email") or "").strip().lower()
     password = (request.form.get("password") or "").strip()
     department = (request.form.get("department") or "Engineering").strip()
+    selected_company_id = (request.form.get("company_id") or "").strip()
+    if not selected_company_id:
+        selected_company_id = get_active_company().get("id")
     next_url = _safe_next_url(request.form.get("next") or "")
     if _login_locked(email):
         flash("Too many failed sign-in attempts. Wait a few minutes and try again.", "error")
-        return redirect(url_for("login", email=email, department=department))
+        return redirect(url_for("login", email=email, department=department, company=selected_company_id))
     row = next((u for u in ADMIN_USERS if (u.get("email") or "").strip().lower() == email and u.get("active", True)), None)
     if not row and email == "opsloom.ke@gmail.com":
         row = _normalize_user_record(default_admin_users()[0])
@@ -2904,13 +3010,24 @@ def login_submit():
     if not email or not password or not row or not password_ok:
         _record_login_failure(email)
         flash("Login failed. Use an active company account and valid password.", "error")
-        return redirect(url_for("login", email=email, department=department))
+        return redirect(url_for("login", email=email, department=department, company=selected_company_id))
+
+    user_comp = (row.get("company_id") or "all").strip()
+    if user_comp and user_comp != "all" and user_comp != selected_company_id:
+        allowed_comp = next((c for c in COMPANIES if c.get("id") == user_comp), None)
+        comp_name = allowed_comp.get("name") if allowed_comp else user_comp
+        flash(f"Access restricted: Your user account is registered under {comp_name}. Please switch to that company workspace to sign in.", "error")
+        return redirect(url_for("login", email=email, department=department, company=user_comp))
+
     _clear_login_failures(email)
     session.clear()
     session["user_id"] = row.get("id")
     session["user_email"] = row.get("email")
     session["current_department"] = department if department in DEPARTMENTS else "Engineering"
-    log_audit("User login", f"{row.get('name')} signed in to the Opsloom workspace.", module="security", href=url_for("dashboard"), severity="info")
+    session["active_company_id"] = selected_company_id
+    comp_obj = next((c for c in COMPANIES if c.get("id") == selected_company_id), None)
+    comp_name = comp_obj.get("name") if comp_obj else "Workspace"
+    log_audit("User login", f"{row.get('name')} signed in to the {comp_name} workspace.", module="security", href=url_for("dashboard"), severity="info")
     return redirect(next_url or url_for("dashboard"))
 
 
@@ -2928,6 +3045,11 @@ def login_google():
     session["user_id"] = row.get("id")
     session["user_email"] = row.get("email")
     session["current_department"] = department if department in DEPARTMENTS else "Engineering"
+    user_comp = (row.get("company_id") or "all").strip()
+    if user_comp and user_comp != "all":
+        session["active_company_id"] = user_comp
+    elif not session.get("active_company_id"):
+        session["active_company_id"] = get_active_company().get("id")
     log_audit("Google sign-in", f"{row.get('name')} accessed the system using Google sign-in.", module="security", href=url_for("dashboard"), severity="success")
     return redirect(url_for("dashboard"))
 
@@ -12340,6 +12462,7 @@ def admin_users_create():
     role = (request.form.get("role") or "Viewer").strip()
     access_scope = (request.form.get("access_scope") or "Department").strip()
     department = (request.form.get("department") or "Engineering").strip()
+    company_id = (request.form.get("company_id") or "all").strip()
     permissions = [p.strip() for p in request.form.getlist("permissions") if (p or "").strip()]
     if not permissions:
         permissions = default_permissions_for_role(role)
@@ -12353,6 +12476,7 @@ def admin_users_create():
         "role": role,
         "access_scope": access_scope,
         "department": department if department in DEPARTMENTS else "Engineering",
+        "company_id": company_id,
         "active": active,
         "permissions": permissions,
         "signature_name": (request.form.get("signature_name") or name).strip(),
@@ -12374,10 +12498,32 @@ def admin_users_create():
         if not payload.get("password_hash") and existing.get("password_hash"):
             payload["password_hash"] = existing.get("password_hash")
         ADMIN_USERS[existing_idx] = payload
-        push_notification("User access updated", f"{name} profile and privileges were updated.", "success", href=url_for("admin_users_page"), module="users")
+        _save_store_from_memory()
+        push_notification("User access updated", f"{name} profile, role ({role}) and privileges were updated.", "success", href=url_for("admin_users_page"), module="users")
     else:
         ADMIN_USERS.insert(0, payload)
-        push_notification("User access updated", f"{name} was added to the admin access register.", "success", href=url_for("admin_users_page"), module="users")
+        _save_store_from_memory()
+        push_notification("User access updated", f"{name} was added with role {role}.", "success", href=url_for("admin_users_page"), module="users")
+    flash(f"Saved access details for {name} ({role}).", "success")
+    return redirect(url_for("admin_users_page"))
+
+
+@app.post("/admin/users/<user_id>/role", endpoint="admin_users_update_role")
+@permission_required("users_manage")
+def admin_users_update_role(user_id):
+    row = next((u for u in ADMIN_USERS if u.get("id") == user_id), None)
+    if not row:
+        abort(404)
+    new_role = (request.form.get("role") or "").strip()
+    if new_role in ROLE_PERMISSION_PRESETS:
+        row["role"] = new_role
+        if request.form.get("sync_permissions") == "1" or request.form.get("sync_presets") == "1":
+            row["permissions"] = default_permissions_for_role(new_role)
+        _save_store_from_memory()
+        push_notification("User role changed", f"{row.get('name')} role updated to {new_role}.", "info", href=url_for("admin_users_page"), module="users")
+        flash(f"Role for {row.get('name')} updated to {new_role}.", "success")
+    else:
+        flash("Invalid role selected.", "error")
     return redirect(url_for("admin_users_page"))
 
 
@@ -12388,6 +12534,7 @@ def admin_users_toggle(user_id):
     if not row:
         abort(404)
     row["active"] = not bool(row.get("active", True))
+    _save_store_from_memory()
     push_notification("User access updated", f"{row.get('name')} is now {'active' if row.get('active') else 'inactive'}.", "info", href=url_for("admin_users_page"), module="users")
     return redirect(url_for("admin_users_page"))
 
@@ -12399,12 +12546,168 @@ def admin_users_delete(user_id):
     if idx is None:
         abort(404)
     deleted = ADMIN_USERS.pop(idx)
+    _save_store_from_memory()
     if session.get("user_id") == user_id:
         session.clear()
         flash("Your user record was removed. Sign in again with another account.", "info")
         return redirect(url_for("login"))
     push_notification("User deleted", f"{deleted.get('name')} was removed from the access register.", "warning", href=url_for("admin_users_page"), module="users")
     return redirect(url_for("admin_users_page"))
+
+
+# -------------------------
+# Company Workspace Routes
+# -------------------------
+@app.get("/admin/companies", endpoint="admin_companies_page")
+@permission_required("settings_manage")
+def admin_companies_page():
+    ctx = base_ctx("settings")
+    edit_id = (request.args.get("edit") or "").strip()
+    edit_company = next((c for c in COMPANIES if c.get("id") == edit_id), None)
+
+    company_stats = {}
+    for c in COMPANIES:
+        cid = c.get("id")
+        users_count = len([u for u in ADMIN_USERS if u.get("company_id") in [cid, "all"]])
+        company_stats[cid] = {
+            "users_count": users_count,
+        }
+
+    ctx.update(
+        companies=COMPANIES,
+        edit_company=edit_company,
+        company_stats=company_stats,
+    )
+    return render_template("settings/companies.html", **ctx)
+
+
+@app.post("/admin/companies/create", endpoint="admin_companies_create")
+@permission_required("settings_manage")
+def admin_companies_create():
+    name = (request.form.get("name") or "").strip()
+    code = (request.form.get("code") or "").strip().upper()
+    if not name:
+        flash("Company name is required.", "error")
+        return redirect(url_for("admin_companies_page"))
+    if not code:
+        code = re.sub(r'[^A-Z0-9]', '', name.upper())[:8] or "CORP"
+
+    if any(c.get("code", "").upper() == code for c in COMPANIES):
+        flash(f"A company with code '{code}' already exists. Please choose a unique identifier.", "error")
+        return redirect(url_for("admin_companies_page"))
+
+    primary_color = (request.form.get("primary_color") or "#1554FF").strip()
+    secondary_color = (request.form.get("secondary_color") or "#0B1020").strip()
+    accent_color = (request.form.get("accent_color") or "#F59E0B").strip()
+
+    logo_url = (request.form.get("logo_url") or "").strip()
+    logo_file = request.files.get("logo_file")
+    if logo_file and logo_file.filename:
+        filename = secure_filename(logo_file.filename)
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        if ext in ["png", "jpg", "jpeg", "svg", "webp"]:
+            saved_name = f"logo_{code.lower()}_{uuid4().hex[:6]}.{ext}"
+            file_path = os.path.join(COMPANY_UPLOAD_DIR, saved_name)
+            logo_file.save(file_path)
+            logo_url = f"/static/uploads/companies/{saved_name}"
+
+    comp_id = f"comp-{code.lower()}-{uuid4().hex[:4]}"
+    new_comp = {
+        "id": comp_id,
+        "name": name,
+        "code": code,
+        "industry": (request.form.get("industry") or "").strip(),
+        "contact_email": (request.form.get("contact_email") or "").strip(),
+        "contact_phone": (request.form.get("contact_phone") or "").strip(),
+        "address": (request.form.get("address") or "").strip(),
+        "city": (request.form.get("city") or "").strip(),
+        "country": (request.form.get("country") or "Kenya").strip(),
+        "logo_url": logo_url or "/static/brand/opsloom_wordmark_light.png",
+        "primary_color": primary_color,
+        "secondary_color": secondary_color,
+        "accent_color": accent_color,
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "is_active": True,
+        "is_default": False,
+    }
+    COMPANIES.append(new_comp)
+    _save_store_from_memory()
+    log_audit("Create company workspace", f"Created company workspace '{name}' ({code}).", module="companies", href=url_for("admin_companies_page"), severity="success")
+    push_notification("Company Created", f"Company workspace '{name}' has been established.", "success", href=url_for("admin_companies_page"), module="settings")
+    flash(f"Company workspace '{name}' created successfully!", "success")
+    return redirect(url_for("admin_companies_page"))
+
+
+@app.post("/admin/companies/<company_id>/edit", endpoint="admin_companies_edit")
+@permission_required("settings_manage")
+def admin_companies_edit(company_id):
+    comp = next((c for c in COMPANIES if c.get("id") == company_id), None)
+    if not comp:
+        abort(404)
+
+    name = (request.form.get("name") or "").strip()
+    if name:
+        comp["name"] = name
+    comp["industry"] = (request.form.get("industry") or comp.get("industry", "")).strip()
+    comp["contact_email"] = (request.form.get("contact_email") or comp.get("contact_email", "")).strip()
+    comp["contact_phone"] = (request.form.get("contact_phone") or comp.get("contact_phone", "")).strip()
+    comp["address"] = (request.form.get("address") or comp.get("address", "")).strip()
+    comp["city"] = (request.form.get("city") or comp.get("city", "")).strip()
+    comp["country"] = (request.form.get("country") or comp.get("country", "")).strip()
+
+    comp["primary_color"] = (request.form.get("primary_color") or comp.get("primary_color", "#1554FF")).strip()
+    comp["secondary_color"] = (request.form.get("secondary_color") or comp.get("secondary_color", "#0B1020")).strip()
+    comp["accent_color"] = (request.form.get("accent_color") or comp.get("accent_color", "#F59E0B")).strip()
+
+    logo_file = request.files.get("logo_file")
+    if logo_file and logo_file.filename:
+        filename = secure_filename(logo_file.filename)
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        if ext in ["png", "jpg", "jpeg", "svg", "webp"]:
+            saved_name = f"logo_{comp.get('code','comp').lower()}_{uuid4().hex[:6]}.{ext}"
+            file_path = os.path.join(COMPANY_UPLOAD_DIR, saved_name)
+            logo_file.save(file_path)
+            comp["logo_url"] = f"/static/uploads/companies/{saved_name}"
+    elif request.form.get("logo_url"):
+        comp["logo_url"] = request.form.get("logo_url").strip()
+
+    _save_store_from_memory()
+    flash(f"Company workspace '{comp.get('name')}' updated.", "success")
+    return redirect(url_for("admin_companies_page"))
+
+
+@app.post("/admin/companies/<company_id>/delete", endpoint="admin_companies_delete")
+@permission_required("settings_manage")
+def admin_companies_delete(company_id):
+    if len(COMPANIES) <= 1:
+        flash("Cannot delete the only company in the system.", "error")
+        return redirect(url_for("admin_companies_page"))
+    idx = next((i for i, c in enumerate(COMPANIES) if c.get("id") == company_id), None)
+    if idx is None:
+        abort(404)
+    deleted = COMPANIES.pop(idx)
+    if session.get("active_company_id") == company_id:
+        session["active_company_id"] = COMPANIES[0]["id"]
+    _save_store_from_memory()
+    flash(f"Company workspace '{deleted.get('name')}' deleted.", "warning")
+    return redirect(url_for("admin_companies_page"))
+
+
+@app.get("/admin/companies/switch/<company_id>", endpoint="admin_companies_switch")
+def admin_companies_switch(company_id):
+    comp = next((c for c in COMPANIES if c.get("id") == company_id or c.get("code", "").upper() == company_id.upper()), None)
+    if not comp:
+        flash("Company workspace not found.", "error")
+        return redirect(request.referrer or url_for("dashboard"))
+    session["active_company_id"] = comp["id"]
+    flash(f"Switched workspace to {comp['name']} ({comp['code']}).", "success")
+    return redirect(request.referrer or url_for("dashboard"))
+
+
+@app.post("/admin/companies/switch", endpoint="admin_companies_switch_post")
+def admin_companies_switch_post():
+    company_id = (request.form.get("company_id") or "").strip()
+    return admin_companies_switch(company_id)
 
 
 @app.get("/logout")
