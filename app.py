@@ -31,6 +31,7 @@ from flask import (
     jsonify,
     flash,
     send_file,
+    send_from_directory,
     g,
     has_request_context,
 )
@@ -40,12 +41,26 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
 
+IS_SERVERLESS = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+
 
 def _safe_makedirs(path, mode=0o777, exist_ok=True):
     try:
         os.makedirs(path, mode=mode, exist_ok=exist_ok)
     except OSError:
         pass
+
+
+def _is_dir_writable(path: str) -> bool:
+    try:
+        os.makedirs(path, exist_ok=True)
+        test_file = os.path.join(path, f".write_test_{os.getpid()}_{int(time.time())}")
+        with open(test_file, "w") as f:
+            f.write("1")
+        os.remove(test_file)
+        return True
+    except (OSError, IOError, PermissionError):
+        return False
 
 
 # -------------------------
@@ -55,6 +70,9 @@ app = Flask(__name__)
 
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+
+if IS_SERVERLESS or not _is_dir_writable(app.instance_path):
+    app.instance_path = os.path.join(tempfile.gettempdir(), "eabc_instance")
 
 _safe_makedirs(app.instance_path)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(app.instance_path, "eabc.db")
@@ -322,30 +340,37 @@ SECTIONS = ["Acaricide", "Nutraceuticals", "Pharma", "Seeds", "Premises"]
 FAILURE_CATEGORIES = ["Mechanical", "Electrical", "Control System", "Utility"]
 TECHNICIANS = ["David Kimani", "Sarah Njeri", "James Omondi", "Faith Mumbua"]
 
-# Uploads (images)
-ASSET_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "assets")
-BREAKDOWN_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "breakdowns")
-_safe_makedirs(ASSET_UPLOAD_DIR)
-_safe_makedirs(BREAKDOWN_UPLOAD_DIR)
+# Uploads (writable root)
+BUNDLED_UPLOAD_ROOT = os.path.join(app.root_path, "static", "uploads")
+if IS_SERVERLESS or not _is_dir_writable(BUNDLED_UPLOAD_ROOT):
+    WRITABLE_UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "eabc_uploads")
+    _safe_makedirs(WRITABLE_UPLOAD_DIR)
+else:
+    WRITABLE_UPLOAD_DIR = BUNDLED_UPLOAD_ROOT
+
+ASSET_UPLOAD_DIR = os.path.join(WRITABLE_UPLOAD_DIR, "assets")
+BREAKDOWN_UPLOAD_DIR = os.path.join(WRITABLE_UPLOAD_DIR, "breakdowns")
+ASSET_DOC_UPLOAD_DIR = os.path.join(WRITABLE_UPLOAD_DIR, "asset_docs")
+INVENTORY_UPLOAD_DIR = os.path.join(WRITABLE_UPLOAD_DIR, "parts")
+INVENTORY_DOC_UPLOAD_DIR = os.path.join(WRITABLE_UPLOAD_DIR, "part_docs")
+MESSAGE_UPLOAD_DIR = os.path.join(WRITABLE_UPLOAD_DIR, "messages")
+USER_PROFILE_UPLOAD_DIR = os.path.join(WRITABLE_UPLOAD_DIR, "users")
+COMPANY_UPLOAD_DIR = os.path.join(WRITABLE_UPLOAD_DIR, "companies")
+
+for _d in (
+    ASSET_UPLOAD_DIR,
+    BREAKDOWN_UPLOAD_DIR,
+    ASSET_DOC_UPLOAD_DIR,
+    INVENTORY_UPLOAD_DIR,
+    INVENTORY_DOC_UPLOAD_DIR,
+    MESSAGE_UPLOAD_DIR,
+    USER_PROFILE_UPLOAD_DIR,
+    COMPANY_UPLOAD_DIR,
+):
+    _safe_makedirs(_d)
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 MAX_FILE_BYTES = 5 * 1024 * 1024  # 5MB per image
-
-# Uploads (documents)
-ASSET_DOC_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "asset_docs")
-_safe_makedirs(ASSET_DOC_UPLOAD_DIR)
-
-# Uploads (inventory parts)
-INVENTORY_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "parts")
-INVENTORY_DOC_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "part_docs")
-MESSAGE_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "messages")
-USER_PROFILE_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "users")
-COMPANY_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "companies")
-_safe_makedirs(INVENTORY_UPLOAD_DIR)
-_safe_makedirs(INVENTORY_DOC_UPLOAD_DIR)
-_safe_makedirs(MESSAGE_UPLOAD_DIR)
-_safe_makedirs(USER_PROFILE_UPLOAD_DIR)
-_safe_makedirs(COMPANY_UPLOAD_DIR)
 
 INVENTORY_CATEGORIES = ["Electrical", "Mechanical", "Control", "Pneumatic", "Power Transmission"]
 
@@ -360,7 +385,13 @@ INVENTORY_PARTS: list[dict] = []
 # -------------------------
 # Reports (in-memory exports)
 # -------------------------
-REPORT_EXPORT_DIR = os.path.join(app.root_path, "static", "exports", "reports")
+BUNDLED_REPORT_EXPORT_DIR = os.path.join(app.root_path, "static", "exports", "reports")
+if IS_SERVERLESS or not _is_dir_writable(BUNDLED_REPORT_EXPORT_DIR):
+    REPORT_EXPORT_DIR = os.path.join(tempfile.gettempdir(), "eabc_exports", "reports")
+    _safe_makedirs(REPORT_EXPORT_DIR)
+else:
+    REPORT_EXPORT_DIR = BUNDLED_REPORT_EXPORT_DIR
+_safe_makedirs(REPORT_EXPORT_DIR)
 BRAND_DIR = os.path.join(app.root_path, "static", "brand")
 ULTRAVETIS_LOGO = os.path.join(BRAND_DIR, "ultravetis_logo.png")
 ULTRAVETIS_HEADER = os.path.join(BRAND_DIR, "ultravetis_header.png")  # optional
@@ -1194,10 +1225,22 @@ import json
 import threading
 import atexit
 
-DATA_DIR = os.path.join(app.root_path, "data")
-_safe_makedirs(DATA_DIR)
+BUNDLED_DATA_DIR = os.path.join(app.root_path, "data")
+BUNDLED_DATASTORE_PATH = os.path.join(BUNDLED_DATA_DIR, "datastore.json")
 
-DATASTORE_PATH = os.path.join(DATA_DIR, "datastore.json")
+if IS_SERVERLESS or not _is_dir_writable(BUNDLED_DATA_DIR):
+    DATA_DIR = os.path.join(tempfile.gettempdir(), "eabc_data")
+    _safe_makedirs(DATA_DIR)
+    DATASTORE_PATH = os.path.join(DATA_DIR, "datastore.json")
+    if not os.path.exists(DATASTORE_PATH) and os.path.exists(BUNDLED_DATASTORE_PATH):
+        try:
+            shutil.copy2(BUNDLED_DATASTORE_PATH, DATASTORE_PATH)
+        except Exception:
+            pass
+else:
+    DATA_DIR = BUNDLED_DATA_DIR
+    DATASTORE_PATH = BUNDLED_DATASTORE_PATH
+
 _DATASTORE_LOCK = threading.Lock()
 PERSIST_BACKUP_DIR = os.path.join(DATA_DIR, "backups")
 _safe_makedirs(PERSIST_BACKUP_DIR)
@@ -1287,10 +1330,17 @@ def _report_progress_fail(job_id: str | None, error: str = "Generation failed"):
 def _load_store_into_memory():
     global ASSETS, BREAKDOWNS, MAINTENANCE_TASKS, INVENTORY_PARTS, SPARE_PARTS, ASSET_DOCUMENTS, REPORT_EXPORTS, AUDIT_TRAIL, SYSTEM_SETTINGS, SYSTEM_NOTIFICATIONS, TECHNICIAN_DIRECTORY, ADMIN_USERS, INTERNAL_MESSAGES, DRAFT_MESSAGES, OUTBOX_MESSAGES, COMPANIES
     try:
-        if not os.path.exists(DATASTORE_PATH):
-            _save_store_from_memory()
+        source_path = DATASTORE_PATH
+        if not os.path.exists(source_path) and os.path.exists(BUNDLED_DATASTORE_PATH):
+            source_path = BUNDLED_DATASTORE_PATH
+
+        if not os.path.exists(source_path):
+            try:
+                _save_store_from_memory()
+            except Exception:
+                pass
             return
-        with open(DATASTORE_PATH, "r", encoding="utf-8") as f:
+        with open(source_path, "r", encoding="utf-8") as f:
             data = json.load(f) or {}
         # Backward/forward compatible keys
         COMPANIES = list(data.get("COMPANIES") or default_companies())
@@ -1355,15 +1405,33 @@ def _save_store_from_memory():
     }
     tmp_path = DATASTORE_PATH + ".tmp"
     with _DATASTORE_LOCK:
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2, default=str)
-        os.replace(tmp_path, DATASTORE_PATH)
-    _write_persistence_backups(force=False)
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2, default=str)
+            os.replace(tmp_path, DATASTORE_PATH)
+        except (OSError, IOError, PermissionError):
+            pass
+    try:
+        _write_persistence_backups(force=False)
+    except Exception:
+        pass
+
+def _safe_atexit_save():
+    try:
+        _save_store_from_memory()
+    except Exception:
+        pass
+
+def _safe_atexit_backup():
+    try:
+        _write_persistence_backups(force=True)
+    except Exception:
+        pass
 
 # Load persisted data at import time (startup)
 _load_store_into_memory()
-atexit.register(_save_store_from_memory)
-atexit.register(lambda: _write_persistence_backups(force=True))
+atexit.register(_safe_atexit_save)
+atexit.register(_safe_atexit_backup)
 
 @app.after_request
 def _persist_datastore_after_request(response):
@@ -2014,8 +2082,14 @@ def save_uploaded_image(file_storage, folder_abs: str, folder_url: str) -> str:
     safe_name = secure_filename(file_storage.filename)
     ext = safe_name.rsplit(".", 1)[1].lower()
     new_name = f"{uuid4().hex}.{ext}"
+    _safe_makedirs(folder_abs)
     save_path = os.path.join(folder_abs, new_name)
-    file_storage.save(save_path)
+    try:
+        file_storage.save(save_path)
+    except (OSError, IOError, PermissionError):
+        tmp_target = os.path.join(tempfile.gettempdir(), "eabc_uploads", folder_url.replace("uploads/", ""))
+        _safe_makedirs(tmp_target)
+        file_storage.save(os.path.join(tmp_target, new_name))
 
     return url_for("static", filename=f"{folder_url}/{new_name}")
 
@@ -2031,8 +2105,14 @@ def save_uploaded_doc(file_storage, folder_abs: str, folder_url: str) -> str:
     safe_name = secure_filename(file_storage.filename)
     ext = safe_name.rsplit(".", 1)[1].lower()
     new_name = f"{uuid4().hex}.{ext}"
+    _safe_makedirs(folder_abs)
     save_path = os.path.join(folder_abs, new_name)
-    file_storage.save(save_path)
+    try:
+        file_storage.save(save_path)
+    except (OSError, IOError, PermissionError):
+        tmp_target = os.path.join(tempfile.gettempdir(), "eabc_uploads", folder_url.replace("uploads/", ""))
+        _safe_makedirs(tmp_target)
+        file_storage.save(os.path.join(tmp_target, new_name))
 
     return url_for("static", filename=f"{folder_url}/{new_name}")
 
@@ -2955,6 +3035,26 @@ def home():
     if not session.get("user_id"):
         return redirect(url_for("login"))
     return redirect(url_for("dashboard"))
+
+
+@app.get("/static/uploads/<path:filename>")
+def serve_custom_uploads(filename):
+    if os.path.exists(os.path.join(WRITABLE_UPLOAD_DIR, filename)):
+        return send_from_directory(WRITABLE_UPLOAD_DIR, filename)
+    bundled_uploads = os.path.join(app.root_path, "static", "uploads")
+    if os.path.exists(os.path.join(bundled_uploads, filename)):
+        return send_from_directory(bundled_uploads, filename)
+    abort(404)
+
+
+@app.get("/static/exports/reports/<path:filename>")
+def serve_custom_exports(filename):
+    if os.path.exists(os.path.join(REPORT_EXPORT_DIR, filename)):
+        return send_from_directory(REPORT_EXPORT_DIR, filename)
+    bundled_exports = os.path.join(app.root_path, "static", "exports", "reports")
+    if os.path.exists(os.path.join(bundled_exports, filename)):
+        return send_from_directory(bundled_exports, filename)
+    abort(404)
 
 
 @app.get("/login")
@@ -4847,11 +4947,14 @@ try:
 except ModuleNotFoundError:
     REPORTLAB_AVAILABLE = False
 
-WEASYPRINT_AVAILABLE = True
+WEASYPRINT_AVAILABLE = False
+WeasyHTML = None
 try:
     from weasyprint import HTML as WeasyHTML
-except ModuleNotFoundError:
+    WEASYPRINT_AVAILABLE = True
+except (ImportError, OSError, Exception):
     WEASYPRINT_AVAILABLE = False
+    WeasyHTML = None
 
 
 @app.get("/assets/report/pdf")
@@ -9999,7 +10102,7 @@ def _browser_pdf_executable() -> str | None:
 
 
 def _render_pdf_from_html(html_content: str, base_url: str | None = None):
-    if WEASYPRINT_AVAILABLE:
+    if WEASYPRINT_AVAILABLE and WeasyHTML is not None:
         try:
             pdf_bytes = WeasyHTML(string=html_content, base_url=base_url).write_pdf()
             buf = io.BytesIO(pdf_bytes)
