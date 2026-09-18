@@ -38,6 +38,16 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
+
+
+def _safe_makedirs(path, mode=0o777, exist_ok=True):
+    try:
+        os.makedirs(path, mode=mode, exist_ok=exist_ok)
+    except OSError:
+        pass
+
+
 # -------------------------
 # App setup
 # -------------------------
@@ -46,7 +56,7 @@ app = Flask(__name__)
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 
-os.makedirs(app.instance_path, exist_ok=True)
+_safe_makedirs(app.instance_path)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(app.instance_path, "eabc.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
@@ -315,25 +325,25 @@ TECHNICIANS = ["David Kimani", "Sarah Njeri", "James Omondi", "Faith Mumbua"]
 # Uploads (images)
 ASSET_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "assets")
 BREAKDOWN_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "breakdowns")
-os.makedirs(ASSET_UPLOAD_DIR, exist_ok=True)
-os.makedirs(BREAKDOWN_UPLOAD_DIR, exist_ok=True)
+_safe_makedirs(ASSET_UPLOAD_DIR)
+_safe_makedirs(BREAKDOWN_UPLOAD_DIR)
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 MAX_FILE_BYTES = 5 * 1024 * 1024  # 5MB per image
 
 # Uploads (documents)
 ASSET_DOC_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "asset_docs")
-os.makedirs(ASSET_DOC_UPLOAD_DIR, exist_ok=True)
+_safe_makedirs(ASSET_DOC_UPLOAD_DIR)
 
 # Uploads (inventory parts)
 INVENTORY_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "parts")
 INVENTORY_DOC_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "part_docs")
 MESSAGE_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "messages")
 USER_PROFILE_UPLOAD_DIR = os.path.join(app.root_path, "static", "uploads", "users")
-os.makedirs(INVENTORY_UPLOAD_DIR, exist_ok=True)
-os.makedirs(INVENTORY_DOC_UPLOAD_DIR, exist_ok=True)
-os.makedirs(MESSAGE_UPLOAD_DIR, exist_ok=True)
-os.makedirs(USER_PROFILE_UPLOAD_DIR, exist_ok=True)
+_safe_makedirs(INVENTORY_UPLOAD_DIR)
+_safe_makedirs(INVENTORY_DOC_UPLOAD_DIR)
+_safe_makedirs(MESSAGE_UPLOAD_DIR)
+_safe_makedirs(USER_PROFILE_UPLOAD_DIR)
 
 INVENTORY_CATEGORIES = ["Electrical", "Mechanical", "Control", "Pneumatic", "Power Transmission"]
 
@@ -358,7 +368,7 @@ ULTRAVETIS_ADDRESS_LINES = [
     "Zip Code 00100",
     "Email: opsloom.ke@gmail.com",
 ]
-os.makedirs(REPORT_EXPORT_DIR, exist_ok=True)
+_safe_makedirs(REPORT_EXPORT_DIR)
 
 REPORT_EXPORTS: list[dict] = []
 AUDIT_TRAIL: list[dict] = []
@@ -1099,12 +1109,12 @@ import threading
 import atexit
 
 DATA_DIR = os.path.join(app.root_path, "data")
-os.makedirs(DATA_DIR, exist_ok=True)
+_safe_makedirs(DATA_DIR)
 
 DATASTORE_PATH = os.path.join(DATA_DIR, "datastore.json")
 _DATASTORE_LOCK = threading.Lock()
 PERSIST_BACKUP_DIR = os.path.join(DATA_DIR, "backups")
-os.makedirs(PERSIST_BACKUP_DIR, exist_ok=True)
+_safe_makedirs(PERSIST_BACKUP_DIR)
 _LAST_PERSIST_BACKUP_TS = 0.0
 REPORT_GENERATION_PROGRESS: dict[str, dict] = {}
 
@@ -10523,7 +10533,7 @@ def reports_export(report_id, fmt):
 
     _report_progress_update(job_id, 30, "Compiling report datasets")
 
-    os.makedirs(REPORT_EXPORT_DIR, exist_ok=True)
+    _safe_makedirs(REPORT_EXPORT_DIR)
     filename = f"report_{report_id}.{fmt}"
     abs_path = os.path.join(REPORT_EXPORT_DIR, filename)
 
