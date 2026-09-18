@@ -1444,6 +1444,10 @@ app.get('/api/live/maintenance-kpis', (req, res) => {
 });
 
 // Start Server
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Opsloom Core application running on http://0.0.0.0:${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Opsloom Core application running on http://0.0.0.0:${PORT}`);
+  });
+}
+
+export default app;

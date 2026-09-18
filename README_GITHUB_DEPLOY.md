@@ -1,30 +1,19 @@
 # Opsloom GitHub and deployment guide
 
-## What GitHub is for
-Use GitHub to store and version the code. Use a private repository if you do not want the source files to be publicly readable.
+## Application Runtime
+This is a **Node.js (Express + Nunjucks)** application (`server.js`, `package.json`).
 
-## What to deploy
-This is a Flask application. Deploy the repository to a Python host such as Render, Railway, Fly.io, or your own VPS. GitHub alone will not run the app for users.
+## Deploying to Vercel
+1. In your **Vercel Dashboard**, open your project.
+2. Go to **Settings** > **General** > **Framework Preset**.
+3. Change the Framework Preset from **Flask** to **Other** (or ensure it uses the included `vercel.json`).
+4. Root directory: `./`
+5. Build command: `echo 'Build complete'` (or leave default)
+6. Output directory: leave default (the app runs serverless via `api/index.js` and `vercel.json`)
+7. Click **Save** and trigger a **Redeploy** on the latest commit.
 
-## Safe structure
-- Keep the GitHub repository private
-- Add only the collaborators who should access the code
-- Keep secrets in environment variables, not hard-coded in the repository
-- Keep the public app behind the system login so only approved users can enter
+## Deploying to Render, Railway, or VPS
+- Build command: `npm install`
+- Start command: `node server.js`
+- Port: `3000` (or `process.env.PORT`)
 
-## Recommended repo files already included
-- requirements.txt
-- Procfile
-- .gitignore
-
-## Local multi-device access
-Run the app and open it from your phone using your computer's local IP, for example:
-- http://192.168.x.x:5000
-
-The app entrypoint is already set to bind to 0.0.0.0 by default when started with python app.py.
-
-## Before pushing
-1. Review data/datastore.json and keep only demo-safe data
-2. Make sure instance database files are not committed if you want a clean demo
-3. Set FLASK_SECRET_KEY on the deployment target
-4. Set debug off in production
