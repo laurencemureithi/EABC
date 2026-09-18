@@ -74,6 +74,11 @@ function ensureDefaults() {
         logo_light_url: '/static/brand/opsloom_wordmark_light.png',
         logo_dark_url: '/static/brand/opsloom_wordmark_dark.png',
         show_brand_name: false,
+        sidebar_logo_height: 42,
+        sidebar_logo_width: '190px',
+        sidebar_logo_area: 'standard',
+        sidebar_logo_fit: 'contain',
+        sidebar_logo_align: 'left',
         primary_color: '#1554FF',
         secondary_color: '#0B1020',
         accent_color: '#F59E0B',
@@ -95,6 +100,11 @@ function ensureDefaults() {
         logo_light_url: '/static/brand/ultravetis_logo.png',
         logo_dark_url: '/static/brand/ultravetis_logo.png',
         show_brand_name: false,
+        sidebar_logo_height: 44,
+        sidebar_logo_width: '190px',
+        sidebar_logo_area: 'standard',
+        sidebar_logo_fit: 'contain',
+        sidebar_logo_align: 'left',
         primary_color: '#059669',
         secondary_color: '#064e3b',
         accent_color: '#10b981',
@@ -550,13 +560,19 @@ export function setActiveCompanyId(id) {
 
 export function getActiveCompany() {
   const comp = store.COMPANIES.find(c => c.id === activeCompanyId);
-  return comp || store.COMPANIES[0] || {
+  const active = comp || store.COMPANIES[0] || {
     id: 'comp-opsloom',
     name: 'Opsloom Engineering Core',
     primary_color: '#1554FF',
     secondary_color: '#0B1020',
     accent_color: '#F59E0B'
   };
+  if (!active.sidebar_logo_height) active.sidebar_logo_height = 42;
+  if (!active.sidebar_logo_width) active.sidebar_logo_width = '190px';
+  if (!active.sidebar_logo_area) active.sidebar_logo_area = 'standard';
+  if (!active.sidebar_logo_fit) active.sidebar_logo_fit = 'contain';
+  if (!active.sidebar_logo_align) active.sidebar_logo_align = 'left';
+  return active;
 }
 
 export function getAllCompanies() {

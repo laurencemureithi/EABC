@@ -227,35 +227,189 @@
             </label>
           </div>
 
+          <!-- Sidebar Top Logo Sizing & Area Occupancy Feature -->
+          <div class="p-4 rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800/60 space-y-4">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700/60">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-[18px] text-blue-600 dark:text-blue-400">aspect_ratio</span>
+                <div>
+                  <span class="text-xs font-bold text-slate-800 dark:text-slate-200 block leading-tight">
+                    Sidebar Top Logo Size &amp; Area Occupancy
+                  </span>
+                  <span class="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                    Adjust the rendered dimensions, aspect ratio, and header space occupied by the logo
+                  </span>
+                </div>
+              </div>
+              <span id="activeAreaBadge" class="text-[10px] font-black uppercase font-mono px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
+                {{ (target_comp.sidebar_logo_area or 'standard')|upper }}
+              </span>
+            </div>
+
+            <!-- Quick Area Presets -->
+            <div class="space-y-1.5">
+              <label class="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                Area Occupancy Presets
+              </label>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <button type="button" onclick="applyAreaPreset('compact', 34, '140px', 70)"
+                        class="preset-area-btn px-2.5 py-2 rounded-lg border text-left transition text-xs font-semibold flex flex-col justify-between hover:border-blue-500 bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700"
+                        data-preset="compact">
+                  <span class="text-slate-800 dark:text-slate-200 font-bold">Compact</span>
+                  <span class="text-[10px] text-slate-400 font-mono mt-0.5">34px &bull; 70% Width</span>
+                </button>
+                <button type="button" onclick="applyAreaPreset('standard', 42, '190px', 85)"
+                        class="preset-area-btn px-2.5 py-2 rounded-lg border text-left transition text-xs font-semibold flex flex-col justify-between hover:border-blue-500 bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700"
+                        data-preset="standard">
+                  <span class="text-slate-800 dark:text-slate-200 font-bold">Standard</span>
+                  <span class="text-[10px] text-slate-400 font-mono mt-0.5">42px &bull; 85% Width</span>
+                </button>
+                <button type="button" onclick="applyAreaPreset('prominent', 52, '215px', 95)"
+                        class="preset-area-btn px-2.5 py-2 rounded-lg border text-left transition text-xs font-semibold flex flex-col justify-between hover:border-blue-500 bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700"
+                        data-preset="prominent">
+                  <span class="text-slate-800 dark:text-slate-200 font-bold">Prominent</span>
+                  <span class="text-[10px] text-slate-400 font-mono mt-0.5">52px &bull; 95% Width</span>
+                </button>
+                <button type="button" onclick="applyAreaPreset('banner', 60, '100%', 100)"
+                        class="preset-area-btn px-2.5 py-2 rounded-lg border text-left transition text-xs font-semibold flex flex-col justify-between hover:border-blue-500 bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700"
+                        data-preset="banner">
+                  <span class="text-slate-800 dark:text-slate-200 font-bold">Full Banner</span>
+                  <span class="text-[10px] text-slate-400 font-mono mt-0.5">60px &bull; 100% Area</span>
+                </button>
+              </div>
+              <input type="hidden" name="sidebar_logo_area" id="sidebarLogoAreaInput" value="{{ target_comp.sidebar_logo_area or 'standard' }}">
+              <input type="hidden" name="sidebar_logo_width" id="sidebarLogoWidthInput" value="{{ target_comp.sidebar_logo_width or '190px' }}">
+            </div>
+
+            <!-- Fine-Tuning Sliders (Height & Area Coverage) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+              <!-- Height Slider -->
+              <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/80 space-y-1.5">
+                <div class="flex items-center justify-between text-xs">
+                  <label for="sidebarLogoHeightInput" class="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[15px] text-slate-400">height</span>
+                    Logo Height
+                  </label>
+                  <span id="sidebarLogoHeightDisplay" class="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 shadow-sm">
+                    {{ target_comp.sidebar_logo_height or 42 }}px
+                  </span>
+                </div>
+                <input type="range" name="sidebar_logo_height" id="sidebarLogoHeightInput" min="24" max="80" step="2"
+                       value="{{ target_comp.sidebar_logo_height or 42 }}"
+                       class="w-full accent-blue-600 cursor-pointer">
+                <div class="flex justify-between text-[10px] text-slate-400 font-mono">
+                  <span>24px (Subtle)</span>
+                  <span>50px (Balanced)</span>
+                  <span>80px (Max)</span>
+                </div>
+              </div>
+
+              <!-- Width / Horizontal Occupancy Slider -->
+              <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/80 space-y-1.5">
+                <div class="flex items-center justify-between text-xs">
+                  <label for="sidebarLogoWidthPctInput" class="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[15px] text-slate-400">width</span>
+                    Header Area Width
+                  </label>
+                  <span id="sidebarLogoWidthDisplay" class="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 shadow-sm">
+                    {% if target_comp.sidebar_logo_area == 'banner' %}100% (Full Banner){% else %}{{ target_comp.sidebar_logo_width or '190px' }}{% endif %}
+                  </span>
+                </div>
+                <input type="range" id="sidebarLogoWidthPctInput" min="50" max="100" step="5"
+                       value="{% if target_comp.sidebar_logo_area == 'banner' or target_comp.sidebar_logo_width == '100%' %}100{% elif target_comp.sidebar_logo_width and 'px' in target_comp.sidebar_logo_width %}{{ (target_comp.sidebar_logo_width|replace('px','')|int / 2.25)|round|int }}{% else %}85{% endif %}"
+                       class="w-full accent-blue-600 cursor-pointer">
+                <div class="flex justify-between text-[10px] text-slate-400 font-mono">
+                  <span>50% (Compact)</span>
+                  <span>85% (Proportional)</span>
+                  <span>100% (Full)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Alignment and Object Fit Row -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div>
+                <label class="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 mb-1">
+                  Header Horizontal Alignment
+                </label>
+                <select name="sidebar_logo_align" id="sidebarLogoAlignSelect"
+                        class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3 py-2 text-xs font-medium">
+                  <option value="left" {% if (target_comp.sidebar_logo_align or 'left') == 'left' %}selected{% endif %}>Left Aligned (Standard)</option>
+                  <option value="center" {% if target_comp.sidebar_logo_align == 'center' %}selected{% endif %}>Centered in Sidebar Header</option>
+                  <option value="right" {% if target_comp.sidebar_logo_align == 'right' %}selected{% endif %}>Right Aligned</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 mb-1">
+                  Aspect Ratio Fit Mode
+                </label>
+                <select name="sidebar_logo_fit" id="sidebarLogoFitSelect"
+                        class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3 py-2 text-xs font-medium">
+                  <option value="contain" {% if (target_comp.sidebar_logo_fit or 'contain') == 'contain' %}selected{% endif %}>Contain (Proportional, No Crop - Recommended)</option>
+                  <option value="cover" {% if target_comp.sidebar_logo_fit == 'cover' %}selected{% endif %}>Cover (Fills Area Completely)</option>
+                  <option value="scale-down" {% if target_comp.sidebar_logo_fit == 'scale-down' %}selected{% endif %}>Scale Down (Never Exceed Native Size)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <!-- Live Sidebar Header Simulator -->
-          <div class="p-3.5 rounded-lg border border-slate-200 dark:border-dark-border bg-slate-100 dark:bg-slate-900/80 space-y-2">
+          <div class="p-3.5 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-100 dark:bg-slate-900/80 space-y-2.5">
             <div class="flex items-center justify-between">
               <span class="text-[10px] font-black uppercase tracking-wider text-slate-500">Live Sidebar Top Simulator</span>
-              <button type="button" id="toggleSimThemeBtn" class="text-[10px] font-bold px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-blue-500 transition">
-                Toggle Dark / Light Simulation
-              </button>
+              <div class="flex items-center gap-2">
+                <button type="button" id="toggleAreaBoundsBtn" class="text-[10px] font-bold px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-blue-500 transition flex items-center gap-1">
+                  <span class="material-symbols-outlined text-[13px] text-blue-500">border_style</span>
+                  <span id="boundsToggleText">Show Area Outline</span>
+                </button>
+                <button type="button" id="toggleSimThemeBtn" class="text-[10px] font-bold px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-blue-500 transition">
+                  Toggle Dark / Light Simulation
+                </button>
+              </div>
             </div>
 
             <!-- Simulated Sidebar Header Shell -->
-            <div id="simulatedSidebarHeader" class="p-3 rounded-lg border transition-all flex items-center justify-between" style="background-color: #0F172A; border-color: rgba(255,255,255,0.1);">
-              <div id="simModeBrandOnly" class="flex items-center gap-2">
-                <img id="simLogoImg" src="{{ target_comp.logo_dark_url or target_comp.logo_url or '/static/brand/opsloom_wordmark_dark.png' }}" alt="Simulated Logo" class="h-9 max-w-[180px] w-auto object-contain">
-              </div>
-              <div id="simModeWithText" class="hidden flex items-center gap-2.5">
-                <div class="w-8 h-8 rounded-lg bg-white/10 p-1 flex items-center justify-center border border-white/20">
-                  <img id="simLogoEmblem" src="{{ target_comp.logo_dark_url or target_comp.logo_url or '/static/brand/opsloom_wordmark_dark.png' }}" alt="Emblem" class="max-h-full max-w-full object-contain">
+            <div id="simulatedSidebarHeader" class="p-3.5 sm:p-4 rounded-xl border transition-all flex items-center justify-between relative overflow-hidden" style="background-color: #0F172A; border-color: rgba(255,255,255,0.1); min-height: 64px;">
+              <!-- Simulated Brand Area -->
+              <div id="simBrandAreaWrapper" class="flex-1 min-w-0 flex items-center justify-start transition-all">
+                <div id="simModeBrandOnly" class="flex items-center transition-all w-full">
+                  <div id="simLogoContainer" class="transition-all relative flex items-center">
+                    <img id="simLogoImg" src="{{ target_comp.logo_dark_url or target_comp.logo_url or '/static/brand/opsloom_wordmark_dark.png' }}" 
+                         alt="Simulated Logo" 
+                         class="w-auto transition-all"
+                         style="height: {{ target_comp.sidebar_logo_height or 42 }}px; max-height: {{ target_comp.sidebar_logo_height or 42 }}px; max-width: {{ target_comp.sidebar_logo_width or '195px' }}; object-fit: {{ target_comp.sidebar_logo_fit or 'contain' }};">
+                    <!-- Area Dimension Overlay Badge -->
+                    <div id="simAreaDimensionBadge" class="hidden absolute -bottom-4 left-0 text-[8.5px] font-mono font-bold bg-blue-600 text-white px-1 py-0.2 rounded shadow z-10 whitespace-nowrap pointer-events-none">
+                      190px &times; 42px
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div id="simNameText" class="text-xs font-bold text-white truncate max-w-[140px]">{{ target_comp.name or 'Company Name' }}</div>
-                  <div class="text-[9px] text-white/70 font-mono uppercase flex items-center gap-1">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                    <span id="simCodeText">{{ target_comp.code or 'COMP' }}</span>
+                <div id="simModeWithText" class="hidden flex items-center gap-3">
+                  <div id="simEmblemContainer" class="rounded-xl bg-white/10 p-1.5 flex items-center justify-center border border-white/20 flex-shrink-0 transition-all"
+                       style="height: {{ target_comp.sidebar_logo_height or 40 }}px; width: {{ target_comp.sidebar_logo_height or 40 }}px;">
+                    <img id="simLogoEmblem" src="{{ target_comp.logo_dark_url or target_comp.logo_url or '/static/brand/opsloom_wordmark_dark.png' }}" 
+                         alt="Emblem" 
+                         class="max-h-full max-w-full"
+                         style="object-fit: {{ target_comp.sidebar_logo_fit or 'contain' }};">
+                  </div>
+                  <div>
+                    <div id="simNameText" class="text-xs font-bold text-white truncate max-w-[140px]">{{ target_comp.name or 'Company Name' }}</div>
+                    <div class="text-[9px] text-white/70 font-mono uppercase flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span id="simCodeText">{{ target_comp.code or 'COMP' }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
-              <span class="material-symbols-outlined text-white/40 text-[18px]">close</span>
+              <span class="material-symbols-outlined text-white/40 text-[18px] flex-shrink-0 ml-2">close</span>
             </div>
-            <div class="text-[10px] text-slate-400 text-center">Simulated appearance at the top of the sidebar navigation</div>
+
+            <!-- Dynamic Dimensions Summary under Simulator -->
+            <div class="flex items-center justify-between text-[10px] text-slate-400 px-1 font-mono">
+              <span>Header Height: <strong id="simHeaderHeightText" class="text-slate-700 dark:text-slate-300">64px</strong></span>
+              <span>Occupied Area: <strong id="simOccupancySummary" class="text-blue-600 dark:text-blue-400 font-bold">190px &times; 42px</strong></span>
+            </div>
           </div>
         </div>
 
@@ -394,21 +548,143 @@
 
     const showBrandNameToggle = document.getElementById('showBrandNameToggle');
     const simShell = document.getElementById('simulatedSidebarHeader');
+    const simBrandAreaWrapper = document.getElementById('simBrandAreaWrapper');
     const simModeBrandOnly = document.getElementById('simModeBrandOnly');
     const simModeWithText = document.getElementById('simModeWithText');
+    const simLogoContainer = document.getElementById('simLogoContainer');
     const simLogoImg = document.getElementById('simLogoImg');
+    const simEmblemContainer = document.getElementById('simEmblemContainer');
     const simLogoEmblem = document.getElementById('simLogoEmblem');
     const simNameText = document.getElementById('simNameText');
     const simCodeText = document.getElementById('simCodeText');
+    const simAreaDimensionBadge = document.getElementById('simAreaDimensionBadge');
+    const simHeaderHeightText = document.getElementById('simHeaderHeightText');
+    const simOccupancySummary = document.getElementById('simOccupancySummary');
     const toggleSimThemeBtn = document.getElementById('toggleSimThemeBtn');
+    const toggleAreaBoundsBtn = document.getElementById('toggleAreaBoundsBtn');
+    const boundsToggleText = document.getElementById('boundsToggleText');
+
+    // Sizing and Area Controls
+    const logoHeightInput = document.getElementById('sidebarLogoHeightInput');
+    const logoHeightDisplay = document.getElementById('sidebarLogoHeightDisplay');
+    const logoWidthPctInput = document.getElementById('sidebarLogoWidthPctInput');
+    const logoWidthDisplay = document.getElementById('sidebarLogoWidthDisplay');
+    const logoWidthInput = document.getElementById('sidebarLogoWidthInput');
+    const logoAreaInput = document.getElementById('sidebarLogoAreaInput');
+    const logoAlignSelect = document.getElementById('sidebarLogoAlignSelect');
+    const logoFitSelect = document.getElementById('sidebarLogoFitSelect');
+    const activeAreaBadge = document.getElementById('activeAreaBadge');
+
     let simIsDark = true;
+    let showAreaBounds = false;
+
+    function updateAreaPresetButtons(activePreset) {
+      document.querySelectorAll('.preset-area-btn').forEach(btn => {
+        const p = btn.getAttribute('data-preset');
+        if (p === activePreset) {
+          btn.classList.remove('border-slate-200', 'dark:border-slate-700', 'bg-slate-50', 'dark:bg-slate-900/60');
+          btn.classList.add('border-blue-500', 'ring-2', 'ring-blue-500/20', 'bg-blue-50/50', 'dark:bg-blue-950/40');
+        } else {
+          btn.classList.remove('border-blue-500', 'ring-2', 'ring-blue-500/20', 'bg-blue-50/50', 'dark:bg-blue-950/40');
+          btn.classList.add('border-slate-200', 'dark:border-slate-700', 'bg-slate-50', 'dark:bg-slate-900/60');
+        }
+      });
+      if (activeAreaBadge) {
+        activeAreaBadge.textContent = (activePreset || 'standard').toUpperCase();
+      }
+    }
+
+    window.applyAreaPreset = function(presetName, height, widthStr, widthPct) {
+      if (logoAreaInput) logoAreaInput.value = presetName;
+      if (logoHeightInput) logoHeightInput.value = height;
+      if (logoWidthInput) logoWidthInput.value = widthStr;
+      if (logoWidthPctInput) logoWidthPctInput.value = widthPct;
+      updateAreaPresetButtons(presetName);
+      updateSimulation();
+    };
 
     function updateSimulation() {
       const activeLogo = simIsDark ? (darkUrlInput.value.trim() || '/static/brand/opsloom_wordmark_dark.png') : (lightUrlInput.value.trim() || '/static/brand/opsloom_wordmark_light.png');
       simLogoImg.src = activeLogo;
       simLogoEmblem.src = activeLogo;
 
-      if (showBrandNameToggle.checked) {
+      const heightVal = parseInt(logoHeightInput ? logoHeightInput.value : '42', 10) || 42;
+      const widthPct = parseInt(logoWidthPctInput ? logoWidthPctInput.value : '85', 10) || 85;
+      const areaMode = logoAreaInput ? logoAreaInput.value : 'standard';
+      const fitVal = logoFitSelect ? logoFitSelect.value : 'contain';
+      const alignVal = logoAlignSelect ? logoAlignSelect.value : 'left';
+
+      // Width calculation
+      let computedWidth = '190px';
+      if (areaMode === 'banner' || widthPct >= 98) {
+        computedWidth = '100%';
+      } else {
+        computedWidth = Math.round(widthPct * 2.25) + 'px';
+      }
+      if (logoWidthInput) logoWidthInput.value = computedWidth;
+
+      // Update text displays
+      if (logoHeightDisplay) logoHeightDisplay.textContent = heightVal + 'px';
+      if (logoWidthDisplay) {
+        logoWidthDisplay.textContent = computedWidth === '100%' ? '100% (Full Banner)' : `${computedWidth} (${widthPct}%)`;
+      }
+
+      // Apply to simulator elements
+      simLogoImg.style.height = heightVal + 'px';
+      simLogoImg.style.maxHeight = heightVal + 'px';
+      simLogoImg.style.maxWidth = computedWidth;
+      simLogoImg.style.width = computedWidth === '100%' ? '100%' : 'auto';
+      simLogoImg.style.objectFit = fitVal;
+
+      if (simLogoContainer) {
+        simLogoContainer.style.width = computedWidth === '100%' ? '100%' : 'auto';
+        if (showAreaBounds) {
+          simLogoContainer.classList.add('ring-2', 'ring-blue-500', 'ring-dashed', 'bg-blue-500/10', 'rounded-md', 'p-0.5');
+          if (simAreaDimensionBadge) {
+            simAreaDimensionBadge.classList.remove('hidden');
+            simAreaDimensionBadge.textContent = `${computedWidth} × ${heightVal}px`;
+          }
+        } else {
+          simLogoContainer.classList.remove('ring-2', 'ring-blue-500', 'ring-dashed', 'bg-blue-500/10', 'rounded-md', 'p-0.5');
+          if (simAreaDimensionBadge) simAreaDimensionBadge.classList.add('hidden');
+        }
+      }
+
+      // Emblem container sizing (when company name is active)
+      if (simEmblemContainer) {
+        simEmblemContainer.style.height = heightVal + 'px';
+        simEmblemContainer.style.width = heightVal + 'px';
+        simEmblemContainer.style.minWidth = heightVal + 'px';
+        if (showAreaBounds) {
+          simEmblemContainer.classList.add('ring-2', 'ring-blue-500', 'ring-dashed');
+        } else {
+          simEmblemContainer.classList.remove('ring-2', 'ring-blue-500', 'ring-dashed');
+        }
+      }
+      if (simLogoEmblem) {
+        simLogoEmblem.style.objectFit = fitVal;
+      }
+
+      // Shell min-height based on logo size
+      const minHeaderHeight = heightVal > 48 ? (heightVal + 24) : 64;
+      simShell.style.minHeight = minHeaderHeight + 'px';
+      if (simHeaderHeightText) simHeaderHeightText.textContent = minHeaderHeight + 'px';
+      if (simOccupancySummary) simOccupancySummary.textContent = `${computedWidth} × ${heightVal}px (${areaMode.toUpperCase()})`;
+
+      // Alignment handling
+      if (simModeBrandOnly) {
+        simModeBrandOnly.classList.remove('justify-start', 'justify-center', 'justify-end');
+        if (alignVal === 'center') {
+          simModeBrandOnly.classList.add('justify-center');
+        } else if (alignVal === 'right') {
+          simModeBrandOnly.classList.add('justify-end');
+        } else {
+          simModeBrandOnly.classList.add('justify-start');
+        }
+      }
+
+      // Brand mode toggle (Emblem + text vs Wordmark only)
+      if (showBrandNameToggle && showBrandNameToggle.checked) {
         simModeBrandOnly.classList.add('hidden');
         simModeWithText.classList.remove('hidden');
       } else {
@@ -416,6 +692,7 @@
         simModeWithText.classList.add('hidden');
       }
 
+      // Dark / Light styling
       if (simIsDark) {
         simShell.style.backgroundColor = '#0F172A';
         simShell.style.borderColor = 'rgba(255,255,255,0.1)';
@@ -427,6 +704,42 @@
         simNameText.className = 'text-xs font-bold text-slate-900 truncate max-w-[140px]';
         toggleSimThemeBtn.textContent = 'Simulating: Light Mode (Click for Dark)';
       }
+    }
+
+    if (logoHeightInput) {
+      logoHeightInput.addEventListener('input', () => {
+        if (logoAreaInput) logoAreaInput.value = 'custom';
+        updateAreaPresetButtons('custom');
+        updateSimulation();
+      });
+    }
+
+    if (logoWidthPctInput) {
+      logoWidthPctInput.addEventListener('input', () => {
+        if (logoAreaInput) logoAreaInput.value = 'custom';
+        updateAreaPresetButtons('custom');
+        updateSimulation();
+      });
+    }
+
+    if (logoAlignSelect) {
+      logoAlignSelect.addEventListener('change', updateSimulation);
+    }
+
+    if (logoFitSelect) {
+      logoFitSelect.addEventListener('change', updateSimulation);
+    }
+
+    if (toggleAreaBoundsBtn) {
+      toggleAreaBoundsBtn.addEventListener('click', () => {
+        showAreaBounds = !showAreaBounds;
+        if (boundsToggleText) {
+          boundsToggleText.textContent = showAreaBounds ? 'Hide Area Outline' : 'Show Area Outline';
+        }
+        toggleAreaBoundsBtn.classList.toggle('bg-blue-50', showAreaBounds);
+        toggleAreaBoundsBtn.classList.toggle('border-blue-500', showAreaBounds);
+        updateSimulation();
+      });
     }
 
     window.setLightLogo = function(url) {
@@ -511,7 +824,8 @@
       });
     }
 
-    // Initialize simulation state
+    // Initialize preset buttons and simulation state
+    updateAreaPresetButtons(logoAreaInput ? logoAreaInput.value : 'standard');
     updateSimulation();
   })();
 </script>

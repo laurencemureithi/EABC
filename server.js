@@ -1104,7 +1104,7 @@ app.post(['/settings', '/settings/save', '/settings/admin/save'], (req, res) => 
   res.redirect('/settings');
 });
 
-app.get('/admin/companies', (req, res) => {
+app.get(['/admin/companies', '/settings/companies', '/companies'], (req, res) => {
   const ctx = baseContext(req, 'companies');
   ctx.companies = db.getAllCompanies();
   if (req.query.edit) {
@@ -1138,6 +1138,17 @@ app.post('/admin/companies/create', upload.any(), (req, res) => {
   const logo_url = logo_light_url;
   const show_brand_name = req.body.show_brand_name === 'true' || req.body.show_brand_name === 'on' || req.body.show_brand_name === '1';
 
+  const rawHeight = parseInt(req.body.sidebar_logo_height, 10);
+  const sidebar_logo_height = !isNaN(rawHeight) && rawHeight >= 20 && rawHeight <= 100 ? rawHeight : 42;
+  const sidebar_logo_area = req.body.sidebar_logo_area || 'standard';
+  let sidebar_logo_width = req.body.sidebar_logo_width || '190px';
+  if (req.body.sidebar_logo_width_pct) {
+    const pct = parseInt(req.body.sidebar_logo_width_pct, 10);
+    if (!isNaN(pct)) sidebar_logo_width = `${pct}%`;
+  }
+  const sidebar_logo_fit = req.body.sidebar_logo_fit || 'contain';
+  const sidebar_logo_align = req.body.sidebar_logo_align || 'left';
+
   const newCompany = {
     id: `comp-${(req.body.code || 'comp').toLowerCase().trim()}-${Date.now().toString(36)}`,
     name: req.body.name || 'New Company',
@@ -1154,7 +1165,12 @@ app.post('/admin/companies/create', upload.any(), (req, res) => {
     logo_url,
     logo_light_url,
     logo_dark_url,
-    show_brand_name
+    show_brand_name,
+    sidebar_logo_height,
+    sidebar_logo_width,
+    sidebar_logo_area,
+    sidebar_logo_fit,
+    sidebar_logo_align
   };
   db.addCompany(newCompany);
   db.addAuditEntry(req.session?.user?.name || 'Admin', 'Company Created', 'Company', `Created company workspace ${newCompany.name}`);
@@ -1186,6 +1202,17 @@ app.post(['/admin/companies/edit/:id', '/admin/companies/:id/edit'], upload.any(
   const logo_url = logo_light_url || comp.logo_url;
   const show_brand_name = req.body.show_brand_name === 'true' || req.body.show_brand_name === 'on' || req.body.show_brand_name === '1';
 
+  const rawHeight = parseInt(req.body.sidebar_logo_height, 10);
+  const sidebar_logo_height = !isNaN(rawHeight) && rawHeight >= 20 && rawHeight <= 100 ? rawHeight : (comp.sidebar_logo_height || 42);
+  const sidebar_logo_area = req.body.sidebar_logo_area || comp.sidebar_logo_area || 'standard';
+  let sidebar_logo_width = req.body.sidebar_logo_width || comp.sidebar_logo_width || '190px';
+  if (req.body.sidebar_logo_width_pct) {
+    const pct = parseInt(req.body.sidebar_logo_width_pct, 10);
+    if (!isNaN(pct)) sidebar_logo_width = `${pct}%`;
+  }
+  const sidebar_logo_fit = req.body.sidebar_logo_fit || comp.sidebar_logo_fit || 'contain';
+  const sidebar_logo_align = req.body.sidebar_logo_align || comp.sidebar_logo_align || 'left';
+
   const updates = {
     name: req.body.name || comp.name,
     code: (req.body.code || comp.code).toUpperCase().trim(),
@@ -1201,7 +1228,12 @@ app.post(['/admin/companies/edit/:id', '/admin/companies/:id/edit'], upload.any(
     logo_url,
     logo_light_url,
     logo_dark_url,
-    show_brand_name
+    show_brand_name,
+    sidebar_logo_height,
+    sidebar_logo_width,
+    sidebar_logo_area,
+    sidebar_logo_fit,
+    sidebar_logo_align
   };
   db.updateCompany(companyId, updates);
   db.addAuditEntry(req.session?.user?.name || 'Admin', 'Company Updated', 'Company', `Updated company workspace ${updates.name} profile image and settings`);
@@ -1254,7 +1286,7 @@ app.post(['/technicians/delete/:id', '/technicians/:id/delete'], (req, res) => {
   res.redirect('/technicians');
 });
 
-app.get('/admin/users', (req, res) => {
+app.get(['/admin/users', '/settings/users', '/users'], (req, res) => {
   const ctx = baseContext(req, 'users');
   ctx.users = db.getStore().ADMIN_USERS || [];
   res.render('settings/admin_users.html', ctx);
