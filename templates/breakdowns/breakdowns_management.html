@@ -582,13 +582,21 @@
       const d = document.getElementById("kpiDowntimeMtd");
       const u = document.getElementById("kpiUptime");
 
+      function setElText(el, val) {
+        if (el && el.textContent !== String(val)) el.textContent = String(val);
+      }
+
       function setTrend(el, pct){
+        if (!el) return;
         const n = Number(pct || 0);
         const up = n > 0;
         const icon = up ? "↑" : "↓";
-        el.textContent = `${icon} ${Math.abs(Math.round(n))}%`;
-        el.classList.remove("text-green-500","text-red-500");
-        el.classList.add(up ? "text-red-500" : "text-green-500");
+        const txt = `${icon} ${Math.abs(Math.round(n))}%`;
+        if (el.textContent !== txt) {
+          el.textContent = txt;
+          el.classList.remove("text-green-500","text-red-500");
+          el.classList.add(up ? "text-red-500" : "text-green-500");
+        }
       }
 
       async function tick(){
@@ -597,30 +605,27 @@
           if(!res.ok) return;
           const j = await res.json();
 
-          if(a) a.textContent = j.active;
+          setElText(a, j.active);
 
           if(ad){
             const delta = Number(j.active_delta || 0);
-            if(delta >= 0){
-              ad.textContent = `↑ ${delta}`;
-              ad.classList.remove("text-green-500");
-              ad.classList.add("text-red-500");
-            }else{
-              ad.textContent = `↓ ${Math.abs(delta)}`;
-              ad.classList.remove("text-red-500");
-              ad.classList.add("text-green-500");
+            const deltaTxt = delta >= 0 ? `↑ ${delta}` : `↓ ${Math.abs(delta)}`;
+            if (ad.textContent !== deltaTxt) {
+              ad.textContent = deltaTxt;
+              ad.classList.remove("text-green-500", "text-red-500");
+              ad.classList.add(delta >= 0 ? "text-red-500" : "text-green-500");
             }
           }
 
-          if(mttr) mttr.textContent = Number(j.mttr_hours || 0).toFixed(1);
+          setElText(mttr, Number(j.mttr_hours || 0).toFixed(1));
           if(mttrTrend) setTrend(mttrTrend, j.mttr_trend);
-          if(d) d.textContent = Math.round(Number(j.downtime_mtd_hours || 0));
-          if(u) u.textContent = Number(j.uptime_rate || 0).toFixed(1);
+          setElText(d, Math.round(Number(j.downtime_mtd_hours || 0)));
+          setElText(u, Number(j.uptime_rate || 0).toFixed(1));
         }catch(e){}
       }
 
-      tick();
-      setInterval(tick, 1000);
+      setTimeout(tick, 2000);
+      setInterval(tick, 15000);
     })();
 
     // ✅ Breakdown Frequency (WORKING)
@@ -864,46 +869,4 @@
     })();
 
   </script>
-{% endblock %}
-
-
-{% block page_scripts %}
-<script>
-(function(){
-  const url = {{ url_for('api_live_breakdowns_kpis')|tojson }};
-  const fmtNum = v => Number(v || 0).toFixed(1);
-  function setDelta(val){
-    const el = document.getElementById('kpiActiveDelta');
-    if(!el) return;
-    const n = Number(val || 0);
-    el.textContent = (n >= 0 ? '↑ ' + n : '↓ ' + Math.abs(n));
-    el.className = (n >= 0 ? 'text-red-500' : 'text-green-500') + ' font-bold';
-  }
-  function setTrend(val){
-    const el = document.getElementById('kpiMttrTrend');
-    if(!el) return;
-    const n = Number(val || 0);
-    el.textContent = (n <= 0 ? '↓ ' : '↑ ') + Math.abs(Math.round(n)) + '%';
-    el.className = (n <= 0 ? 'text-green-500' : 'text-red-500') + ' font-bold';
-  }
-  async function refreshKpis(){
-    try{
-      const r = await fetch(url, {headers: {'X-Requested-With':'XMLHttpRequest'}});
-      if(!r.ok) return;
-      const data = await r.json();
-      const map = {
-        kpiActive: data.active,
-        kpiMttr: fmtNum(data.mttr_hours),
-        kpiDowntimeMtd: Math.round(Number(data.downtime_mtd_hours || 0)),
-        kpiUptime: fmtNum(data.uptime_rate)
-      };
-      Object.entries(map).forEach(([id, value]) => { const el = document.getElementById(id); if(el) el.textContent = value; });
-      setDelta(data.active_delta);
-      setTrend(data.mttr_trend);
-    }catch(e){}
-  }
-  refreshKpis();
-  setInterval(refreshKpis, 1000);
-})();
-</script>
 {% endblock %}

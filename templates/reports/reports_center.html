@@ -119,12 +119,17 @@
       if(!r.ok) return;
       const k = await r.json();
       const ids = {reportsOeeScore:k.oee_score,reportsOeeDelta:k.oee_delta,reportsPmCompliance:k.pm_compliance,reportsPmTarget:k.pm_target,reportsMttrTrend:k.mttr_trend,reportsMttrAvg:k.mttr_avg,reportsMtdSpend:k.mtd_spend,reportsBudgetPct:k.budget_pct,reportsBudgetLimit:k.budget_limit};
-      Object.entries(ids).forEach(([id,val])=>{ const el=document.getElementById(id); if(el) el.textContent=val; });
-      const bar = document.getElementById('reportsBudgetBar'); if(bar) bar.style.width=String(k.budget_pct||0)+'%';
+      Object.entries(ids).forEach(([id,val])=>{
+        const el = document.getElementById(id);
+        if(el && el.textContent !== String(val)) el.textContent = String(val);
+      });
+      const bar = document.getElementById('reportsBudgetBar');
+      const w = String(k.budget_pct||0)+'%';
+      if(bar && bar.style.width !== w) bar.style.width = w;
     }catch(e){}
   }
-  refreshKpis();
-  setInterval(refreshKpis, 1000);
+  setTimeout(refreshKpis, 2000);
+  setInterval(refreshKpis, 15000);
 })();
 </script>
 {% endblock %}

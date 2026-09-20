@@ -817,7 +817,10 @@
 (function(){
   const url = {{ url_for('api_live_maintenance_kpis')|tojson }};
   const circ = 125.6;
-  function setText(id, value){ const el = document.getElementById(id); if(el) el.textContent = value; }
+  function setText(id, value){
+    const el = document.getElementById(id);
+    if(el && el.textContent !== String(value)) el.textContent = String(value);
+  }
   async function refreshKpis(){
     try{
       const r = await fetch(url, {cache:'no-store', headers:{'X-Requested-With':'XMLHttpRequest'}});
@@ -830,12 +833,14 @@
       const ring = document.getElementById('maintenanceComplianceRing');
       if(ring){
         const offset = circ - (circ * (Math.max(0, Math.min(100, Number(k.kpi_compliance_rate || 0))) / 100));
-        ring.setAttribute('stroke-dashoffset', String(offset));
+        if (ring.getAttribute('stroke-dashoffset') !== String(offset)) {
+          ring.setAttribute('stroke-dashoffset', String(offset));
+        }
       }
     }catch(e){}
   }
-  refreshKpis();
-  setInterval(refreshKpis, 1000);
+  setTimeout(refreshKpis, 2000);
+  setInterval(refreshKpis, 15000);
 })();
 </script>
 {% endblock %}

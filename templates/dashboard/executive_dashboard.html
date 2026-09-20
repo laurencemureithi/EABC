@@ -446,16 +446,21 @@
 (function(){
   const url = {{ url_for('api_live_dashboard_kpis')|tojson }};
   const money = n => 'KES ' + Number(n || 0).toLocaleString(undefined, {maximumFractionDigits:0});
-  function setText(id, value){ const el = document.getElementById(id); if(el) el.textContent = value; }
+  function setText(id, value){
+    const el = document.getElementById(id);
+    if(el && el.textContent !== String(value)) el.textContent = String(value);
+  }
   function setBadge(uptime, target){
     const badge = document.getElementById('dashboardHealthBadge');
     const text = document.getElementById('dashboardHealthText');
     const dot = document.getElementById('dashboardHealthDot');
     if(!badge || !text || !dot) return;
     const stable = Number(uptime || 0) >= Number(target || 0);
-    badge.className = 'hidden lg:inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide';
-    text.textContent = stable ? 'SYSTEM STABLE' : 'SYSTEM AT RISK';
-    dot.className = stable ? 'w-2 h-2 rounded-full bg-green-500' : 'w-2 h-2 rounded-full bg-red-500';
+    const newText = stable ? 'SYSTEM STABLE' : 'SYSTEM AT RISK';
+    if(text.textContent !== newText) {
+      text.textContent = newText;
+      dot.className = stable ? 'w-2 h-2 rounded-full bg-green-500' : 'w-2 h-2 rounded-full bg-red-500';
+    }
   }
   function setDelta(id, n, positiveBad){
     const el = document.getElementById(id);
@@ -464,8 +469,11 @@
     const positiveIsBad = !!positiveBad;
     const bad = positiveIsBad ? val > 0 : val < 0;
     const good = positiveIsBad ? val < 0 : val > 0;
-    el.className = 'text-xs font-bold ' + (bad ? 'text-rose-600' : good ? 'text-green-600' : 'text-slate-400');
-    el.textContent = (val > 0 ? '+' : '') + (Math.round(val * 10) / 10);
+    const newText = (val > 0 ? '+' : '') + (Math.round(val * 10) / 10);
+    if(el.textContent !== newText) {
+      el.className = 'text-xs font-bold ' + (bad ? 'text-rose-600' : good ? 'text-green-600' : 'text-slate-400');
+      el.textContent = newText;
+    }
   }
   async function refreshKpis(){
     try{
@@ -485,8 +493,9 @@
       setBadge(k.uptime_rate, k.uptime_target);
     }catch(e){}
   }
-  refreshKpis();
-  setInterval(refreshKpis, 1000);
+  // Initial sync & steady 15-second background refresh to prevent UI jitter
+  setTimeout(refreshKpis, 2000);
+  setInterval(refreshKpis, 15000);
 
   (function(){
     const canvas = document.getElementById('dashboardDowntimeChart');

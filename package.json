@@ -8,7 +8,7 @@
     "dev": "node server.js",
     "start": "node server.js",
     "build": "echo 'Build complete'",
-    "lint": "node -c server.js src/datastore.js src/helpers.js",
+    "lint": "node -c server.js src/datastore.js src/helpers.js src/metrics.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

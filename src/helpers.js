@@ -1,6 +1,7 @@
 import nunjucks from 'nunjucks';
 
 export function urlFor(endpoint, kwargs = {}) {
+  if (!endpoint || typeof endpoint !== 'string') return '#';
   const consumed = new Set();
   const getParam = (key, fallbackKey = null, defVal = '') => {
     consumed.add(key);
@@ -67,6 +68,12 @@ export function urlFor(endpoint, kwargs = {}) {
       break;
     case 'assets_maintenance_history_export':
       basePath = `/assets/${getParam('asset_uid', 'uid')}/maintenance-history/export`;
+      break;
+    case 'assets_breakdowns_get':
+      basePath = `/assets/${getParam('asset_uid', 'uid')}/breakdowns`;
+      break;
+    case 'assets_breakdowns_export':
+      basePath = `/assets/${getParam('asset_uid', 'uid')}/breakdowns/export`;
       break;
     case 'assets_export':
       basePath = '/assets/export';

@@ -687,14 +687,18 @@
     font-size: 8.5px !important;
     letter-spacing: 0.01em !important;
     white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    max-width: 140px !important;
+    display: block !important;
   }
 
   @media (max-width: 440px) {
     .app-topbar-subtitle {
-      display: none !important;
+      display: block !important;
+      font-size: 7.5px !important;
+      letter-spacing: -0.01em !important;
+      line-height: 1 !important;
+      max-width: 135px !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
     }
   }
 

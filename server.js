@@ -9,6 +9,7 @@ import multer from 'multer';
 
 import * as db from './src/datastore.js';
 import { urlFor, registerNunjucksFilters } from './src/helpers.js';
+import { computeSystemMetrics, getBreakdownDowntime } from './src/metrics.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -310,34 +311,32 @@ app.get('/dashboard', (req, res) => {
   const breakdowns = db.getBreakdowns();
   const tasks = db.getMaintenanceTasks();
   const spares = db.getInventoryParts();
+  const m = computeSystemMetrics(db);
 
-  const totalAssets = assets.length || 6;
-  const operationalAssets = assets.filter(a => a.status === 'operational').length || 4;
-  const maintenanceAssets = assets.filter(a => a.status === 'maintenance').length || 1;
-  const oosAssets = assets.filter(a => a.status === 'breakdown' || a.status === 'out_of_service' || a.status === 'down').length || 1;
+  const totalAssets = m.total_assets;
+  const operationalAssets = m.operational_assets;
+  const maintenanceAssets = m.maintenance_assets;
+  const oosAssets = m.oos_assets;
 
   const openBreakdownsList = breakdowns.filter(b => b.status === 'open' || b.status === 'in_progress');
-  const openBreakdowns = openBreakdownsList.length;
-  const downtimeHours = breakdowns.reduce((sum, b) => sum + (Number(b.downtime_hours) || 0), 0) || 14.2;
-  const resolvedBreakdowns = breakdowns.filter(b => b.status === 'resolved' || b.status === 'closed');
-  const mttrHours = resolvedBreakdowns.length
-    ? Math.round((resolvedBreakdowns.reduce((sum, b) => sum + (Number(b.downtime_hours) || 0), 0) / resolvedBreakdowns.length) * 10) / 10
-    : 1.8;
+  const openBreakdowns = m.open_breakdowns;
+  const downtimeHours = m.total_downtime_hours;
+  const mttrHours = m.mttr_hours;
 
-  const completedPm = tasks.filter(t => t.status === 'completed').length;
-  const totalPm = tasks.length || 1;
-  const overduePm = tasks.filter(t => t.status === 'overdue' || (t.due_date && new Date(t.due_date) < new Date() && t.status !== 'completed')).length;
-  const pmCompliance = Math.round((completedPm / totalPm) * 1000) / 10 || 94.2;
+  const completedPm = m.completed_pm;
+  const totalPm = m.total_pm_tasks;
+  const overduePm = m.overdue_pm;
+  const pmCompliance = m.pm_compliance;
 
-  const sparesValue = spares.reduce((sum, s) => sum + ((Number(s.qty) || 0) * (Number(s.unit_price) || 0)), 0) || 485000;
-  const lowStockCount = spares.filter(s => (Number(s.qty) || 0) <= (Number(s.min_qty) || 0)).length;
-  const outOfStockCount = spares.filter(s => (Number(s.qty) || 0) === 0).length;
-  const criticalSparesCount = spares.filter(s => s.is_critical || s.criticality === 'Critical' || s.criticality === 'High').length || 3;
+  const sparesValue = m.total_inventory_value;
+  const lowStockCount = m.low_stock_count;
+  const outOfStockCount = m.out_of_stock_count;
+  const criticalSparesCount = m.critical_spares;
 
-  const uptimeRate = totalAssets ? Math.round((operationalAssets / totalAssets) * 10000) / 100 : 98.5;
-  const uptimeTarget = 95.0;
-  const downtimeCost = Math.round(downtimeHours * 25000);
-  const maintenanceCost = Math.round(completedPm * 15000 + 65000);
+  const uptimeRate = m.uptime_rate;
+  const uptimeTarget = m.uptime_target;
+  const downtimeCost = m.downtime_financial_mtd;
+  const maintenanceCost = m.maintenance_cost;
 
   // Critical risks
   const criticalOpen = openBreakdownsList.filter(b => b.severity === 'critical' || b.severity === 'high' || b.priority === 'critical' || b.priority === 'high');
@@ -660,19 +659,279 @@ app.post('/assets/:uid/delete', (req, res) => {
 
 app.get('/assets/:uid/spare-parts', (req, res) => {
   const asset = db.getAssetByUid(req.params.uid);
+  if (!asset) return res.redirect('/assets');
   const ctx = baseContext(req, 'assets');
-  ctx.asset = asset || { uid: req.params.uid, asset_name: 'Asset' };
-  ctx.parts = db.getInventoryParts();
+  ctx.asset = asset;
+  const parts = db.getInventoryParts();
+  
+  const linkedParts = parts.map(p => {
+    const qty = Number(p.qty) || 0;
+    const minq = Number(p.min_qty) || 0;
+    const isOut = qty <= 0;
+    const isLow = !isOut && minq > 0 && qty <= minq;
+    return {
+      ...p,
+      uid: p.uid || p.id,
+      id: p.id || p.uid,
+      part_no: p.part_number || p.sku,
+      sku: p.part_number || p.sku,
+      target_qty: minq * 2 || (qty > 0 ? qty : 1),
+      is_critical: Boolean(p.critical || p.is_critical),
+      unit_price: Number(p.unit_price) || 0,
+      lead_time_days: p.lead_time_days || 7,
+      is_out: isOut,
+      is_low: isLow
+    };
+  });
+
+  const totalLinked = linkedParts.length;
+  const criticalCount = linkedParts.filter(p => p.is_critical).length;
+  const lowStockCount = linkedParts.filter(p => p.is_low).length;
+  const outCount = linkedParts.filter(p => p.is_out).length;
+  const healthyCount = Math.max(0, totalLinked - lowStockCount - outCount);
+  const totalVal = linkedParts.reduce((sum, p) => sum + (p.qty * p.unit_price), 0);
+
+  const healthyPct = totalLinked ? Math.round((healthyCount / totalLinked) * 100) : 0;
+  const lowPct = totalLinked ? Math.round((lowStockCount / totalLinked) * 100) : 0;
+  const outPct = totalLinked ? Math.max(0, 100 - healthyPct - lowPct) : 0;
+
+  ctx.parts = linkedParts;
+  ctx.linked_parts = linkedParts;
+  ctx.total = totalLinked;
+  ctx.kpis = {
+    total_linked_parts: totalLinked,
+    critical_spares: criticalCount,
+    low_stock_alerts: lowStockCount,
+    out_of_stock: outCount,
+    total_inventory_value: `KES ${totalVal.toLocaleString()}`
+  };
+
+  ctx.donut = {
+    total: totalLinked,
+    in_stock: healthyCount,
+    low_stock: lowStockCount,
+    out_stock: outCount,
+    healthy_pct: healthyPct,
+    in_pct: healthyPct,
+    low_pct: lowPct,
+    out_pct: outPct
+  };
+
+  ctx.urgent = linkedParts.filter(p => p.is_low || p.is_out || p.is_critical);
+  ctx.urgent_replenishments = ctx.urgent;
+
   res.render('assets/assets_spare_parts.html', ctx);
+});
+
+app.get('/assets/:uid/spare-parts/export', (req, res) => {
+  const asset = db.getAssetByUid(req.params.uid);
+  const parts = db.getInventoryParts();
+  const filename = `opsloom_asset_${asset ? asset.asset_id : 'parts'}_spares_${new Date().toISOString().slice(0, 10)}`;
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
+  let csv = 'Part SKU,Part Name,Category,Quantity,Min Qty,Unit Price (KES),Critical,Status\n';
+  parts.forEach(p => {
+    const qty = Number(p.qty) || 0;
+    const minq = Number(p.min_qty) || 0;
+    const status = qty <= 0 ? 'OUT_OF_STOCK' : (qty <= minq ? 'LOW_STOCK' : 'HEALTHY');
+    const safeName = `"${(p.part_name || '').replace(/"/g, '""')}"`;
+    csv += `${p.part_number || p.sku},${safeName},${p.category || ''},${qty},${minq},${p.unit_price || 0},${p.critical ? 'YES' : 'NO'},${status}\n`;
+  });
+  return res.send(csv);
 });
 
 app.get('/assets/:uid/documents', (req, res) => {
   const asset = db.getAssetByUid(req.params.uid);
+  if (!asset) return res.redirect('/assets');
   const ctx = baseContext(req, 'assets');
-  ctx.asset = asset || { uid: req.params.uid, asset_name: 'Asset' };
-  ctx.documents = [];
-  ctx.kpis = { total_documents: 0, oem_manuals: 0, drawings: 0, certifications: 0, internal_sops: 0 };
+  ctx.asset = asset;
+  
+  const docs = db.getDocumentsForAsset(asset.uid);
+  ctx.documents = docs;
+  const oem = docs.filter(d => d.category === 'oem_manual' || d.category === 'OEM Manual').length;
+  const dwg = docs.filter(d => d.category === 'drawing' || d.category === 'Engineering Drawing').length;
+  const cert = docs.filter(d => d.category === 'certification' || d.category === 'Statutory Certificate').length;
+  const sop = docs.filter(d => d.category === 'sop' || d.category === 'Internal SOP').length;
+
+  ctx.kpis = {
+    total_documents: docs.length,
+    oem_manuals: oem,
+    drawings: dwg,
+    certifications: cert,
+    internal_sops: sop
+  };
   res.render('assets/assets_documents.html', ctx);
+});
+
+app.get('/assets/:uid/documents/upload', (req, res) => {
+  const asset = db.getAssetByUid(req.params.uid);
+  if (!asset) return res.redirect('/assets');
+  const ctx = baseContext(req, 'assets');
+  ctx.asset = asset;
+  ctx.doc_max_mb = 50;
+  res.render('assets/assets_documents_upload.html', ctx);
+});
+
+app.post('/assets/:uid/documents/upload', upload.single('document_file'), (req, res) => {
+  const asset = db.getAssetByUid(req.params.uid);
+  if (!asset) return res.redirect('/assets');
+
+  const file = req.file;
+  const docName = req.body.doc_name || file?.originalname || 'Asset Technical Document';
+  const category = req.body.category || 'oem_manual';
+  const version = req.body.version || '1.0';
+  const notes = req.body.notes || '';
+
+  const doc = {
+    id: 'doc-' + Date.now(),
+    doc_id: 'DOC-' + Date.now().toString().slice(-4),
+    asset_uid: asset.uid,
+    asset_id: asset.asset_id,
+    name: docName,
+    filename: file ? file.filename : 'document.pdf',
+    original_name: file ? file.originalname : 'document.pdf',
+    file_size: file ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : '1.2 MB',
+    file_type: file ? file.mimetype : 'application/pdf',
+    category,
+    version,
+    notes,
+    uploaded_by: req.session?.user?.name || 'Administrator',
+    uploaded_at: new Date().toISOString().slice(0, 10)
+  };
+
+  db.addDocument(doc);
+  db.addAuditEntry(req.session?.user?.name, 'Document Uploaded', 'Assets', `Uploaded ${docName} for ${asset.asset_name}`);
+  flash(req, 'success', `Document "${docName}" uploaded successfully.`);
+  res.redirect(`/assets/${asset.uid}/documents`);
+});
+
+app.post('/assets/:uid/documents/:doc_id/delete', (req, res) => {
+  db.deleteDocument(req.params.doc_id);
+  flash(req, 'info', 'Document removed.');
+  res.redirect(`/assets/${req.params.uid}/documents`);
+});
+
+app.get('/assets/:uid/maintenance-history', (req, res) => {
+  const asset = db.getAssetByUid(req.params.uid);
+  if (!asset) return res.redirect('/assets');
+  const ctx = baseContext(req, 'assets');
+  ctx.asset = asset;
+
+  const allTasks = db.getMaintenanceTasks();
+  let tasks = allTasks.filter(t => t.asset_uid === asset.uid || t.asset_id === asset.asset_id || t.asset_name === asset.asset_name);
+  if (tasks.length === 0) tasks = allTasks.slice(0, 3);
+
+  const q = (req.query.q || '').toLowerCase().trim();
+  const selectedStatus = req.query.status || '';
+  const selectedType = req.query.type || '';
+
+  if (q) {
+    tasks = tasks.filter(t =>
+      (t.title || t.task_title || '').toLowerCase().includes(q) ||
+      (t.description || t.task_description || '').toLowerCase().includes(q) ||
+      (t.technician || '').toLowerCase().includes(q) ||
+      (t.task_id || '').toLowerCase().includes(q)
+    );
+  }
+  if (selectedStatus) {
+    tasks = tasks.filter(t => (t.status || '').toLowerCase() === selectedStatus.toLowerCase());
+  }
+  if (selectedType) {
+    tasks = tasks.filter(t => (t.maintenance_type || t.service_type || '').toLowerCase() === selectedType.toLowerCase());
+  }
+
+  const completed = tasks.filter(t => t.status === 'completed').length;
+  const pmCompliance = tasks.length ? `${Math.round((completed / tasks.length) * 100)}%` : '100%';
+
+  const mappedRows = tasks.map(t => ({
+    ...t,
+    task_id: t.task_id || t.id,
+    task_title: t.title || t.task_title || 'Routine Service',
+    task_description: t.description || t.task_description || 'Standard preventive maintenance protocol.',
+    service_date: t.due_date || t.service_date || new Date().toISOString().slice(0, 10),
+    service_type: t.maintenance_type || t.service_type || 'PREVENTIVE',
+    maintenance_type: t.maintenance_type || t.service_type || 'PM',
+    technician: t.technician || 'John Mwangi',
+    lead_technician: t.technician || 'John Mwangi',
+    technician_initials: (t.technician || 'JM').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
+    status: (t.status || 'scheduled').toUpperCase()
+  }));
+
+  ctx.maintenance_rows = mappedRows;
+  ctx.total_records = mappedRows.length;
+  ctx.kpi_total_events = mappedRows.length;
+  ctx.kpi_pm_compliance = pmCompliance;
+  ctx.kpi_last_service = mappedRows[0]?.service_date || '2026-09-12';
+  ctx.kpi_next_service = mappedRows.find(r => r.status !== 'COMPLETED')?.service_date || '2026-09-28';
+  ctx.kpi_cost = `KES ${(mappedRows.length * 15000).toLocaleString()}`;
+  ctx.q = q;
+  ctx.selected_status = selectedStatus;
+  ctx.selected_type = selectedType;
+
+  res.render('assets/assets_maintenance_history.html', ctx);
+});
+
+app.get('/assets/:uid/maintenance-history/export', (req, res) => {
+  const asset = db.getAssetByUid(req.params.uid);
+  const tasks = db.getMaintenanceTasks().filter(t => !asset || t.asset_uid === asset.uid || t.asset_id === asset.asset_id);
+  const filename = `opsloom_asset_${asset ? asset.asset_id : 'history'}_maintenance_${new Date().toISOString().slice(0, 10)}`;
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
+  let csv = 'Task ID,Title,Service Date,Service Type,Technician,Status\n';
+  tasks.forEach(t => {
+    const safeTitle = `"${(t.title || t.task_title || '').replace(/"/g, '""')}"`;
+    csv += `${t.task_id || t.id},${safeTitle},${t.due_date || t.service_date || ''},${t.maintenance_type || 'PM'},${t.technician || ''},${t.status || ''}\n`;
+  });
+  return res.send(csv);
+});
+
+app.get('/assets/:uid/breakdowns', (req, res) => {
+  const asset = db.getAssetByUid(req.params.uid);
+  if (!asset) return res.redirect('/assets');
+  const ctx = baseContext(req, 'assets');
+  ctx.asset = asset;
+
+  const allBks = db.getBreakdowns();
+  let bks = allBks.filter(b => b.asset_uid === asset.uid || b.asset_id === asset.asset_id || b.asset_name === asset.asset_name);
+  if (bks.length === 0) bks = allBks.slice(0, 2);
+
+  const downtimeSum = bks.reduce((sum, b) => sum + (Number(b.downtime_hours) || 0), 0);
+  const resolved = bks.filter(b => b.status === 'resolved' || b.status === 'closed');
+  const mttr = resolved.length ? Math.round((resolved.reduce((sum, b) => sum + (Number(b.downtime_hours) || 0), 0) / resolved.length) * 10) / 10 : 1.5;
+
+  ctx.breakdowns = bks.map(b => ({
+    ...b,
+    breakdown_id: b.breakdown_id || b.id,
+    reported_date: b.reported_date || (b.reported_at ? b.reported_at.split(' ')[0] : '2026-09-15'),
+    incident_type: b.incident_type || b.failure_mode || 'MECHANICAL',
+    incident_title: b.incident_title || b.title || b.fault_description || 'Operational stoppage',
+    downtime_hours: Number(b.downtime_hours) || 1.5,
+    status: b.status || 'open'
+  }));
+  ctx.total_records = bks.length;
+  ctx.kpis = {
+    total_breakdowns: bks.length,
+    mttr_hours: mttr,
+    last_breakdown_date: bks[0]?.reported_date || '2026-09-15',
+    downtime_mtd_hours: downtimeSum || 3.5,
+    failure_cost: `KES ${(Math.round((downtimeSum || 3.5) * 25000)).toLocaleString()}`
+  };
+
+  res.render('assets/assets_breakdowns.html', ctx);
+});
+
+app.get('/assets/:uid/breakdowns/export', (req, res) => {
+  const asset = db.getAssetByUid(req.params.uid);
+  const bks = db.getBreakdowns().filter(b => !asset || b.asset_uid === asset.uid || b.asset_id === asset.asset_id);
+  const filename = `opsloom_asset_${asset ? asset.asset_id : 'breakdowns'}_${new Date().toISOString().slice(0, 10)}`;
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
+  let csv = 'Incident ID,Title,Reported Date,Severity,Downtime Hours,Status\n';
+  bks.forEach(b => {
+    const safeTitle = `"${(b.incident_title || b.title || '').replace(/"/g, '""')}"`;
+    csv += `${b.breakdown_id || b.id},${safeTitle},${b.reported_date || b.reported_at || ''},${b.severity || ''},${b.downtime_hours || 0},${b.status || ''}\n`;
+  });
+  return res.send(csv);
 });
 
 // ==========================================
@@ -697,21 +956,14 @@ app.get('/breakdowns', (req, res) => {
   ctx.resolved_count = breakdowns.filter(b => b.status === 'resolved').length;
   ctx.total_count = breakdowns.length;
 
-  const openBks = breakdowns.filter(b => b.status === 'open' || b.status === 'in_progress').length;
-  const downtimeHours = breakdowns.reduce((sum, b) => sum + (Number(b.downtime_hours) || 0), 0) || 14.2;
-  const resolvedBreakdowns = breakdowns.filter(b => b.status === 'resolved' || b.status === 'closed');
-  const mttrHours = resolvedBreakdowns.length
-    ? Math.round((resolvedBreakdowns.reduce((sum, b) => sum + (Number(b.downtime_hours) || 0), 0) / resolvedBreakdowns.length) * 10) / 10
-    : 1.8;
-  const operationalAssets = allAssets.filter(a => a.status === 'operational').length;
-  const uptimeRate = allAssets.length ? Math.round((operationalAssets / allAssets.length) * 10000) / 100 : 98.5;
+  const m = computeSystemMetrics(db);
 
-  ctx.kpi_active = openBks;
-  ctx.kpi_active_delta = openBks > 2 ? 1 : -1;
-  ctx.kpi_mttr_hours = mttrHours;
-  ctx.kpi_mttr_trend = -4.2;
-  ctx.kpi_downtime_mtd_hours = Math.round(downtimeHours * 10) / 10;
-  ctx.kpi_uptime_rate = uptimeRate;
+  ctx.kpi_active = m.kpi_active;
+  ctx.kpi_active_delta = m.kpi_active_delta;
+  ctx.kpi_mttr_hours = m.kpi_mttr_hours;
+  ctx.kpi_mttr_trend = m.kpi_mttr_trend;
+  ctx.kpi_downtime_mtd_hours = m.kpi_downtime_mtd_hours;
+  ctx.kpi_uptime_rate = m.kpi_uptime_rate;
 
   res.render('breakdowns/breakdowns_management.html', ctx);
 });
@@ -769,6 +1021,9 @@ app.post(['/breakdowns/new/step2', '/breakdowns/new/step-2', '/breakdowns/log/st
   };
 
   const saved = db.addBreakdown(newBk);
+  if (step1.asset_uid) {
+    db.updateAsset(step1.asset_uid, { status: 'breakdown' });
+  }
   db.addAuditEntry(req.session?.user?.name, 'Breakdown Reported', 'Breakdowns', `Logged incident ${saved.breakdown_id} for ${saved.asset_name}`);
   db.addNotification('Incident Reported', `${saved.asset_name}: ${saved.incident_title}`, 'error', `/breakdowns/${saved.id}`, 'breakdowns');
 
@@ -784,9 +1039,49 @@ app.get('/breakdowns/:id', (req, res) => {
     return res.redirect('/breakdowns');
   }
   const ctx = baseContext(req, 'breakdowns');
+  Object.assign(ctx, bk);
   ctx.breakdown = bk;
-  ctx.media = [];
-  ctx.media_count = 0;
+  ctx.breakdown_id = bk.breakdown_id || bk.id;
+  ctx.incident_title = bk.incident_title || 'Equipment Incident';
+  ctx.asset_name = bk.asset_name || 'Plant Equipment';
+  ctx.asset_id = bk.asset_id || bk.asset_uid || '';
+  ctx.asset_serial_no = bk.asset_serial_no || '';
+  ctx.section = bk.section || 'General';
+  ctx.status = bk.status || 'open';
+  ctx.status_label = (bk.status || 'open').replace(/_/g, ' ').toUpperCase();
+  ctx.severity = (bk.severity || 'Medium').toLowerCase();
+  ctx.technician_name = bk.assigned_to || 'Assigned Technician';
+  ctx.failure_category = bk.failure_category || 'Mechanical Failure';
+
+  const dtHours = getBreakdownDowntime(bk);
+  ctx.downtime_hours = dtHours;
+  ctx.downtime_display_label = `${dtHours.toFixed(1)} hrs`;
+
+  // Parse reported datetime
+  if (bk.reported_dt) {
+    const parts = bk.reported_dt.split(' ');
+    ctx.reported_date = parts[0] || '';
+    ctx.reported_time = parts[1] || '';
+  } else {
+    ctx.reported_date = 'Today';
+    ctx.reported_time = '08:00';
+  }
+
+  // Parse resolved datetime
+  if (bk.resolved_at) {
+    const parts = bk.resolved_at.split(' ');
+    ctx.resolved_date = parts[0] || '';
+    ctx.resolved_time = parts[1] || '';
+  } else {
+    ctx.resolved_date = null;
+    ctx.resolved_time = null;
+  }
+
+  const costVal = Math.round(dtHours * 25000);
+  ctx.cost_subtotal = 'KES ' + costVal.toLocaleString();
+  ctx.cost_total = ctx.cost_subtotal;
+  ctx.media = bk.media || [];
+  ctx.media_count = (bk.media || []).length;
   res.render('breakdowns/view_breakdown_details.html', ctx);
 });
 
@@ -801,19 +1096,36 @@ app.get('/breakdowns/:id/update', (req, res) => {
 
 app.post('/breakdowns/:id/update', (req, res) => {
   const { status, downtime_hours, resolution_notes, action_taken } = req.body;
+  const bk = db.getBreakdownById(req.params.id);
+  const newStatus = status || (bk ? bk.status : 'open');
+  let dt = parseFloat(downtime_hours);
+
+  if (isNaN(dt) || dt <= 0) {
+    if (newStatus === 'resolved' && bk) {
+      dt = getBreakdownDowntime(bk);
+    } else {
+      dt = bk ? Number(bk.downtime_hours || 0) : 0;
+    }
+  }
+
   const updates = {
-    status: status || 'open',
-    downtime_hours: parseFloat(downtime_hours) || 0,
+    status: newStatus,
+    downtime_hours: Math.round(dt * 10) / 10,
     resolution_notes: resolution_notes || '',
     action_taken: action_taken || ''
   };
-  if (status === 'resolved') {
+
+  if (newStatus === 'resolved') {
     updates.resolved_at = new Date().toISOString().replace('T', ' ').slice(0, 16);
-    const bk = db.getBreakdownById(req.params.id);
-    if (bk && bk.asset_uid) {
-      db.updateAsset(bk.asset_uid, { status: 'operational' });
+    if (bk && (bk.asset_uid || bk.asset_id)) {
+      db.updateAsset(bk.asset_uid || bk.asset_id, { status: 'operational' });
+    }
+  } else if (newStatus === 'open' || newStatus === 'in_progress') {
+    if (bk && (bk.asset_uid || bk.asset_id)) {
+      db.updateAsset(bk.asset_uid || bk.asset_id, { status: 'breakdown' });
     }
   }
+
   db.updateBreakdown(req.params.id, updates);
   flash(req, 'success', 'Incident record updated successfully.');
   res.redirect(`/breakdowns/${req.params.id}`);
@@ -821,9 +1133,70 @@ app.post('/breakdowns/:id/update', (req, res) => {
 
 app.get('/breakdowns/:id/rca', (req, res) => {
   const bk = db.getBreakdownById(req.params.id);
+  if (!bk) return res.redirect('/breakdowns');
   const ctx = baseContext(req, 'breakdowns');
   ctx.breakdown = bk;
+  ctx.breakdown_id = bk.breakdown_id || bk.id;
+  ctx.incident_title = bk.incident_title || bk.title || '';
+  ctx.asset_name = bk.asset_name || '';
+  ctx.rca = bk.rca || {
+    primary_root_cause: bk.failure_mode || 'mechanical',
+    five_whys: [bk.why_1 || '', bk.why_2 || '', bk.why_3 || '', bk.why_4 || '', bk.why_5 || '']
+  };
   res.render('breakdowns/root_cause.html', ctx);
+});
+
+app.post('/breakdowns/:id/rca', (req, res) => {
+  const bk = db.getBreakdownById(req.params.id);
+  if (!bk) return res.redirect('/breakdowns');
+  const { primary_root_cause, sev_upgrade, why1, why2, why3, why4, why5, action_item_1, action_owner_1 } = req.body;
+  const updates = {
+    root_cause: primary_root_cause || bk.root_cause || 'Mechanical Failure',
+    rca: {
+      primary_root_cause: primary_root_cause || 'mechanical',
+      sev_upgrade: !!sev_upgrade,
+      five_whys: [why1 || '', why2 || '', why3 || '', why4 || '', why5 || ''],
+      action_item: action_item_1 || '',
+      action_owner: action_owner_1 || ''
+    }
+  };
+  if (sev_upgrade) updates.severity = 'critical';
+  db.updateBreakdown(req.params.id, updates);
+  db.addAuditEntry(req.session?.user?.name, 'RCA Updated', 'Breakdowns', `Updated Root Cause Analysis for incident ${bk.breakdown_id || bk.id}`);
+  flash(req, 'success', 'Root cause analysis successfully saved.');
+  res.redirect(`/breakdowns/${req.params.id}`);
+});
+
+app.post('/breakdowns/:id/close', (req, res) => {
+  const bk = db.getBreakdownById(req.params.id);
+  if (!bk) {
+    flash(req, 'error', 'Breakdown incident not found.');
+    return res.redirect('/breakdowns');
+  }
+  const resolvedAt = new Date().toISOString().replace('T', ' ').slice(0, 16);
+  const dt = bk.downtime_hours || 1.8;
+  db.updateBreakdown(req.params.id, {
+    status: 'resolved',
+    resolved_at: resolvedAt,
+    downtime_hours: dt,
+    action_taken: bk.action_taken || 'Incident inspected, rectified, and cleared for operational return.'
+  });
+  if (bk.asset_uid) {
+    db.updateAsset(bk.asset_uid, { status: 'operational' });
+  }
+  db.addAuditEntry(req.session?.user?.name, 'Incident Closed', 'Breakdowns', `Closed incident ${bk.breakdown_id || bk.id}`);
+  flash(req, 'success', `Incident ${bk.breakdown_id || bk.id} closed and marked as resolved.`);
+  const nextUrl = req.body.next || req.query.next || `/breakdowns/${req.params.id}`;
+  res.redirect(nextUrl);
+});
+
+app.post('/breakdowns/:id/delete', (req, res) => {
+  const bk = db.getBreakdownById(req.params.id);
+  db.deleteBreakdown(req.params.id);
+  db.addAuditEntry(req.session?.user?.name, 'Incident Deleted', 'Breakdowns', `Deleted incident record ${bk?.breakdown_id || req.params.id}`);
+  flash(req, 'info', 'Incident record deleted.');
+  const nextUrl = req.body.next || req.query.next || '/breakdowns';
+  res.redirect(nextUrl);
 });
 
 // ==========================================
@@ -921,6 +1294,26 @@ app.post('/maintenance/schedule/step-3', (req, res) => {
   res.redirect('/maintenance');
 });
 
+app.get('/maintenance/schedule/print', (req, res) => {
+  const ctx = baseContext(req, 'maintenance');
+  ctx.tasks = db.getMaintenanceTasks();
+  res.render('maintenance/maintenance_schedule_print.html', ctx);
+});
+
+app.get('/maintenance/export', (req, res) => {
+  const tasks = db.getMaintenanceTasks();
+  const filename = `opsloom_maintenance_${new Date().toISOString().slice(0, 10)}`;
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
+  let csv = 'Task ID,Title,Asset Name,Service Type,Technician,Due Date,Status,Priority\n';
+  tasks.forEach(t => {
+    const safeTitle = `"${(t.title || t.task_title || '').replace(/"/g, '""')}"`;
+    const safeAsset = `"${(t.asset_name || '').replace(/"/g, '""')}"`;
+    csv += `${t.task_id || t.id},${safeTitle},${safeAsset},${t.maintenance_type || t.service_type || 'PM'},${t.technician || ''},${t.due_date || t.service_date || ''},${t.status || ''},${t.priority || ''}\n`;
+  });
+  return res.send(csv);
+});
+
 app.get('/maintenance/calendar', (req, res) => {
   const ctx = baseContext(req, 'maintenance');
   ctx.tasks = db.getMaintenanceTasks();
@@ -928,6 +1321,34 @@ app.get('/maintenance/calendar', (req, res) => {
 });
 
 app.get('/maintenance/:id', (req, res) => {
+  const task = db.getMaintenanceTaskById(req.params.id);
+  if (!task) {
+    flash(req, 'error', 'Maintenance task not found.');
+    return res.redirect('/maintenance');
+  }
+  const ctx = baseContext(req, 'maintenance');
+  const rawCost = Number(task.cost) || 0;
+  const vatPct = task.cost_vat_pct !== undefined ? Number(task.cost_vat_pct) : 16;
+  const vatAmount = Math.round(rawCost * (vatPct / 100));
+  const totalCost = rawCost + vatAmount;
+
+  ctx.task = {
+    ...task,
+    task_id: task.task_id || task.id,
+    task_title: task.title || task.task_title || 'Maintenance Work Order',
+    cost_subtotal: rawCost,
+    cost_vat_pct: vatPct,
+    cost_vat_amount: vatAmount,
+    cost_total: totalCost
+  };
+
+  if (req.query.print === '1' || req.query.autoprint === '1') {
+    return res.render('maintenance/view_task_print.html', ctx);
+  }
+  res.render('maintenance/view_task.html', ctx);
+});
+
+app.get('/maintenance/:id/update', (req, res) => {
   const task = db.getMaintenanceTaskById(req.params.id);
   if (!task) {
     flash(req, 'error', 'Maintenance task not found.');
@@ -951,8 +1372,32 @@ app.post('/maintenance/:id/update', (req, res) => {
     updates.completed_at = completed_at || new Date().toISOString().slice(0, 16);
   }
   db.updateMaintenanceTask(req.params.id, updates);
-  flash(req, 'success', 'Maintenance task updated.');
-  res.redirect('/maintenance');
+  db.addAuditEntry(req.session?.user?.name, 'Task Updated', 'Maintenance', `Updated task ${req.params.id}`);
+  flash(req, 'success', 'Maintenance task updated successfully.');
+  res.redirect(`/maintenance/${req.params.id}`);
+});
+
+app.post('/maintenance/:id/complete', (req, res) => {
+  const task = db.getMaintenanceTaskById(req.params.id);
+  if (task) {
+    db.updateMaintenanceTask(req.params.id, {
+      status: 'completed',
+      completed_at: new Date().toISOString().slice(0, 16)
+    });
+    db.addAuditEntry(req.session?.user?.name, 'Task Completed', 'Maintenance', `Completed PM task ${task.task_id || req.params.id}`);
+    flash(req, 'success', `Task ${task.task_id || req.params.id} marked as completed.`);
+  }
+  const nextUrl = req.body.next || req.query.next || '/maintenance';
+  res.redirect(nextUrl);
+});
+
+app.post('/maintenance/:id/delete', (req, res) => {
+  const task = db.getMaintenanceTaskById(req.params.id);
+  db.deleteMaintenanceTask(req.params.id);
+  db.addAuditEntry(req.session?.user?.name, 'Task Deleted', 'Maintenance', `Deleted maintenance task ${task?.task_id || req.params.id}`);
+  flash(req, 'info', 'Maintenance task deleted.');
+  const nextUrl = req.body.next || req.query.next || '/maintenance';
+  res.redirect(nextUrl);
 });
 
 // ==========================================
@@ -2203,124 +2648,98 @@ app.get('/help', (req, res) => {
 // ==========================================
 
 app.get('/api/live/dashboard-kpis', (req, res) => {
-  const assets = db.getAssets();
-  const breakdowns = db.getBreakdowns();
-  const total = assets.length;
-  const operational = assets.filter(a => a.status === 'operational').length;
-  const openBks = breakdowns.filter(b => b.status === 'open' || b.status === 'in_progress').length;
-  const downtimeHours = breakdowns.reduce((acc, b) => acc + (Number(b.downtime_hours) || 0), 0);
-
+  const m = computeSystemMetrics(db);
   res.json({
-    kpi_uptime_rate: total ? Math.round((operational / total) * 1000) / 10 : 98.5,
-    kpi_downtime_hours: downtimeHours || 14.2,
-    kpi_open_breakdowns: openBks,
-    kpi_mtbf: 168.0,
-    kpi_mttr: 1.8,
-    operational_assets: operational,
-    total_assets: total
+    ...m,
+    uptime_rate: m.uptime_rate,
+    uptime_target: m.uptime_target,
+    active_breakdowns: m.active_breakdowns,
+    active_delta: m.active_delta,
+    mttr_hours: m.mttr_hours,
+    mttr_trend: m.mttr_trend,
+    downtime_mtd_hours: m.downtime_mtd_hours,
+    downtime_financial_mtd: m.downtime_financial_mtd,
+    operational_assets: m.operational_assets,
+    total_assets: m.total_assets
   });
 });
 
-app.get('/api/live/breakdowns-kpis', (req, res) => {
-  const breakdowns = db.getBreakdowns();
-  const allAssets = db.getAssets();
-  const openBks = breakdowns.filter(b => b.status === 'open' || b.status === 'in_progress').length;
-  const downtimeHours = breakdowns.reduce((sum, b) => sum + (Number(b.downtime_hours) || 0), 0) || 14.2;
-  const resolvedBreakdowns = breakdowns.filter(b => b.status === 'resolved' || b.status === 'closed');
-  const mttrHours = resolvedBreakdowns.length
-    ? Math.round((resolvedBreakdowns.reduce((sum, b) => sum + (Number(b.downtime_hours) || 0), 0) / resolvedBreakdowns.length) * 10) / 10
-    : 1.8;
-  const operationalAssets = allAssets.filter(a => a.status === 'operational').length;
-  const uptimeRate = allAssets.length ? Math.round((operationalAssets / allAssets.length) * 10000) / 100 : 98.5;
-
+app.get(['/api/live/breakdowns-kpis', '/api/breakdowns/kpi'], (req, res) => {
+  const m = computeSystemMetrics(db);
   res.json({
-    total: breakdowns.length,
-    open: breakdowns.filter(b => b.status === 'open').length,
-    in_progress: breakdowns.filter(b => b.status === 'in_progress').length,
-    resolved: resolvedBreakdowns.length,
-    kpi_active: openBks,
-    kpi_active_delta: openBks > 2 ? 1 : -1,
-    kpi_mttr_hours: mttrHours,
-    kpi_mttr_trend: -4.2,
-    kpi_downtime_mtd_hours: Math.round(downtimeHours * 10) / 10,
-    kpi_uptime_rate: uptimeRate
+    ...m,
+    active: m.active,
+    active_delta: m.active_delta,
+    mttr_hours: m.mttr_hours,
+    mttr_trend: m.mttr_trend,
+    downtime_mtd_hours: m.downtime_mtd_hours,
+    uptime_rate: m.uptime_rate
   });
 });
 
 app.get('/api/live/maintenance-kpis', (req, res) => {
-  const tasks = db.getMaintenanceTasks();
-  const scheduledCount = tasks.filter(t => t.status === 'scheduled').length;
-  const inProgressCount = tasks.filter(t => t.status === 'in_progress').length;
-  const completedCount = tasks.filter(t => t.status === 'completed').length;
-  const overdueCount = tasks.filter(t => t.status === 'overdue' || (t.due_date && new Date(t.due_date) < new Date() && t.status !== 'completed')).length;
-  const totalTasks = tasks.length || 1;
-  const complianceRate = Math.round((completedCount / totalTasks) * 1000) / 10 || 94.2;
-
+  const m = computeSystemMetrics(db);
   res.json({
-    total: tasks.length,
-    scheduled: scheduledCount,
-    in_progress: inProgressCount,
-    completed: completedCount,
-    overdue: overdueCount,
-    kpi_scheduled_mtd: scheduledCount + completedCount,
-    kpi_overdue: overdueCount,
-    kpi_upcoming_7: scheduledCount,
-    kpi_compliance_rate: complianceRate
+    ...m,
+    kpi_total_pm_month: m.kpi_total_pm_month,
+    kpi_scheduled_mtd: m.kpi_scheduled_mtd,
+    kpi_overdue: m.kpi_overdue,
+    kpi_upcoming_7: m.kpi_upcoming_7,
+    kpi_compliance_rate: m.kpi_compliance_rate
   });
 });
 
 app.get('/api/live/inventory-kpis', (req, res) => {
-  const spares = db.getInventoryParts();
-  const totalUniqueSkus = spares.length;
-  const criticalSpares = spares.filter(s => s.is_critical || s.criticality === 'Critical' || s.criticality === 'High').length;
-  const lowStockAlerts = spares.filter(s => (Number(s.qty) || 0) <= (Number(s.min_qty) || 0) && (Number(s.qty) || 0) > 0).length;
-  const outOfStock = spares.filter(s => (Number(s.qty) || 0) === 0).length;
-  const healthyStockCount = spares.filter(s => (Number(s.qty) || 0) > (Number(s.min_qty) || 0)).length;
-  const totalInventoryValue = spares.reduce((sum, s) => sum + ((Number(s.qty) || 0) * (Number(s.unit_price) || 0)), 0);
-
+  const m = computeSystemMetrics(db);
   res.json({
-    total_unique_skus: totalUniqueSkus,
-    critical_spares: criticalSpares,
-    low_stock_alerts: lowStockAlerts,
-    low_stock_count: lowStockAlerts,
-    out_of_stock: outOfStock,
-    out_of_stock_count: outOfStock,
-    healthy_stock_count: healthyStockCount,
-    total_inventory_value: totalInventoryValue
+    ...m,
+    total_unique_skus: m.total_unique_skus,
+    critical_spares: m.critical_spares,
+    low_stock_alerts: m.low_stock_alerts,
+    low_stock_count: m.low_stock_count,
+    out_of_stock: m.out_of_stock,
+    out_of_stock_count: m.out_of_stock_count,
+    healthy_stock_count: m.healthy_stock_count,
+    total_inventory_value: m.total_inventory_value
   });
 });
 
-// Assets Dashboard Smart Insights Engine endpoint
-app.get('/api/assets/dashboard', (req, res) => {
-  const assets = db.getAssets();
-  const sections = Array.from(new Set(assets.map(a => a.section).filter(Boolean)));
+app.get('/api/live/reports-kpis', (req, res) => {
+  const m = computeSystemMetrics(db);
+  res.json({
+    oee_score: m.oee_score,
+    oee_delta: m.oee_delta,
+    pm_compliance: m.pm_compliance,
+    pm_target: m.pm_target,
+    mttr_trend: m.mttr_trend,
+    mttr_avg: m.mttr_avg,
+    mtd_spend: m.mtd_spend,
+    budget_pct: m.budget_pct,
+    budget_limit: m.budget_limit
+  });
+});
+
+app.get(['/api/live/breakdown/:breakdown_id', '/api/live/breakdowns/:breakdown_id'], (req, res) => {
+  const bk = db.getBreakdownById(req.params.breakdown_id);
+  if (!bk) return res.status(404).json({ error: 'Breakdown not found' });
+  const dtHours = getBreakdownDowntime(bk);
+  let resolved_date = '';
+  let resolved_time = '';
+  if (bk.resolved_at) {
+    const parts = bk.resolved_at.split(' ');
+    resolved_date = parts[0] || '';
+    resolved_time = parts[1] || '';
+  }
   res.json({
     ok: true,
-    assets,
-    sections: sections.length ? sections : ['Filling Line', 'Packaging', 'Utilities', 'Sanitation & Utilities', 'Logistics & Warehousing']
-  });
-});
-
-// Breakdown KPI polling endpoint (called every 1s by breakdown management)
-app.get('/api/breakdowns/kpi', (req, res) => {
-  const breakdowns = db.getBreakdowns();
-  const allAssets = db.getAssets();
-  const openBks = breakdowns.filter(b => b.status === 'open' || b.status === 'in_progress').length;
-  const downtimeHours = breakdowns.reduce((sum, b) => sum + (Number(b.downtime_hours) || 0), 0) || 14.2;
-  const resolvedBreakdowns = breakdowns.filter(b => b.status === 'resolved' || b.status === 'closed');
-  const mttrHours = resolvedBreakdowns.length
-    ? Math.round((resolvedBreakdowns.reduce((sum, b) => sum + (Number(b.downtime_hours) || 0), 0) / resolvedBreakdowns.length) * 10) / 10
-    : 1.8;
-  const operationalAssets = allAssets.filter(a => a.status === 'operational').length;
-  const uptimeRate = allAssets.length ? Math.round((operationalAssets / allAssets.length) * 10000) / 100 : 98.5;
-
-  res.json({
-    active: openBks,
-    active_delta: openBks > 2 ? 1 : -1,
-    mttr_hours: mttrHours,
-    mttr_trend: -4.2,
-    downtime_mtd_hours: Math.round(downtimeHours * 10) / 10,
-    uptime_rate: uptimeRate
+    breakdown_id: bk.breakdown_id || bk.id,
+    status: bk.status,
+    status_label: (bk.status || 'open').replace(/_/g, ' ').toUpperCase(),
+    downtime_hours: dtHours,
+    downtime_display_label: `${dtHours.toFixed(1)} hrs`,
+    resolved_dt_iso: bk.resolved_at || null,
+    resolved_date,
+    resolved_time
   });
 });
 

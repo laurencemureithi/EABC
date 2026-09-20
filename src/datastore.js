@@ -327,6 +327,44 @@ function ensureDefaults() {
   if (!store.BREAKDOWNS || store.BREAKDOWNS.length === 0) {
     store.BREAKDOWNS = [
       {
+        id: 'bk-aa2aa014',
+        breakdown_id: 'BK-2026-004',
+        asset_uid: 'ast-4a026627',
+        asset_id: 'EABC/UTI/470',
+        asset_name: 'Industrial Centrifugal Pump CP-04',
+        section: 'Utilities',
+        incident_title: 'Hydraulic Seal Leakage & Pressure Loss',
+        problem_description: 'Primary gland packing and mechanical seal failed under 6 bar operating pressure. Fluid dripping on motor coupling.',
+        severity: 'High',
+        reported_by: 'Jackson Mwangi',
+        assigned_to: 'David Kimani',
+        root_cause: 'Worn nitrile O-ring and thermal degradation',
+        action_taken: 'Isolating inlet valve, preparing Viton seal replacement',
+        status: 'open',
+        downtime_hours: 2.5,
+        duration_mins: 150,
+        reported_dt: '2026-09-20 07:30'
+      },
+      {
+        id: 'bk-53ad3dc9',
+        breakdown_id: 'BK-2026-003',
+        asset_uid: 'ast-krones-vfs',
+        asset_id: 'AST-001',
+        asset_name: 'High-Speed Rotary Filling Machine',
+        section: 'Filling Line',
+        incident_title: 'Rotary Carousel Indexer Jam & Torque Overload',
+        problem_description: 'Main rotary carousel stopped mid-cycle due to indexer slip. Motor overload protection tripped with code ERR-08.',
+        severity: 'High',
+        reported_by: 'Test Engineer',
+        assigned_to: 'Sarah Njeri',
+        root_cause: 'Cam track friction and lubricant breakdown in main turret drive',
+        action_taken: 'Stripped turret housing, flushing gears, re-lubricating',
+        status: 'open',
+        downtime_hours: 5.5,
+        duration_mins: 330,
+        reported_dt: '2026-09-18 10:04'
+      },
+      {
         id: 'bk-2026-001',
         breakdown_id: 'BK-2026-001',
         asset_uid: 'ast-enercon-sealer',
@@ -732,6 +770,16 @@ export function updateBreakdown(id, updates) {
   return null;
 }
 
+export function deleteBreakdown(id) {
+  const idx = (store.BREAKDOWNS || []).findIndex(b => b.id === id || b.breakdown_id === id);
+  if (idx !== -1) {
+    const deleted = store.BREAKDOWNS.splice(idx, 1);
+    saveDatastore();
+    return deleted[0];
+  }
+  return null;
+}
+
 export function getMaintenanceTasks() {
   return store.MAINTENANCE_TASKS || [];
 }
@@ -761,6 +809,16 @@ export function updateMaintenanceTask(id, updates) {
   return null;
 }
 
+export function deleteMaintenanceTask(id) {
+  const idx = (store.MAINTENANCE_TASKS || []).findIndex(t => t.id === id || t.task_id === id);
+  if (idx !== -1) {
+    const deleted = store.MAINTENANCE_TASKS.splice(idx, 1);
+    saveDatastore();
+    return deleted[0];
+  }
+  return null;
+}
+
 export function getInventoryParts() {
   return store.INVENTORY_PARTS || [];
 }
@@ -783,6 +841,39 @@ export function updateInventoryPart(id, updates) {
     store.INVENTORY_PARTS[idx] = { ...store.INVENTORY_PARTS[idx], ...updates };
     saveDatastore();
     return store.INVENTORY_PARTS[idx];
+  }
+  return null;
+}
+
+export function deleteInventoryPart(id) {
+  const idx = (store.INVENTORY_PARTS || []).findIndex(p => p.id === id || p.uid === id || p.part_number === id);
+  if (idx !== -1) {
+    const deleted = store.INVENTORY_PARTS.splice(idx, 1);
+    saveDatastore();
+    return deleted[0];
+  }
+  return null;
+}
+
+export function getDocumentsForAsset(assetUid) {
+  return (store.ASSET_DOCUMENTS || []).filter(d => d.asset_uid === assetUid || d.asset_id === assetUid);
+}
+
+export function addDocument(doc) {
+  if (!doc.id) doc.id = 'doc-' + crypto.randomUUID().slice(0, 8);
+  if (!doc.uploaded_at) doc.uploaded_at = new Date().toISOString().slice(0, 10);
+  if (!store.ASSET_DOCUMENTS) store.ASSET_DOCUMENTS = [];
+  store.ASSET_DOCUMENTS.unshift(doc);
+  saveDatastore();
+  return doc;
+}
+
+export function deleteDocument(docId) {
+  const idx = (store.ASSET_DOCUMENTS || []).findIndex(d => d.id === docId || d.doc_id === docId);
+  if (idx !== -1) {
+    const deleted = store.ASSET_DOCUMENTS.splice(idx, 1);
+    saveDatastore();
+    return deleted[0];
   }
   return null;
 }
