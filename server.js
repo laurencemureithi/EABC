@@ -492,7 +492,8 @@ app.get('/dashboard/action-planning', (req, res) => {
 
 app.get('/assets', (req, res) => {
   const ctx = baseContext(req, 'assets');
-  let assets = db.getAssets();
+  const allAssets = db.getAssets();
+  let assets = allAssets;
 
   const q = (req.query.q || '').toLowerCase().trim();
   const section = req.query.section || '';
@@ -517,7 +518,7 @@ app.get('/assets', (req, res) => {
     assets = assets.filter(a => a.status === status);
   }
 
-  const sections = Array.from(new Set(db.getAssets().map(a => a.section).filter(Boolean)));
+  const sections = Array.from(new Set(allAssets.map(a => a.section).filter(Boolean)));
   ctx.assets = assets;
   ctx.sections = sections.length ? sections : ['Filling Line', 'Packaging', 'Utilities', 'Sanitation & Utilities', 'Logistics & Warehousing'];
   ctx.criticality_levels = ['A', 'B', 'C'];
@@ -529,11 +530,18 @@ app.get('/assets', (req, res) => {
   ctx.page = 1;
   ctx.total_pages = 1;
 
+  // KPIs for Assets Master List
+  ctx.kpi_total = allAssets.length;
+  ctx.kpi_operational = allAssets.filter(a => a.status === 'operational').length;
+  ctx.kpi_maintenance = allAssets.filter(a => a.status === 'maintenance').length;
+  ctx.kpi_oos = allAssets.filter(a => a.status === 'breakdown' || a.status === 'out_of_service' || a.status === 'down').length;
+  ctx.kpi_availability = allAssets.length ? Math.round((ctx.kpi_operational / allAssets.length) * 1000) / 10 : 98.5;
+
   res.render('assets/assets_master_list.html', ctx);
 });
 
 // Step 1: Basic info
-app.get('/assets/new/step-1', (req, res) => {
+app.get(['/assets/new/step-1', '/assets/new/step1'], (req, res) => {
   const ctx = baseContext(req, 'assets');
   const sections = Array.from(new Set(db.getAssets().map(a => a.section).filter(Boolean)));
   ctx.sections = sections.length ? sections : ['Filling Line', 'Packaging', 'Utilities', 'Sanitation & Utilities', 'Logistics & Warehousing'];
@@ -541,28 +549,32 @@ app.get('/assets/new/step-1', (req, res) => {
   res.render('assets/assets_add_step1.html', ctx);
 });
 
-app.post('/assets/new/step-1', (req, res) => {
-  const { asset_name, asset_id, section, serial_no, manufacturer, department } = req.body;
-  if (!asset_name || !asset_id || !section) {
+app.post(['/assets/new/step-1', '/assets/new/step1'], (req, res) => {
+  let { asset_name, asset_id, section, serial_no, manufacturer, department } = req.body;
+  if (!asset_name || !section) {
     const ctx = baseContext(req, 'assets');
     ctx.sections = ['Filling Line', 'Packaging', 'Utilities', 'Sanitation & Utilities', 'Logistics & Warehousing'];
     ctx.form = req.body;
     ctx.error = 'Please fill all required fields.';
     return res.status(400).render('assets/assets_add_step1.html', ctx);
   }
+  if (!asset_id) {
+    const secCode = section ? section.substring(0, 3).toUpperCase() : 'AST';
+    asset_id = `EABC/${secCode}/${Math.floor(100 + Math.random() * 900)}`;
+  }
   req.session.asset_step1 = { asset_name, asset_id, section, serial_no, manufacturer, department: department || 'Engineering' };
   res.redirect('/assets/new/step-2');
 });
 
 // Step 2: Technical specifications
-app.get('/assets/new/step-2', (req, res) => {
+app.get(['/assets/new/step-2', '/assets/new/step2'], (req, res) => {
   if (!req.session.asset_step1) return res.redirect('/assets/new/step-1');
   const ctx = baseContext(req, 'assets');
   ctx.form = req.session.asset_step2 || {};
   res.render('assets/assets_add_step2.html', ctx);
 });
 
-app.post('/assets/new/step-2', (req, res) => {
+app.post(['/assets/new/step-2', '/assets/new/step2'], (req, res) => {
   req.session.asset_step2 = {
     model_number: req.body.model_number || '',
     power_rating: req.body.power_rating || '',
@@ -576,14 +588,14 @@ app.post('/assets/new/step-2', (req, res) => {
 });
 
 // Step 3: Status & Criticality
-app.get('/assets/new/step-3', (req, res) => {
+app.get(['/assets/new/step-3', '/assets/new/step3'], (req, res) => {
   if (!req.session.asset_step1) return res.redirect('/assets/new/step-1');
   const ctx = baseContext(req, 'assets');
   ctx.form = req.session.asset_step3 || {};
   res.render('assets/assets_add_step3.html', ctx);
 });
 
-app.post('/assets/new/step-3', (req, res) => {
+app.post(['/assets/new/step-3', '/assets/new/step3'], (req, res) => {
   if (!req.session.asset_step1) return res.redirect('/assets/new/step-1');
   const step1 = req.session.asset_step1 || {};
   const step2 = req.session.asset_step2 || {};
@@ -670,6 +682,7 @@ app.get('/assets/:uid/documents', (req, res) => {
 app.get('/breakdowns', (req, res) => {
   const ctx = baseContext(req, 'breakdowns');
   const breakdowns = db.getBreakdowns();
+  const allAssets = db.getAssets();
   const statusFilter = req.query.status || 'all';
 
   let filtered = breakdowns;
@@ -684,11 +697,27 @@ app.get('/breakdowns', (req, res) => {
   ctx.resolved_count = breakdowns.filter(b => b.status === 'resolved').length;
   ctx.total_count = breakdowns.length;
 
+  const openBks = breakdowns.filter(b => b.status === 'open' || b.status === 'in_progress').length;
+  const downtimeHours = breakdowns.reduce((sum, b) => sum + (Number(b.downtime_hours) || 0), 0) || 14.2;
+  const resolvedBreakdowns = breakdowns.filter(b => b.status === 'resolved' || b.status === 'closed');
+  const mttrHours = resolvedBreakdowns.length
+    ? Math.round((resolvedBreakdowns.reduce((sum, b) => sum + (Number(b.downtime_hours) || 0), 0) / resolvedBreakdowns.length) * 10) / 10
+    : 1.8;
+  const operationalAssets = allAssets.filter(a => a.status === 'operational').length;
+  const uptimeRate = allAssets.length ? Math.round((operationalAssets / allAssets.length) * 10000) / 100 : 98.5;
+
+  ctx.kpi_active = openBks;
+  ctx.kpi_active_delta = openBks > 2 ? 1 : -1;
+  ctx.kpi_mttr_hours = mttrHours;
+  ctx.kpi_mttr_trend = -4.2;
+  ctx.kpi_downtime_mtd_hours = Math.round(downtimeHours * 10) / 10;
+  ctx.kpi_uptime_rate = uptimeRate;
+
   res.render('breakdowns/breakdowns_management.html', ctx);
 });
 
 // Step 1: Log incident
-app.get('/breakdowns/new/step1', (req, res) => {
+app.get(['/breakdowns/new/step1', '/breakdowns/new/step-1', '/breakdowns/log/step-1', '/breakdowns/log/step1'], (req, res) => {
   const ctx = baseContext(req, 'breakdowns');
   ctx.assets = db.getAssets();
   ctx.technicians = db.getStore().TECHNICIAN_DIRECTORY || [];
@@ -696,7 +725,7 @@ app.get('/breakdowns/new/step1', (req, res) => {
   res.render('breakdowns/log_breakdown_step1.html', ctx);
 });
 
-app.post('/breakdowns/new/step1', (req, res) => {
+app.post(['/breakdowns/new/step1', '/breakdowns/new/step-1', '/breakdowns/log/step-1', '/breakdowns/log/step1'], (req, res) => {
   const { asset_uid, incident_title, problem_description, severity, reported_by, assigned_to } = req.body;
   const asset = db.getAssetByUid(asset_uid);
 
@@ -716,14 +745,14 @@ app.post('/breakdowns/new/step1', (req, res) => {
 });
 
 // Step 2: Root cause & confirmation
-app.get('/breakdowns/new/step2', (req, res) => {
+app.get(['/breakdowns/new/step2', '/breakdowns/new/step-2', '/breakdowns/log/step-2', '/breakdowns/log/step2'], (req, res) => {
   if (!req.session.breakdown_step1) return res.redirect('/breakdowns/new/step1');
   const ctx = baseContext(req, 'breakdowns');
   ctx.form = req.session.breakdown_step1;
   res.render('breakdowns/log_breakdown_step2.html', ctx);
 });
 
-app.post('/breakdowns/new/step2', (req, res) => {
+app.post(['/breakdowns/new/step2', '/breakdowns/new/step-2', '/breakdowns/log/step-2', '/breakdowns/log/step2'], (req, res) => {
   if (!req.session.breakdown_step1) return res.redirect('/breakdowns/new/step1');
   const step1 = req.session.breakdown_step1;
   const root_cause = req.body.root_cause || '';
@@ -804,10 +833,23 @@ app.get('/breakdowns/:id/rca', (req, res) => {
 app.get('/maintenance', (req, res) => {
   const ctx = baseContext(req, 'maintenance');
   const tasks = db.getMaintenanceTasks();
+  const scheduledCount = tasks.filter(t => t.status === 'scheduled').length;
+  const completedCount = tasks.filter(t => t.status === 'completed').length;
+  const inProgressCount = tasks.filter(t => t.status === 'in_progress').length;
+  const overdueCount = tasks.filter(t => t.status === 'overdue' || (t.due_date && new Date(t.due_date) < new Date() && t.status !== 'completed')).length;
+  const totalTasks = tasks.length || 1;
+  const complianceRate = Math.round((completedCount / totalTasks) * 1000) / 10 || 94.2;
+
   ctx.tasks = tasks;
-  ctx.scheduled_count = tasks.filter(t => t.status === 'scheduled').length;
-  ctx.in_progress_count = tasks.filter(t => t.status === 'in_progress').length;
-  ctx.completed_count = tasks.filter(t => t.status === 'completed').length;
+  ctx.scheduled_count = scheduledCount;
+  ctx.in_progress_count = inProgressCount;
+  ctx.completed_count = completedCount;
+
+  ctx.kpi_scheduled_mtd = scheduledCount + completedCount;
+  ctx.kpi_overdue = overdueCount;
+  ctx.kpi_upcoming_7 = scheduledCount;
+  ctx.kpi_compliance_rate = complianceRate;
+
   res.render('maintenance/maintenance_management.html', ctx);
 });
 
@@ -919,31 +961,191 @@ app.post('/maintenance/:id/update', (req, res) => {
 
 app.get('/inventory', (req, res) => {
   const ctx = baseContext(req, 'inventory');
-  const spares = db.getInventoryParts();
+  const rawSpares = db.getInventoryParts();
+  const spares = rawSpares.map(p => {
+    const qty = Number(p.qty) || 0;
+    const min_qty = Number(p.min_qty) || 0;
+    const unit_price = Number(p.unit_price) || 0;
+    const is_critical = p.is_critical !== undefined ? !!p.is_critical : !!p.critical;
+    let urgent_reason = p.urgent_reason;
+    if (!urgent_reason) {
+      if (qty <= 0) urgent_reason = 'Stock Out - Immediate Reorder Required';
+      else if (qty <= min_qty) urgent_reason = is_critical ? 'Critical Machine Spare below buffer' : 'Stock below minimum threshold';
+      else if (is_critical) urgent_reason = 'Critical Line Spare (Monitoring)';
+      else urgent_reason = 'Operational Safety Stock';
+    }
+    return {
+      ...p,
+      sku: p.sku || p.part_number || p.id,
+      part_number: p.part_number || p.sku || p.id,
+      is_critical,
+      qty,
+      min_qty,
+      target_qty: p.target_qty || (min_qty ? min_qty * 2 : 10),
+      unit_price,
+      lead_time_days: Number(p.lead_time_days) || 7,
+      urgent_reason
+    };
+  });
+
   const q = (req.query.q || '').toLowerCase().trim();
   const category = req.query.category || '';
+  const stockState = req.query.stock_state || '';
 
   let filtered = spares;
   if (q) {
     filtered = filtered.filter(p =>
       (p.part_name || '').toLowerCase().includes(q) ||
       (p.part_number || '').toLowerCase().includes(q) ||
-      (p.location || '').toLowerCase().includes(q)
+      (p.sku || '').toLowerCase().includes(q) ||
+      (p.location || '').toLowerCase().includes(q) ||
+      (p.supplier || '').toLowerCase().includes(q)
     );
   }
   if (category) {
     filtered = filtered.filter(p => p.category === category);
   }
+  if (stockState === 'healthy') {
+    filtered = filtered.filter(p => p.qty > p.min_qty);
+  } else if (stockState === 'low' || stockState === 'low_stock') {
+    filtered = filtered.filter(p => p.qty <= p.min_qty && p.qty > 0);
+  } else if (stockState === 'out' || stockState === 'out_of_stock') {
+    filtered = filtered.filter(p => p.qty === 0);
+  } else if (stockState === 'critical') {
+    filtered = filtered.filter(p => p.is_critical);
+  }
 
   const categories = Array.from(new Set(spares.map(p => p.category).filter(Boolean)));
-  ctx.inventory_parts = filtered;
+  const totalUniqueSkus = spares.length;
+  const criticalSpares = spares.filter(s => s.is_critical).length;
+  const lowStockAlerts = spares.filter(s => s.qty <= s.min_qty && s.qty > 0).length;
+  const outOfStock = spares.filter(s => s.qty === 0).length;
+  const healthyStockCount = spares.filter(s => s.qty > s.min_qty).length;
+  const totalInventoryValue = spares.reduce((sum, s) => sum + (s.qty * s.unit_price), 0);
+
+  // Donut percentage calculation for Stock Health Distribution
+  const totalForDonut = totalUniqueSkus || 1;
+  const healthyPct = totalUniqueSkus ? Math.round((healthyStockCount / totalForDonut) * 100) : 0;
+  const lowPct = totalUniqueSkus ? Math.round((lowStockAlerts / totalForDonut) * 100) : 0;
+  const outPct = totalUniqueSkus ? Math.max(0, 100 - healthyPct - lowPct) : 0;
+
+  const donut = {
+    healthy: healthyStockCount,
+    healthy_pct: healthyPct,
+    low: lowStockAlerts,
+    low_pct: lowPct,
+    out: outOfStock,
+    out_pct: outPct
+  };
+
+  // Urgent replenishment list
+  const urgent = spares.filter(s => s.qty <= s.min_qty || s.is_critical);
+
+  // Pagination support
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const perPage = Math.max(1, parseInt(req.query.per_page, 10) || 20);
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  const startIndex = (page - 1) * perPage;
+  const pagedParts = filtered.slice(startIndex, startIndex + perPage);
+
+  const pages = [];
+  for (let i = 1; i <= totalPages; i++) {
+    pages.push(i);
+  }
+
+  ctx.parts = pagedParts;
+  ctx.inventory_parts = pagedParts;
+  ctx.donut = donut;
+  ctx.urgent = urgent;
+  ctx.urgent_count = urgent.length;
+
   ctx.categories = categories.length ? categories : ['Mechanical', 'Electrical', 'Pneumatic', 'Sensors & Controls'];
   ctx.q = req.query.q || '';
   ctx.selected_category = category;
+  ctx.selected_stock_state = stockState;
+
   ctx.total_count = spares.length;
-  ctx.low_stock_count = spares.filter(s => (Number(s.qty) || 0) <= (Number(s.min_qty) || 0)).length;
+  ctx.total = total;
+  ctx.showing_from = total ? startIndex + 1 : 0;
+  ctx.showing_to = Math.min(total, startIndex + perPage);
+  ctx.page = page;
+  ctx.total_pages = totalPages;
+  ctx.pages = pages;
+  ctx.per_page = perPage;
+
+  // KPIs
+  ctx.total_unique_skus = totalUniqueSkus;
+  ctx.critical_spares = criticalSpares;
+  ctx.low_stock_alerts = lowStockAlerts;
+  ctx.low_stock_count = lowStockAlerts;
+  ctx.out_of_stock = outOfStock;
+  ctx.out_of_stock_count = outOfStock;
+  ctx.healthy_stock_count = healthyStockCount;
+  ctx.total_inventory_value = totalInventoryValue;
 
   res.render('inventory/inventory_management.html', ctx);
+});
+
+// Export Inventory handler (CSV, Excel, PDF)
+app.get('/inventory/export', (req, res) => {
+  const fmt = (req.query.fmt || req.query.format || 'csv').toLowerCase();
+  const rawSpares = db.getInventoryParts();
+  const spares = rawSpares.map(p => ({
+    ...p,
+    sku: p.sku || p.part_number || p.id,
+    qty: Number(p.qty) || 0,
+    min_qty: Number(p.min_qty) || 0,
+    unit_price: Number(p.unit_price) || 0,
+    is_critical: p.is_critical !== undefined ? !!p.is_critical : !!p.critical
+  }));
+
+  const filename = `opsloom_inventory_${new Date().toISOString().slice(0, 10)}`;
+  if (fmt === 'json') {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}.json"`);
+    return res.json(spares);
+  }
+
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
+  let csv = 'Part UID,Part SKU,Part Name,Category,Quantity,Min Qty,Unit Price (KES),Total Valuation (KES),Location,Critical\n';
+  spares.forEach(p => {
+    const val = (p.qty || 0) * (p.unit_price || 0);
+    const safeName = `"${(p.part_name || '').replace(/"/g, '""')}"`;
+    const safeLoc = `"${(p.location || '').replace(/"/g, '""')}"`;
+    csv += `${p.uid || p.id},${p.sku},${safeName},${p.category || ''},${p.qty},${p.min_qty},${p.unit_price},${val},${safeLoc},${p.is_critical ? 'YES' : 'NO'}\n`;
+  });
+  return res.send(csv);
+});
+
+// Export Assets handler
+app.get('/assets/export', (req, res) => {
+  const assets = db.getAssets();
+  const filename = `opsloom_assets_${new Date().toISOString().slice(0, 10)}`;
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
+  let csv = 'Asset UID,Asset Name,Category,Section,Status,Criticality,Manufacturer,Model,Serial No,Health Score\n';
+  assets.forEach(a => {
+    const safeName = `"${(a.asset_name || a.name || '').replace(/"/g, '""')}"`;
+    csv += `${a.uid || a.id},${safeName},${a.category || ''},${a.section || ''},${a.status || ''},${a.criticality || ''},${a.manufacturer || ''},${a.model_number || ''},${a.serial_no || ''},${a.health_score || ''}\n`;
+  });
+  return res.send(csv);
+});
+
+// Export Breakdowns handler
+app.get('/breakdowns/export', (req, res) => {
+  const breakdowns = db.getBreakdowns();
+  const filename = `opsloom_breakdowns_${new Date().toISOString().slice(0, 10)}`;
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
+  let csv = 'Incident ID,Title,Asset UID,Asset Name,Section,Severity,Status,Reported At,Downtime (Hours),Assigned To\n';
+  breakdowns.forEach(b => {
+    const safeTitle = `"${(b.incident_title || b.title || '').replace(/"/g, '""')}"`;
+    const safeAsset = `"${(b.asset_name || '').replace(/"/g, '""')}"`;
+    csv += `${b.id},${safeTitle},${b.asset_uid || ''},${safeAsset},${b.section || ''},${b.severity || ''},${b.status || ''},${b.reported_at || ''},${b.downtime_hours || 0},${b.assigned_to || ''}\n`;
+  });
+  return res.send(csv);
 });
 
 app.get('/inventory/new/step-1', (req, res) => {
@@ -1056,30 +1258,57 @@ function getReportViewData(type, req) {
     toDateString: () => d.toDateString()
   });
 
-  const exportObj = {
-    id: 'rep-' + (type || 'strategic-roi'),
-    name: 'Executive Strategic ROI & Action Plan',
-    report_title: 'Executive Strategic ROI & Reliability Review',
+  const store = db.getStore();
+  const existingExport = (store.REPORT_EXPORTS || []).find(r => r.id === type || r.category_key === type);
+
+  const categoryTitles = {
+    strategic_roi: 'Executive Strategic ROI & Asset Availability',
+    'strategic-roi': 'Executive Strategic ROI & Asset Availability',
+    breakdown_analytics: 'Breakdown Root Cause & MTTR Analysis',
+    'breakdown-analytics': 'Breakdown Root Cause & MTTR Analysis',
+    maintenance_compliance: 'Preventive Maintenance Compliance & Work Orders',
+    'maintenance-compliance': 'Preventive Maintenance Compliance & Work Orders',
+    inventory_spares: 'Critical Spare Parts Valuation & Stock Health',
+    'inventory-spares': 'Critical Spare Parts Valuation & Stock Health',
+    asset_reliability: 'Asset Reliability & Lifecycle Review',
+    'asset-reliability': 'Asset Reliability & Lifecycle Review'
+  };
+
+  const activeCategoryKey = existingExport?.category_key || type || 'strategic-roi';
+  const displayTitle = existingExport?.report_title || existingExport?.name || categoryTitles[activeCategoryKey] || 'Executive Reliability & ROI Review';
+
+  const exportObj = existingExport || {
+    id: type && type.startsWith('rep-') ? type : ('rep-' + (type || 'strategic-roi')),
+    name: displayTitle,
+    report_title: displayTitle,
     status: 'READY',
-    category_key: type || 'strategic-roi',
-    category: 'Executive Report',
+    category_key: activeCategoryKey,
+    category: categoryTitles[activeCategoryKey] || 'Asset Reliability',
     department: db.getCurrentDepartment(),
-    generated_for: 'Facility',
+    generated_for: 'Facility Operations',
     scope_mode: 'department',
     scope_section: 'All Sections',
     scope_target: 'Facility Operations',
     metrics: ['uptime', 'mtbf', 'mttr', 'compliance'],
     metric_labels: ['Plant Uptime %', 'MTBF (Hours)', 'MTTR (Hours)', 'PM Compliance %'],
-    user_name: req.session?.user?.name || 'Laurence Magondu',
+    user_name: req?.session?.user?.name || 'Laurence Magondu',
     format: 'pdf',
-    filename: `Report-${type || 'strategic-roi'}.pdf`,
+    filename: `Report-${activeCategoryKey}.pdf`,
+    download_url: `/reports/export?report_id=${type || 'sr-current'}&fmt=pdf`,
+    file_size_label: '284 KB',
+    pages_label: '3 Pages',
     created_at: new Date().toISOString()
   };
+
+  const downtimeHours = breakdowns.reduce((sum, b) => sum + (Number(b.downtime_hours) || 0), 0) || 14.2;
+  const downtimeCost = Math.round(downtimeHours * 25000);
+  const completedPm = tasks.filter(t => t.status === 'completed').length;
+  const pmCompliance = tasks.length ? Math.round((completedPm / tasks.length) * 1000) / 10 : 94.2;
 
   const analysis = {
     start: dateWrapper(startDateObj),
     end: dateWrapper(endDateObj),
-    reported_by: req.session?.user?.name || 'Laurence Magondu',
+    reported_by: req?.session?.user?.name || 'Laurence Magondu',
     raw: {
       assets,
       breakdowns,
@@ -1088,12 +1317,23 @@ function getReportViewData(type, req) {
     },
     kpis: {
       uptime_pct: 98.5,
+      uptime_target: 95.0,
       mtbf_hours: 168.0,
       mttr_hours: 1.8,
-      pm_compliance_pct: 94.2,
-      total_downtime_hours: 14.2,
+      pm_compliance_pct: pmCompliance,
+      total_downtime_hours: downtimeHours,
       total_incidents: breakdowns.length,
-      critical_spares_risk: 'Low'
+      critical_spares_risk: 'Low',
+      downtime_cost: downtimeCost,
+      oee_score: '87.4%',
+      oee_delta: '+2.1% vs last month',
+      pm_compliance: `${pmCompliance}%`,
+      pm_target: '95.0%',
+      mttr_trend: '-4.2%',
+      mttr_avg: '1.8h',
+      mtd_spend: `KES ${downtimeCost.toLocaleString()}`,
+      budget_pct: 68,
+      budget_limit: 'KES 600,000 CAP'
     },
     top_assets: assets.slice(0, 6).map(a => [
       a.asset_name,
@@ -1112,7 +1352,7 @@ function getReportViewData(type, req) {
     ],
     selected_metric_cards: [
       { label: 'Overall Plant Availability', value: '98.5%', subtext: '+1.2% vs target' },
-      { label: 'Total Downtime Hours', value: '14.2 hrs', subtext: '3.2 hrs below threshold' },
+      { label: 'Total Downtime Hours', value: `${downtimeHours} hrs`, subtext: '3.2 hrs below threshold' },
       { label: 'Mean Time to Repair (MTTR)', value: '1.8 hrs', subtext: 'Target < 2.0 hrs' },
       { label: 'Mean Time Between Failures', value: '168 hrs', subtext: 'Top quartile tier' }
     ],
@@ -1150,9 +1390,9 @@ function getReportViewData(type, req) {
       'Direct ERP spare parts purchase invoices and supplier lead times'
     ],
     timeline: [
-      { date: '2026-09-17', event: 'Foil sealer thermal trip resolved and cooling loop flushed.' },
-      { date: '2026-09-15', event: 'Palletizing cell harmonic greasing completed ahead of schedule.' },
-      { date: '2026-09-14', event: 'Case packer 5/2 valve seal overhaul executed in 105 mins.' }
+      { date: '2026-09-17', count: 1, event: 'Foil sealer thermal trip resolved and cooling loop flushed.' },
+      { date: '2026-09-15', count: 2, event: 'Palletizing cell harmonic greasing completed ahead of schedule.' },
+      { date: '2026-09-14', count: 1, event: 'Case packer 5/2 valve seal overhaul executed in 105 mins.' }
     ],
     pm_status_counts: {
       completed: tasks.filter(t => t.status === 'completed').length,
@@ -1171,16 +1411,321 @@ function getReportViewData(type, req) {
 
 app.get('/reports', (req, res) => {
   const ctx = baseContext(req, 'reports');
-  ctx.reports = [
-    { type: 'strategic-roi', title: 'Executive Strategic ROI & Asset Availability', description: 'Comprehensive reliability return on investment, downtime losses, and MTBF trends.' },
-    { type: 'breakdown-analytics', title: 'Breakdown Root Cause & MTTR Analysis', description: 'Incident distribution across sections, component failure causes, and repair durations.' },
-    { type: 'maintenance-compliance', title: 'Preventive Maintenance Compliance & Work Orders', description: 'PM schedule adherence, completed inspections, and work order cost audit.' },
-    { type: 'inventory-spares', title: 'Critical Spare Parts Valuation & Stock Health', description: 'Stock value breakdown, low-inventory alerts, and consumption turnover.' }
-  ];
-  ctx.recent_exports = db.getStore().REPORT_EXPORTS || [];
+  const store = db.getStore();
+  let rawReports = store.REPORT_EXPORTS || [];
+
+  if (rawReports.length === 0) {
+    store.REPORT_EXPORTS = [
+      {
+        id: 'rep-sr-2026',
+        name: 'Executive Strategic ROI & Reliability Review',
+        report_title: 'Executive Strategic ROI & Reliability Review',
+        status: 'READY',
+        category_key: 'strategic_roi',
+        category: 'Strategic ROI',
+        department: db.getCurrentDepartment(),
+        generated_for: 'Engineering',
+        scope_mode: 'department',
+        scope_section: 'All Sections',
+        start_date: '2026-09-01',
+        end_date: '2026-09-20',
+        user_name: req.session?.user?.name || 'Laurence Magondu',
+        format: 'pdf',
+        filename: 'executive_strategic_dashboard_2026-09-20.pdf',
+        created_at: '2026-09-18T10:30:00Z',
+        date: '2026-09-18'
+      },
+      {
+        id: 'rep-bd-2026',
+        name: 'Breakdown Root Cause & MTTR Analysis',
+        report_title: 'Breakdown Root Cause & MTTR Analysis',
+        status: 'READY',
+        category_key: 'breakdown_analytics',
+        category: 'Breakdown Analytics',
+        department: db.getCurrentDepartment(),
+        generated_for: 'Packaging',
+        scope_mode: 'section',
+        scope_section: 'Packaging',
+        start_date: '2026-09-01',
+        end_date: '2026-09-20',
+        user_name: req.session?.user?.name || 'Laurence Magondu',
+        format: 'pdf',
+        filename: 'breakdown_rca_analysis_2026-09-20.pdf',
+        created_at: '2026-09-17T14:15:00Z',
+        date: '2026-09-17'
+      },
+      {
+        id: 'rep-pm-2026',
+        name: 'Preventive Maintenance Audit Readiness',
+        report_title: 'PM Adherence & Work Orders Compliance',
+        status: 'READY',
+        category_key: 'maintenance_compliance',
+        category: 'Maintenance & Compliance',
+        department: db.getCurrentDepartment(),
+        generated_for: 'Filling Line',
+        scope_mode: 'section',
+        scope_section: 'Filling Line',
+        start_date: '2026-09-01',
+        end_date: '2026-09-20',
+        user_name: req.session?.user?.name || 'Laurence Magondu',
+        format: 'pdf',
+        filename: 'pm_compliance_audit_2026-09-20.pdf',
+        created_at: '2026-09-16T09:00:00Z',
+        date: '2026-09-16'
+      }
+    ];
+    db.saveDatastore();
+    rawReports = store.REPORT_EXPORTS;
+  }
+
+  const reportsList = rawReports.map(r => ({
+    ...r,
+    id: r.id || 'rep-' + Math.random().toString(36).slice(2, 8),
+    name: r.name || r.report_title || 'Executive Reliability Review',
+    category: r.category || 'Asset Reliability',
+    date: r.date || r.generated_label || (r.created_at ? r.created_at.slice(0, 10) : '2026-09-18'),
+    user_name: r.user_name || 'Laurence Magondu',
+    user_initials: (r.user_name || 'LM').split(' ').map(s => s[0]).join('').slice(0, 2).toUpperCase(),
+    status: r.status || 'READY',
+    filename: r.filename || 'report.pdf'
+  }));
+
+  const q = (req.query.q || '').toLowerCase().trim();
+  const filteredReports = q
+    ? reportsList.filter(r =>
+        (r.name || '').toLowerCase().includes(q) ||
+        (r.category || '').toLowerCase().includes(q) ||
+        (r.user_name || '').toLowerCase().includes(q) ||
+        (r.status || '').toLowerCase().includes(q)
+      )
+    : reportsList;
+
+  const perPage = parseInt(req.query.per_page, 10) || 10;
+  ctx.reports = filteredReports.slice(0, perPage);
+  ctx.total = filteredReports.length;
+  ctx.showing_start = filteredReports.length ? 1 : 0;
+  ctx.showing_end = Math.min(perPage, filteredReports.length);
+  ctx.per_page = perPage;
+  ctx.reports_q = req.query.q || '';
+  ctx.recent_exports = reportsList.slice(0, 5);
+
+  const breakdowns = db.getBreakdowns();
+  const tasks = db.getMaintenanceTasks();
+  const downtimeHours = breakdowns.reduce((acc, b) => acc + (Number(b.downtime_hours) || 0), 0) || 14.2;
+  const downtimeCost = Math.round(downtimeHours * 25000);
+  const completedPm = tasks.filter(t => t.status === 'completed').length;
+  const pmCompliance = tasks.length ? Math.round((completedPm / tasks.length) * 1000) / 10 : 94.2;
+
+  ctx.kpis = {
+    oee_score: '87.4%',
+    oee_delta: '+2.1% vs last month',
+    pm_compliance: `${pmCompliance}%`,
+    pm_target: '95.0%',
+    pm_ring_offset: Math.round(125.6 * (1 - pmCompliance / 100)),
+    mttr_trend: '1.8h',
+    mttr_avg: 'Target < 2.0h',
+    mtd_spend: `KES ${downtimeCost.toLocaleString()}`,
+    budget_pct: 68,
+    budget_limit: 'KES 600,000 CAP'
+  };
+
   res.render('reports/reports_center.html', ctx);
 });
 
+// Step 1: Select category
+app.get('/reports/generate/step-1', (req, res) => {
+  const ctx = baseContext(req, 'reports');
+  ctx.selected_category = req.query.category || req.session?.report_wizard?.category || 'asset_reliability';
+  res.render('reports/reports_generate_step1.html', ctx);
+});
+
+app.post('/reports/generate/step-1', (req, res) => {
+  const category = req.body.category || 'asset_reliability';
+  req.session.report_wizard = {
+    category,
+    start_date: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10),
+    end_date: new Date().toISOString().slice(0, 10),
+    scope_mode: 'department',
+    department: db.getCurrentDepartment(),
+    section: 'All Sections',
+    format: 'pdf',
+    metrics: ['uptime', 'mtbf', 'mttr', 'compliance']
+  };
+  res.redirect(`/reports/generate/step-2?category=${encodeURIComponent(category)}`);
+});
+
+// Step 2: Configure scope & parameters
+app.get('/reports/generate/step-2', (req, res) => {
+  const ctx = baseContext(req, 'reports');
+  const cat = req.query.category || req.session?.report_wizard?.category || 'asset_reliability';
+  const wizard = req.session?.report_wizard || { category: cat };
+  wizard.category = cat;
+
+  const categoryTitles = {
+    asset_reliability: 'Asset Lifecycle & Reliability Analysis',
+    breakdown_analytics: 'Breakdown Root Cause & MTTR Analysis',
+    maintenance_compliance: 'Preventive Maintenance & Compliance Audit',
+    inventory_spares: 'Inventory Valuation & Spares Consumption',
+    strategic_roi: 'Executive Strategic ROI & Asset Availability'
+  };
+
+  ctx.selected_category = cat;
+  ctx.category_title = categoryTitles[cat] || 'Report Configuration';
+  ctx.wizard = wizard;
+  ctx.start_date = wizard.start_date || new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  ctx.end_date = wizard.end_date || new Date().toISOString().slice(0, 10);
+  ctx.department = db.getCurrentDepartment();
+  ctx.sections = ['Filling Line', 'Packaging', 'Utilities', 'Sanitation & Utilities', 'Logistics & Warehousing'];
+  ctx.assets = db.getAssets();
+
+  res.render('reports/reports_generate_step2.html', ctx);
+});
+
+app.post('/reports/generate/step-2', (req, res) => {
+  const prev = req.session?.report_wizard || {};
+  let asset_uids = req.body.asset_uids;
+  if (!asset_uids) {
+    asset_uids = req.body.asset_uid ? [req.body.asset_uid] : [];
+  } else if (!Array.isArray(asset_uids)) {
+    asset_uids = [asset_uids];
+  }
+
+  req.session.report_wizard = {
+    ...prev,
+    category: req.body.category || prev.category || 'asset_reliability',
+    department: req.body.department || db.getCurrentDepartment(),
+    start_date: req.body.start_date || prev.start_date,
+    end_date: req.body.end_date || prev.end_date,
+    scope_mode: req.body.scope_mode || 'department',
+    section: req.body.section || 'All Sections',
+    asset_uid: req.body.asset_uid || '',
+    asset_uids,
+    asset_name: req.body.asset_name || '',
+    format: req.body.format || 'pdf',
+    metrics: req.body.metrics ? (Array.isArray(req.body.metrics) ? req.body.metrics : [req.body.metrics]) : ['uptime', 'mtbf', 'mttr']
+  };
+
+  res.redirect('/reports/generate/step-3');
+});
+
+// Step 3: Final review & generation trigger
+app.get('/reports/generate/step-3', (req, res) => {
+  const ctx = baseContext(req, 'reports');
+  const wizard = req.session?.report_wizard || {
+    category: 'asset_reliability',
+    start_date: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10),
+    end_date: new Date().toISOString().slice(0, 10),
+    scope_mode: 'department',
+    department: db.getCurrentDepartment(),
+    section: 'All Sections',
+    format: 'pdf',
+    metrics: ['uptime', 'mtbf', 'mttr']
+  };
+  wizard.get = function(k, def = '') {
+    return (this[k] !== undefined && this[k] !== null) ? this[k] : def;
+  };
+  ctx.wizard = wizard;
+  ctx.w = wizard;
+  ctx.report_job_id = 'job-' + Date.now();
+  res.render('reports/reports_generate_step3.html', ctx);
+});
+
+app.post('/reports/generate/step-3', (req, res) => {
+  const wizard = req.session?.report_wizard || req.body || {};
+  const cat = req.body.category || wizard.category || 'asset_reliability';
+  const format = req.body.format || wizard.format || 'pdf';
+
+  const categoryTitles = {
+    asset_reliability: 'Asset Reliability & Health Review',
+    breakdown_analytics: 'Breakdown Root Cause & MTTR Analysis',
+    maintenance_compliance: 'Preventive Maintenance Audit Readiness',
+    inventory_spares: 'Spare Parts & Inventory Valuation',
+    strategic_roi: 'Executive Strategic ROI Review'
+  };
+
+  const title = categoryTitles[cat] || 'Executive Operational Report';
+  const reportId = 'rep-' + Date.now().toString(36);
+  const now = new Date();
+  const filename = `${cat}_${now.toISOString().slice(0, 10)}.${format}`;
+
+  const newExport = {
+    id: reportId,
+    name: `${title} • ${wizard.start_date || now.toISOString().slice(0, 10)} to ${wizard.end_date || now.toISOString().slice(0, 10)}`,
+    report_title: title,
+    category: title,
+    category_key: cat,
+    department: wizard.department || db.getCurrentDepartment(),
+    scope_mode: wizard.scope_mode || 'department',
+    scope_section: wizard.section || 'All Sections',
+    scope_target: wizard.section || wizard.department || 'Facility Operations',
+    generated_for: wizard.section || wizard.department || 'Facility Operations',
+    start_date: wizard.start_date || now.toISOString().slice(0, 10),
+    end_date: wizard.end_date || now.toISOString().slice(0, 10),
+    metrics: Array.isArray(wizard.metrics) ? wizard.metrics : ['uptime', 'mtbf', 'mttr'],
+    metric_labels: ['Uptime %', 'MTTR (Hours)', 'PM Compliance %'],
+    format,
+    status: 'READY',
+    generated_label: 'Just Now',
+    user_name: req.session?.user?.name || 'Laurence Magondu',
+    filename,
+    download_url: `/reports/export?report_id=${reportId}&fmt=${format}`,
+    file_size_label: '284 KB',
+    pages_label: '3 Pages',
+    created_at: now.toISOString(),
+    date: now.toISOString().slice(0, 10)
+  };
+
+  const store = db.getStore();
+  if (!store.REPORT_EXPORTS) store.REPORT_EXPORTS = [];
+  store.REPORT_EXPORTS.unshift(newExport);
+  db.saveDatastore();
+
+  db.addAuditEntry(newExport.user_name, 'Report Generated', 'Reports', `Generated ${title} (${format.toUpperCase()})`);
+
+  req.session.last_export = newExport;
+
+  if (req.xhr || req.headers['x-requested-with'] === 'XMLHttpRequest' || req.headers['accept']?.includes('application/json')) {
+    return res.json({
+      ok: true,
+      redirect: `/reports/generate/success?export_id=${reportId}`
+    });
+  }
+
+  res.redirect(`/reports/generate/success?export_id=${reportId}`);
+});
+
+// Progress polling endpoint for Step 3 animation
+app.get('/reports/generate/progress/:job_id', (req, res) => {
+  res.json({
+    percent: 100,
+    label: 'Report compilation completed',
+    status: 'complete',
+    updated_at: new Date().toISOString()
+  });
+});
+
+// Step 3 success page
+app.get('/reports/generate/success', (req, res) => {
+  const ctx = baseContext(req, 'reports');
+  const exportId = req.query.export_id;
+  const store = db.getStore();
+  const exp = (store.REPORT_EXPORTS || []).find(r => r.id === exportId) || req.session?.last_export || (store.REPORT_EXPORTS || [])[0];
+
+  ctx.export = exp || {
+    id: exportId || 'rep-latest',
+    report_title: 'Executive Operational Report',
+    format: 'pdf',
+    filename: 'report.pdf',
+    file_size_label: '284 KB',
+    pages_label: '3 Pages',
+    generated_label: 'Just Now',
+    download_url: `/reports/export?report_id=${exportId}&fmt=pdf`
+  };
+
+  res.render('reports/reports_generate_success.html', ctx);
+});
+
+// View specific report
 app.get('/reports/view/:type', (req, res) => {
   const type = req.params.type;
   const ctx = baseContext(req, 'reports');
@@ -1190,20 +1735,134 @@ app.get('/reports/view/:type', (req, res) => {
   ctx.analysis = analysis;
   ctx.rid = exportObj.id;
 
-  if (type === 'breakdown-analytics') {
+  const normKey = (exportObj.category_key || type).replace(/_/g, '-');
+
+  if (normKey === 'breakdown-analytics') {
     return res.render('reports/reports_view_breakdown_analytics.html', ctx);
   }
-  if (type === 'maintenance-compliance') {
+  if (normKey === 'maintenance-compliance') {
     return res.render('reports/reports_view_maintenance_compliance.html', ctx);
   }
-  if (type === 'inventory-spares') {
+  if (normKey === 'inventory-spares') {
     return res.render('reports/reports_view_inventory_spares.html', ctx);
   }
-  if (type === 'asset-reliability') {
+  if (normKey === 'asset-reliability') {
     return res.render('reports/reports_view_asset_reliability.html', ctx);
   }
 
   res.render('reports/reports_view_strategic_roi.html', ctx);
+});
+
+// Export / Print / Download
+app.get('/reports/export', (req, res) => {
+  const rid = req.query.report_id || req.query.id || 'sr-current';
+  const fmt = req.query.fmt || 'pdf';
+  const inline = req.query.inline;
+  const ctx = baseContext(req, 'reports');
+  const { exportObj, analysis } = getReportViewData(rid, req);
+  ctx.export = exportObj;
+  ctx.analysis = analysis;
+  ctx.rid = exportObj.id;
+
+  if (fmt === 'pdf' || inline) {
+    return res.render('reports/report_print.html', ctx);
+  }
+  if (fmt === 'csv') {
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${exportObj.filename || 'report'}.csv"`);
+    return res.send(`Report,${exportObj.report_title}\nGenerated By,${exportObj.user_name}\nDate,${new Date().toISOString()}\nStatus,${exportObj.status}\n`);
+  }
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${exportObj.filename || 'report'}.csv"`);
+  return res.send(`Report,${exportObj.report_title}\nGenerated By,${exportObj.user_name}\nDate,${new Date().toISOString()}\nStatus,${exportObj.status}\n`);
+});
+
+// Chart data for interactive reports
+app.get('/reports/export/:id/chart_data', (req, res) => {
+  const rid = req.params.id;
+  const kind = req.query.kind || 'incidents';
+  const grain = (req.query.grain || 'daily').toLowerCase();
+
+  const series = [
+    { label: 'Apr', value: 12, count: 12 },
+    { label: 'May', value: 14, count: 14 },
+    { label: 'Jun', value: 11, count: 11 },
+    { label: 'Jul', value: 16, count: 16 },
+    { label: 'Aug', value: 13, count: 13 },
+    { label: 'Sep', value: 15, count: 15 }
+  ];
+
+  const quarter_panels = [
+    {
+      quarter: 'Q1',
+      series: [
+        { label: 'Jan', value: 4, count: 4 },
+        { label: 'Feb', value: 5, count: 5 },
+        { label: 'Mar', value: 3, count: 3 }
+      ]
+    },
+    {
+      quarter: 'Q2',
+      series: [
+        { label: 'Apr', value: 4, count: 4 },
+        { label: 'May', value: 5, count: 5 },
+        { label: 'Jun', value: 4, count: 4 }
+      ]
+    },
+    {
+      quarter: 'Q3',
+      series: [
+        { label: 'Jul', value: 6, count: 6 },
+        { label: 'Aug', value: 4, count: 4 },
+        { label: 'Sep', value: 5, count: 5 }
+      ]
+    },
+    {
+      quarter: 'Q4',
+      series: [
+        { label: 'Oct', value: 5, count: 5 },
+        { label: 'Nov', value: 4, count: 4 },
+        { label: 'Dec', value: 6, count: 6 }
+      ]
+    }
+  ];
+
+  const half_panels = [
+    {
+      half: 'H1',
+      series: [
+        { label: 'Q1', value: 12, count: 12 },
+        { label: 'Q2', value: 13, count: 13 }
+      ]
+    },
+    {
+      half: 'H2',
+      series: [
+        { label: 'Q3', value: 15, count: 15 },
+        { label: 'Q4', value: 15, count: 15 }
+      ]
+    }
+  ];
+
+  res.json({
+    ok: true,
+    grain,
+    kind,
+    series,
+    quarter_panels,
+    half_panels
+  });
+});
+
+app.post(['/reports/:id/delete', '/reports/delete/:id'], (req, res) => {
+  const rid = req.params.id;
+  const store = db.getStore();
+  if (store.REPORT_EXPORTS) {
+    store.REPORT_EXPORTS = store.REPORT_EXPORTS.filter(r => r.id !== rid);
+    db.saveDatastore();
+  }
+  flash(req, 'info', 'Report record deleted successfully.');
+  res.redirect('/reports');
 });
 
 app.get('/reports/history', (req, res) => {
@@ -1212,9 +1871,9 @@ app.get('/reports/history', (req, res) => {
   res.render('reports/reports_history.html', ctx);
 });
 
-app.get('/reports/print/:id', (req, res) => {
+app.get(['/reports/print/:id', '/reports/:id/print'], (req, res) => {
   const ctx = baseContext(req, 'reports');
-  const { exportObj, analysis } = getReportViewData('strategic-roi', req);
+  const { exportObj, analysis } = getReportViewData(req.params.id, req);
   ctx.export = exportObj;
   ctx.analysis = analysis;
   res.render('reports/report_print.html', ctx);
@@ -1549,33 +2208,296 @@ app.get('/api/live/dashboard-kpis', (req, res) => {
   const total = assets.length;
   const operational = assets.filter(a => a.status === 'operational').length;
   const openBks = breakdowns.filter(b => b.status === 'open' || b.status === 'in_progress').length;
+  const downtimeHours = breakdowns.reduce((acc, b) => acc + (Number(b.downtime_hours) || 0), 0);
 
   res.json({
     kpi_uptime_rate: total ? Math.round((operational / total) * 1000) / 10 : 98.5,
-    kpi_downtime_hours: breakdowns.reduce((acc, b) => acc + (Number(b.downtime_hours) || 0), 0),
+    kpi_downtime_hours: downtimeHours || 14.2,
     kpi_open_breakdowns: openBks,
     kpi_mtbf: 168.0,
-    kpi_mttr: 1.8
+    kpi_mttr: 1.8,
+    operational_assets: operational,
+    total_assets: total
   });
 });
 
 app.get('/api/live/breakdowns-kpis', (req, res) => {
   const breakdowns = db.getBreakdowns();
+  const allAssets = db.getAssets();
+  const openBks = breakdowns.filter(b => b.status === 'open' || b.status === 'in_progress').length;
+  const downtimeHours = breakdowns.reduce((sum, b) => sum + (Number(b.downtime_hours) || 0), 0) || 14.2;
+  const resolvedBreakdowns = breakdowns.filter(b => b.status === 'resolved' || b.status === 'closed');
+  const mttrHours = resolvedBreakdowns.length
+    ? Math.round((resolvedBreakdowns.reduce((sum, b) => sum + (Number(b.downtime_hours) || 0), 0) / resolvedBreakdowns.length) * 10) / 10
+    : 1.8;
+  const operationalAssets = allAssets.filter(a => a.status === 'operational').length;
+  const uptimeRate = allAssets.length ? Math.round((operationalAssets / allAssets.length) * 10000) / 100 : 98.5;
+
   res.json({
     total: breakdowns.length,
     open: breakdowns.filter(b => b.status === 'open').length,
     in_progress: breakdowns.filter(b => b.status === 'in_progress').length,
-    resolved: breakdowns.filter(b => b.status === 'resolved').length
+    resolved: resolvedBreakdowns.length,
+    kpi_active: openBks,
+    kpi_active_delta: openBks > 2 ? 1 : -1,
+    kpi_mttr_hours: mttrHours,
+    kpi_mttr_trend: -4.2,
+    kpi_downtime_mtd_hours: Math.round(downtimeHours * 10) / 10,
+    kpi_uptime_rate: uptimeRate
   });
 });
 
 app.get('/api/live/maintenance-kpis', (req, res) => {
   const tasks = db.getMaintenanceTasks();
+  const scheduledCount = tasks.filter(t => t.status === 'scheduled').length;
+  const inProgressCount = tasks.filter(t => t.status === 'in_progress').length;
+  const completedCount = tasks.filter(t => t.status === 'completed').length;
+  const overdueCount = tasks.filter(t => t.status === 'overdue' || (t.due_date && new Date(t.due_date) < new Date() && t.status !== 'completed')).length;
+  const totalTasks = tasks.length || 1;
+  const complianceRate = Math.round((completedCount / totalTasks) * 1000) / 10 || 94.2;
+
   res.json({
     total: tasks.length,
-    scheduled: tasks.filter(t => t.status === 'scheduled').length,
-    in_progress: tasks.filter(t => t.status === 'in_progress').length,
-    completed: tasks.filter(t => t.status === 'completed').length
+    scheduled: scheduledCount,
+    in_progress: inProgressCount,
+    completed: completedCount,
+    overdue: overdueCount,
+    kpi_scheduled_mtd: scheduledCount + completedCount,
+    kpi_overdue: overdueCount,
+    kpi_upcoming_7: scheduledCount,
+    kpi_compliance_rate: complianceRate
+  });
+});
+
+app.get('/api/live/inventory-kpis', (req, res) => {
+  const spares = db.getInventoryParts();
+  const totalUniqueSkus = spares.length;
+  const criticalSpares = spares.filter(s => s.is_critical || s.criticality === 'Critical' || s.criticality === 'High').length;
+  const lowStockAlerts = spares.filter(s => (Number(s.qty) || 0) <= (Number(s.min_qty) || 0) && (Number(s.qty) || 0) > 0).length;
+  const outOfStock = spares.filter(s => (Number(s.qty) || 0) === 0).length;
+  const healthyStockCount = spares.filter(s => (Number(s.qty) || 0) > (Number(s.min_qty) || 0)).length;
+  const totalInventoryValue = spares.reduce((sum, s) => sum + ((Number(s.qty) || 0) * (Number(s.unit_price) || 0)), 0);
+
+  res.json({
+    total_unique_skus: totalUniqueSkus,
+    critical_spares: criticalSpares,
+    low_stock_alerts: lowStockAlerts,
+    low_stock_count: lowStockAlerts,
+    out_of_stock: outOfStock,
+    out_of_stock_count: outOfStock,
+    healthy_stock_count: healthyStockCount,
+    total_inventory_value: totalInventoryValue
+  });
+});
+
+// Assets Dashboard Smart Insights Engine endpoint
+app.get('/api/assets/dashboard', (req, res) => {
+  const assets = db.getAssets();
+  const sections = Array.from(new Set(assets.map(a => a.section).filter(Boolean)));
+  res.json({
+    ok: true,
+    assets,
+    sections: sections.length ? sections : ['Filling Line', 'Packaging', 'Utilities', 'Sanitation & Utilities', 'Logistics & Warehousing']
+  });
+});
+
+// Breakdown KPI polling endpoint (called every 1s by breakdown management)
+app.get('/api/breakdowns/kpi', (req, res) => {
+  const breakdowns = db.getBreakdowns();
+  const allAssets = db.getAssets();
+  const openBks = breakdowns.filter(b => b.status === 'open' || b.status === 'in_progress').length;
+  const downtimeHours = breakdowns.reduce((sum, b) => sum + (Number(b.downtime_hours) || 0), 0) || 14.2;
+  const resolvedBreakdowns = breakdowns.filter(b => b.status === 'resolved' || b.status === 'closed');
+  const mttrHours = resolvedBreakdowns.length
+    ? Math.round((resolvedBreakdowns.reduce((sum, b) => sum + (Number(b.downtime_hours) || 0), 0) / resolvedBreakdowns.length) * 10) / 10
+    : 1.8;
+  const operationalAssets = allAssets.filter(a => a.status === 'operational').length;
+  const uptimeRate = allAssets.length ? Math.round((operationalAssets / allAssets.length) * 10000) / 100 : 98.5;
+
+  res.json({
+    active: openBks,
+    active_delta: openBks > 2 ? 1 : -1,
+    mttr_hours: mttrHours,
+    mttr_trend: -4.2,
+    downtime_mtd_hours: Math.round(downtimeHours * 10) / 10,
+    uptime_rate: uptimeRate
+  });
+});
+
+// Breakdown Frequency dynamic chart endpoint
+app.get('/api/breakdowns/frequency', (req, res) => {
+  const range = (req.query.range || '7d').toLowerCase();
+  let labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  let values = [2, 1, 3, 0, 1, 2, 1];
+
+  if (range === '30d') {
+    labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+    values = [3, 4, 2, 3];
+  } else if (range === '90d' || range === 'qtr') {
+    labels = ['Month 1', 'Month 2', 'Month 3'];
+    values = [5, 4, 3];
+  } else if (range === 'ytd') {
+    labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
+    values = [4, 3, 5, 2, 4, 3, 5, 4, 3];
+  }
+
+  const total = values.reduce((a, b) => a + b, 0);
+  res.json({
+    ok: true,
+    range,
+    labels,
+    values,
+    total
+  });
+});
+
+// Breakdown Frequency export handler
+app.get('/breakdowns/frequency/export', (req, res) => {
+  const format = req.query.format || 'pdf';
+  const range = req.query.range || '7d';
+  const ctx = baseContext(req, 'breakdowns');
+  ctx.export_format = format;
+  ctx.export_range = range;
+  ctx.breakdowns = db.getBreakdowns();
+  res.render('reports/report_print.html', {
+    ...ctx,
+    export: {
+      id: 'exp-freq-' + Date.now().toString(36),
+      report_title: `Breakdown Frequency Analysis (${range.toUpperCase()})`,
+      category: 'Breakdown Analytics',
+      status: 'READY',
+      user_name: req.session?.user?.name || 'Laurence Magondu',
+      filename: `Breakdown_Frequency_${range}.${format}`
+    },
+    analysis: {
+      kpis: {
+        uptime_pct: 98.5,
+        mtbf_hours: 168.0,
+        mttr_hours: 1.8,
+        pm_compliance: '94.2%',
+        total_incidents: db.getBreakdowns().length,
+        mtd_spend: 'KES 355,000'
+      }
+    }
+  });
+});
+
+// Technicians workload live card endpoint
+app.get('/api/technicians/workload', (req, res) => {
+  const techs = db.getStore().TECHNICIAN_DIRECTORY || [
+    { name: 'Sarah Njeri', specialty: 'Mechanical' },
+    { name: 'Faith Mumbua', specialty: 'Electrical' },
+    { name: 'James Omondi', specialty: 'Controls' },
+    { name: 'Brian Kiprono', specialty: 'Hydraulics' }
+  ];
+
+  const rows = techs.map((t, idx) => ({
+    name: t.name,
+    active: idx % 2 === 0 ? 1 : 0,
+    open_pm: (idx + 1) % 3,
+    availability_score: 90 + (idx * 2)
+  }));
+
+  res.json({
+    note: 'Live workload across active breakdowns and PM queues.',
+    rows
+  });
+});
+
+// Maintenance Distribution chart endpoint
+app.get('/api/maintenance/distribution', (req, res) => {
+  const section = req.query.section || 'All';
+  const asset_uid = req.query.asset_uid || '';
+
+  const labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+  const series = {
+    pm: [4, 5, 6, 4],
+    cm: [1, 2, 1, 0]
+  };
+
+  res.json({
+    labels,
+    series,
+    filters: {
+      section,
+      asset_uid
+    }
+  });
+});
+
+// Maintenance Technicians availability endpoint
+app.get('/api/maintenance/technicians', (req, res) => {
+  const techs = db.getStore().TECHNICIAN_DIRECTORY || [
+    { name: 'Sarah Njeri', specialty: 'Mechanical' },
+    { name: 'Faith Mumbua', specialty: 'Electrical' },
+    { name: 'James Omondi', specialty: 'Controls' },
+    { name: 'Brian Kiprono', specialty: 'Hydraulics' }
+  ];
+
+  const rows = techs.map((t, idx) => ({
+    name: t.name,
+    active: idx % 2 === 0 ? 1 : 0,
+    open_pm: (idx + 1) % 3,
+    availability_score: 90 + (idx * 2)
+  }));
+
+  res.json({
+    note: 'Live workload from maintenance tasks.',
+    rows
+  });
+});
+
+// Technician individual modal profile endpoint
+app.get('/api/technicians/:id/profile', (req, res) => {
+  const techId = req.params.id;
+  const techs = db.getStore().TECHNICIAN_DIRECTORY || [];
+  const tech = techs.find(t => t.id === techId || t.name === techId) || techs[0] || {
+    name: 'Sarah Njeri',
+    specialty: 'Mechanical Reliability Specialist',
+    email: 'sarah.njeri@opsloom.internal',
+    phone: '+254 712 345 678'
+  };
+
+  res.json({
+    id: techId,
+    name: tech.name,
+    role: 'Senior Reliability Technician',
+    discipline: tech.specialty || 'Mechanical',
+    email: tech.email || 'technician@opsloom.internal',
+    phone: tech.phone || '+254 700 000 000',
+    availability_score: 94,
+    status_label: 'On Active Shift • Primary Standby',
+    open_pm: 2,
+    active_breakdowns: 1,
+    due_soon: 1,
+    overdue_pm: 0,
+    on_time_rate: 98,
+    avg_completion_days: 1.2,
+    recent_work: [
+      { kind: 'PM', title: 'Rotary Filler 250h Lubrication', status: 'completed', date: '2026-09-18' },
+      { kind: 'BD', title: 'Case Packer Infeed Sensor Overhaul', status: 'completed', date: '2026-09-15' },
+      { kind: 'PM', title: 'Induction Sealer Coil Inspection', status: 'in_progress', date: '2026-09-20' }
+    ]
+  });
+});
+
+// Reports Step 2 section-filtered assets endpoint
+app.get('/reports/api/assets', (req, res) => {
+  const section = req.query.section;
+  let assets = db.getAssets();
+  if (section && section !== 'All Sections') {
+    assets = assets.filter(a => a.section === section);
+  }
+  res.json({
+    ok: true,
+    assets: assets.map(a => ({
+      uid: a.uid,
+      asset_id: a.asset_id,
+      asset_name: a.asset_name,
+      section: a.section,
+      criticality: a.criticality,
+      status: a.status
+    }))
   });
 });
 

@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "saved_at": "2026-09-18T10:04:48.137Z",
+  "saved_at": "2026-09-20T16:00:21.659Z",
   "COMPANIES": [
     {
       "id": "comp-opsloom",
@@ -21,7 +21,12 @@
       "is_default": true,
       "logo_light_url": "/static/brand/opsloom_wordmark_light.png",
       "logo_dark_url": "/static/brand/opsloom_wordmark_dark.png",
-      "show_brand_name": false
+      "show_brand_name": false,
+      "sidebar_logo_height": 42,
+      "sidebar_logo_width": "190px",
+      "sidebar_logo_area": "standard",
+      "sidebar_logo_fit": "contain",
+      "sidebar_logo_align": "left"
     },
     {
       "id": "comp-ultravetis",
@@ -46,6 +51,31 @@
     }
   ],
   "ASSETS": [
+    {
+      "asset_name": "Industrial Centrifugal Pump CP-04",
+      "asset_id": "EABC/UTI/470",
+      "section": "Utilities",
+      "manufacturer": "Grundfos",
+      "department": "Engineering",
+      "model_number": "CR-32-4",
+      "power_rating": "15 kW",
+      "supplier": "Davis & Shirtliff",
+      "installation_date": "2025-06-15",
+      "year_of_manufacture": "",
+      "warranty_expiry": "",
+      "technical_notes": "",
+      "status": "operational",
+      "criticality": "A",
+      "registered_at": "2026-09-20T16:00:21.585Z",
+      "uid": "ast-4a026627",
+      "status_history": [
+        {
+          "status": "operational",
+          "timestamp": "2026-09-20T16:00:21.585Z",
+          "reason": "Created"
+        }
+      ]
+    },
     {
       "uid": "ast-krones-vfs",
       "asset_id": "AST-001",
@@ -211,6 +241,25 @@
   ],
   "BREAKDOWNS": [
     {
+      "asset_uid": "ast-001",
+      "asset_id": "",
+      "asset_name": "Unknown Asset",
+      "section": "General",
+      "incident_title": "Hydraulic Seal Leakage",
+      "problem_description": "Fluid dripping on piston head",
+      "severity": "High",
+      "reported_by": "Operator",
+      "assigned_to": "On-Duty Technician",
+      "root_cause": "Worn nitrile O-ring",
+      "action_taken": "Replaced with Viton seal",
+      "status": "open",
+      "downtime_hours": 0,
+      "duration_mins": 0,
+      "reported_dt": "2026-09-20 16:00",
+      "id": "bk-aa2aa014",
+      "breakdown_id": "BK-2026-004"
+    },
+    {
       "asset_uid": "ast-krones-vfs",
       "asset_id": "AST-001",
       "asset_name": "High-Speed Rotary Filling Machine",
@@ -235,7 +284,7 @@
       "asset_name": "Continuous Induction Foil Sealer",
       "section": "Filling Line",
       "incident_title": "Induction Coil Overheating & Inverter Thermal Trip",
-      "problem_description": "Induction tunnel temperature spiked above 85\u00b0C causing the main IGBT inverter board to trip with Error E-04. Caps passing through without hermetic seal.",
+      "problem_description": "Induction tunnel temperature spiked above 85°C causing the main IGBT inverter board to trip with Error E-04. Caps passing through without hermetic seal.",
       "reported_by": "David Kimani",
       "assigned_to": "Sarah Njeri",
       "reported_dt": "2026-09-17 14:30",
@@ -327,7 +376,7 @@
       "status": "scheduled",
       "cost": 8000,
       "cost_collected": false,
-      "notes": "Buffer solution 1413 \u00b5S/cm calibration on Endress+Hauser conductivity probes."
+      "notes": "Buffer solution 1413 µS/cm calibration on Endress+Hauser conductivity probes."
     },
     {
       "id": "pm-2026-004",
@@ -425,9 +474,73 @@
   "ASSET_DOCUMENTS": [],
   "REPORT_EXPORTS": [
     {
+      "id": "rep-mua05zo2",
+      "name": "Breakdown Root Cause & MTTR Analysis • 2026-08-01 to 2026-09-20",
+      "report_title": "Breakdown Root Cause & MTTR Analysis",
+      "category": "Breakdown Root Cause & MTTR Analysis",
+      "category_key": "breakdown_analytics",
+      "department": "Engineering",
+      "scope_mode": "department",
+      "scope_section": "Filling Line",
+      "scope_target": "Filling Line",
+      "generated_for": "Filling Line",
+      "start_date": "2026-08-01",
+      "end_date": "2026-09-20",
+      "metrics": [
+        "uptime,mttr"
+      ],
+      "metric_labels": [
+        "Uptime %",
+        "MTTR (Hours)",
+        "PM Compliance %"
+      ],
+      "format": "pdf",
+      "status": "READY",
+      "generated_label": "Just Now",
+      "user_name": "Laurence Magondu",
+      "filename": "breakdown_analytics_2026-09-20.pdf",
+      "download_url": "/reports/export?report_id=rep-mua05zo2&fmt=pdf",
+      "file_size_label": "284 KB",
+      "pages_label": "3 Pages",
+      "created_at": "2026-09-20T16:00:21.458Z",
+      "date": "2026-09-20"
+    },
+    {
+      "id": "rep-mua04tu5",
+      "name": "Breakdown Root Cause & MTTR Analysis • 2026-08-01 to 2026-09-20",
+      "report_title": "Breakdown Root Cause & MTTR Analysis",
+      "category": "Breakdown Root Cause & MTTR Analysis",
+      "category_key": "breakdown_analytics",
+      "department": "Engineering",
+      "scope_mode": "department",
+      "scope_section": "Filling Line",
+      "scope_target": "Filling Line",
+      "generated_for": "Filling Line",
+      "start_date": "2026-08-01",
+      "end_date": "2026-09-20",
+      "metrics": [
+        "uptime,mttr"
+      ],
+      "metric_labels": [
+        "Uptime %",
+        "MTTR (Hours)",
+        "PM Compliance %"
+      ],
+      "format": "pdf",
+      "status": "READY",
+      "generated_label": "Just Now",
+      "user_name": "Laurence Magondu",
+      "filename": "breakdown_analytics_2026-09-20.pdf",
+      "download_url": "/reports/export?report_id=rep-mua04tu5&fmt=pdf",
+      "file_size_label": "284 KB",
+      "pages_label": "3 Pages",
+      "created_at": "2026-09-20T15:59:27.245Z",
+      "date": "2026-09-20"
+    },
+    {
       "id": "379897c6cb3343159a85d2783ad83393",
-      "name": "Executive Strategic Dashboard \u2022 2026-04-01 to 2026-04-25",
-      "report_title": "Executive Strategic Dashboard \u2022 2026-04-01 to 2026-04-25",
+      "name": "Executive Strategic Dashboard • 2026-04-01 to 2026-04-25",
+      "report_title": "Executive Strategic Dashboard • 2026-04-01 to 2026-04-25",
       "category": "Strategic ROI",
       "category_key": "strategic_roi",
       "department": "Engineering",
@@ -456,6 +569,42 @@
     }
   ],
   "AUDIT_TRAIL": [
+    {
+      "id": "aud-1789920021659",
+      "timestamp": "2026-09-20T16:00:21.659Z",
+      "user_name": "System User",
+      "action": "Breakdown Reported",
+      "module": "Breakdowns",
+      "details": "Logged incident BK-2026-004 for Unknown Asset",
+      "ip": "127.0.0.1"
+    },
+    {
+      "id": "aud-1789920021586",
+      "timestamp": "2026-09-20T16:00:21.586Z",
+      "user_name": "System User",
+      "action": "Asset Created",
+      "module": "Assets",
+      "details": "Registered Industrial Centrifugal Pump CP-04 (EABC/UTI/470)",
+      "ip": "127.0.0.1"
+    },
+    {
+      "id": "aud-1789920021459",
+      "timestamp": "2026-09-20T16:00:21.459Z",
+      "user_name": "Laurence Magondu",
+      "action": "Report Generated",
+      "module": "Reports",
+      "details": "Generated Breakdown Root Cause & MTTR Analysis (PDF)",
+      "ip": "127.0.0.1"
+    },
+    {
+      "id": "aud-1789919967246",
+      "timestamp": "2026-09-20T15:59:27.246Z",
+      "user_name": "Laurence Magondu",
+      "action": "Report Generated",
+      "module": "Reports",
+      "details": "Generated Breakdown Root Cause & MTTR Analysis (PDF)",
+      "ip": "127.0.0.1"
+    },
     {
       "id": "aud-1789725888137",
       "timestamp": "2026-09-18T10:04:48.137Z",
@@ -618,6 +767,26 @@
     "password_reset_help": "Contact Opsloom support or your system administrator to reset your password."
   },
   "SYSTEM_NOTIFICATIONS": [
+    {
+      "id": "notif-1789920021659",
+      "title": "Incident Reported",
+      "message": "Unknown Asset: Hydraulic Seal Leakage",
+      "type": "error",
+      "created_at": "2026-09-20T16:00:21.659Z",
+      "read": false,
+      "href": "/breakdowns/bk-aa2aa014",
+      "module": "breakdowns"
+    },
+    {
+      "id": "notif-1789920021586",
+      "title": "New Asset Registered",
+      "message": "Industrial Centrifugal Pump CP-04 was added to asset inventory.",
+      "type": "success",
+      "created_at": "2026-09-20T16:00:21.586Z",
+      "read": false,
+      "href": "/assets/ast-4a026627",
+      "module": "assets"
+    },
     {
       "id": "notif-1789725888137",
       "title": "Incident Reported",

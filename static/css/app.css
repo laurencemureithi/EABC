@@ -667,22 +667,35 @@
 
 @media (max-width: 640px) {
   .app-topbar {
-    height: auto;
-    min-height: 64px;
-    gap: 0.75rem;
+    height: 56px;
+    min-height: 56px;
+    gap: 0.5rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .app-topbar-brand-copy {
+    min-width: 0;
+    overflow: hidden;
   }
 
   .app-topbar-title {
-    font-size: 1.1rem !important;
+    font-size: 1.05rem !important;
   }
 
   .app-topbar-subtitle {
-    font-size: clamp(8.5px, 2.2vw, 10px) !important;
-    letter-spacing: 0.015em !important;
+    font-size: 8.5px !important;
+    letter-spacing: 0.01em !important;
     white-space: nowrap !important;
-    overflow: visible !important;
-    text-overflow: clip !important;
-    max-width: none !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 140px !important;
+  }
+
+  @media (max-width: 440px) {
+    .app-topbar-subtitle {
+      display: none !important;
+    }
   }
 
   .app-user-chip {

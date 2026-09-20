@@ -88,12 +88,12 @@
   </div>
 
   {% set w = wizard or {} %}
-  {% set fmt_value = (w.get('format') or 'pdf')|lower %}
-  {% set start_val = w.get('start_date') or '' %}
-  {% set end_val = w.get('end_date') or '' %}
-  {% set scope_mode = (w.get('scope_mode') or 'assets')|lower %}
-  {% set asset_uids = w.get('asset_uids') or [] %}
-  {% set has_assets = (asset_uids|length > 0) or ((w.get('asset_uid') or '')|trim != '') %}
+  {% set fmt_value = (w.format or (w.get('format') if w.get else '') or 'pdf')|lower %}
+  {% set start_val = w.start_date or (w.get('start_date') if w.get else '') or '' %}
+  {% set end_val = w.end_date or (w.get('end_date') if w.get else '') or '' %}
+  {% set scope_mode = (w.scope_mode or (w.get('scope_mode') if w.get else '') or 'assets')|lower %}
+  {% set asset_uids = w.asset_uids or (w.get('asset_uids') if w.get else []) or [] %}
+  {% set has_assets = (asset_uids|length > 0) or (((w.asset_uid or (w.get('asset_uid') if w.get else ''))|trim) != '') %}
   {% set has_selection = (scope_mode != 'assets') or has_assets %}
 
   <!-- MAIN CARD -->
@@ -111,17 +111,17 @@
 
       <form method="post" action="{{ url_for('reports_generate_step3_post') }}" id="reportFinalizeForm" novalidate>
         <input type="hidden" name="job_id" value="{{ report_job_id or "" }}"/>
-        <input type="hidden" name="category" value="{{ w.get('category','') }}"/>
+        <input type="hidden" name="category" value="{{ w.category or (w.get('category','') if w.get else '') }}"/>
         <input type="hidden" name="scope_mode" value="{{ scope_mode }}"/>
-        <input type="hidden" name="section" value="{{ w.get('section','') }}"/>
-        <input type="hidden" name="asset_uid" value="{{ w.get('asset_uid','') }}"/>
-        {% for uid in (w.get('asset_uids') or []) %}
+        <input type="hidden" name="section" value="{{ w.section or (w.get('section','') if w.get else '') }}"/>
+        <input type="hidden" name="asset_uid" value="{{ w.asset_uid or (w.get('asset_uid','') if w.get else '') }}"/>
+        {% for uid in (w.asset_uids or (w.get('asset_uids') if w.get else []) or []) %}
           <input type="hidden" name="asset_uids" value="{{ uid }}"/>
         {% endfor %}
         <input type="hidden" name="start_date" value="{{ start_val }}"/>
         <input type="hidden" name="end_date" value="{{ end_val }}"/>
         <input type="hidden" name="format" value="{{ fmt_value }}"/>
-        {% for m in (w.get('metrics') or []) %}
+        {% for m in (w.metrics or (w.get('metrics') if w.get else []) or []) %}
           <input type="hidden" name="metrics" value="{{ m }}"/>
         {% endfor %}
 
@@ -200,24 +200,24 @@
                   <div class="grid grid-cols-1 gap-3">
                     <div>
                       <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">To (additional)</label>
-                      <input name="to_emails" value="{{ (w.get('to_emails') or '') }}" placeholder="name@company.com, another@gmail.com"
+                      <input name="to_emails" value="{{ w.to_emails or (w.get('to_emails') if w.get else '') or '' }}" placeholder="name@company.com, another@gmail.com"
                              class="mt-1 w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white" />
                       <p class="text-[11px] text-slate-500 dark:text-slate-300 mt-1">Comma-separated emails.</p>
                     </div>
                     <div>
                       <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">CC</label>
-                      <input name="cc_emails" value="{{ (w.get('cc_emails') or '') }}" placeholder="cc1@company.com, cc2@gmail.com"
+                      <input name="cc_emails" value="{{ w.cc_emails or (w.get('cc_emails') if w.get else '') or '' }}" placeholder="cc1@company.com, cc2@gmail.com"
                              class="mt-1 w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white" />
                     </div>
                     <div>
                       <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subject</label>
-                      <input name="email_subject" value="{{ (w.get('email_subject') or (preview_report_type ~ ' • ' ~ (preview_time_range or 'Report'))) }}"
+                      <input name="email_subject" value="{{ w.email_subject or (w.get('email_subject') if w.get else '') or (preview_report_type ~ ' • ' ~ (preview_time_range or 'Report')) }}"
                              class="mt-1 w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white" />
                     </div>
                     <div>
                       <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Message</label>
                       <textarea name="email_message" rows="4" class="mt-1 w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white"
-                                placeholder="Write a short note explaining what this report is and any next actions.">{{ w.get('email_message') or '' }}</textarea>
+                                placeholder="Write a short note explaining what this report is and any next actions.">{{ w.email_message or (w.get('email_message') if w.get else '') or '' }}</textarea>
                     </div>
                   </div>
                 </div>

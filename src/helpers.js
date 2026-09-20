@@ -157,7 +157,7 @@ export function urlFor(endpoint, kwargs = {}) {
       basePath = '/inventory/new/step-3';
       break;
     case 'inventory_part_view':
-      basePath = `/inventory/${getParam('part_id', 'uid') || getParam('id')}`;
+      basePath = `/inventory/${getParam('part_uid', 'part_id', 'uid') || getParam('id')}`;
       break;
     case 'inventory_export':
       basePath = '/inventory/export';
@@ -174,11 +174,15 @@ export function urlFor(endpoint, kwargs = {}) {
     case 'reports_generate_step2_post':
       basePath = '/reports/generate/step-2';
       break;
+    case 'reports_generate_step3_get':
     case 'reports_generate_step3_post':
       basePath = '/reports/generate/step-3';
       break;
+    case 'reports_generate_success':
+      basePath = '/reports/generate/success';
+      break;
     case 'reports_view':
-      basePath = `/reports/view/${getParam('report_type', 'type', 'strategic-roi')}`;
+      basePath = `/reports/view/${getParam('rid', 'report_id', 'report_type', 'type', 'strategic-roi')}`;
       break;
     case 'reports_history':
       basePath = '/reports/history';
