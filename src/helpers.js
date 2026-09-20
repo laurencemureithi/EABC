@@ -1,214 +1,327 @@
 import nunjucks from 'nunjucks';
 
 export function urlFor(endpoint, kwargs = {}) {
+  const consumed = new Set();
+  const getParam = (key, fallbackKey = null, defVal = '') => {
+    consumed.add(key);
+    if (fallbackKey) consumed.add(fallbackKey);
+    return kwargs[key] !== undefined ? kwargs[key] : (fallbackKey && kwargs[fallbackKey] !== undefined ? kwargs[fallbackKey] : defVal);
+  };
+
+  let basePath = '';
   switch (endpoint) {
     case 'static':
-      return '/static/' + (kwargs.filename || '');
+      basePath = '/static/' + (getParam('filename') || '');
+      break;
     case 'dashboard':
-      return '/dashboard';
+      basePath = '/dashboard';
+      break;
     case 'dashboard_strategic_export':
-      return '/dashboard/strategic-export';
+      basePath = '/dashboard/strategic-export';
+      break;
     case 'assets':
     case 'assets_master_list':
-      return '/assets';
+      basePath = '/assets';
+      break;
     case 'assets_add_step1_get':
     case 'assets_add_step1_post':
-      return '/assets/new/step-1';
+      basePath = '/assets/new/step-1';
+      break;
     case 'assets_add_step2_get':
     case 'assets_add_step2_post':
-      return '/assets/new/step-2';
+      basePath = '/assets/new/step-2';
+      break;
     case 'assets_add_step3_post':
-      return '/assets/new/step-3';
+      basePath = '/assets/new/step-3';
+      break;
     case 'assets_profile_get':
-      return `/assets/${kwargs.asset_uid || kwargs.uid || ''}`;
+      basePath = `/assets/${getParam('asset_uid', 'uid')}`;
+      break;
     case 'assets_edit_get':
-      return `/assets/${kwargs.asset_uid || kwargs.uid || ''}/edit`;
+      basePath = `/assets/${getParam('asset_uid', 'uid')}/edit`;
+      break;
     case 'assets_delete':
-      return `/assets/${kwargs.asset_uid || kwargs.uid || ''}/delete`;
+      basePath = `/assets/${getParam('asset_uid', 'uid')}/delete`;
+      break;
     case 'assets_profile_pdf':
-      return `/assets/${kwargs.asset_uid || kwargs.uid || ''}/profile.pdf`;
+      basePath = `/assets/${getParam('asset_uid', 'uid')}/profile.pdf`;
+      break;
     case 'assets_spare_parts_get':
-      return `/assets/${kwargs.asset_uid || kwargs.uid || ''}/spare-parts`;
+      basePath = `/assets/${getParam('asset_uid', 'uid')}/spare-parts`;
+      break;
     case 'assets_spare_parts_export':
-      return `/assets/${kwargs.asset_uid || kwargs.uid || ''}/spare-parts/export`;
+      basePath = `/assets/${getParam('asset_uid', 'uid')}/spare-parts/export`;
+      break;
     case 'assets_documents_get':
-      return `/assets/${kwargs.asset_uid || kwargs.uid || ''}/documents`;
+      basePath = `/assets/${getParam('asset_uid', 'uid')}/documents`;
+      break;
     case 'assets_documents_upload_get':
     case 'assets_documents_upload_post':
-      return `/assets/${kwargs.asset_uid || kwargs.uid || ''}/documents/upload`;
+      basePath = `/assets/${getParam('asset_uid', 'uid')}/documents/upload`;
+      break;
     case 'assets_document_delete':
-      return `/assets/${kwargs.asset_uid || kwargs.uid || ''}/documents/${kwargs.doc_id || ''}/delete`;
+      basePath = `/assets/${getParam('asset_uid', 'uid')}/documents/${getParam('doc_id')}/delete`;
+      break;
     case 'assets_maintenance_history_get':
-      return `/assets/${kwargs.asset_uid || kwargs.uid || ''}/maintenance-history`;
+      basePath = `/assets/${getParam('asset_uid', 'uid')}/maintenance-history`;
+      break;
     case 'assets_maintenance_history_export':
-      return `/assets/${kwargs.asset_uid || kwargs.uid || ''}/maintenance-history/export`;
+      basePath = `/assets/${getParam('asset_uid', 'uid')}/maintenance-history/export`;
+      break;
     case 'assets_export':
-      return '/assets/export';
+      basePath = '/assets/export';
+      break;
 
     case 'breakdowns':
     case 'breakdowns_management':
-      return '/breakdowns';
+      basePath = '/breakdowns';
+      break;
     case 'breakdowns_new_step1_get':
-      return '/breakdowns/new/step1';
+      basePath = '/breakdowns/new/step1';
+      break;
     case 'breakdowns_view':
-      return `/breakdowns/${kwargs.breakdown_id || kwargs.id || ''}`;
+      basePath = `/breakdowns/${getParam('breakdown_id', 'id')}`;
+      break;
     case 'breakdowns_update_get':
     case 'breakdowns_update_post':
-      return `/breakdowns/${kwargs.breakdown_id || kwargs.id || ''}/update`;
+      basePath = `/breakdowns/${getParam('breakdown_id', 'id')}/update`;
+      break;
     case 'breakdowns_rca_get':
-      return `/breakdowns/${kwargs.breakdown_id || kwargs.id || ''}/rca`;
+      basePath = `/breakdowns/${getParam('breakdown_id', 'id')}/rca`;
+      break;
     case 'breakdowns_close':
-      return `/breakdowns/${kwargs.breakdown_id || kwargs.id || ''}/close`;
+      basePath = `/breakdowns/${getParam('breakdown_id', 'id')}/close`;
+      break;
     case 'breakdowns_delete':
-      return `/breakdowns/${kwargs.breakdown_id || kwargs.id || ''}/delete`;
+      basePath = `/breakdowns/${getParam('breakdown_id', 'id')}/delete`;
+      break;
     case 'breakdowns_export':
-      return '/breakdowns/export';
+      basePath = '/breakdowns/export';
+      break;
 
     case 'maintenance_management':
-      return '/maintenance';
+      basePath = '/maintenance';
+      break;
     case 'maintenance_schedule_step1':
     case 'maintenance_schedule_step1_post':
-      return '/maintenance/schedule/step-1';
+      basePath = '/maintenance/schedule/step-1';
+      break;
     case 'maintenance_schedule_step2':
     case 'maintenance_schedule_step2_post':
-      return '/maintenance/schedule/step-2';
+      basePath = '/maintenance/schedule/step-2';
+      break;
     case 'maintenance_schedule_step3_post':
-      return '/maintenance/schedule/step-3';
+      basePath = '/maintenance/schedule/step-3';
+      break;
     case 'maintenance_calendar':
-      return '/maintenance/calendar';
+      basePath = '/maintenance/calendar';
+      break;
     case 'maintenance_view':
-      return `/maintenance/${kwargs.task_id || kwargs.id || ''}`;
+      basePath = `/maintenance/${getParam('task_id', 'id')}`;
+      break;
     case 'maintenance_work_order_view':
-      return `/maintenance/${kwargs.task_id || kwargs.id || ''}/work-order`;
+      basePath = `/maintenance/${getParam('task_id', 'id')}/work-order`;
+      break;
     case 'maintenance_update_get':
     case 'maintenance_update_post':
-      return `/maintenance/${kwargs.task_id || kwargs.id || ''}/update`;
+      basePath = `/maintenance/${getParam('task_id', 'id')}/update`;
+      break;
     case 'maintenance_complete':
-      return `/maintenance/${kwargs.task_id || kwargs.id || ''}/complete`;
+      basePath = `/maintenance/${getParam('task_id', 'id')}/complete`;
+      break;
     case 'maintenance_delete':
-      return `/maintenance/${kwargs.task_id || kwargs.id || ''}/delete`;
+      basePath = `/maintenance/${getParam('task_id', 'id')}/delete`;
+      break;
     case 'maintenance_schedule_print':
-      return '/maintenance/schedule/print';
+      basePath = '/maintenance/schedule/print';
+      break;
     case 'maintenance_export':
-      return '/maintenance/export';
+      basePath = '/maintenance/export';
+      break;
     case 'maintenance_assets_by_section':
-      return '/maintenance/assets-by-section';
+      basePath = '/maintenance/assets-by-section';
+      break;
 
     case 'inventory_management':
-      return '/inventory';
+      basePath = '/inventory';
+      break;
     case 'inventory_add_step1_get':
     case 'inventory_add_step1_post':
-      return '/inventory/new/step-1';
+      basePath = '/inventory/new/step-1';
+      break;
     case 'inventory_add_step2_get':
     case 'inventory_add_step2_post':
-      return '/inventory/new/step-2';
+      basePath = '/inventory/new/step-2';
+      break;
     case 'inventory_add_step3_post':
-      return '/inventory/new/step-3';
+      basePath = '/inventory/new/step-3';
+      break;
     case 'inventory_part_view':
-      return `/inventory/${kwargs.part_id || kwargs.uid || kwargs.id || ''}`;
+      basePath = `/inventory/${getParam('part_id', 'uid') || getParam('id')}`;
+      break;
     case 'inventory_export':
-      return '/inventory/export';
+      basePath = '/inventory/export';
+      break;
 
     case 'reports_center':
-      return '/reports';
+      basePath = '/reports';
+      break;
     case 'reports_generate_step1_get':
     case 'reports_generate_step1_post':
-      return '/reports/generate/step-1';
+      basePath = '/reports/generate/step-1';
+      break;
     case 'reports_generate_step2_get':
     case 'reports_generate_step2_post':
-      return '/reports/generate/step-2';
+      basePath = '/reports/generate/step-2';
+      break;
     case 'reports_generate_step3_post':
-      return '/reports/generate/step-3';
+      basePath = '/reports/generate/step-3';
+      break;
     case 'reports_view':
-      return `/reports/view/${kwargs.report_type || kwargs.type || 'strategic-roi'}`;
+      basePath = `/reports/view/${getParam('report_type', 'type', 'strategic-roi')}`;
+      break;
     case 'reports_history':
-      return '/reports/history';
+      basePath = '/reports/history';
+      break;
     case 'reports_export':
-      return '/reports/export';
+      basePath = '/reports/export';
+      break;
     case 'reports_delete':
-      return `/reports/${kwargs.report_id || kwargs.id || ''}/delete`;
+      basePath = `/reports/${getParam('report_id', 'id')}/delete`;
+      break;
+    case 'reports_chart_data':
+      basePath = `/reports/export/${getParam('report_id', 'rid', 'sr-current')}/chart_data`;
+      break;
 
     case 'settings_admin':
     case 'settings_admin_save':
-      return '/settings';
+      basePath = '/settings';
+      break;
     case 'admin_companies_page':
-      return '/admin/companies';
+      basePath = '/admin/companies';
+      break;
     case 'admin_companies_switch':
-      return `/admin/companies/switch/${kwargs.company_id || ''}`;
+      basePath = `/admin/companies/switch/${getParam('company_id')}`;
+      break;
     case 'admin_companies_create':
-      return '/admin/companies/create';
+      basePath = '/admin/companies/create';
+      break;
     case 'admin_companies_edit':
-      return `/admin/companies/edit/${kwargs.company_id || ''}`;
+      basePath = `/admin/companies/edit/${getParam('company_id')}`;
+      break;
     case 'admin_companies_delete':
-      return `/admin/companies/delete/${kwargs.company_id || ''}`;
+      basePath = `/admin/companies/delete/${getParam('company_id')}`;
+      break;
     case 'admin_users_page':
-      return '/admin/users';
+      basePath = '/admin/users';
+      break;
     case 'admin_users_create':
-      return '/admin/users/create';
+      basePath = '/admin/users/create';
+      break;
     case 'admin_users_toggle':
-      return `/admin/users/toggle/${kwargs.user_id || ''}`;
+      basePath = `/admin/users/toggle/${getParam('user_id')}`;
+      break;
     case 'admin_users_delete':
-      return `/admin/users/delete/${kwargs.user_id || ''}`;
+      basePath = `/admin/users/delete/${getParam('user_id')}`;
+      break;
     case 'admin_users_update_role':
-      return '/admin/users/update-role';
+      basePath = '/admin/users/update-role';
+      break;
     case 'technicians_management':
-      return '/technicians';
+      basePath = '/technicians';
+      break;
     case 'technicians_create':
-      return '/technicians/create';
+      basePath = '/technicians/create';
+      break;
     case 'technicians_toggle':
-      return `/technicians/toggle/${kwargs.tech_id || ''}`;
+      basePath = `/technicians/toggle/${getParam('tech_id')}`;
+      break;
     case 'technicians_delete':
-      return `/technicians/delete/${kwargs.tech_id || ''}`;
+      basePath = `/technicians/delete/${getParam('tech_id')}`;
+      break;
     case 'notifications':
-      return '/notifications';
+      basePath = '/notifications';
+      break;
     case 'notifications_open':
-      return `/notifications/open/${kwargs.notif_id || ''}`;
+      basePath = `/notifications/open/${getParam('notif_id')}`;
+      break;
     case 'notifications_read_all':
-      return '/notifications/read-all';
+      basePath = '/notifications/read-all';
+      break;
     case 'notifications_toggle':
-      return `/notifications/toggle/${kwargs.notif_id || ''}`;
+      basePath = `/notifications/toggle/${getParam('notif_id')}`;
+      break;
     case 'messages_center':
-      return '/messages';
+      basePath = '/messages';
+      break;
     case 'messages_send':
-      return '/messages/send';
+      basePath = '/messages/send';
+      break;
     case 'messages_send_outbox':
-      return '/messages/send-outbox';
+      basePath = '/messages/send-outbox';
+      break;
     case 'messages_delete_draft':
-      return `/messages/drafts/${kwargs.msg_id || ''}/delete`;
+      basePath = `/messages/drafts/${getParam('msg_id')}/delete`;
+      break;
     case 'messages_delete_outbox':
-      return `/messages/outbox/${kwargs.msg_id || ''}/delete`;
+      basePath = `/messages/outbox/${getParam('msg_id')}/delete`;
+      break;
     case 'audit_trail_page':
-      return '/audit-trail';
+      basePath = '/audit-trail';
+      break;
     case 'audit_trail_export':
-      return '/audit-trail/export';
+      basePath = '/audit-trail/export';
+      break;
     case 'profile':
     case 'profile_save':
-      return '/profile';
+      basePath = '/profile';
+      break;
     case 'help_page':
-      return '/help';
+      basePath = '/help';
+      break;
     case 'login':
     case 'login_submit':
-      return '/login';
+      basePath = '/login';
+      break;
     case 'login_google':
-      return '/login/google';
+      basePath = '/login/google';
+      break;
     case 'logout':
-      return '/logout';
+      basePath = '/logout';
+      break;
     case 'set_department':
-      return '/set-department';
+      basePath = '/set-department';
+      break;
     case 'api_live_dashboard_kpis':
-      return '/api/live/dashboard-kpis';
+      basePath = '/api/live/dashboard-kpis';
+      break;
     case 'api_live_breakdowns_kpis':
-      return '/api/live/breakdowns-kpis';
+      basePath = '/api/live/breakdowns-kpis';
+      break;
     case 'api_live_maintenance_kpis':
-      return '/api/live/maintenance-kpis';
+      basePath = '/api/live/maintenance-kpis';
+      break;
     case 'api_live_reports_kpis':
-      return '/api/live/reports-kpis';
+      basePath = '/api/live/reports-kpis';
+      break;
     case 'api_live_breakdown_detail':
-      return `/api/live/breakdown/${kwargs.breakdown_id || ''}`;
+      basePath = `/api/live/breakdown/${getParam('breakdown_id')}`;
+      break;
 
     default:
-      return '/' + endpoint.replace(/_/g, '-');
+      basePath = '/' + endpoint.replace(/_/g, '-');
+      break;
   }
+
+  // Append any kwargs that were not consumed in the path as query parameters (Flask parity)
+  const queryParams = new URLSearchParams();
+  for (const [key, val] of Object.entries(kwargs)) {
+    if (!consumed.has(key) && val !== undefined && val !== null && val !== '') {
+      queryParams.append(key, String(val));
+    }
+  }
+  const qs = queryParams.toString();
+  return qs ? `${basePath}${basePath.includes('?') ? '&' : '?'}${qs}` : basePath;
 }
 
 export function registerNunjucksFilters(env) {

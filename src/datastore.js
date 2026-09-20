@@ -39,28 +39,38 @@ let currentDepartment = 'Engineering';
 
 export function loadDatastore() {
   try {
-    if (IS_SERVERLESS) {
-      // In serverless, initialize /tmp with the bundled seed data on first invocation
-      if (!fs.existsSync(RUNTIME_DATASTORE_PATH) && fs.existsSync(SEED_DATASTORE_PATH)) {
-        try {
-          fs.copyFileSync(SEED_DATASTORE_PATH, RUNTIME_DATASTORE_PATH);
-        } catch (copyErr) {
-          console.warn('Could not copy seed datastore to /tmp:', copyErr.message);
-        }
+    // 1. First load from bundled seed datastore if it exists
+    if (fs.existsSync(SEED_DATASTORE_PATH)) {
+      try {
+        const seedRaw = fs.readFileSync(SEED_DATASTORE_PATH, 'utf8');
+        const seedParsed = JSON.parse(seedRaw);
+        store = { ...store, ...seedParsed };
+      } catch (seedErr) {
+        console.warn('Warning: Failed to parse seed datastore.json:', seedErr.message);
       }
     }
 
-    const pathInUse = fs.existsSync(RUNTIME_DATASTORE_PATH)
-      ? RUNTIME_DATASTORE_PATH
-      : (fs.existsSync(SEED_DATASTORE_PATH) ? SEED_DATASTORE_PATH : null);
-
-    if (pathInUse && fs.existsSync(pathInUse)) {
-      const raw = fs.readFileSync(pathInUse, 'utf8');
-      const parsed = JSON.parse(raw);
-      store = { ...store, ...parsed };
+    // 2. If runtime datastore exists (e.g. in /tmp on Vercel or local), overlay user mutations
+    if (fs.existsSync(RUNTIME_DATASTORE_PATH)) {
+      try {
+        const runtimeRaw = fs.readFileSync(RUNTIME_DATASTORE_PATH, 'utf8');
+        const runtimeParsed = JSON.parse(runtimeRaw);
+        store = { ...store, ...runtimeParsed };
+      } catch (runtimeErr) {
+        console.warn('Warning: Failed to parse runtime datastore.json:', runtimeErr.message);
+      }
+    } else if (IS_SERVERLESS && fs.existsSync(SEED_DATASTORE_PATH)) {
+      // In serverless, create runtime copy in /tmp
+      try {
+        const dir = path.dirname(RUNTIME_DATASTORE_PATH);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.copyFileSync(SEED_DATASTORE_PATH, RUNTIME_DATASTORE_PATH);
+      } catch (copyErr) {
+        console.warn('Could not initialize /tmp datastore:', copyErr.message);
+      }
     }
   } catch (err) {
-    console.error('Failed to load datastore.json:', err);
+    console.error('Failed to load datastore:', err);
   }
 
   ensureDefaults();
@@ -79,6 +89,8 @@ export function saveDatastore() {
     console.warn('Failed to save datastore.json (in-memory state retained):', err.message);
   }
 }
+
+export const saveStore = saveDatastore;
 
 function ensureDefaults() {
   if (!store.COMPANIES || store.COMPANIES.length === 0) {
@@ -608,7 +620,7 @@ export function addCompany(company) {
   }
   if (!store.COMPANIES) store.COMPANIES = [];
   store.COMPANIES.push(company);
-  saveStore();
+  saveDatastore();
   return company;
 }
 
@@ -617,7 +629,7 @@ export function updateCompany(id, updates) {
   const comp = store.COMPANIES.find(c => c.id === id);
   if (comp) {
     Object.assign(comp, updates);
-    saveStore();
+    saveDatastore();
     return comp;
   }
   return null;
@@ -631,7 +643,7 @@ export function deleteCompany(id) {
     if (activeCompanyId === id) {
       activeCompanyId = store.COMPANIES[0].id;
     }
-    saveStore();
+    saveDatastore();
     return true;
   }
   return false;
