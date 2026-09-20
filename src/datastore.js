@@ -734,21 +734,60 @@ export function deleteAsset(uid) {
   return null;
 }
 
+export function normalizeBreakdown(bk) {
+  if (!bk) return bk;
+  let dt = bk.reported_dt || bk.reported_at || '';
+  let date = bk.reported_date || '';
+  let time = bk.reported_time || '';
+  if (!date && dt) {
+    const parts = String(dt).replace('T', ' ').split(' ');
+    date = parts[0] || '';
+    if (!time) time = parts[1] ? parts[1].slice(0, 5) : '08:00';
+  }
+  if (!dt && date) {
+    dt = `${date} ${time || '08:00'}`;
+  }
+  return {
+    ...bk,
+    reported_dt: dt,
+    reported_date: date,
+    reported_time: time,
+    downtime_hours: Number(bk.downtime_hours) || 0
+  };
+}
+
+export function normalizeMaintenanceTask(task) {
+  if (!task) return task;
+  const isPM = (task.maintenance_type === 'PM' || task.task_type === 'Preventive' || task.task_type === 'Inspection' || !task.task_type || String(task.task_type).toUpperCase().includes('PM'));
+  return {
+    ...task,
+    maintenance_type: task.maintenance_type || (isPM ? 'PM' : 'CM'),
+    task_type: task.task_type || (isPM ? 'Preventive' : 'Corrective'),
+    cost: Number(task.cost) || 0
+  };
+}
+
 export function getBreakdowns() {
-  return store.BREAKDOWNS || [];
+  return (store.BREAKDOWNS || []).map(normalizeBreakdown);
 }
 
 export function getBreakdownById(id) {
-  return (store.BREAKDOWNS || []).find(b => b.id === id || b.breakdown_id === id);
+  const bk = (store.BREAKDOWNS || []).find(b => b.id === id || b.breakdown_id === id);
+  return bk ? normalizeBreakdown(bk) : null;
 }
 
 export function addBreakdown(bk) {
   if (!bk.id) bk.id = 'bk-' + crypto.randomUUID().slice(0, 8);
   if (!bk.breakdown_id) {
-    const num = String(store.BREAKDOWNS.length + 1).padStart(3, '0');
+    const num = String((store.BREAKDOWNS || []).length + 1).padStart(3, '0');
     bk.breakdown_id = `BK-${new Date().getFullYear()}-${num}`;
   }
   if (!bk.reported_dt) bk.reported_dt = new Date().toISOString().replace('T', ' ').slice(0, 16);
+  if (!bk.reported_date || !bk.reported_time) {
+    const parts = String(bk.reported_dt).replace('T', ' ').split(' ');
+    bk.reported_date = bk.reported_date || parts[0];
+    bk.reported_time = bk.reported_time || (parts[1] ? parts[1].slice(0, 5) : '08:00');
+  }
   store.BREAKDOWNS.unshift(bk);
 
   // Update corresponding asset status
@@ -757,15 +796,20 @@ export function addBreakdown(bk) {
   }
 
   saveDatastore();
-  return bk;
+  return normalizeBreakdown(bk);
 }
 
 export function updateBreakdown(id, updates) {
   const idx = (store.BREAKDOWNS || []).findIndex(b => b.id === id || b.breakdown_id === id);
   if (idx !== -1) {
     store.BREAKDOWNS[idx] = { ...store.BREAKDOWNS[idx], ...updates };
+    if (updates.reported_dt && (!updates.reported_date || !updates.reported_time)) {
+      const parts = String(updates.reported_dt).replace('T', ' ').split(' ');
+      store.BREAKDOWNS[idx].reported_date = parts[0];
+      store.BREAKDOWNS[idx].reported_time = parts[1] ? parts[1].slice(0, 5) : '08:00';
+    }
     saveDatastore();
-    return store.BREAKDOWNS[idx];
+    return normalizeBreakdown(store.BREAKDOWNS[idx]);
   }
   return null;
 }
@@ -781,22 +825,26 @@ export function deleteBreakdown(id) {
 }
 
 export function getMaintenanceTasks() {
-  return store.MAINTENANCE_TASKS || [];
+  return (store.MAINTENANCE_TASKS || []).map(normalizeMaintenanceTask);
 }
 
 export function getMaintenanceTaskById(id) {
-  return (store.MAINTENANCE_TASKS || []).find(t => t.id === id || t.task_id === id);
+  const task = (store.MAINTENANCE_TASKS || []).find(t => t.id === id || t.task_id === id);
+  return task ? normalizeMaintenanceTask(task) : null;
 }
 
 export function addMaintenanceTask(task) {
   if (!task.id) task.id = 'pm-' + crypto.randomUUID().slice(0, 8);
   if (!task.task_id) {
-    const num = String(store.MAINTENANCE_TASKS.length + 1).padStart(3, '0');
+    const num = String((store.MAINTENANCE_TASKS || []).length + 1).padStart(3, '0');
     task.task_id = `PM-${new Date().getFullYear()}-${num}`;
   }
+  const isPM = (task.maintenance_type === 'PM' || task.task_type === 'Preventive' || task.task_type === 'Inspection' || !task.task_type);
+  task.maintenance_type = task.maintenance_type || (isPM ? 'PM' : 'CM');
+  task.task_type = task.task_type || (isPM ? 'Preventive' : 'Corrective');
   store.MAINTENANCE_TASKS.unshift(task);
   saveDatastore();
-  return task;
+  return normalizeMaintenanceTask(task);
 }
 
 export function updateMaintenanceTask(id, updates) {

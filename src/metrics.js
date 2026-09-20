@@ -34,17 +34,21 @@ export function computeSystemMetrics(db) {
   const spares = db.getInventoryParts() || [];
 
   // Breakdowns categorization
-  const openBreakdownsList = breakdowns.filter(b => b.status === 'open' || b.status === 'in_progress');
+  const openBreakdownsList = breakdowns.filter(b => b.status === 'open');
+  const inProgressBreakdownsList = breakdowns.filter(b => b.status === 'in_progress');
+  const activeBreakdownsList = breakdowns.filter(b => b.status === 'open' || b.status === 'in_progress');
   const resolvedBreakdownsList = breakdowns.filter(b => b.status === 'resolved' || b.status === 'closed');
   const openBreakdownsCount = openBreakdownsList.length;
+  const inProgressBreakdownsCount = inProgressBreakdownsList.length;
+  const activeBreakdownsCount = activeBreakdownsList.length;
   const resolvedBreakdownsCount = resolvedBreakdownsList.length;
 
   // Downtime calculation: Active + Historical
   const totalDowntimeHours = Math.round(breakdowns.reduce((sum, b) => sum + getBreakdownDowntime(b), 0) * 10) / 10;
-  const activeDowntimeHours = Math.round(openBreakdownsList.reduce((sum, b) => sum + getBreakdownDowntime(b), 0) * 10) / 10;
+  const activeDowntimeHours = Math.round(activeBreakdownsList.reduce((sum, b) => sum + getBreakdownDowntime(b), 0) * 10) / 10;
   const resolvedDowntimeHours = Math.round(resolvedBreakdownsList.reduce((sum, b) => sum + getBreakdownDowntime(b), 0) * 10) / 10;
 
-  // MTTR (Mean Time To Repair) - calculated over resolved incidents or fleet average
+  // MTTR (Mean Time To Repair) - calculated over resolved incidents or overall average
   const mttrHours = resolvedBreakdownsCount > 0
     ? Math.round((resolvedDowntimeHours / resolvedBreakdownsCount) * 10) / 10
     : (totalDowntimeHours > 0 && breakdowns.length > 0
@@ -74,9 +78,9 @@ export function computeSystemMetrics(db) {
   const scheduledPm = tasks.filter(t => t.status === 'scheduled').length;
   const inProgressPm = tasks.filter(t => t.status === 'in_progress').length;
   const overduePm = tasks.filter(t => t.status === 'overdue' || (t.due_date && new Date(t.due_date) < new Date() && t.status !== 'completed')).length;
-  const totalPm = tasks.length || 1;
-  const pmCompliance = Math.round((completedPm / totalPm) * 1000) / 10 || 94.2;
-  const maintenanceCost = Math.round(completedPm * 15000 + 65000);
+  const totalPm = tasks.length;
+  const pmCompliance = totalPm > 0 ? Math.round((completedPm / totalPm) * 1000) / 10 : 100.0;
+  const maintenanceCost = tasks.reduce((sum, t) => sum + (Number(t.cost) || 0), 0);
 
   // Spares & Inventory
   const totalUniqueSkus = spares.length;
@@ -87,20 +91,23 @@ export function computeSystemMetrics(db) {
   const sparesValue = spares.reduce((sum, s) => sum + ((Number(s.qty) || 0) * (Number(s.unit_price) || 0)), 0);
 
   // Trends & Deltas
-  const activeDelta = openBreakdownsCount > 2 ? 1 : (openBreakdownsCount === 0 ? -1 : 0);
+  const activeDelta = activeBreakdownsCount > 2 ? 1 : (activeBreakdownsCount === 0 ? -1 : 0);
   const mttrTrend = -4.2;
+
+  // OEE (Availability x Performance (94%) x Quality (98.5%))
+  const oeeScore = Math.round((uptimeRate / 100) * 0.94 * 0.985 * 1000) / 10;
 
   return {
     // Breakdowns
     total_breakdowns: breakdowns.length,
     open_breakdowns: openBreakdownsCount,
-    active_breakdowns: openBreakdownsCount,
-    active: openBreakdownsCount,
-    kpi_active: openBreakdownsCount,
-    kpi_active_breakdowns: openBreakdownsCount,
-    kpi_open_breakdowns: openBreakdownsCount,
+    active_breakdowns: activeBreakdownsCount,
+    active: activeBreakdownsCount,
+    kpi_active: activeBreakdownsCount,
+    kpi_active_breakdowns: activeBreakdownsCount,
+    kpi_open_breakdowns: activeBreakdownsCount,
     resolved_breakdowns: resolvedBreakdownsCount,
-    in_progress_breakdowns: inProgressPm,
+    in_progress_breakdowns: inProgressBreakdownsCount,
     active_delta: activeDelta,
     kpi_active_delta: activeDelta,
 
@@ -139,7 +146,7 @@ export function computeSystemMetrics(db) {
     total_assets: totalAssets,
     kpi_total_assets: totalAssets,
     kpi_operational_assets: operationalAssets,
-    fleet_availability_pct: totalAssets ? Math.round((operationalAssets / totalAssets) * 1000) / 10 : 71.4,
+    fleet_availability_pct: totalAssets ? Math.round((operationalAssets / totalAssets) * 1000) / 10 : 100.0,
 
     // Maintenance PM
     total_pm_tasks: tasks.length,
@@ -172,10 +179,10 @@ export function computeSystemMetrics(db) {
     kpi_spares_low_stock: lowStockCount,
 
     // Reports summary
-    oee_score: 87.4,
+    oee_score: oeeScore,
     oee_delta: 2.1,
     mtd_spend: 'KES ' + (downtimeCost + maintenanceCost).toLocaleString(),
-    budget_pct: 68.5,
+    budget_pct: Math.round(((downtimeCost + maintenanceCost) / 2500000) * 1000) / 10,
     budget_limit: 'KES 2,500,000'
   };
 }

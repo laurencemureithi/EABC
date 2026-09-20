@@ -258,7 +258,9 @@
       "duration_mins": 150,
       "reported_dt": "2026-09-20 07:30",
       "id": "bk-aa2aa014",
-      "breakdown_id": "BK-2026-004"
+      "breakdown_id": "BK-2026-004",
+      "reported_date": "2026-09-20",
+      "reported_time": "07:30"
     },
     {
       "asset_uid": "ast-krones-vfs",
@@ -277,7 +279,9 @@
       "duration_mins": 330,
       "reported_dt": "2026-09-18 10:04",
       "id": "bk-53ad3dc9",
-      "breakdown_id": "BK-2026-003"
+      "breakdown_id": "BK-2026-003",
+      "reported_date": "2026-09-18",
+      "reported_time": "10:04"
     },
     {
       "id": "bk-2026-001",
@@ -299,7 +303,9 @@
       "action_taken": "Inspected recirculating chiller pump and flushed sediment from heat exchanger.",
       "parts_replaced": [],
       "resolution_notes": "",
-      "resolved_at": null
+      "resolved_at": null,
+      "reported_date": "2026-09-17",
+      "reported_time": "14:30"
     },
     {
       "id": "bk-2026-002",
@@ -323,7 +329,9 @@
         "Pneumatic Gripper Seal Kit 40mm"
       ],
       "resolution_notes": "System re-calibrated. Ran 150 test cycles under load with zero misfeeds.",
-      "resolved_at": "2026-09-14 11:00"
+      "resolved_at": "2026-09-14 11:00",
+      "reported_date": "2026-09-14",
+      "reported_time": "09:15"
     }
   ],
   "MAINTENANCE_TASKS": [
@@ -343,7 +351,8 @@
       "status": "scheduled",
       "cost": 18500,
       "cost_collected": false,
-      "notes": "Check all 60 filling head diaphragm seals, torque rotary manifold bolts, check food-grade grease reservoirs."
+      "notes": "Check all 60 filling head diaphragm seals, torque rotary manifold bolts, check food-grade grease reservoirs.",
+      "maintenance_type": "PM"
     },
     {
       "id": "pm-2026-002",
@@ -361,7 +370,8 @@
       "status": "in_progress",
       "cost": 45000,
       "cost_collected": false,
-      "notes": "Hydrostatic check on dual safety relief valves. Chemical descaling circulation through water tube banks."
+      "notes": "Hydrostatic check on dual safety relief valves. Chemical descaling circulation through water tube banks.",
+      "maintenance_type": "PM"
     },
     {
       "id": "pm-2026-003",
@@ -379,7 +389,8 @@
       "status": "scheduled",
       "cost": 8000,
       "cost_collected": false,
-      "notes": "Buffer solution 1413 µS/cm calibration on Endress+Hauser conductivity probes."
+      "notes": "Buffer solution 1413 µS/cm calibration on Endress+Hauser conductivity probes.",
+      "maintenance_type": "PM"
     },
     {
       "id": "pm-2026-004",
@@ -398,7 +409,8 @@
       "status": "completed",
       "cost": 12000,
       "cost_collected": true,
-      "notes": "Lubricated axis 1-4 gearboxes with Molywhite RE No.00 grease. Inspected flex energy chain."
+      "notes": "Lubricated axis 1-4 gearboxes with Molywhite RE No.00 grease. Inspected flex energy chain.",
+      "maintenance_type": "PM"
     }
   ],
   "INVENTORY_PARTS": [

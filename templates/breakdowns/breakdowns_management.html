@@ -286,8 +286,8 @@
 
                 <td class="px-6 py-5">
                   <div class="flex flex-col">
-                    <span class="text-sm dark:text-slate-300">{{ b.reported_date }}</span>
-                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ b.reported_time }}</span>
+                    <span class="text-sm font-semibold text-slate-800 dark:text-slate-200">{{ b.reported_date or (b.reported_dt and b.reported_dt.split(' ')[0]) or 'Today' }}</span>
+                    <span class="text-xs text-slate-500 dark:text-slate-400 font-mono">{{ b.reported_time or (b.reported_dt and b.reported_dt.split(' ')[1]) or '08:00' }}</span>
                   </div>
                 </td>
 
