@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js",
-    "build": "echo 'Build complete'",
+    "build": "node -e \"import('fs').then(fs => { fs.mkdirSync('public', { recursive: true }); fs.cpSync('static', 'public/static', { recursive: true }); console.log('Static assets synced to public/static'); })\"",
     "lint": "node -c server.js src/datastore.js src/helpers.js src/metrics.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

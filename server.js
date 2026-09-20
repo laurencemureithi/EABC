@@ -89,8 +89,22 @@ app.use(
   })
 );
 
-// Serve static assets
-app.use('/static', express.static(path.join(__dirname, 'static')));
+// Serve static assets with multi-path resolution for traditional Node & Vercel serverless environments
+const staticCandidates = [
+  path.resolve(process.cwd(), 'public/static'),
+  path.resolve(process.cwd(), 'static'),
+  path.join(__dirname, 'public/static'),
+  path.join(__dirname, 'static')
+];
+
+for (const sc of staticCandidates) {
+  try {
+    if (fs.existsSync(sc)) {
+      app.use('/static', express.static(sc, { maxAge: '1d' }));
+    }
+  } catch (_) {}
+}
+
 if (isServerless) {
   app.use('/static/uploads/companies', express.static(uploadDir));
   app.use('/uploads', express.static(uploadDir));
