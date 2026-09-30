@@ -210,7 +210,7 @@
                           </span>
                         {% endif %}
                       </p>
-                      <p class="text-[10px] font-mono text-slate-400">UID: {{ (p.uid or '')[:8] }}</p>
+                      <p class="text-[10px] font-mono text-slate-400">UID: {{ (p.uid or '') | slice(0, 8) }}</p>
                     </div>
                   </td>
 

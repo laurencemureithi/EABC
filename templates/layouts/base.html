@@ -3,7 +3,10 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>{% block title %}Opsloom{% endblock %}</title>
+  <title>{% block title %}Opsloom - Engineering Asset &amp; Breakdown Management{% endblock %}</title>
+  <meta name="description" content="Comprehensive maintenance, asset lifecycle, breakdown tracking, and inventory management system." />
+  <meta property="og:title" content="Opsloom - Engineering Asset &amp; Breakdown Management" />
+  <meta property="og:description" content="Comprehensive maintenance, asset lifecycle, breakdown tracking, and inventory management system." />
 
   <!-- ✅ THEME INIT MUST RUN BEFORE FIRST PAINT -->
   <script>
@@ -28,6 +31,41 @@
   <!-- ✅ Chart.js (GLOBAL) -->
   <script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
 
+  <!-- Brand Customization Palette Takeover -->
+  <style id="companyThemeStyles">
+    :root {
+      --brand-primary: {{ active_company.primary_color if active_company and active_company.primary_color else '#7E22CE' }};
+      --brand-secondary: {{ active_company.secondary_color if active_company and active_company.secondary_color else '#F59E0B' }};
+    }
+    .bg-blue-600, .bg-blue-500, .bg-ueal-purple, .btn-primary, .auth-primary, .bg-primary {
+      background-color: var(--brand-primary) !important;
+    }
+    .hover\:bg-blue-700:hover, .hover\:bg-blue-600:hover, .hover\:bg-ueal-purple:hover {
+      filter: brightness(0.92);
+    }
+    .text-blue-600, .text-blue-500, .text-ueal-purple, .text-primary {
+      color: var(--brand-primary) !important;
+    }
+    .border-blue-600, .border-blue-500, .border-ueal-purple, .border-primary {
+      border-color: var(--brand-primary) !important;
+    }
+    .focus\:ring-blue-500:focus, .focus\:ring-ueal-purple:focus {
+      --tw-ring-color: var(--brand-primary) !important;
+    }
+    .app-sidebar a.bg-ueal-gold, .app-sidebar a.bg-blue-600 {
+      background-color: var(--brand-primary) !important;
+    }
+    .bg-ueal-gold {
+      background-color: var(--brand-secondary) !important;
+    }
+    .text-ueal-gold {
+      color: var(--brand-secondary) !important;
+    }
+    .border-ueal-gold {
+      border-color: var(--brand-secondary) !important;
+    }
+  </style>
+
   {% block page_styles %}{% endblock %}
 </head>
 
@@ -38,15 +76,14 @@
     <div class="flex-1 flex flex-col min-w-0">
       {% include "partials/top_header.html" %}
       <main class="main-content flex-1 p-8 {% block main_wrapper_class %}{% endblock %}">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            <div class="space-y-3 mb-6" data-no-print>
-              {% for category, message in messages %}
-                <div class="rounded-xl border px-4 py-3 text-sm font-semibold {% if category == 'success' %}bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-900/40 dark:text-emerald-200{% elif category == 'error' %}bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-900/40 dark:text-red-200{% else %}bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-900/40 dark:text-blue-200{% endif %}">{{ message }}</div>
-              {% endfor %}
-            </div>
-          {% endif %}
-        {% endwith %}
+        {% set messages = get_flashed_messages(true) %}
+        {% if messages and messages.length %}
+          <div class="space-y-3 mb-6" data-no-print>
+            {% for msg in messages %}
+              <div class="rounded-xl border px-4 py-3 text-sm font-semibold {% if msg[0] == 'success' %}bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-900/40 dark:text-emerald-200{% elif msg[0] == 'error' %}bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-900/40 dark:text-red-200{% else %}bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-900/40 dark:text-blue-200{% endif %}">{{ msg[1] }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
         {% block content %}{% endblock %}
       </main>
     </div>
@@ -371,5 +408,8 @@
   </script>
   {% endif %}
 
+  {% include "partials/system_health_modal.html" %}
+  {% include "partials/opsloom_ai_modal.html" %}
+  {% include "partials/ai_quick_preview_modal.html" %}
 </body>
 </html>

@@ -1,0 +1,419 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Company Workspaces &amp; Brand • Opsloom{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-8">
+  <!-- Title Block -->
+  {% set page_title = "Company Workspaces & Brand Customization" %}
+  {% set page_subtitle = "Configure multi-company organizations, brand color schemes, and theme-adaptive sidebar logos." %}
+  {% set show_system_badge = true %}
+  {% set system_badge_text = "SYSTEM STABLE" %}
+  {% set system_badge_state = "stable" %}
+  {% include "partials/title_block.html" %}
+
+  <!-- Top Action & Overview Banner -->
+  <div class="rounded-2xl border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="flex items-center gap-4">
+      <div class="w-12 h-12 rounded-2xl flex items-center justify-center font-black text-white shrink-0 shadow-md" style="background-color: {{ active_company.primary_color if active_company else '#1554FF' }};">
+        <span class="material-symbols-outlined text-[28px]">domain</span>
+      </div>
+      <div>
+        <div class="flex items-center gap-2.5">
+          <h2 class="text-xl font-extrabold text-slate-900 dark:text-white">{{ active_company.name if active_company else 'Ultravetis East Africa Ltd' }}</h2>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
+            Active Workspace
+          </span>
+        </div>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Code: <span class="font-bold text-slate-700 dark:text-slate-200">{{ active_company.code if active_company else 'UEAL' }}</span> • Primary Brand Color: <span class="font-mono font-bold" style="color: {{ active_company.primary_color if active_company else '#1554FF' }};">{{ active_company.primary_color if active_company else '#1554FF' }}</span></p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button type="button" onclick="openCreateCompanyModal()" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-ueal-purple text-white text-xs font-black shadow-md hover:opacity-90 transition">
+        <span class="material-symbols-outlined text-base">add_business</span>
+        Add Company Workspace
+      </button>
+    </div>
+  </div>
+
+  <!-- Workspace Directory Grid -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    {% for comp in companies %}
+      <div class="rounded-2xl border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface p-6 shadow-sm flex flex-col justify-between gap-6 transition hover:shadow-md {% if active_company and active_company.id == comp.id %}ring-2 ring-ueal-purple/30 dark:ring-ueal-gold/30{% endif %}">
+        <div class="space-y-4">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm shrink-0 shadow-sm" style="background-color: {{ comp.primary_color }};">
+                {{ comp.code or (comp.name | slice(0, 2) | upper) }}
+              </div>
+              <div class="min-w-0">
+                <h3 class="text-base font-extrabold text-slate-900 dark:text-white truncate">{{ comp.name }}</h3>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400">Code: <strong class="text-slate-700 dark:text-slate-200">{{ comp.code }}</strong></p>
+              </div>
+            </div>
+
+            {% if active_company and active_company.id == comp.id %}
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 shrink-0">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Active
+              </span>
+            {% else %}
+              <a href="/set-company?company_id={{ comp.id }}&next=/settings/companies" class="px-3 py-1 rounded-lg border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 transition shrink-0">
+                Switch Here
+              </a>
+            {% endif %}
+          </div>
+
+          <!-- Color & Dimensions Preview Bar -->
+          <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-dark-border flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex items-center gap-2">
+              <span class="text-slate-500 text-[11px]">Primary:</span>
+              <span class="w-4 h-4 rounded-full border border-slate-300 dark:border-slate-600 shadow-xs" style="background-color: {{ comp.primary_color }};"></span>
+              <span class="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-200">{{ comp.primary_color }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-slate-500 text-[11px]">Accent:</span>
+              <span class="w-4 h-4 rounded-full border border-slate-300 dark:border-slate-600 shadow-xs" style="background-color: {{ comp.secondary_color or '#F59E0B' }};"></span>
+              <span class="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-200">{{ comp.secondary_color or '#F59E0B' }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-slate-500 text-[11px]">Logo Height:</span>
+              <span class="font-bold text-slate-700 dark:text-slate-200">{{ comp.logo_height or 44 }}px</span>
+            </div>
+          </div>
+
+          <!-- Brand Logo Thumbnails -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="p-3 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-100 dark:bg-slate-900/60 flex flex-col items-center justify-center gap-2">
+              <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Light Theme</span>
+              <div class="h-12 w-full flex items-center justify-center bg-white rounded-lg p-1.5 shadow-xs">
+                <img src="{{ comp.logo_light_url if comp.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png') }}" alt="Light Logo" class="max-h-full max-w-full object-contain" />
+              </div>
+            </div>
+            <div class="p-3 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-800 dark:bg-slate-950 flex flex-col items-center justify-center gap-2 text-white">
+              <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Dark Theme</span>
+              <div class="h-12 w-full flex items-center justify-center bg-slate-900 rounded-lg p-1.5 shadow-xs">
+                <img src="{{ comp.logo_dark_url if comp.logo_dark_url else (comp.logo_light_url if comp.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png')) }}" alt="Dark Logo" class="max-h-full max-w-full object-contain" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-dark-border">
+          <div class="text-[11px] text-slate-400">
+            {% if comp.show_name_next_to_logo %}
+              <span class="inline-flex items-center gap-1 text-ueal-purple dark:text-ueal-gold font-bold"><span class="material-symbols-outlined text-[14px]">check</span> Name beside logo</span>
+            {% else %}
+              <span class="text-slate-400">Wordmark only</span>
+            {% endif %}
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="editCompany('{{ comp.id }}')" class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-ueal-gold transition flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-sm">edit</span> Customize
+            </button>
+            {% if companies.length > 1 %}
+              <form method="post" action="/settings/companies/{{ comp.id }}/delete" onsubmit="return confirm('Remove workspace {{ comp.name }}?');">
+                <button type="submit" class="p-1.5 rounded-lg text-slate-400 hover:text-red-500 transition" title="Delete Workspace">
+                  <span class="material-symbols-outlined text-sm">delete</span>
+                </button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Edit / Create Company Modal -->
+<div id="companyModal" class="fixed inset-0 z-50 hidden overflow-y-auto" role="dialog" aria-modal="true">
+  <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeCompanyModal()"></div>
+
+  <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+    <div class="relative transform overflow-hidden rounded-2xl bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-2xl">
+      <form id="companyForm" method="post" action="/settings/companies/save" enctype="multipart/form-data">
+        <input type="hidden" name="id" id="compFormId" value="">
+
+        <!-- Modal Header -->
+        <div class="p-6 border-b border-slate-100 dark:border-dark-border flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/40">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-ueal-purple/10 text-ueal-purple flex items-center justify-center font-black">
+              <span class="material-symbols-outlined text-[24px]">palette</span>
+            </div>
+            <div>
+              <h3 class="text-lg font-black text-slate-900 dark:text-white" id="modalHeading">Workspace &amp; Brand Settings</h3>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Customize corporate branding, colors, and sidebar logo occupancy</p>
+            </div>
+          </div>
+          <button type="button" onclick="closeCompanyModal()" class="w-8 h-8 rounded-lg border border-slate-200 dark:border-dark-border text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center justify-center">
+            <span class="material-symbols-outlined text-lg">close</span>
+          </button>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+          <!-- Basic Info -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">Company Name</label>
+              <input type="text" name="name" id="compFormName" required placeholder="e.g. Ultravetis East Africa Ltd" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-800 text-sm font-semibold outline-none focus:border-ueal-purple">
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">Short Code</label>
+              <input type="text" name="code" id="compFormCode" required placeholder="e.g. UEAL" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-800 text-sm font-semibold outline-none focus:border-ueal-purple">
+            </div>
+          </div>
+
+          <!-- Color Customization -->
+          <div class="p-4 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/30 space-y-3">
+            <h4 class="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Brand Color Palette</h4>
+            <p class="text-xs text-slate-500">The primary brand color is applied to the top header EABC title, active tags, and highlight accents.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">Primary Color</label>
+                <div class="flex items-center gap-2">
+                  <input type="color" name="primary_color" id="compFormPrimary" value="#7E22CE" class="w-9 h-9 rounded-lg border-0 cursor-pointer shrink-0" oninput="updateSimulator()">
+                  <input type="text" id="compFormPrimaryHex" class="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-xs font-mono font-bold" value="#7E22CE" oninput="document.getElementById('compFormPrimary').value=this.value; updateSimulator();">
+                </div>
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">Secondary / Accent Color</label>
+                <div class="flex items-center gap-2">
+                  <input type="color" name="secondary_color" id="compFormSecondary" value="#F59E0B" class="w-9 h-9 rounded-lg border-0 cursor-pointer shrink-0" oninput="updateSimulator()">
+                  <input type="text" id="compFormSecondaryHex" class="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-xs font-mono font-bold" value="#F59E0B" oninput="document.getElementById('compFormSecondary').value=this.value; updateSimulator();">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Logo Management & Theme Selection -->
+          <div class="space-y-4">
+            <h4 class="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Theme-Aware Sidebar Logos</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <!-- Light Theme Logo -->
+              <div class="p-4 rounded-xl border border-slate-200 dark:border-dark-border space-y-2.5">
+                <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">Light Theme Logo</label>
+                <p class="text-[11px] text-slate-400">Logo image when the application is viewed in Light Mode</p>
+                <input type="text" name="logo_light_url" id="compFormLogoLight" placeholder="/static/brand/opsloom_wordmark_light.png" class="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-800 text-xs font-mono" oninput="updateSimulator()">
+                <label class="block text-[10px] text-slate-500 font-bold uppercase mt-1">Or Upload Image</label>
+                <input type="file" name="logo_light_file" accept="image/*" class="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-slate-100 dark:file:bg-slate-800">
+              </div>
+
+              <!-- Dark Theme Logo -->
+              <div class="p-4 rounded-xl border border-slate-200 dark:border-dark-border space-y-2.5">
+                <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">Dark Theme Logo</label>
+                <p class="text-[11px] text-slate-400">Logo image when the application is viewed in Dark Mode</p>
+                <input type="text" name="logo_dark_url" id="compFormLogoDark" placeholder="/static/brand/opsloom_wordmark_light.png" class="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-800 text-xs font-mono" oninput="updateSimulator()">
+                <label class="block text-[10px] text-slate-500 font-bold uppercase mt-1">Or Upload Image</label>
+                <input type="file" name="logo_dark_file" accept="image/*" class="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-slate-100 dark:file:bg-slate-800">
+              </div>
+            </div>
+
+            <!-- Toggle Name Next to Logo -->
+            <label class="flex items-center gap-3 p-3.5 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/30 cursor-pointer">
+              <input type="checkbox" name="show_name_next_to_logo" id="compFormShowName" value="1" class="w-4 h-4 text-ueal-purple rounded border-slate-300" onchange="updateSimulator()">
+              <div>
+                <p class="text-xs font-bold text-slate-800 dark:text-white">Activate Company Name next to Logo</p>
+                <p class="text-[11px] text-slate-500">Enable this if your logo is an emblem/symbol without written text. Disable if the image already contains the brand wordmark.</p>
+              </div>
+            </label>
+          </div>
+
+          <!-- Logo Dimensions & Area Sizing Sliders -->
+          <div class="p-4 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/30 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h4 class="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Sidebar Top Logo Area &amp; Sizing</h4>
+                <p class="text-[11px] text-slate-500">Fine-tune the size and occupancy area occupied by the logo at the top of the sidebar.</p>
+              </div>
+              <!-- Presets -->
+              <div class="flex items-center gap-1.5">
+                <button type="button" onclick="setAreaPreset(32, 70)" class="px-2 py-1 rounded text-[10px] font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">Compact</button>
+                <button type="button" onclick="setAreaPreset(44, 85)" class="px-2 py-1 rounded text-[10px] font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">Standard</button>
+                <button type="button" onclick="setAreaPreset(58, 95)" class="px-2 py-1 rounded text-[10px] font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">Prominent</button>
+                <button type="button" onclick="setAreaPreset(72, 100)" class="px-2 py-1 rounded text-[10px] font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">Full</button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <div class="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  <span>Logo Height</span>
+                  <span id="heightValBadge" class="font-mono text-ueal-purple">44px</span>
+                </div>
+                <input type="range" name="logo_height" id="compFormHeight" min="24" max="80" value="44" class="w-full accent-ueal-purple" oninput="updateSimulator()">
+              </div>
+              <div>
+                <div class="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  <span>Width Span / Area Occupancy</span>
+                  <span id="widthValBadge" class="font-mono text-ueal-purple">85%</span>
+                </div>
+                <input type="range" name="logo_width_pct" id="compFormWidth" min="40" max="100" value="85" class="w-full accent-ueal-purple" oninput="updateSimulator()">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">Alignment</label>
+                <select name="logo_alignment" id="compFormAlign" class="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-xs font-semibold" onchange="updateSimulator()">
+                  <option value="left">Left Aligned</option>
+                  <option value="center">Centered</option>
+                  <option value="right">Right Aligned</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">Object Fit</label>
+                <select name="logo_fit" id="compFormFit" class="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-xs font-semibold" onchange="updateSimulator()">
+                  <option value="contain">Contain (Original Aspect)</option>
+                  <option value="scale-down">Scale Down</option>
+                  <option value="cover">Cover (Fill Area)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Interactive Live Sidebar Simulator -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">Live Sidebar Top Simulator</span>
+              <div class="flex items-center gap-2">
+                <button type="button" onclick="setSimTheme('dark')" id="simDarkBtn" class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900 text-white">Dark Theme</button>
+                <button type="button" onclick="setSimTheme('light')" id="simLightBtn" class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-800">Light Theme</button>
+              </div>
+            </div>
+
+            <!-- Simulated Sidebar Header Box -->
+            <div id="sidebarSimBox" class="w-full rounded-2xl p-4 transition-all duration-200 bg-[#1e1b4b] border border-slate-700 flex items-center justify-between gap-3 overflow-hidden shadow-inner" style="min-height: 80px;">
+              <div id="simLogoWrap" class="flex-1 flex items-center gap-3 justify-start min-w-0">
+                <img id="simLogoImg" src="/static/brand/opsloom_wordmark_light.png" alt="Simulated Logo" class="block transition-all" style="height: 44px; width: 85%; object-fit: contain;">
+                <div id="simNameBox" class="hidden flex-col min-w-0">
+                  <span id="simNameText" class="font-black text-sm text-white tracking-tight truncate leading-tight">Company Name</span>
+                  <span id="simCodeText" class="text-[9px] font-black uppercase tracking-wider text-amber-400">UEAL</span>
+                </div>
+              </div>
+              <div class="w-8 h-8 rounded-lg bg-white/10 text-white flex items-center justify-center text-xs shrink-0">
+                <span class="material-symbols-outlined text-sm">menu</span>
+              </div>
+            </div>
+            <p class="text-[11px] text-slate-400 text-center">Real-time preview of how the sidebar header renders under current settings.</p>
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-dark-border flex items-center justify-end gap-3">
+          <button type="button" onclick="closeCompanyModal()" class="px-4 py-2 rounded-xl border border-slate-200 dark:border-dark-border text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">Cancel</button>
+          <button type="submit" class="px-5 py-2.5 rounded-xl bg-ueal-purple text-white text-xs font-black shadow-md hover:opacity-90 transition">Save Company Workspace</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentSimTheme = 'dark';
+const rawCompanies = {{ companies|tojson|safe }};
+
+function openCreateCompanyModal() {
+  document.getElementById('modalHeading').textContent = 'Add Company Workspace';
+  document.getElementById('compFormId').value = '';
+  document.getElementById('compFormName').value = '';
+  document.getElementById('compFormCode').value = '';
+  document.getElementById('compFormPrimary').value = '#1554FF';
+  document.getElementById('compFormPrimaryHex').value = '#1554FF';
+  document.getElementById('compFormSecondary').value = '#F59E0B';
+  document.getElementById('compFormSecondaryHex').value = '#F59E0B';
+  document.getElementById('compFormLogoLight').value = '/static/brand/opsloom_wordmark_light.png';
+  document.getElementById('compFormLogoDark').value = '/static/brand/opsloom_wordmark_light.png';
+  document.getElementById('compFormShowName').checked = false;
+  document.getElementById('compFormHeight').value = 44;
+  document.getElementById('compFormWidth').value = 85;
+  document.getElementById('compFormAlign').value = 'left';
+  document.getElementById('compFormFit').value = 'contain';
+  updateSimulator();
+  document.getElementById('companyModal').classList.remove('hidden');
+}
+
+function editCompany(id) {
+  const comp = rawCompanies.find(c => c.id === id);
+  if (!comp) return;
+  document.getElementById('modalHeading').textContent = 'Customize Workspace: ' + comp.name;
+  document.getElementById('compFormId').value = comp.id;
+  document.getElementById('compFormName').value = comp.name || '';
+  document.getElementById('compFormCode').value = comp.code || '';
+  document.getElementById('compFormPrimary').value = comp.primary_color || '#1554FF';
+  document.getElementById('compFormPrimaryHex').value = comp.primary_color || '#1554FF';
+  document.getElementById('compFormSecondary').value = comp.secondary_color || '#F59E0B';
+  document.getElementById('compFormSecondaryHex').value = comp.secondary_color || '#F59E0B';
+  document.getElementById('compFormLogoLight').value = comp.logo_light_url || '';
+  document.getElementById('compFormLogoDark').value = comp.logo_dark_url || '';
+  document.getElementById('compFormShowName').checked = !!comp.show_name_next_to_logo;
+  document.getElementById('compFormHeight').value = comp.logo_height || 44;
+  document.getElementById('compFormWidth').value = comp.logo_width_pct || 85;
+  document.getElementById('compFormAlign').value = comp.logo_alignment || 'left';
+  document.getElementById('compFormFit').value = comp.logo_fit || 'contain';
+  updateSimulator();
+  document.getElementById('companyModal').classList.remove('hidden');
+}
+
+function closeCompanyModal() {
+  document.getElementById('companyModal').classList.add('hidden');
+}
+
+function setAreaPreset(h, w) {
+  document.getElementById('compFormHeight').value = h;
+  document.getElementById('compFormWidth').value = w;
+  updateSimulator();
+}
+
+function setSimTheme(theme) {
+  currentSimTheme = theme;
+  const box = document.getElementById('sidebarSimBox');
+  const dBtn = document.getElementById('simDarkBtn');
+  const lBtn = document.getElementById('simLightBtn');
+  if (theme === 'light') {
+    box.className = 'w-full rounded-2xl p-4 transition-all duration-200 bg-slate-100 border border-slate-300 flex items-center justify-between gap-3 overflow-hidden shadow-inner';
+    lBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-ueal-purple text-white';
+    dBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-300 text-slate-800';
+  } else {
+    box.className = 'w-full rounded-2xl p-4 transition-all duration-200 bg-[#1e1b4b] border border-slate-700 flex items-center justify-between gap-3 overflow-hidden shadow-inner';
+    dBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-ueal-purple text-white';
+    lBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-300';
+  }
+  updateSimulator();
+}
+
+function updateSimulator() {
+  const h = document.getElementById('compFormHeight').value;
+  const w = document.getElementById('compFormWidth').value;
+  const align = document.getElementById('compFormAlign').value;
+  const fit = document.getElementById('compFormFit').value;
+  const showName = document.getElementById('compFormShowName').checked;
+  const name = document.getElementById('compFormName').value || 'Company Name';
+  const code = document.getElementById('compFormCode').value || 'CODE';
+  const logoLight = document.getElementById('compFormLogoLight').value || '/static/brand/opsloom_wordmark_light.png';
+  const logoDark = document.getElementById('compFormLogoDark').value || logoLight;
+
+  document.getElementById('heightValBadge').textContent = h + 'px';
+  document.getElementById('widthValBadge').textContent = w + '%';
+
+  const img = document.getElementById('simLogoImg');
+  const wrap = document.getElementById('simLogoWrap');
+  const nameBox = document.getElementById('simNameBox');
+
+  img.style.height = h + 'px';
+  img.style.width = w + '%';
+  img.style.objectFit = fit;
+  img.src = currentSimTheme === 'light' ? logoLight : logoDark;
+
+  wrap.className = 'flex-1 flex items-center gap-3 min-w-0 ' + (align === 'center' ? 'justify-center' : (align === 'right' ? 'justify-end' : 'justify-start'));
+
+  if (showName) {
+    nameBox.classList.remove('hidden');
+    document.getElementById('simNameText').textContent = name;
+    document.getElementById('simCodeText').textContent = code;
+  } else {
+    nameBox.classList.add('hidden');
+  }
+}
+</script>
+{% endblock %}

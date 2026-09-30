@@ -499,8 +499,8 @@
   (function(){
     const canvas = document.getElementById('dashboardDowntimeChart');
     if (!canvas || typeof Chart === 'undefined') return;
-    const labels = {{ (worst_assets | map(attribute='asset_name') | list)[:6] | tojson }};
-    const values = {{ (worst_assets | map(attribute='downtime_hours') | list)[:6] | tojson }};
+    const labels = {{ worst_assets_chart_labels | default([]) | dump | safe }};
+    const values = {{ worst_assets_chart_values | default([]) | dump | safe }};
     if (!labels.length) return;
     new Chart(canvas.getContext('2d'), {
       type: 'bar',

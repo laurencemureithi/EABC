@@ -1,0 +1,109 @@
+<!-- templates/partials/ai_quick_preview_modal.html -->
+<div id="aiQuickPreviewModal" class="fixed inset-0 z-50 hidden overflow-y-auto" role="dialog" aria-modal="true">
+  <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeAiQuickPreview()"></div>
+
+  <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+    <div class="relative transform overflow-hidden rounded-2xl bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-xl">
+      
+      <!-- Modal Header -->
+      <div class="p-5 border-b border-slate-100 dark:border-dark-border flex items-start justify-between gap-4 bg-slate-50 dark:bg-slate-800/40">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 flex items-center justify-center font-black">
+            <span class="material-symbols-outlined text-[22px]">auto_awesome</span>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="aiPreviewTypeBadge" class="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">ASSET INSIGHT</span>
+              <span id="aiPreviewStatusPill" class="text-xs font-bold text-slate-500">Active</span>
+            </div>
+            <h3 id="aiPreviewTitle" class="text-base font-black text-slate-900 dark:text-white mt-0.5">High-Speed Rotary Filler</h3>
+          </div>
+        </div>
+        <button type="button" onclick="closeAiQuickPreview()" class="w-8 h-8 rounded-lg border border-slate-200 dark:border-dark-border text-slate-400 hover:text-slate-600 flex items-center justify-center">
+          <span class="material-symbols-outlined text-lg">close</span>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-6 space-y-4">
+        <!-- Diagnostic Summary -->
+        <div class="p-4 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/30 space-y-1.5">
+          <div class="flex items-center justify-between text-xs font-bold text-purple-800 dark:text-purple-300">
+            <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-sm">psychology</span> Opsloom AI Evaluation</span>
+            <span id="aiPreviewRiskScore" class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-black">LOW RISK</span>
+          </div>
+          <p id="aiPreviewSummary" class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+            Loading intelligent synthesis…
+          </p>
+        </div>
+
+        <!-- Metric Highlights Grid -->
+        <div class="grid grid-cols-3 gap-3 text-center">
+          <div class="p-3 rounded-xl border border-slate-100 dark:border-dark-border bg-slate-50 dark:bg-slate-800/30">
+            <p class="text-[10px] font-bold uppercase text-slate-400">Reliability</p>
+            <p id="aiPreviewMetric1" class="text-sm font-black text-slate-800 dark:text-white mt-0.5">98.5%</p>
+          </div>
+          <div class="p-3 rounded-xl border border-slate-100 dark:border-dark-border bg-slate-50 dark:bg-slate-800/30">
+            <p class="text-[10px] font-bold uppercase text-slate-400">Downtime MTD</p>
+            <p id="aiPreviewMetric2" class="text-sm font-black text-slate-800 dark:text-white mt-0.5">2.5 hrs</p>
+          </div>
+          <div class="p-3 rounded-xl border border-slate-100 dark:border-dark-border bg-slate-50 dark:bg-slate-800/30">
+            <p class="text-[10px] font-bold uppercase text-slate-400">Next Action</p>
+            <p id="aiPreviewMetric3" class="text-sm font-black text-slate-800 dark:text-white mt-0.5">Routine PM</p>
+          </div>
+        </div>
+
+        <!-- AI Recommendations -->
+        <div class="space-y-2">
+          <p class="text-xs font-black uppercase tracking-wider text-slate-500">Key Engineering Action</p>
+          <div id="aiPreviewAction" class="p-3.5 rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface text-xs text-slate-700 dark:text-slate-200 flex items-start gap-2.5">
+            <span class="material-symbols-outlined text-sm text-purple-600 mt-0.5">task_alt</span>
+            <span>Maintain 30-day lubrication and check drive belt tension during next line turnover.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-dark-border flex items-center justify-between">
+        <span class="text-[10px] text-slate-400">Powered by Opsloom AI Engine</span>
+        <div class="flex items-center gap-2">
+          <a id="aiPreviewFullLink" href="/assets" class="px-4 py-2 rounded-xl bg-purple-700 text-white text-xs font-bold hover:bg-purple-800 transition">
+            View Full Profile
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+async function openAiQuickPreview(type, id, title) {
+  const m = document.getElementById('aiQuickPreviewModal');
+  if (!m) return;
+  m.classList.remove('hidden');
+
+  document.getElementById('aiPreviewTypeBadge').textContent = type.toUpperCase() + ' INSIGHT';
+  document.getElementById('aiPreviewTitle').textContent = title || 'Industrial Unit';
+  document.getElementById('aiPreviewSummary').textContent = 'Generating real-time diagnostic insight…';
+
+  try {
+    const res = await fetch(`/api/ai/preview?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`);
+    const data = await res.json();
+    document.getElementById('aiPreviewSummary').textContent = data.summary || 'Operational telemetry within normal manufacturing tolerances.';
+    document.getElementById('aiPreviewRiskScore').textContent = data.risk_label || 'NORMAL';
+    document.getElementById('aiPreviewMetric1').textContent = data.m1 || '98.5%';
+    document.getElementById('aiPreviewMetric2').textContent = data.m2 || '0 hrs';
+    document.getElementById('aiPreviewMetric3').textContent = data.m3 || 'PM Scheduled';
+    document.getElementById('aiPreviewAction').innerHTML = `<span class="material-symbols-outlined text-sm text-purple-600 mt-0.5">task_alt</span><span>${data.action || 'Continue standard maintenance interval.'}</span>`;
+    document.getElementById('aiPreviewFullLink').href = data.full_href || ('/' + type + 's/' + id);
+  } catch (e) {
+    document.getElementById('aiPreviewSummary').textContent = 'Asset operational and logged in Opsloom plant register.';
+  }
+}
+
+function closeAiQuickPreview() {
+  const m = document.getElementById('aiQuickPreviewModal');
+  if (m) m.classList.add('hidden');
+}
+</script>

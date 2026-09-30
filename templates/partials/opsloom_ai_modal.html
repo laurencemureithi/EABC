@@ -1,0 +1,171 @@
+<!-- templates/partials/opsloom_ai_modal.html -->
+<div id="opsloomAiModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="ai-modal-title" role="dialog" aria-modal="true">
+  <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onclick="closeOpsloomAiModal()"></div>
+
+  <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+    <div class="relative transform overflow-hidden rounded-2xl bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-2xl flex flex-col max-h-[85vh]">
+      
+      <!-- AI Header -->
+      <div class="p-6 border-b border-slate-100 dark:border-dark-border flex items-center justify-between gap-4 bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center font-black shadow-inner">
+            <span class="material-symbols-outlined text-[26px] text-amber-400 animate-pulse">auto_awesome</span>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="text-lg font-black tracking-tight" id="ai-modal-title">Opsloom AI Intelligence</h3>
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-400 text-slate-900">
+                PRO ACTIVE
+              </span>
+            </div>
+            <p class="text-xs text-purple-200 mt-0.5">Reliability diagnostics, failure prediction &amp; maintenance synthesis</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeOpsloomAiModal()" class="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 hover:text-white flex items-center justify-center transition">
+          <span class="material-symbols-outlined text-lg">close</span>
+        </button>
+      </div>
+
+      <!-- Quick Action Pills -->
+      <div class="p-4 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-dark-border flex items-center gap-2 overflow-x-auto">
+        <button type="button" onclick="runAiQuickAction('diagnose_fleet')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-dark-border hover:border-purple-500 transition whitespace-nowrap shadow-xs flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-xs text-purple-600">health_and_safety</span> Plant Health Audit
+        </button>
+        <button type="button" onclick="runAiQuickAction('critical_breakdowns')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-dark-border hover:border-purple-500 transition whitespace-nowrap shadow-xs flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-xs text-red-500">warning</span> Triage Active Faults
+        </button>
+        <button type="button" onclick="runAiQuickAction('spare_replenishment')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-dark-border hover:border-purple-500 transition whitespace-nowrap shadow-xs flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-xs text-amber-500">inventory_2</span> Spares Stock Risk
+        </button>
+      </div>
+
+      <!-- AI Chat & Diagnostics Output Area -->
+      <div id="aiResponseContainer" class="p-6 overflow-y-auto space-y-4 flex-1 text-sm text-slate-700 dark:text-slate-300">
+        <div class="p-4 rounded-xl border border-purple-100 dark:border-purple-900/30 bg-purple-50/50 dark:bg-purple-950/20">
+          <div class="flex items-center gap-2 text-purple-800 dark:text-purple-300 font-bold mb-1">
+            <span class="material-symbols-outlined text-base">psychology</span>
+            <span>Opsloom AI Plant Copilot Ready</span>
+          </div>
+          <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+            Welcome to Opsloom AI. I monitor continuous machine health, downtime root causes, technician capacity, and spare parts inventory across the active workspace. Select a diagnostic above or type any query below.
+          </p>
+        </div>
+      </div>
+
+      <!-- Prompt Input Footer -->
+      <div class="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-dark-border">
+        <form id="aiPromptForm" onsubmit="submitAiPrompt(event)" class="flex items-center gap-2">
+          <div class="relative flex-1">
+            <input type="text" id="aiUserInput" placeholder="Ask Opsloom AI e.g. 'How can we reduce blower downtime?'" required
+                   class="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface text-sm outline-none focus:ring-2 focus:ring-purple-500 transition">
+          </div>
+          <button type="submit" id="aiSubmitBtn" class="px-5 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-black flex items-center gap-1.5 shadow-md transition shrink-0">
+            <span>Ask AI</span>
+            <span class="material-symbols-outlined text-sm">send</span>
+          </button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+function openOpsloomAiModal() {
+  const m = document.getElementById('opsloomAiModal');
+  if (m) m.classList.remove('hidden');
+}
+function closeOpsloomAiModal() {
+  const m = document.getElementById('opsloomAiModal');
+  if (m) m.classList.add('hidden');
+}
+
+async function runAiQuickAction(action) {
+  const container = document.getElementById('aiResponseContainer');
+  const loadingHtml = `
+    <div class="p-4 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-800/40 animate-pulse">
+      <div class="flex items-center gap-2 text-purple-600 font-bold text-xs">
+        <span class="material-symbols-outlined text-sm animate-spin">sync</span> Opsloom AI analyzing telemetry and records…
+      </div>
+    </div>
+  `;
+  container.insertAdjacentHTML('beforeend', loadingHtml);
+  container.scrollTop = container.scrollHeight;
+
+  try {
+    const res = await fetch('/api/ai/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action })
+    });
+    const data = await res.json();
+    // Remove loading
+    container.lastElementChild.remove();
+
+    const resultHtml = `
+      <div class="p-4 rounded-xl border border-purple-200 dark:border-purple-800/40 bg-white dark:bg-dark-surface shadow-sm space-y-2">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-black text-purple-700 dark:text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-sm">auto_awesome</span> ${data.title || 'AI Synthesis'}
+          </span>
+          <span class="text-[10px] text-slate-400">${new Date().toLocaleTimeString()}</span>
+        </div>
+        <div class="text-xs text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-line">${data.analysis}</div>
+      </div>
+    `;
+    container.insertAdjacentHTML('beforeend', resultHtml);
+    container.scrollTop = container.scrollHeight;
+  } catch (e) {
+    container.lastElementChild.remove();
+    container.insertAdjacentHTML('beforeend', `<div class="p-3 text-xs text-red-500">Failed to query Opsloom AI.</div>`);
+  }
+}
+
+async function submitAiPrompt(e) {
+  e.preventDefault();
+  const input = document.getElementById('aiUserInput');
+  const query = input.value.trim();
+  if (!query) return;
+
+  const container = document.getElementById('aiResponseContainer');
+  container.insertAdjacentHTML('beforeend', `
+    <div class="flex justify-end">
+      <div class="bg-purple-600 text-white px-4 py-2 rounded-2xl rounded-tr-none text-xs font-semibold max-w-[80%]">
+        ${query}
+      </div>
+    </div>
+  `);
+  input.value = '';
+
+  const loadingId = 'loading-' + Date.now();
+  container.insertAdjacentHTML('beforeend', `
+    <div id="${loadingId}" class="p-3 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-500 animate-pulse flex items-center gap-2">
+      <span class="material-symbols-outlined text-sm animate-spin text-purple-600">autorenew</span> Opsloom AI synthesizing response…
+    </div>
+  `);
+  container.scrollTop = container.scrollHeight;
+
+  try {
+    const res = await fetch('/api/ai/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query })
+    });
+    const data = await res.json();
+    document.getElementById(loadingId)?.remove();
+
+    container.insertAdjacentHTML('beforeend', `
+      <div class="p-4 rounded-xl border border-purple-200 dark:border-purple-800/40 bg-white dark:bg-dark-surface shadow-sm space-y-2">
+        <div class="text-xs font-black text-purple-700 dark:text-purple-300 flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-sm">smart_toy</span> Opsloom AI Response
+        </div>
+        <div class="text-xs text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-line">${data.analysis}</div>
+      </div>
+    `);
+    container.scrollTop = container.scrollHeight;
+  } catch (err) {
+    document.getElementById(loadingId)?.remove();
+    container.insertAdjacentHTML('beforeend', `<div class="p-3 text-xs text-red-500">Error generating AI analysis.</div>`);
+  }
+}
+</script>
