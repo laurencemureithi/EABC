@@ -25,13 +25,16 @@
       <form method="get" action="/settings/recycle-bin" class="flex items-center gap-2">
         <select name="type" onchange="this.form.submit()" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold">
           <option value="all" {% if selected_type == 'all' %}selected{% endif %}>All Modules ({{ total_bin_count }})</option>
-          <option value="asset" {% if selected_type == 'asset' %}selected{% endif %}>Assets</option>
-          <option value="breakdown" {% if selected_type == 'breakdown' %}selected{% endif %}>Breakdowns</option>
-          <option value="maintenance" {% if selected_type == 'maintenance' %}selected{% endif %}>Maintenance Tasks</option>
-          <option value="inventory" {% if selected_type == 'inventory' %}selected{% endif %}>Inventory Spares</option>
-          <option value="report" {% if selected_type == 'report' %}selected{% endif %}>Generated Reports</option>
-          <option value="message" {% if selected_type == 'message' %}selected{% endif %}>Messages</option>
-          <option value="ai_chat" {% if selected_type == 'ai_chat' %}selected{% endif %}>Opsloom AI Chats</option>
+          <option value="asset" {% if selected_type == 'asset' %}selected{% endif %}>Assets ({{ counts.asset or 0 }})</option>
+          <option value="breakdown" {% if selected_type == 'breakdown' %}selected{% endif %}>Breakdowns ({{ counts.breakdown or 0 }})</option>
+          <option value="maintenance" {% if selected_type == 'maintenance' %}selected{% endif %}>Maintenance Tasks ({{ counts.maintenance or 0 }})</option>
+          <option value="inventory" {% if selected_type == 'inventory' %}selected{% endif %}>Inventory &amp; Spares ({{ counts.inventory or 0 }})</option>
+          <option value="document" {% if selected_type == 'document' %}selected{% endif %}>Asset Documents ({{ counts.document or 0 }})</option>
+          <option value="report" {% if selected_type == 'report' %}selected{% endif %}>Generated Reports ({{ counts.report or 0 }})</option>
+          <option value="message" {% if selected_type == 'message' %}selected{% endif %}>Messages ({{ counts.message or 0 }})</option>
+          <option value="ai_chat" {% if selected_type == 'ai_chat' %}selected{% endif %}>Opsloom AI Chats ({{ counts.ai_chat or 0 }})</option>
+          <option value="user" {% if selected_type == 'user' %}selected{% endif %}>Users &amp; Technicians ({{ counts.user or 0 }})</option>
+          <option value="company" {% if selected_type == 'company' %}selected{% endif %}>Workspaces ({{ counts.company or 0 }})</option>
         </select>
       </form>
       {% if items and items|length > 0 %}
@@ -76,13 +79,16 @@
               <p class="text-xs text-slate-400 mt-0.5">ID: {{ item.identifier }}</p>
             </td>
             <td class="px-6 py-4">
-              <p class="text-xs text-slate-600 dark:text-slate-300 max-w-md truncate">{{ item.summary or 'Full record state preserved in vault' }}</p>
+              <p class="text-xs text-slate-600 dark:text-slate-300 max-w-md">{{ item.summary or 'Full record state preserved in vault' }}</p>
             </td>
-            <td class="px-6 py-4 text-xs font-semibold text-slate-700 dark:text-slate-200">
-              {{ item.deleted_by or 'Laurence Magondu' }}
+            <td class="px-6 py-4">
+              <div class="text-xs font-bold text-slate-800 dark:text-slate-100">{{ item.deleted_by or 'Laurence Magondu' }}</div>
+              <div class="text-[11px] text-slate-500 dark:text-slate-400">{{ item.deleted_by_email or 'opsloom.ke@gmail.com' }}</div>
+              <span class="inline-block mt-1 px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-900/30 text-ueal-purple dark:text-amber-300 text-[9px] font-black uppercase tracking-wider">{{ item.deleted_by_role or 'Administrator' }}</span>
             </td>
-            <td class="px-6 py-4 text-xs text-slate-500">
-              {{ item.deleted_at_fmt or (item.deleted_at or '')|slice(0, 16)|replace('T', ' ') }}
+            <td class="px-6 py-4">
+              <div class="text-xs font-semibold text-slate-700 dark:text-slate-200">{{ item.deleted_at_fmt or (item.deleted_at or '')|slice(0, 16)|replace('T', ' ') }}</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">Audit Verified</div>
             </td>
             <td class="px-6 py-4 text-right">
               <div class="inline-flex items-center gap-2">

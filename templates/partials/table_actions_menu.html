@@ -13,14 +13,14 @@
       {% set item_classes = 'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ' ~ ('text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20' if danger else 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800') %}
       {% if item.type|default('link') == 'form' %}
         <form method="{{ item.method|default('post') }}" action="{{ item.href }}" class="block"
-              {% if item.confirm_key or item.confirm_title or item.confirm_ok or item.confirm_skip_label %}
+              {% if item.confirm or item.confirm_key or item.confirm_title or item.confirm_ok or item.confirm_skip_label %}
                 data-confirm="{{ item.confirm_key or 'action' }}"
                 data-confirm-key="eabc_skip_confirm_{{ item.confirm_key or 'action' }}"
                 data-confirm-title="{{ item.confirm_title|default('Please Confirm')|e }}"
                 data-confirm-text="{{ item.confirm|default('Are you sure you want to continue?')|e }}"
                 data-confirm-ok="{{ item.confirm_ok|default('Yes, continue')|e }}"
                 data-confirm-skip-label="{{ item.confirm_skip_label|default('Do not show this again')|e }}"
-              {% elif item.confirm %}onsubmit="return confirm('{{ item.confirm|e }}');"{% endif %}>
+              {% endif %}>
           {% for hidden in item.hidden_inputs|default([]) %}
             <input type="hidden" name="{{ hidden.name }}" value="{{ hidden.value }}">
           {% endfor %}

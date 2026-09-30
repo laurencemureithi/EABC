@@ -81,6 +81,40 @@
         <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Default Report Recipients</label><input name="default_report_recipients" value="{{ (settings.default_report_recipients or [])|join(', ') if (settings.default_report_recipients is iterable and settings.default_report_recipients is not string) else (settings.default_report_recipients or '') }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm" placeholder="qa@company.com, ceo@company.com"></div>
         <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Signature Footer / Email Signoff</label><textarea name="mail_signature_footer" rows="3" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">{{ settings.mail_signature_footer or '' }}</textarea></div>
         <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Report Watermark</label><input name="report_watermark" value="{{ settings.report_watermark or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+
+        <div class="pt-4 border-t border-slate-200 dark:border-dark-border">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="material-symbols-outlined text-amber-500 text-lg">security</span>
+            <h3 class="text-xs font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-100">Session Timeout &amp; Device Security</h3>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Auto-Logout / Inactivity Timeout</label>
+              {% set cur_timeout = (settings.session_timeout_minutes or session_timeout_minutes or 30)|int %}
+              <select name="session_timeout_minutes" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm font-semibold">
+                <option value="15" {% if cur_timeout == 15 %}selected{% endif %}>15 Minutes (High Security)</option>
+                <option value="30" {% if cur_timeout == 30 %}selected{% endif %}>30 Minutes (Recommended Standard)</option>
+                <option value="60" {% if cur_timeout == 60 %}selected{% endif %}>60 Minutes (1 Hour Shift)</option>
+                <option value="120" {% if cur_timeout == 120 %}selected{% endif %}>120 Minutes (2 Hours Shift)</option>
+                <option value="480" {% if cur_timeout == 480 %}selected{% endif %}>480 Minutes (8 Hours Plant Shift)</option>
+              </select>
+              <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">Requires authentication on new devices and automatically locks idle sessions.</p>
+            </div>
+            <div class="flex flex-col justify-end">
+              <div class="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-900/60 p-3.5 flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-xs font-extrabold text-slate-800 dark:text-slate-100">Immediate Session Lock</p>
+                  <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Lock this device now and require credentials to re-enter.</p>
+                </div>
+                <a href="/lock?next={{ request.path }}" class="px-3.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-black uppercase tracking-wider shrink-0 flex items-center gap-1.5">
+                  <span class="material-symbols-outlined text-sm">lock</span>
+                  Lock Now
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="flex justify-end"><button type="submit" class="px-5 py-3 rounded-lg bg-ueal-gold text-white text-sm font-black shadow cursor-pointer">Save Settings</button></div>
       </form>
     </div>

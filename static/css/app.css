@@ -803,13 +803,10 @@ img, svg, canvas, video {
     max-width: min(19rem, 92vw);
   }
   .app-topbar-brand-copy {
-    max-width: min(48vw, 14rem);
+    max-width: min(56vw, 15rem);
   }
   .app-topbar-subtitle {
     display: none;
-  }
-  .app-topbar-help {
-    display: none !important;
   }
   .app-user-chip {
     padding-left: 0 !important;
@@ -831,12 +828,77 @@ img, svg, canvas, video {
     font-size: 1rem !important;
   }
   .app-topbar-brand-copy {
-    max-width: 42vw;
+    max-width: 50vw;
   }
   .app-topbar-notifications,
-  .app-topbar-messages {
-    width: 2.2rem;
-    height: 2.2rem;
+  .app-topbar-messages,
+  .app-topbar-help {
+    width: 2.15rem;
+    height: 2.15rem;
+  }
+}
+
+/* Mobile Bottom Quick-Navigation Bar & FAB positioning */
+.opsloom-fab {
+  bottom: 24px !important;
+}
+.app-mobile-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .opsloom-fab {
+    bottom: 76px !important;
+    right: 14px !important;
+  }
+  main.main-content {
+    padding-bottom: 5.5rem !important;
+  }
+  .app-mobile-bottom-nav {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 62px;
+    background: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid #e2e8f0;
+    z-index: 940;
+    padding: 0 4px env(safe-area-inset-bottom, 0px);
+    box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.06);
+  }
+  .dark .app-mobile-bottom-nav {
+    background: rgba(15, 23, 42, 0.97);
+    border-top-color: #1e293b;
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.4);
+  }
+  .app-mobile-bottom-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: 10px;
+    font-weight: 800;
+    color: #64748b;
+    text-decoration: none;
+    border: none;
+    background: transparent;
+    padding: 4px 2px;
+    border-radius: 10px;
+    transition: color 0.15s ease, background-color 0.15s ease;
+    cursor: pointer;
+  }
+  .dark .app-mobile-bottom-item {
+    color: #94a3b8;
+  }
+  .app-mobile-bottom-item.is-active {
+    color: var(--brand-primary, #7E22CE);
+  }
+  .dark .app-mobile-bottom-item.is-active {
+    color: var(--brand-secondary, #F59E0B);
   }
 }
 

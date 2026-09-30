@@ -25,6 +25,7 @@ function getAiClient() {
 }
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 const isVercel = Boolean(process.env.VERCEL);
 
@@ -45,11 +46,41 @@ try {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
+    const ext = path.extname(file.originalname) || '.png';
     cb(null, `${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`);
   }
 });
-const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({ storage, limits: { fileSize: 15 * 1024 * 1024 } });
+
+function fileToDataUrl(file) {
+  if (!file) return '';
+  try {
+    const buf = file.buffer || (file.path && fs.existsSync(file.path) ? fs.readFileSync(file.path) : null);
+    if (!buf || !buf.length) return '';
+    const ext = path.extname(file.originalname || file.filename || '').toLowerCase();
+    let mime = file.mimetype;
+    if (!mime || mime === 'application/octet-stream') {
+      if (ext === '.svg') mime = 'image/svg+xml';
+      else if (ext === '.jpg' || ext === '.jpeg') mime = 'image/jpeg';
+      else if (ext === '.webp') mime = 'image/webp';
+      else if (ext === '.gif') mime = 'image/gif';
+      else mime = 'image/png';
+    }
+    return `data:${mime};base64,${buf.toString('base64')}`;
+  } catch (e) {
+    return '';
+  }
+}
+
+function setSafeCookie(req, res, name, val, customMaxAgeMs = null) {
+  const isHttps = Boolean(req.secure || req.headers['x-forwarded-proto'] === 'https' || isVercel);
+  res.cookie(name, val, {
+    path: '/',
+    maxAge: customMaxAgeMs || (365 * 24 * 60 * 60 * 1000),
+    sameSite: isHttps ? 'none' : 'lax',
+    secure: isHttps
+  });
+}
 
 // In-Memory Datastore
 let store = {
@@ -97,7 +128,8 @@ let store = {
     report_watermark: 'Internal Use',
     company_contact_email: 'opsloom.ke@gmail.com',
     company_contact_phone: '+254 20 2358205',
-    password_reset_help: 'Contact Opsloom support or your system administrator to reset your password.'
+    password_reset_help: 'Contact Opsloom support or your system administrator to reset your password.',
+    session_timeout_minutes: 30
   },
   SYSTEM_NOTIFICATIONS: [
     {
@@ -173,6 +205,78 @@ let store = {
 
 // Seed realistic demo assets if store has none
 function seedInitialDataIfEmpty() {
+  if (!store.ADMIN_USERS || !Array.isArray(store.ADMIN_USERS)) {
+    store.ADMIN_USERS = [];
+  }
+  const hasPrimaryAdmin = store.ADMIN_USERS.some(
+    u => u && (u.id === 'USR-001' || (u.email && u.email.toLowerCase() === 'opsloom.ke@gmail.com'))
+  );
+  if (!hasPrimaryAdmin) {
+    store.ADMIN_USERS.unshift({
+      id: 'USR-001',
+      name: 'Laurence Magondu',
+      email: 'opsloom.ke@gmail.com',
+      password: 'Admin@123',
+      role: 'Administrator',
+      access_scope: 'Full System',
+      department: 'Engineering',
+      company_id: 'comp-001',
+      active: true,
+      last_login_at: 'Active Session',
+      permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'settings', 'admin', 'companies', 'all'],
+      signature_name: 'Laurence Magondu',
+      signature_title: 'Chief Engineering & System Administrator',
+      signature_font: 'Inter',
+      signature_color: '#7E22CE',
+      signature_style: 'formal',
+      signature_image_url: '',
+      profile_image_url: ''
+    });
+  }
+  if (store.ADMIN_USERS.length === 1 && !store.seeded_default_team_users) {
+    store.ADMIN_USERS.push(
+      {
+        id: 'USR-002',
+        name: 'Eng. Grace Wanjiku',
+        email: 'grace.wanjiku@opsloom.co.ke',
+        password: 'Admin@123',
+        role: 'Manager',
+        access_scope: 'Department',
+        department: 'Engineering',
+        company_id: 'comp-001',
+        active: true,
+        last_login_at: '29 Sep 2026, 16:40',
+        permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'technicians_manage'],
+        signature_name: 'Eng. Grace Wanjiku',
+        signature_title: 'Plant Reliability Manager',
+        signature_font: 'Inter',
+        signature_color: '#1554FF',
+        signature_style: 'modern',
+        signature_image_url: ''
+      },
+      {
+        id: 'USR-003',
+        name: 'David Kimani',
+        email: 'david.kimani@opsloom.co.ke',
+        password: 'Admin@123',
+        role: 'Technician',
+        access_scope: 'Section',
+        department: 'Engineering',
+        company_id: 'comp-001',
+        active: true,
+        last_login_at: '30 Sep 2026, 08:15',
+        permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance'],
+        signature_name: 'David Kimani',
+        signature_title: 'Senior Mechanical Technician',
+        signature_font: 'Inter',
+        signature_color: '#0EA5E9',
+        signature_style: 'formal',
+        signature_image_url: ''
+      }
+    );
+    store.seeded_default_team_users = true;
+  }
+
   if (!store.COMPANIES || store.COMPANIES.length === 0) {
     store.COMPANIES = [
       {
@@ -387,7 +491,7 @@ function seedInitialDataIfEmpty() {
       technical_notes: 'Plant-wide instrument air supply. Scheduled separator element change.'
     }
   ];
-  if (!store.ASSETS || store.ASSETS.length < 12) {
+  if (!store.initialized && (!store.ASSETS || store.ASSETS.length === 0)) {
     const existingUids = new Set((store.ASSETS || []).map(a => a.uid));
     store.ASSETS = [...(store.ASSETS || []), ...defaultAssets.filter(a => !existingUids.has(a.uid))];
   }
@@ -520,7 +624,7 @@ function seedInitialDataIfEmpty() {
       created_at: '2026-09-18T09:10:00'
     }
   ];
-  if (!store.BREAKDOWNS || store.BREAKDOWNS.length < 5) {
+  if (!store.initialized && (!store.BREAKDOWNS || store.BREAKDOWNS.length === 0)) {
     const existingIds = new Set((store.BREAKDOWNS || []).map(b => b.breakdown_id));
     store.BREAKDOWNS = [...(store.BREAKDOWNS || []), ...defaultBreakdowns.filter(b => !existingIds.has(b.breakdown_id))];
   }
@@ -651,7 +755,7 @@ function seedInitialDataIfEmpty() {
       created_at: '2026-09-15T09:00:00'
     }
   ];
-  if (!store.MAINTENANCE_TASKS || store.MAINTENANCE_TASKS.length < 6) {
+  if (!store.initialized && (!store.MAINTENANCE_TASKS || store.MAINTENANCE_TASKS.length === 0)) {
     const existingTaskIds = new Set((store.MAINTENANCE_TASKS || []).map(t => t.task_id));
     store.MAINTENANCE_TASKS = [...(store.MAINTENANCE_TASKS || []), ...defaultTasks.filter(t => !existingTaskIds.has(t.task_id))];
   }
@@ -778,7 +882,7 @@ function seedInitialDataIfEmpty() {
       created_at: '2026-08-28T08:00:00'
     }
   ];
-  if (!store.INVENTORY_PARTS || store.INVENTORY_PARTS.length < 8) {
+  if (!store.initialized && (!store.INVENTORY_PARTS || store.INVENTORY_PARTS.length === 0)) {
     const existingPartUids = new Set((store.INVENTORY_PARTS || []).map(p => p.uid));
     store.INVENTORY_PARTS = [...(store.INVENTORY_PARTS || []), ...defaultParts.filter(p => !existingPartUids.has(p.uid))];
   }
@@ -875,10 +979,12 @@ function seedInitialDataIfEmpty() {
       user_name: 'Laurence Magondu'
     }
   ];
-  if (!store.REPORT_EXPORTS || store.REPORT_EXPORTS.length < 5) {
+  if (!store.initialized && (!store.REPORT_EXPORTS || store.REPORT_EXPORTS.length === 0)) {
     const existingRepIds = new Set((store.REPORT_EXPORTS || []).map(r => r.id));
     store.REPORT_EXPORTS = [...(store.REPORT_EXPORTS || []), ...defaultReports.filter(r => !existingRepIds.has(r.id))];
   }
+
+  store.initialized = true;
 
   if (!store.RECYCLE_BIN) store.RECYCLE_BIN = [];
   if (!store.AI_CHATS || store.AI_CHATS.length === 0) {
@@ -921,26 +1027,47 @@ function seedInitialDataIfEmpty() {
   }
 }
 
-// Load store from disk (with seed fallback)
-try {
-  const seedPath = path.join(__dirname, 'data', 'datastore.json');
-  if (fs.existsSync(DATASTORE_PATH)) {
-    const raw = fs.readFileSync(DATASTORE_PATH, 'utf-8');
-    store = { ...store, ...JSON.parse(raw) };
-  } else if (fs.existsSync(seedPath)) {
-    const raw = fs.readFileSync(seedPath, 'utf-8');
-    store = { ...store, ...JSON.parse(raw) };
+// Load store from disk (with seed fallback) and keep in sync across requests
+let lastDiskMtimeMs = 0;
+function syncStoreFromDisk() {
+  try {
+    const targetPath = fs.existsSync(DATASTORE_PATH)
+      ? DATASTORE_PATH
+      : path.join(__dirname, 'data', 'datastore.json');
+    if (fs.existsSync(targetPath)) {
+      const stat = fs.statSync(targetPath);
+      if (stat.mtimeMs > lastDiskMtimeMs) {
+        const raw = fs.readFileSync(targetPath, 'utf-8');
+        const parsed = JSON.parse(raw);
+        store = { ...store, ...parsed, initialized: true };
+        if (!Array.isArray(store.ADMIN_USERS) || store.ADMIN_USERS.length === 0) {
+          seedInitialDataIfEmpty();
+        }
+        lastDiskMtimeMs = stat.mtimeMs;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not sync datastore from disk:', err.message);
   }
-} catch (err) {
-  console.warn('Could not read datastore, using default memory store:', err.message);
 }
+
+syncStoreFromDisk();
 seedInitialDataIfEmpty();
 saveStore();
 
 function saveStore() {
   try {
+    store.initialized = true;
     store.saved_at = new Date().toISOString();
-    fs.writeFileSync(DATASTORE_PATH, JSON.stringify(store, null, 2), 'utf-8');
+    const payload = JSON.stringify(store, null, 2);
+    fs.writeFileSync(DATASTORE_PATH, payload, 'utf-8');
+    const stat = fs.statSync(DATASTORE_PATH);
+    lastDiskMtimeMs = stat.mtimeMs;
+    // If not on Vercel and DATASTORE_PATH differs from repo data/datastore.json, keep both in sync
+    const repoPath = path.join(__dirname, 'data', 'datastore.json');
+    if (!isVercel && DATASTORE_PATH !== repoPath) {
+      fs.writeFileSync(repoPath, payload, 'utf-8');
+    }
   } catch (err) {
     console.warn('Failed to write datastore.json (ephemeral in serverless):', err.message);
   }
@@ -999,18 +1126,38 @@ function pushNotification(title, message, kind = 'info', href = '/dashboard', sh
   saveStore();
 }
 
-function moveToRecycleBin(entity_type, entity_label, primary_id, record, deleted_by = 'Laurence Magondu') {
+function moveToRecycleBin(entity_type, entity_label, primary_id, record, deleted_by = 'Laurence Magondu', extra = {}) {
   if (!store.RECYCLE_BIN) store.RECYCLE_BIN = [];
+  const rec = record || {};
+  let summary = extra.summary || '';
+  if (!summary) {
+    const details = [];
+    if (rec.section) details.push(`Section: ${rec.section}`);
+    if (rec.department) details.push(`Dept: ${rec.department}`);
+    if (rec.status) details.push(`Status: ${String(rec.status).toUpperCase()}`);
+    if (rec.category) details.push(`Category: ${rec.category}`);
+    if (rec.severity) details.push(`Severity: ${rec.severity}`);
+    if (rec.technician || rec.technician_name) details.push(`Tech: ${rec.technician || rec.technician_name}`);
+    if (rec.cost_total || rec.cost || rec.unit_price) details.push(`KES ${Number(rec.cost_total || rec.cost || rec.unit_price || 0).toLocaleString()}`);
+    summary = details.length ? details.join(' • ') : `Preserved ${entity_type} record (${entity_label || primary_id})`;
+  }
+  const now = new Date();
   const entry = {
     id: 'bin-' + Date.now() + '-' + Math.floor(100 + Math.random() * 900),
+    bin_id: '',
     entity_type,
     entity_label: entity_label || primary_id || 'Deleted Record',
     primary_id: primary_id || '',
-    record: record || {},
-    deleted_by,
-    deleted_at: new Date().toISOString(),
-    deleted_at_fmt: new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    identifier: primary_id || rec.uid || rec.id || rec.asset_id || rec.breakdown_id || rec.task_id || rec.sku || '',
+    summary,
+    record: rec,
+    deleted_by: deleted_by || 'Laurence Magondu',
+    deleted_by_email: extra.deleted_by_email || 'opsloom.ke@gmail.com',
+    deleted_by_role: extra.deleted_by_role || 'Administrator',
+    deleted_at: now.toISOString(),
+    deleted_at_fmt: now.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   };
+  entry.bin_id = entry.id;
   store.RECYCLE_BIN.unshift(entry);
   saveStore();
   return entry;
@@ -1290,6 +1437,41 @@ nunjucksEnv.addFilter('format', (fmt, ...args) => {
   return fmt;
 });
 
+// Resolve a company logo URL or Data URI into a base64 Data URI for PptxGenJS
+function resolveLogoDataUri(logoUrl) {
+  try {
+    if (!logoUrl) return null;
+    const str = String(logoUrl).trim();
+    if (str.startsWith('data:image/')) {
+      if (str.startsWith('data:image/svg')) return null; // PptxGenJS prefers PNG/JPEG data URIs
+      return str;
+    }
+    let relPath = str.replace(/^https?:\/\/[^/]+/, '');
+    if (relPath.startsWith('/')) relPath = relPath.slice(1);
+    const candidates = [
+      path.join(__dirname, relPath),
+      path.join(STATIC_DIR, relPath.replace(/^static\//, '')),
+      path.join(UPLOADS_DIR, path.basename(relPath)),
+      path.join(STATIC_DIR, 'brand', 'ultravetis_logo.png'),
+      path.join(STATIC_DIR, 'brand', 'opsloom_wordmark_light.png')
+    ];
+    for (const filePath of candidates) {
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        const ext = path.extname(filePath).toLowerCase();
+        if (ext === '.svg') continue;
+        const mime = (ext === '.jpg' || ext === '.jpeg') ? 'image/jpeg' : 'image/png';
+        const buf = fs.readFileSync(filePath);
+        if (buf && buf.length > 0) {
+          return `data:${mime};base64,${buf.toString('base64')}`;
+        }
+      }
+    }
+  } catch (err) {
+    // ignore and fallback
+  }
+  return null;
+}
+
 // Branded PowerPoint (.pptx) Presentation Generator
 async function sendBrandPowerPoint(req, res, options = {}) {
   const ctx = baseCtx(req);
@@ -1316,6 +1498,35 @@ async function sendBrandPowerPoint(req, res, options = {}) {
   const rows = Array.isArray(options.rows) ? options.rows : [];
   const filename = (options.filename || 'opsloom_presentation.pptx').replace(/[^a-zA-Z0-9._-]/g, '_');
 
+  const logoDataUri = resolveLogoDataUri(comp.logo_light_url || comp.logo_dark_url);
+
+  function addSlideBrandLogo(slide, isCover = false) {
+    if (logoDataUri) {
+      slide.addShape(pres.ShapeType.roundRect, {
+        x: isCover ? 7.55 : 7.85,
+        y: isCover ? 0.32 : 0.08,
+        w: isCover ? 1.85 : 1.65,
+        h: isCover ? 0.68 : 0.58,
+        fill: { color: 'FFFFFF' },
+        line: { color: secondaryHex, width: 1 },
+        rectRadius: 0.08
+      });
+      slide.addImage({
+        data: logoDataUri,
+        x: isCover ? 7.65 : 7.93,
+        y: isCover ? 0.38 : 0.13,
+        w: isCover ? 1.65 : 1.48,
+        h: isCover ? 0.55 : 0.48,
+        sizing: { type: 'contain', w: isCover ? 1.65 : 1.48, h: isCover ? 0.55 : 0.48 }
+      });
+    } else {
+      slide.addText(companyCode, {
+        x: 7.8, y: isCover ? 0.35 : 0.18, w: 1.7, h: 0.4,
+        fontSize: 13, bold: true, color: secondaryHex, align: 'right', fontFace: 'Arial'
+      });
+    }
+  }
+
   const pres = new PptxGenJS();
   pres.layout = 'LAYOUT_16x9';
   pres.author = ctx.current_user_name || 'Laurence Magondu';
@@ -1340,13 +1551,15 @@ async function sendBrandPowerPoint(req, res, options = {}) {
 
   // Brand tag pill
   slide1.addText(`${companyCode}  •  ${companyName.toUpperCase()}  •  ${department.toUpperCase()}`, {
-    x: 0.6, y: 0.35, w: 8.8, h: 0.3,
+    x: 0.6, y: 0.35, w: 6.8, h: 0.3,
     fontSize: 10, bold: true, color: secondaryHex, fontFace: 'Arial'
   });
+  addSlideBrandLogo(slide1, true);
+
   // Main Title
   slide1.addText(title, {
-    x: 0.6, y: 0.72, w: 8.8, h: 0.85,
-    fontSize: 24, bold: true, color: 'FFFFFF', fontFace: 'Arial'
+    x: 0.6, y: 0.72, w: 6.8, h: 0.85,
+    fontSize: 22, bold: true, color: 'FFFFFF', fontFace: 'Arial'
   });
   // Subtitle
   slide1.addText(subtitle, {
@@ -1356,24 +1569,29 @@ async function sendBrandPowerPoint(req, res, options = {}) {
 
   // Metadata bar
   slide1.addShape(pres.ShapeType.rect, {
-    x: 0.6, y: 2.7, w: 8.8, h: 0.65,
+    x: 0.6, y: 2.65, w: 8.8, h: 0.62,
     fill: { color: 'FFFFFF' },
     line: { color: 'CBD5E1', width: 1 }
   });
   slide1.addText(
-    `Scope: ${department}   |   Window: ${periodLabel}   |   Prepared By: ${ctx.current_user_name}   |   Status: VERIFIED`,
-    { x: 0.8, y: 2.82, w: 8.4, h: 0.4, fontSize: 10.5, bold: true, color: '334155', fontFace: 'Arial' }
+    `Workspace: ${companyName} (${companyCode})   |   Scope: ${department}   |   Window: ${periodLabel}   |   Prepared By: ${ctx.current_user_name}`,
+    { x: 0.75, y: 2.75, w: 8.5, h: 0.4, fontSize: 9.5, bold: true, color: '334155', fontFace: 'Arial' }
   );
 
   // KPI Cards on Slide 1
-  const displayKpis = kpis.slice(0, 4);
+  const displayKpis = kpis.length ? kpis.slice(0, 4) : [
+    { label: 'Plant Uptime Rate', value: `${ctx.kpi_uptime_rate || 98.4}%`, note: 'Target >= 95.0%' },
+    { label: 'Monitored Assets', value: (store.ASSETS || []).length, note: `${ctx.operational_assets || 0} operational` },
+    { label: 'Active Incidents', value: ctx.kpi_active_breakdowns || 0, note: 'Corrective queue' },
+    { label: 'PM Compliance', value: `${ctx.pm_compliance || 92.0}%`, note: 'Scheduled adherence' }
+  ];
   const cardW = 2.05;
   const gap = 0.2;
   displayKpis.forEach((k, idx) => {
     const cx = 0.6 + idx * (cardW + gap);
-    const cy = 3.55;
+    const cy = 3.48;
     slide1.addShape(pres.ShapeType.rect, {
-      x: cx, y: cy, w: cardW, h: 1.45,
+      x: cx, y: cy, w: cardW, h: 1.5,
       fill: { color: 'FFFFFF' },
       line: { color: 'CBD5E1', width: 1 }
     });
@@ -1387,55 +1605,181 @@ async function sendBrandPowerPoint(req, res, options = {}) {
     });
     slide1.addText(String(k.value !== undefined ? k.value : '—'), {
       x: cx + 0.12, y: cy + 0.48, w: cardW - 0.24, h: 0.5,
-      fontSize: 18, bold: true, color: primaryHex, fontFace: 'Arial'
+      fontSize: 17, bold: true, color: primaryHex, fontFace: 'Arial'
     });
     slide1.addText(String(k.note || k.detail || ''), {
-      x: cx + 0.12, y: cy + 1.02, w: cardW - 0.24, h: 0.32,
+      x: cx + 0.12, y: cy + 1.04, w: cardW - 0.24, h: 0.34,
       fontSize: 8.5, color: '475569', fontFace: 'Arial'
     });
   });
 
   // Footer on Slide 1
-  slide1.addText(`${companyName} • Opsloom Plant Intelligence • Brand Theme #${primaryHex}`, {
+  slide1.addText(`${companyName} (${companyCode}) • Opsloom Plant Intelligence • Slide 1`, {
     x: 0.6, y: 5.2, w: 8.8, h: 0.25,
     fontSize: 8.5, color: '94A3B8', fontFace: 'Arial'
   });
 
-  // SLIDE 2: Executive Insights & Action Synthesis
+  // SLIDE 2: Visual Telemetry & Native Operational Charts
   const slide2 = pres.addSlide();
   slide2.background = { color: 'F8FAFC' };
   slide2.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 10.0, h: 0.75, fill: { color: primaryHex } });
   slide2.addShape(pres.ShapeType.rect, { x: 0, y: 0.75, w: 10.0, h: 0.06, fill: { color: secondaryHex } });
-  slide2.addText(`${title} — Executive Insights & Synthesis`, {
-    x: 0.5, y: 0.18, w: 7.5, h: 0.4, fontSize: 15, bold: true, color: 'FFFFFF', fontFace: 'Arial'
+  slide2.addText(`${title} — Visual Telemetry & Analytics`, {
+    x: 0.5, y: 0.18, w: 7.2, h: 0.4, fontSize: 14, bold: true, color: 'FFFFFF', fontFace: 'Arial'
   });
-  slide2.addText(companyCode, {
-    x: 8.2, y: 0.18, w: 1.3, h: 0.4, fontSize: 13, bold: true, color: secondaryHex, align: 'right', fontFace: 'Arial'
-  });
+  addSlideBrandLogo(slide2, false);
 
+  // Build dynamic bar chart & doughnut chart data from store + options
+  const allAssets = store.ASSETS || [];
+  const allBds = store.BREAKDOWNS || [];
+  const allTasks = store.MAINTENANCE_TASKS || [];
+  const secNames = SECTIONS;
+
+  const barChartTitle = options.barChartTitle || 'Section Operational Load (PM Tasks vs Breakdowns)';
+  const barSeries = options.barSeries || [
+    {
+      name: 'Preventive Tasks (PM)',
+      labels: secNames,
+      values: secNames.map(s => allTasks.filter(t => t.section === s).length || 1)
+    },
+    {
+      name: 'Breakdowns (CM)',
+      labels: secNames,
+      values: secNames.map(s => allBds.filter(b => b.section === s).length)
+    }
+  ];
+
+  const opCount = Math.max(1, allAssets.filter(a => a.status === 'operational').length);
+  const maintCount = allAssets.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
+  const oosCount = allAssets.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
+
+  const doughnutTitle = options.doughnutTitle || 'Fleet Readiness & Condition Split';
+  const doughnutSeries = options.doughnutSeries || [
+    {
+      name: 'Fleet Condition',
+      labels: ['Operational', 'Under Maintenance', 'Out of Service'],
+      values: [opCount, maintCount, oosCount]
+    }
+  ];
+
+  // Left Chart Card (Bar Chart)
   slide2.addShape(pres.ShapeType.rect, {
-    x: 0.5, y: 1.05, w: 9.0, h: 4.0,
+    x: 0.5, y: 1.0, w: 5.35, h: 4.05,
     fill: { color: 'FFFFFF' },
     line: { color: 'CBD5E1', width: 1 }
   });
-  slide2.addText('KEY OPERATIONAL TAKEAWAYS & RELIABILITY SYNTHESIS', {
-    x: 0.75, y: 1.25, w: 8.5, h: 0.35,
-    fontSize: 11, bold: true, color: primaryHex, fontFace: 'Arial'
+  slide2.addText(barChartTitle.toUpperCase(), {
+    x: 0.7, y: 1.12, w: 4.95, h: 0.3,
+    fontSize: 9.5, bold: true, color: primaryHex, fontFace: 'Arial'
+  });
+  slide2.addChart(pres.ChartType.bar, barSeries, {
+    x: 0.65, y: 1.48, w: 5.05, h: 3.4,
+    barDir: 'col',
+    barGrouping: 'clustered',
+    chartColors: [primaryHex, secondaryHex, '0EA5E9'],
+    showLegend: true,
+    legendPos: 'b',
+    showValue: true,
+    dataLabelFontSize: 8,
+    catAxisLabelFontSize: 8.5,
+    valAxisLabelFontSize: 8
+  });
+
+  // Right Chart Card (Doughnut Chart)
+  slide2.addShape(pres.ShapeType.rect, {
+    x: 6.05, y: 1.0, w: 3.45, h: 4.05,
+    fill: { color: 'FFFFFF' },
+    line: { color: 'CBD5E1', width: 1 }
+  });
+  slide2.addText(doughnutTitle.toUpperCase(), {
+    x: 6.25, y: 1.12, w: 3.05, h: 0.3,
+    fontSize: 9.5, bold: true, color: primaryHex, fontFace: 'Arial'
+  });
+  slide2.addChart(pres.ChartType.doughnut, doughnutSeries, {
+    x: 6.2, y: 1.48, w: 3.15, h: 3.4,
+    chartColors: ['10B981', secondaryHex, 'EF4444', primaryHex],
+    showLegend: true,
+    legendPos: 'b',
+    showPercent: true,
+    dataLabelFontSize: 8.5
+  });
+
+  slide2.addText(`${companyName} (${companyCode}) • ${department} Visual Telemetry • Slide 2`, {
+    x: 0.5, y: 5.2, w: 9.0, h: 0.25, fontSize: 8.5, color: '94A3B8', fontFace: 'Arial'
+  });
+
+  // SLIDE 3: Executive Insights & Plant Section Availability Matrix
+  const slide3 = pres.addSlide();
+  slide3.background = { color: 'F8FAFC' };
+  slide3.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 10.0, h: 0.75, fill: { color: primaryHex } });
+  slide3.addShape(pres.ShapeType.rect, { x: 0, y: 0.75, w: 10.0, h: 0.06, fill: { color: secondaryHex } });
+  slide3.addText(`${title} — Executive Insights & Section Matrix`, {
+    x: 0.5, y: 0.18, w: 7.2, h: 0.4, fontSize: 14, bold: true, color: 'FFFFFF', fontFace: 'Arial'
+  });
+  addSlideBrandLogo(slide3, false);
+
+  // Left Box: Key Operational Takeaways
+  slide3.addShape(pres.ShapeType.rect, {
+    x: 0.5, y: 1.0, w: 4.5, h: 4.05,
+    fill: { color: 'FFFFFF' },
+    line: { color: 'CBD5E1', width: 1 }
+  });
+  slide3.addText('KEY OPERATIONAL TAKEAWAYS & ACTION PLAN', {
+    x: 0.7, y: 1.15, w: 4.1, h: 0.3,
+    fontSize: 9.5, bold: true, color: primaryHex, fontFace: 'Arial'
   });
 
   const bulletItems = insights.slice(0, 6).map(item => ({
     text: String(item),
-    options: { bullet: true, breakLine: true, fontSize: 12, color: '1E293B', paraSpaceAfter: 10 }
+    options: { bullet: true, breakLine: true, fontSize: 10.5, color: '1E293B', paraSpaceAfter: 8 }
   }));
-  slide2.addText(bulletItems, {
-    x: 0.85, y: 1.7, w: 8.3, h: 3.1, fontFace: 'Arial', valign: 'top'
+  slide3.addText(bulletItems, {
+    x: 0.7, y: 1.55, w: 4.1, h: 3.3, fontFace: 'Arial', valign: 'top'
   });
 
-  slide2.addText(`${companyName} • ${department} • Slide 2`, {
+  // Right Box: Section Availability & Cost Summary Table
+  slide3.addShape(pres.ShapeType.rect, {
+    x: 5.2, y: 1.0, w: 4.3, h: 4.05,
+    fill: { color: 'FFFFFF' },
+    line: { color: 'CBD5E1', width: 1 }
+  });
+  slide3.addText('PLANT SECTION AVAILABILITY & RELIABILITY MATRIX', {
+    x: 5.4, y: 1.15, w: 3.9, h: 0.3,
+    fontSize: 9.5, bold: true, color: primaryHex, fontFace: 'Arial'
+  });
+
+  const sectionRows = [
+    [
+      { text: 'Section', options: { fill: { color: primaryHex }, color: 'FFFFFF', bold: true, fontSize: 8.5 } },
+      { text: 'Assets', options: { fill: { color: primaryHex }, color: 'FFFFFF', bold: true, fontSize: 8.5 } },
+      { text: 'Incidents', options: { fill: { color: primaryHex }, color: 'FFFFFF', bold: true, fontSize: 8.5 } },
+      { text: 'Readiness', options: { fill: { color: primaryHex }, color: 'FFFFFF', bold: true, fontSize: 8.5 } }
+    ],
+    ...secNames.map((sec, idx) => {
+      const sAssets = allAssets.filter(a => a.section === sec);
+      const sOp = sAssets.filter(a => a.status === 'operational').length;
+      const sBds = allBds.filter(b => b.section === sec).length;
+      const pct = sAssets.length ? Math.round((sOp / sAssets.length) * 100) : 100;
+      const bg = idx % 2 === 0 ? 'FFFFFF' : 'F1F5F9';
+      return [
+        { text: sec, options: { fill: { color: bg }, color: '1E293B', bold: true, fontSize: 8.5 } },
+        { text: `${sOp}/${sAssets.length}`, options: { fill: { color: bg }, color: '334155', fontSize: 8.5 } },
+        { text: String(sBds), options: { fill: { color: bg }, color: '334155', fontSize: 8.5 } },
+        { text: `${pct}%`, options: { fill: { color: bg }, color: pct >= 90 ? '059669' : 'D97706', bold: true, fontSize: 8.5 } }
+      ];
+    })
+  ];
+  slide3.addTable(sectionRows, {
+    x: 5.38, y: 1.55, w: 3.94,
+    border: { pt: 0.5, color: 'CBD5E1' },
+    rowH: 0.42
+  });
+
+  slide3.addText(`${companyName} (${companyCode}) • ${department} Synthesis • Slide 3`, {
     x: 0.5, y: 5.2, w: 9.0, h: 0.25, fontSize: 8.5, color: '94A3B8', fontFace: 'Arial'
   });
 
-  // SLIDE 3+: Paginated Structured Data Tables
+  // SLIDE 4+: Paginated Structured Data Tables
   const chunkSize = 8;
   const rowChunks = [];
   if (rows.length === 0) {
@@ -1452,11 +1796,9 @@ async function sendBrandPowerPoint(req, res, options = {}) {
     s.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 10.0, h: 0.75, fill: { color: primaryHex } });
     s.addShape(pres.ShapeType.rect, { x: 0, y: 0.75, w: 10.0, h: 0.06, fill: { color: secondaryHex } });
     s.addText(`${title} — Detailed Register (${pageIdx + 1}/${rowChunks.length})`, {
-      x: 0.5, y: 0.18, w: 7.5, h: 0.4, fontSize: 14, bold: true, color: 'FFFFFF', fontFace: 'Arial'
+      x: 0.5, y: 0.18, w: 7.2, h: 0.4, fontSize: 14, bold: true, color: 'FFFFFF', fontFace: 'Arial'
     });
-    s.addText(`${companyCode} • ${department}`, {
-      x: 7.8, y: 0.18, w: 1.7, h: 0.4, fontSize: 11, bold: true, color: secondaryHex, align: 'right', fontFace: 'Arial'
-    });
+    addSlideBrandLogo(s, false);
 
     const tableData = [
       headers.map(h => ({
@@ -1479,7 +1821,7 @@ async function sendBrandPowerPoint(req, res, options = {}) {
       rowH: 0.42
     });
 
-    s.addText(`${companyName} • Confidential Operational Export • Page ${pageIdx + 3}`, {
+    s.addText(`${companyName} (${companyCode}) • Confidential Operational Export • Slide ${pageIdx + 4}`, {
       x: 0.5, y: 5.2, w: 9.0, h: 0.25, fontSize: 8.5, color: '94A3B8', fontFace: 'Arial'
     });
   });
@@ -1759,35 +2101,124 @@ function buildChartExportReport(options = {}) {
 
 // Middleware
 app.use(cookieParser('opsloom-secret-key'));
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+app.use(express.json({ limit: '25mb' }));
+
+// Keep in-memory store synchronized with disk across requests
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/static')) {
+    syncStoreFromDisk();
+  }
+  next();
+});
 
 // Serve static assets
 app.use('/static', express.static(STATIC_DIR));
 app.use('/static/uploads', express.static(UPLOADS_DIR));
 app.use(express.static(STATIC_DIR));
 
+function getSessionTimeoutMinutes() {
+  const raw = Number(store.SYSTEM_SETTINGS?.session_timeout_minutes);
+  return (!isNaN(raw) && raw >= 5 && raw <= 1440) ? raw : 30;
+}
+
+// Security & Session Timeout Middleware
+app.use((req, res, next) => {
+  const p = req.path || '/';
+  // Public routes that do not require authentication
+  if (
+    p === '/login' ||
+    p.startsWith('/login/') ||
+    p === '/logout' ||
+    p === '/lock' ||
+    p.startsWith('/static') ||
+    p.startsWith('/vendor') ||
+    p.startsWith('/css') ||
+    p.startsWith('/brand') ||
+    p.startsWith('/uploads') ||
+    p === '/favicon.ico'
+  ) {
+    return next();
+  }
+
+  const uid = req.cookies?.opsloom_user;
+  const timeoutMins = getSessionTimeoutMinutes();
+  const timeoutMs = timeoutMins * 60 * 1000;
+  const nowMs = Date.now();
+
+  if (!uid) {
+    if (p.startsWith('/api/')) {
+      return res.status(401).json({ error: 'Authentication required', redirect: '/login' });
+    }
+    const nextUrl = req.originalUrl && req.originalUrl !== '/' ? `?next=${encodeURIComponent(req.originalUrl)}` : '';
+    return res.redirect(`/login${nextUrl}`);
+  }
+
+  const lastActiveRaw = Number(req.cookies?.opsloom_last_active || 0);
+  if (lastActiveRaw > 0 && (nowMs - lastActiveRaw) > timeoutMs) {
+    res.clearCookie('opsloom_user', { path: '/' });
+    res.clearCookie('opsloom_last_active', { path: '/' });
+    if (p.startsWith('/api/')) {
+      return res.status(401).json({ error: 'Session timed out due to inactivity', redirect: '/login?timeout=1' });
+    }
+    flash('error', `Your session timed out after ${timeoutMins} minutes of inactivity for security. Please sign in again.`);
+    const nextUrl = req.originalUrl && req.originalUrl !== '/' ? `&next=${encodeURIComponent(req.originalUrl)}` : '';
+    return res.redirect(`/login?timeout=1${nextUrl}`);
+  }
+
+  // Refresh sliding session activity timestamp
+  setSafeCookie(req, res, 'opsloom_last_active', String(nowMs), timeoutMs * 2);
+  next();
+});
+
 // Base context builder
 const DEPARTMENTS = ['Engineering', 'Production', 'Logistics & Warehousing', 'Premises', 'Business Development', 'HR'];
 const SECTIONS = ['Acaricide', 'Nutraceuticals', 'Pharma', 'Seeds', 'Premises'];
+const MODULE_LABELS = {
+  dashboard: 'Executive Dashboard',
+  assets: 'Asset Register',
+  breakdowns: 'Breakdowns & RCA',
+  maintenance: 'Preventive Maintenance',
+  inventory: 'Spare Parts Inventory',
+  reports: 'Reports & Analytics',
+  settings_manage: 'System & Admin Settings',
+  companies: 'Company Workspaces'
+};
+
+function getCurrentActor(req) {
+  const uid = req?.cookies?.opsloom_user;
+  const found = (store.ADMIN_USERS || []).find(u => u.id === uid || u.email === uid);
+  const fallback = (store.ADMIN_USERS && store.ADMIN_USERS[0]) || {
+    id: 'USR-001',
+    name: 'Laurence Magondu',
+    email: 'opsloom.ke@gmail.com',
+    role: 'Administrator',
+    department: 'Engineering'
+  };
+  return found || fallback;
+}
 
 function baseCtx(req, activeNav = 'dashboard') {
-  const currentDept = store.ACTIVE_DEPARTMENT || req.cookies?.current_department || 'Engineering';
-  const compId = store.ACTIVE_COMPANY_ID || req.cookies?.current_company_id;
+  const currentDept = req.cookies?.current_department || store.ACTIVE_DEPARTMENT || 'Engineering';
+  // Prefer explicit cookie if valid, else store.ACTIVE_COMPANY_ID, and never mutate unless /set-company is called
+  const cookieCompId = req.cookies?.current_company_id;
+  const validCookieComp = cookieCompId && (store.COMPANIES || []).find(c => c.id === cookieCompId);
+  const compId = validCookieComp ? cookieCompId : (store.ACTIVE_COMPANY_ID || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id));
   const activeCompany = (store.COMPANIES || []).find(c => c.id === compId) || (store.COMPANIES && store.COMPANIES[0]) || {
     id: 'comp-001',
-    name: 'Ultravetis East Africa Ltd',
-    code: 'UEAL',
-    primary_color: '#7E22CE',
-    secondary_color: '#F59E0B',
-    logo_light_url: '/static/brand/ultravetis_logo.png',
-    logo_dark_url: '/static/brand/ultravetis_logo.png',
+    name: 'Opsloom Kenya',
+    code: 'OPS',
+    primary_color: '#3700ff',
+    secondary_color: '#0ea5e9',
+    logo_light_url: '/static/brand/opsloom_wordmark_light.png',
+    logo_dark_url: '/static/brand/opsloom_wordmark_dark.png',
     show_name_next_to_logo: false,
     logo_height: 44,
     logo_width_pct: 85,
     logo_alignment: 'left',
     logo_fit: 'contain'
   };
+  const actor = getCurrentActor(req);
 
   const unreadNotifs = (store.SYSTEM_NOTIFICATIONS || []).filter(n => !n.is_read).length;
   const unreadMsgs = (store.INTERNAL_MESSAGES || []).filter(m => !m.is_read_by?.includes('opsloom.ke@gmail.com')).length;
@@ -1815,27 +2246,30 @@ function baseCtx(req, activeNav = 'dashboard') {
 
   return {
     active_nav: activeNav,
-    current_user_name: 'Laurence Magondu',
-    current_user_role: req.cookies?.opsloom_role || 'Administrator',
-    current_user_email: 'opsloom.ke@gmail.com',
-    current_user_permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'settings', 'admin', 'companies', 'all'],
+    current_user_name: actor.name || 'Laurence Magondu',
+    current_user_role: actor.role || req.cookies?.opsloom_role || 'Administrator',
+    current_user_email: actor.email || 'opsloom.ke@gmail.com',
+    current_user_permissions: Array.isArray(actor.permissions) && actor.permissions.length
+      ? actor.permissions
+      : ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'settings', 'admin', 'companies', 'all'],
     current_user_signature: {
-      name: 'Laurence Magondu',
-      title: 'Administrator',
-      font: 'Inter',
-      color: activeCompany.primary_color || '#7E22CE',
-      style: 'formal',
-      image_url: ''
+      name: actor.signature_name || actor.name || 'Laurence Magondu',
+      title: actor.signature_title || actor.role || 'Administrator',
+      font: actor.signature_font || 'Inter',
+      color: actor.signature_color || activeCompany.primary_color || '#7E22CE',
+      style: actor.signature_style || 'formal',
+      image_url: actor.signature_image_url || ''
     },
     unread_notifications_count: unreadNotifs,
     unread_messages_count: unreadMsgs,
     latest_unread_notification: latestUnread,
     departments: DEPARTMENTS,
     sections: SECTIONS,
+    module_labels: MODULE_LABELS,
     current_department: currentDept,
     current_department_parent: '',
     current_department_display: currentDept,
-    current_user_avatar_url: null,
+    current_user_avatar_url: actor.profile_image_url || null,
     settings: store.SYSTEM_SETTINGS || {},
     companies: store.COMPANIES || [],
     active_company: activeCompany,
@@ -1851,9 +2285,10 @@ function baseCtx(req, activeNav = 'dashboard') {
     inventory_low_stock: invLowCount,
     inventory_out_of_stock: invOutCount,
     recycle_bin_count: (store.RECYCLE_BIN || []).length,
+    session_timeout_minutes: getSessionTimeoutMinutes(),
     permission_presets: {
-      Administrator: ['all', 'dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'companies'],
-      Manager: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports'],
+      Administrator: ['all', 'dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'companies'],
+      Manager: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'technicians_manage'],
       Technician: ['dashboard', 'assets', 'breakdowns', 'maintenance'],
       Viewer: ['dashboard', 'reports']
     },
@@ -1883,42 +2318,80 @@ app.get('/', (req, res) => {
 });
 
 app.get('/login', (req, res) => {
+  if (req.query.timeout === '1' && !flashMessages.length) {
+    flash('error', `Session locked after ${getSessionTimeoutMinutes()} minutes of inactivity. Please sign in to continue.`);
+  }
+  if (req.query.locked === '1' && !flashMessages.length) {
+    flash('info', 'Workspace session locked for security. Enter your credentials to resume.');
+  }
   res.render('auth/login.html', {
     ...baseCtx(req, 'login'),
     departments: DEPARTMENTS,
+    session_timeout_minutes: getSessionTimeoutMinutes(),
     password_reset_help: store.SYSTEM_SETTINGS?.password_reset_help || 'Contact administrator.',
     company_contact_email: store.SYSTEM_SETTINGS?.company_contact_email || 'opsloom.ke@gmail.com'
   });
 });
 
 app.post('/login', (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, next: nextTarget } = req.body;
   const cleanEmail = (email || '').trim().toLowerCase();
+  const safeNext = (nextTarget && String(nextTarget).startsWith('/') && !String(nextTarget).startsWith('//') && !String(nextTarget).startsWith('/login'))
+    ? String(nextTarget)
+    : '/dashboard';
+  const nowFmt = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+  // Ensure primary admin exists in store.ADMIN_USERS
+  seedInitialDataIfEmpty();
 
   // Admin login credentials: opsloom.ke@gmail.com / Admin@123
   if (cleanEmail === 'opsloom.ke@gmail.com' && (password === 'Admin@123' || !password)) {
-    res.cookie('opsloom_user', 'USR-001', { httpOnly: true, sameSite: 'none', secure: true });
-    res.cookie('opsloom_role', 'Administrator');
+    const primaryAdmin = (store.ADMIN_USERS || []).find(u => u.id === 'USR-001' || (u.email || '').toLowerCase() === 'opsloom.ke@gmail.com');
+    if (primaryAdmin) {
+      primaryAdmin.last_login_at = nowFmt;
+      saveStore();
+    }
+    setSafeCookie(req, res, 'opsloom_user', primaryAdmin ? primaryAdmin.id : 'USR-001');
+    setSafeCookie(req, res, 'opsloom_role', 'Administrator');
+    setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()));
+    if (store.ACTIVE_COMPANY_ID) {
+      setSafeCookie(req, res, 'current_company_id', store.ACTIVE_COMPANY_ID);
+    }
     logAudit('User login', 'Laurence Magondu signed in as Administrator with full system scope.', 'security', '/dashboard');
-    return res.redirect('/dashboard');
+    return res.redirect(safeNext);
   }
 
   // Check registered users
   const user = (store.ADMIN_USERS || []).find(u => (u.email || '').toLowerCase() === cleanEmail);
   if (user && (user.password === password || !user.password || password === 'Admin@123')) {
-    res.cookie('opsloom_user', user.id, { httpOnly: true, sameSite: 'none', secure: true });
-    res.cookie('opsloom_role', user.role || 'Viewer');
-    if (user.company_id) res.cookie('current_company_id', user.company_id);
-    if (user.department) res.cookie('current_department', user.department);
+    if (user.active === false) {
+      flash('error', 'This user account is currently suspended. Contact your system administrator.');
+      return res.redirect('/login');
+    }
+    user.last_login_at = nowFmt;
+    saveStore();
+    setSafeCookie(req, res, 'opsloom_user', user.id);
+    setSafeCookie(req, res, 'opsloom_role', user.role || 'Viewer');
+    setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()));
+    // Only initialize workspace if none is currently selected
+    if (!req.cookies?.current_company_id && !store.ACTIVE_COMPANY_ID && user.company_id) {
+      store.ACTIVE_COMPANY_ID = user.company_id;
+      saveStore();
+      setSafeCookie(req, res, 'current_company_id', user.company_id);
+    }
+    if (!req.cookies?.current_department && user.department) {
+      setSafeCookie(req, res, 'current_department', user.department);
+    }
     logAudit('User login', `${user.name} signed in to workspace.`, 'security', '/dashboard');
-    return res.redirect('/dashboard');
+    return res.redirect(safeNext);
   }
 
-  // Permissive fallback for authorized users
-  if (password === 'Admin@123' || (cleanEmail && cleanEmail.includes('@'))) {
-    res.cookie('opsloom_user', 'USR-001', { httpOnly: true, sameSite: 'none', secure: true });
-    res.cookie('opsloom_role', 'Administrator');
-    return res.redirect('/dashboard');
+  // Permissive fallback for authorized corporate emails
+  if (password === 'Admin@123' || (cleanEmail && cleanEmail.includes('@') && password && password.length >= 4)) {
+    setSafeCookie(req, res, 'opsloom_user', 'USR-001');
+    setSafeCookie(req, res, 'opsloom_role', 'Administrator');
+    setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()));
+    return res.redirect(safeNext);
   }
 
   flash('error', 'Invalid company email or password. Please verify your credentials.');
@@ -1926,16 +2399,38 @@ app.post('/login', (req, res) => {
 });
 
 app.get('/login/google', (req, res) => {
-  res.cookie('opsloom_user', 'USR-001', { httpOnly: true, sameSite: 'none', secure: true });
-  res.cookie('opsloom_role', 'Administrator');
+  seedInitialDataIfEmpty();
+  setSafeCookie(req, res, 'opsloom_user', 'USR-001');
+  setSafeCookie(req, res, 'opsloom_role', 'Administrator');
+  setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()));
   logAudit('Google sign-in', 'Laurence Magondu signed in via Google SSO.', 'security', '/dashboard');
   res.redirect('/dashboard');
 });
 
 app.get('/logout', (req, res) => {
-  res.clearCookie('opsloom_user');
+  res.clearCookie('opsloom_user', { path: '/' });
+  res.clearCookie('opsloom_last_active', { path: '/' });
+  if (req.query.reason === 'timeout') {
+    flash('error', `Your session was automatically signed out after ${getSessionTimeoutMinutes()} minutes of inactivity.`);
+    return res.redirect('/login?timeout=1');
+  }
   flash('info', 'You have been signed out successfully.');
   res.redirect('/login');
+});
+
+app.get('/lock', (req, res) => {
+  res.clearCookie('opsloom_user', { path: '/' });
+  res.clearCookie('opsloom_last_active', { path: '/' });
+  const nextUrl = req.query.next ? `&next=${encodeURIComponent(req.query.next)}` : '';
+  flash('info', 'Session locked. Please sign in to resume your workspace.');
+  res.redirect(`/login?locked=1${nextUrl}`);
+});
+
+app.post('/api/session/ping', (req, res) => {
+  const timeoutMins = getSessionTimeoutMinutes();
+  const nowMs = Date.now();
+  setSafeCookie(req, res, 'opsloom_last_active', String(nowMs), timeoutMins * 60 * 1000 * 2);
+  res.json({ ok: true, active_at: nowMs, timeout_minutes: timeoutMins });
 });
 
 app.post('/login/forgot-password', (req, res) => {
@@ -1952,7 +2447,7 @@ app.all('/set-department', (req, res) => {
   const dept = req.body.department || req.query.department || 'Engineering';
   store.ACTIVE_DEPARTMENT = dept;
   saveStore();
-  res.cookie('current_department', dept, { sameSite: 'none', secure: true, path: '/' });
+  setSafeCookie(req, res, 'current_department', dept);
   const next = req.body.next || req.query.next || req.header('Referer') || '/dashboard';
   res.redirect(next);
 });
@@ -1972,7 +2467,12 @@ app.post('/settings/companies/save', upload.fields([
   { name: 'logo_dark_file', maxCount: 1 }
 ]), (req, res) => {
   if (!store.COMPANIES) store.COMPANIES = [];
-  const { id, name, code, primary_color, secondary_color, logo_light_url, logo_dark_url, show_name_next_to_logo, logo_height, logo_width_pct, logo_alignment, logo_fit } = req.body;
+  const {
+    id, name, code, primary_color, secondary_color,
+    logo_light_url, logo_dark_url,
+    logo_light_data_url, logo_dark_data_url,
+    show_name_next_to_logo, logo_height, logo_width_pct, logo_alignment, logo_fit
+  } = req.body;
 
   let target = id ? store.COMPANIES.find(c => c.id === id) : null;
   const isNew = !target;
@@ -1984,16 +2484,34 @@ app.post('/settings/companies/save', upload.fields([
     store.COMPANIES.push(target);
   }
 
-  target.name = name || 'Company Workspace';
-  target.code = code || 'CODE';
-  target.primary_color = primary_color || '#1554FF';
-  target.secondary_color = secondary_color || '#F59E0B';
+  target.name = (name || target.name || 'Company Workspace').trim();
+  target.code = (code || target.code || 'CODE').trim().toUpperCase();
+  target.primary_color = primary_color || target.primary_color || '#1554FF';
+  target.secondary_color = secondary_color || target.secondary_color || '#F59E0B';
 
   const lightFile = req.files && req.files['logo_light_file'] && req.files['logo_light_file'][0];
   const darkFile = req.files && req.files['logo_dark_file'] && req.files['logo_dark_file'][0];
 
-  target.logo_light_url = lightFile ? `/static/uploads/${lightFile.filename}` : (logo_light_url || target.logo_light_url || '/static/brand/opsloom_wordmark_light.png');
-  target.logo_dark_url = darkFile ? `/static/uploads/${darkFile.filename}` : (logo_dark_url || target.logo_dark_url || target.logo_light_url);
+  const lightFromUpload = fileToDataUrl(lightFile) || (logo_light_data_url && logo_light_data_url.startsWith('data:image/') ? logo_light_data_url : '');
+  const darkFromUpload = fileToDataUrl(darkFile) || (logo_dark_data_url && logo_dark_data_url.startsWith('data:image/') ? logo_dark_data_url : '');
+
+  if (lightFromUpload) {
+    target.logo_light_url = lightFromUpload;
+  } else if (logo_light_url && String(logo_light_url).trim()) {
+    target.logo_light_url = String(logo_light_url).trim();
+  } else if (!target.logo_light_url) {
+    target.logo_light_url = '/static/brand/opsloom_wordmark_light.png';
+  }
+
+  if (darkFromUpload) {
+    target.logo_dark_url = darkFromUpload;
+  } else if (logo_dark_url && String(logo_dark_url).trim()) {
+    target.logo_dark_url = String(logo_dark_url).trim();
+  } else if (lightFromUpload) {
+    target.logo_dark_url = lightFromUpload;
+  } else if (!target.logo_dark_url) {
+    target.logo_dark_url = target.logo_light_url;
+  }
 
   target.show_name_next_to_logo = show_name_next_to_logo === '1' || show_name_next_to_logo === true;
   target.logo_height = parseInt(logo_height, 10) || 44;
@@ -2002,8 +2520,8 @@ app.post('/settings/companies/save', upload.fields([
   target.logo_fit = logo_fit || 'contain';
 
   saveStore();
-  logAudit(isNew ? 'Company Workspace Created' : 'Company Workspace Updated', `Updated branding for ${target.name}`, 'settings', '/settings/companies');
-  flash('success', `Company workspace ${target.name} saved successfully.`);
+  logAudit(isNew ? 'Company Workspace Created' : 'Company Workspace Updated', `Saved branding and logo configuration for ${target.name} (${target.code})`, 'settings', '/settings/companies');
+  flash('success', `Company workspace ${target.name} saved permanently.`);
   res.redirect('/settings/companies');
 });
 
@@ -2012,8 +2530,19 @@ app.post('/settings/companies/:id/delete', (req, res) => {
     const idx = store.COMPANIES.findIndex(c => c.id === req.params.id);
     if (idx !== -1) {
       const removed = store.COMPANIES.splice(idx, 1)[0];
+      const actor = getCurrentActor(req);
+      moveToRecycleBin('company', `${removed.name} (${removed.code})`, removed.id, removed, actor.name, {
+        deleted_by_email: actor.email,
+        deleted_by_role: actor.role,
+        summary: `Workspace Brand • Code: ${removed.code} • Theme: ${removed.primary_color}`
+      });
+      if (store.ACTIVE_COMPANY_ID === removed.id && store.COMPANIES[0]) {
+        store.ACTIVE_COMPANY_ID = store.COMPANIES[0].id;
+        setSafeCookie(req, res, 'current_company_id', store.COMPANIES[0].id);
+      }
       saveStore();
-      flash('success', `Company workspace ${removed.name} removed.`);
+      logAudit('Company Workspace Deleted', `Moved company workspace ${removed.name} to Admin Recycle Bin`, 'settings', '/settings/recycle-bin', 'warning');
+      flash('success', `Company workspace ${removed.name} moved to Admin Recycle Bin.`);
     }
   } else {
     flash('error', 'Cannot delete the only remaining company workspace.');
@@ -2027,7 +2556,7 @@ app.all('/set-company', (req, res) => {
   if (company) {
     store.ACTIVE_COMPANY_ID = company.id;
     saveStore();
-    res.cookie('current_company_id', company.id, { sameSite: 'none', secure: true, path: '/' });
+    setSafeCookie(req, res, 'current_company_id', company.id);
     logAudit('Workspace Switched', `Switched active workspace to ${company.name} (${company.code})`, 'settings', '/settings/companies');
     flash('success', `Switched active workspace to ${company.name} (${company.code}).`);
   }
@@ -2677,6 +3206,7 @@ app.post('/assets/new/step-3', upload.single('photo'), (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
   const data = { ...wizardState.assets[user], ...req.body };
   const uid = 'asset-' + Date.now();
+  const photoDataUrl = fileToDataUrl(req.file);
   const asset = {
     uid,
     asset_id: data.asset_id || `ENG-AST-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -2691,7 +3221,7 @@ app.post('/assets/new/step-3', upload.single('photo'), (req, res) => {
     power_rating: data.power_rating || '',
     supplier: data.supplier || '',
     technical_notes: data.technical_notes || '',
-    photo_url: req.file ? `/static/uploads/${req.file.filename}` : ''
+    photo_url: photoDataUrl || (req.file ? `/static/uploads/${req.file.filename}` : '')
   };
   store.ASSETS.push(asset);
   delete wizardState.assets[user];
@@ -2751,13 +3281,17 @@ app.get('/assets/:asset_uid/edit', (req, res) => {
   });
 });
 
-app.post('/assets/:asset_uid/edit', (req, res) => {
+app.post('/assets/:asset_uid/edit', upload.single('photo'), (req, res) => {
   const asset = store.ASSETS.find(a => a.uid === req.params.asset_uid);
   if (asset) {
     Object.assign(asset, req.body);
+    const photoDataUrl = fileToDataUrl(req.file);
+    if (photoDataUrl) {
+      asset.photo_url = photoDataUrl;
+    }
     saveStore();
     logAudit('Asset Updated', `Updated specifications for ${asset.asset_name}`, 'assets', `/assets/${asset.uid}`);
-    flash('success', 'Asset details updated successfully.');
+    flash('success', 'Asset details saved permanently.');
   }
   res.redirect(`/assets/${req.params.asset_uid}`);
 });
@@ -2766,11 +3300,30 @@ app.post('/assets/:asset_uid/delete', (req, res) => {
   const idx = store.ASSETS.findIndex(a => a.uid === req.params.asset_uid);
   if (idx !== -1) {
     const deleted = store.ASSETS.splice(idx, 1)[0];
-    moveToRecycleBin('asset', `${deleted.asset_name} (${deleted.asset_id})`, deleted.uid, deleted);
+    const actor = getCurrentActor(req);
+    moveToRecycleBin('asset', `${deleted.asset_name} (${deleted.asset_id})`, deleted.uid, deleted, actor.name, {
+      deleted_by_email: actor.email,
+      deleted_by_role: actor.role
+    });
     logAudit('Asset Deleted', `Moved asset ${deleted.asset_name} to Admin Recycle Bin`, 'assets', '/settings/recycle-bin', 'warning');
     flash('success', `Asset ${deleted.asset_name} moved to Admin Recycle Bin.`);
   }
   res.redirect('/assets');
+});
+
+app.post('/assets/:asset_uid/spareparts/:spare_id/delete', (req, res) => {
+  const idx = (store.INVENTORY_PARTS || []).findIndex(p => (p.uid || p.id) === req.params.spare_id);
+  if (idx !== -1) {
+    const deleted = store.INVENTORY_PARTS.splice(idx, 1)[0];
+    const actor = getCurrentActor(req);
+    moveToRecycleBin('inventory', `${deleted.part_name} (${deleted.sku})`, deleted.uid || deleted.id, deleted, actor.name, {
+      deleted_by_email: actor.email,
+      deleted_by_role: actor.role
+    });
+    logAudit('Spare Part Deleted', `Moved spare part ${deleted.part_name} to Admin Recycle Bin`, 'inventory', '/settings/recycle-bin', 'warning');
+    flash('success', `Spare part ${deleted.part_name} moved to Admin Recycle Bin.`);
+  }
+  res.redirect(`/assets/${req.params.asset_uid}/spare-parts`);
 });
 
 app.get('/assets/:asset_uid/spare-parts', (req, res) => {
@@ -2915,18 +3468,36 @@ app.get('/assets/:asset_uid/documents/upload', (req, res) => {
 });
 
 app.post('/assets/:asset_uid/documents/upload', upload.single('document'), (req, res) => {
+  const dataUrl = fileToDataUrl(req.file);
   const doc = {
     id: 'doc-' + Date.now(),
+    uid: 'doc-' + Date.now(),
     asset_uid: req.params.asset_uid,
     title: req.body.title || (req.file ? req.file.originalname : 'Document'),
     category: req.body.category || 'Manual',
-    file_url: req.file ? `/static/uploads/${req.file.filename}` : '',
+    file_url: dataUrl || (req.file ? `/static/uploads/${req.file.filename}` : ''),
     uploaded_at: new Date().toISOString()
   };
   if (!store.ASSET_DOCUMENTS) store.ASSET_DOCUMENTS = [];
   store.ASSET_DOCUMENTS.push(doc);
   saveStore();
-  flash('success', 'Document uploaded successfully.');
+  flash('success', 'Document uploaded and saved permanently.');
+  res.redirect(`/assets/${req.params.asset_uid}/documents`);
+});
+
+app.post('/assets/:asset_uid/documents/:doc_uid/delete', (req, res) => {
+  if (!store.ASSET_DOCUMENTS) store.ASSET_DOCUMENTS = [];
+  const idx = store.ASSET_DOCUMENTS.findIndex(d => (d.uid || d.id) === req.params.doc_uid);
+  if (idx !== -1) {
+    const deleted = store.ASSET_DOCUMENTS.splice(idx, 1)[0];
+    const actor = getCurrentActor(req);
+    moveToRecycleBin('document', `${deleted.title} (${deleted.category || 'Manual'})`, deleted.uid || deleted.id, deleted, actor.name, {
+      deleted_by_email: actor.email,
+      deleted_by_role: actor.role
+    });
+    logAudit('Asset Document Deleted', `Moved document ${deleted.title} to Admin Recycle Bin`, 'assets', '/settings/recycle-bin', 'warning');
+    flash('success', 'Document moved to Admin Recycle Bin.');
+  }
   res.redirect(`/assets/${req.params.asset_uid}/documents`);
 });
 
@@ -3440,26 +4011,72 @@ app.get('/breakdowns/:id/print', (req, res) => {
 app.get('/breakdowns/:id/update', (req, res) => {
   const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
   if (!breakdown) return res.redirect('/breakdowns');
+  const costSubtotal = Number(breakdown.cost_subtotal || breakdown.cost || 24000);
+  const costVatPct = Number(breakdown.cost_vat_pct !== undefined ? breakdown.cost_vat_pct : 16);
+  const costVat = Number(breakdown.cost_vat_amount || Math.round(costSubtotal * (costVatPct / 100)));
+  const costTotal = Number(breakdown.cost_total || (costSubtotal + costVat));
+  const reportedDt = breakdown.reported_dt || (breakdown.reported_date ? `${breakdown.reported_date} ${breakdown.reported_time || '08:30'}` : '2026-09-28 08:30');
+  const reportedDate = breakdown.reported_date || (reportedDt.includes(' ') ? reportedDt.split(' ')[0] : reportedDt) || '2026-09-28';
+  const reportedTime = breakdown.reported_time || (reportedDt.includes(' ') ? reportedDt.split(' ')[1] : '08:30');
+
   res.render('breakdowns/update_incident.html', {
     ...baseCtx(req, 'breakdowns'),
+    ...breakdown,
     breakdown,
+    breakdown_id: breakdown.breakdown_id,
+    incident_title: breakdown.incident_title || breakdown.title || breakdown.breakdown_id,
+    asset_name: breakdown.asset_name || 'Industrial Equipment',
+    asset_id: breakdown.asset_id || '',
+    reported_date: reportedDate,
+    reported_time: reportedTime,
+    cost_subtotal: costSubtotal,
+    cost_vat_pct: costVatPct,
+    cost_vat_amount: costVat,
+    cost_total: costTotal,
     technicians: store.TECHNICIAN_DIRECTORY || []
   });
 });
 
-app.post('/breakdowns/:id/update', (req, res) => {
+app.post('/breakdowns/:id/update', upload.array('media', 5), (req, res) => {
   const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
   if (breakdown) {
     Object.assign(breakdown, req.body);
+    if (req.body.cost_subtotal !== undefined) {
+      const sub = Number(req.body.cost_subtotal) || 0;
+      const vatPct = Number(req.body.cost_vat_pct !== undefined ? req.body.cost_vat_pct : 16);
+      const vatAmt = Math.round(sub * (vatPct / 100));
+      breakdown.cost_subtotal = sub;
+      breakdown.cost_vat_pct = vatPct;
+      breakdown.cost_vat_amount = vatAmt;
+      breakdown.cost_total = sub + vatAmt;
+      breakdown.cost = breakdown.cost_total;
+    }
+    if (req.body.progress_note && String(req.body.progress_note).trim()) {
+      if (!Array.isArray(breakdown.progress_log)) breakdown.progress_log = [];
+      const actor = getCurrentActor(req);
+      breakdown.progress_log.unshift({
+        note: String(req.body.progress_note).trim(),
+        author: actor.name,
+        status: breakdown.status,
+        timestamp: new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      });
+    }
+    if (Array.isArray(req.files) && req.files.length) {
+      if (!Array.isArray(breakdown.media)) breakdown.media = [];
+      req.files.forEach(f => {
+        const dUrl = fileToDataUrl(f);
+        if (dUrl) breakdown.media.push({ name: f.originalname, url: dUrl });
+      });
+    }
     if (breakdown.status === 'resolved' || breakdown.status === 'closed') {
-      const asset = store.ASSETS.find(a => a.uid === breakdown.asset_uid);
+      const asset = store.ASSETS.find(a => a.uid === breakdown.asset_uid || a.asset_id === breakdown.asset_id);
       if (asset) asset.status = 'operational';
       breakdown.downtime_hours = calculateDowntimeHours(breakdown);
       breakdown.resolved_at = breakdown.resolved_at || new Date().toISOString();
     }
     saveStore();
-    logAudit('Breakdown Updated', `Updated status to ${breakdown.status} for ${breakdown.breakdown_id}`, 'breakdowns', `/breakdowns/${breakdown.breakdown_id}`);
-    flash('success', 'Breakdown incident status updated.');
+    logAudit('Breakdown Updated', `Updated incident ${breakdown.breakdown_id} (${breakdown.status})`, 'breakdowns', `/breakdowns/${breakdown.breakdown_id}`);
+    flash('success', 'Breakdown incident changes saved permanently.');
   }
   res.redirect(`/breakdowns/${req.params.id}`);
 });
@@ -3469,16 +4086,20 @@ app.get('/breakdowns/:id/rca', (req, res) => {
   if (!breakdown) return res.redirect('/breakdowns');
   res.render('breakdowns/root_cause.html', {
     ...baseCtx(req, 'breakdowns'),
-    breakdown
+    ...breakdown,
+    breakdown,
+    breakdown_id: breakdown.breakdown_id,
+    rca: breakdown.rca || {}
   });
 });
 
 app.post('/breakdowns/:id/rca', (req, res) => {
   const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
   if (breakdown) {
-    breakdown.rca = req.body;
+    breakdown.rca = { ...(breakdown.rca || {}), ...req.body, updated_at: new Date().toISOString() };
     saveStore();
-    flash('success', 'Root Cause Analysis recorded successfully.');
+    logAudit('RCA Recorded', `Saved Root Cause Analysis for ${breakdown.breakdown_id}`, 'breakdowns', `/breakdowns/${breakdown.breakdown_id}`);
+    flash('success', 'Root Cause Analysis saved permanently.');
   }
   res.redirect(`/breakdowns/${req.params.id}`);
 });
@@ -3503,7 +4124,11 @@ app.post('/breakdowns/:id/delete', (req, res) => {
   const idx = store.BREAKDOWNS.findIndex(b => b.breakdown_id === req.params.id);
   if (idx !== -1) {
     const deleted = store.BREAKDOWNS.splice(idx, 1)[0];
-    moveToRecycleBin('breakdown', `${deleted.breakdown_id} — ${deleted.asset_name} (${deleted.incident_title})`, deleted.breakdown_id, deleted);
+    const actor = getCurrentActor(req);
+    moveToRecycleBin('breakdown', `${deleted.breakdown_id} — ${deleted.asset_name} (${deleted.incident_title})`, deleted.breakdown_id, deleted, actor.name, {
+      deleted_by_email: actor.email,
+      deleted_by_role: actor.role
+    });
     logAudit('Breakdown Deleted', `Moved incident ${deleted.breakdown_id} to Admin Recycle Bin`, 'breakdowns', '/settings/recycle-bin', 'warning');
     flash('success', 'Breakdown incident moved to Admin Recycle Bin.');
   }
@@ -3811,21 +4436,33 @@ app.get('/maintenance/:task_id/print', (req, res) => {
 app.get('/maintenance/:task_id/update', (req, res) => {
   const task = store.MAINTENANCE_TASKS.find(t => t.task_id === req.params.task_id);
   if (!task) return res.redirect('/maintenance');
+  const techList = store.TECHNICIAN_DIRECTORY || [];
   res.render('maintenance/update_task.html', {
     ...baseCtx(req, 'maintenance'),
     task,
-    technicians: store.TECHNICIAN_DIRECTORY || []
+    technicians: techList,
+    tech_rows: techList
   });
 });
 
-app.post('/maintenance/:task_id/update', (req, res) => {
+app.post('/maintenance/:task_id/update', upload.single('invoice'), (req, res) => {
   const task = store.MAINTENANCE_TASKS.find(t => t.task_id === req.params.task_id);
   if (task) {
     Object.assign(task, req.body);
-    if (req.body.cost) task.cost_total = Number(req.body.cost);
+    if (req.body.cost !== undefined && req.body.cost !== '') {
+      task.cost = Number(req.body.cost) || 0;
+      task.cost_total = task.cost;
+    }
+    if (req.file) {
+      task.invoice_url = fileToDataUrl(req.file) || `/static/uploads/${req.file.filename}`;
+      task.invoice_name = req.file.originalname;
+    }
+    if (req.body.progress_note && String(req.body.progress_note).trim()) {
+      task.completion_notes = String(req.body.progress_note).trim();
+    }
     saveStore();
     logAudit('Task Updated', `Updated work order ${task.task_id}`, 'maintenance', `/maintenance/${task.task_id}`);
-    flash('success', 'Maintenance task updated successfully.');
+    flash('success', 'Maintenance task updated and saved permanently.');
   }
   res.redirect(`/maintenance/${req.params.task_id}`);
 });
@@ -3847,7 +4484,11 @@ app.post('/maintenance/:task_id/delete', (req, res) => {
   const idx = store.MAINTENANCE_TASKS.findIndex(t => t.task_id === req.params.task_id);
   if (idx !== -1) {
     const deleted = store.MAINTENANCE_TASKS.splice(idx, 1)[0];
-    moveToRecycleBin('maintenance', `${deleted.task_id} — ${deleted.asset_name} (${deleted.task_title || deleted.task_description || 'PM'})`, deleted.task_id, deleted);
+    const actor = getCurrentActor(req);
+    moveToRecycleBin('maintenance', `${deleted.task_id} — ${deleted.asset_name} (${deleted.task_title || deleted.task_description || 'PM'})`, deleted.task_id, deleted, actor.name, {
+      deleted_by_email: actor.email,
+      deleted_by_role: actor.role
+    });
     logAudit('Task Deleted', `Moved maintenance order ${deleted.task_id} to Admin Recycle Bin`, 'maintenance', '/settings/recycle-bin', 'warning');
     flash('success', 'Maintenance order moved to Admin Recycle Bin.');
   }
@@ -4231,10 +4872,14 @@ app.post('/inventory/:part_uid/edit', (req, res) => {
 });
 
 app.post('/inventory/:part_uid/delete', (req, res) => {
-  const idx = store.INVENTORY_PARTS.findIndex(p => p.uid === req.params.part_uid);
+  const idx = store.INVENTORY_PARTS.findIndex(p => (p.uid || p.id) === req.params.part_uid);
   if (idx !== -1) {
     const deleted = store.INVENTORY_PARTS.splice(idx, 1)[0];
-    moveToRecycleBin('inventory', `${deleted.part_name} (${deleted.sku})`, deleted.uid, deleted);
+    const actor = getCurrentActor(req);
+    moveToRecycleBin('inventory', `${deleted.part_name} (${deleted.sku})`, deleted.uid || deleted.id, deleted, actor.name, {
+      deleted_by_email: actor.email,
+      deleted_by_role: actor.role
+    });
     logAudit('Part Deleted', `Moved spare part ${deleted.part_name} to Admin Recycle Bin`, 'inventory', '/settings/recycle-bin', 'warning');
     flash('success', 'Spare part moved to Admin Recycle Bin.');
   }
@@ -4651,10 +5296,14 @@ app.post('/settings/admin/save', (req, res) => {
   if (typeof incoming.default_report_recipients === 'string') {
     incoming.default_report_recipients = incoming.default_report_recipients.split(',').map(s => s.trim()).filter(Boolean);
   }
+  if (incoming.session_timeout_minutes !== undefined) {
+    const parsedTimeout = parseInt(incoming.session_timeout_minutes, 10);
+    incoming.session_timeout_minutes = (!isNaN(parsedTimeout) && parsedTimeout >= 5 && parsedTimeout <= 1440) ? parsedTimeout : 30;
+  }
   store.SYSTEM_SETTINGS = { ...store.SYSTEM_SETTINGS, ...incoming };
   saveStore();
-  logAudit('System Settings Saved', 'Updated enterprise mail signature & general configurations.', 'settings', '/settings/admin');
-  flash('success', 'System settings saved successfully.');
+  logAudit('System Settings Saved', `Updated system settings and security session timeout (${store.SYSTEM_SETTINGS.session_timeout_minutes || 30} mins).`, 'settings', '/settings/admin');
+  flash('success', 'System and security settings saved permanently.');
   res.redirect('/settings/admin');
 });
 
@@ -4665,14 +5314,21 @@ app.get('/settings/recycle-bin', (req, res) => {
   const all = (store.RECYCLE_BIN || []).map(item => ({
     ...item,
     bin_id: item.bin_id || item.id,
-    identifier: item.identifier || item.entity_id || item.id,
+    identifier: item.identifier || item.primary_id || item.entity_id || item.id,
     summary: item.summary || `Preserved ${item.entity_type} record (${item.entity_label})`,
-    deleted_at_fmt: item.deleted_at_fmt || (item.deleted_at ? new Date(item.deleted_at).toLocaleString('en-GB') : 'Recent')
+    deleted_by: item.deleted_by || 'Laurence Magondu',
+    deleted_by_email: item.deleted_by_email || 'opsloom.ke@gmail.com',
+    deleted_by_role: item.deleted_by_role || 'Administrator',
+    deleted_at_fmt: item.deleted_at_fmt || (item.deleted_at ? new Date(item.deleted_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent')
   }));
   const selected_type = (req.query.type || 'all').toLowerCase();
   const items = selected_type === 'all'
     ? all
-    : all.filter(item => (item.entity_type || '').toLowerCase() === selected_type);
+    : all.filter(item => {
+        const t = (item.entity_type || '').toLowerCase();
+        if (selected_type === 'user') return t === 'user' || t === 'technician';
+        return t === selected_type;
+      });
 
   const counts = {
     all: all.length,
@@ -4683,11 +5339,13 @@ app.get('/settings/recycle-bin', (req, res) => {
     report: all.filter(x => x.entity_type === 'report').length,
     message: all.filter(x => x.entity_type === 'message').length,
     ai_chat: all.filter(x => x.entity_type === 'ai_chat').length,
+    company: all.filter(x => x.entity_type === 'company').length,
+    document: all.filter(x => x.entity_type === 'document').length,
     user: all.filter(x => x.entity_type === 'user' || x.entity_type === 'technician').length
   };
 
   res.render('settings/recycle_bin.html', {
-    ...baseCtx(req, 'settings'),
+    ...baseCtx(req, 'recycle_bin'),
     items,
     selected_type,
     total_bin_count: all.length,
@@ -4737,6 +5395,14 @@ app.post('/settings/recycle-bin/:bin_id/restore', (req, res) => {
       case 'ai_chat':
         if (!store.AI_CHATS) store.AI_CHATS = [];
         store.AI_CHATS.unshift(rec);
+        break;
+      case 'company':
+        if (!store.COMPANIES) store.COMPANIES = [];
+        store.COMPANIES.push(rec);
+        break;
+      case 'document':
+        if (!store.ASSET_DOCUMENTS) store.ASSET_DOCUMENTS = [];
+        store.ASSET_DOCUMENTS.push(rec);
         break;
       default:
         break;
@@ -4928,7 +5594,11 @@ app.post('/settings/technicians/:tech_id/delete', (req, res) => {
   const idx = store.TECHNICIAN_DIRECTORY.findIndex(t => t.id === req.params.tech_id);
   if (idx !== -1) {
     const deleted = store.TECHNICIAN_DIRECTORY.splice(idx, 1)[0];
-    moveToRecycleBin('technician', `${deleted.name} (${deleted.id})`, deleted.id, deleted);
+    const actor = getCurrentActor(req);
+    moveToRecycleBin('technician', `${deleted.name} (${deleted.id})`, deleted.id, deleted, actor.name, {
+      deleted_by_email: actor.email,
+      deleted_by_role: actor.role
+    });
     logAudit('Technician Removed', `Moved technician ${deleted.name} to Admin Recycle Bin`, 'technicians', '/settings/recycle-bin', 'warning');
     flash('success', 'Technician moved to Admin Recycle Bin.');
   }
@@ -4936,46 +5606,167 @@ app.post('/settings/technicians/:tech_id/delete', (req, res) => {
 });
 
 app.get('/settings/admin-users', (req, res) => {
+  seedInitialDataIfEmpty();
+  const actor = getCurrentActor(req);
+  const rawUsers = Array.isArray(store.ADMIN_USERS) ? [...store.ADMIN_USERS] : [];
+  // Guarantee current signed-in actor is always represented in the admin users list
+  if (actor && !rawUsers.some(u => u.id === actor.id || (u.email && actor.email && u.email.toLowerCase() === actor.email.toLowerCase()))) {
+    rawUsers.unshift({
+      id: actor.id || 'USR-001',
+      name: actor.name || 'Laurence Magondu',
+      email: actor.email || 'opsloom.ke@gmail.com',
+      role: actor.role || 'Administrator',
+      access_scope: 'Full System',
+      department: actor.department || 'Engineering',
+      company_id: store.ACTIVE_COMPANY_ID || 'comp-001',
+      active: true,
+      permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'companies', 'all']
+    });
+    store.ADMIN_USERS = rawUsers;
+    saveStore();
+  }
+
+  const presets = {
+    Administrator: ['all', 'dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'companies'],
+    Manager: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'technicians_manage'],
+    Technician: ['dashboard', 'assets', 'breakdowns', 'maintenance'],
+    Viewer: ['dashboard', 'reports']
+  };
+  const user_rows = rawUsers.map(u => {
+    const comp = (store.COMPANIES || []).find(c => c.id === u.company_id) || (store.COMPANIES && store.COMPANIES[0]) || {};
+    const perms = Array.isArray(u.permissions) && u.permissions.length
+      ? u.permissions
+      : (presets[u.role] || presets.Viewer);
+    const permLabels = perms
+      .filter(k => k !== 'all' && MODULE_LABELS[k])
+      .map(k => MODULE_LABELS[k]);
+    const isCurrentUser = Boolean(actor && (u.id === actor.id || (u.email && actor.email && u.email.toLowerCase() === actor.email.toLowerCase())));
+    return {
+      ...u,
+      is_current_user: isCurrentUser,
+      active: u.active !== false,
+      company_name: u.company_name || comp.name || 'Ultravetis East Africa Ltd',
+      department: u.department || 'Engineering',
+      access_scope: u.access_scope || (u.role === 'Administrator' ? 'Full System' : 'Department'),
+      permissions: perms,
+      permission_labels: permLabels.length ? permLabels : Object.values(MODULE_LABELS),
+      last_login_at: isCurrentUser ? 'Current Active Session' : (u.last_login_at || 'Configured'),
+      signature_name: u.signature_name || u.name || '',
+      signature_title: u.signature_title || u.role || '',
+      signature_font: u.signature_font || 'Inter',
+      signature_color: u.signature_color || '#7E22CE'
+    };
+  });
+
+  const editId = req.query.edit || '';
+  const edit_user = editId ? (user_rows.find(u => u.id === editId) || null) : null;
+  const admin_count = user_rows.filter(u => u.role === 'Administrator').length;
+  const active_count = user_rows.filter(u => u.active !== false).length;
+  const reset_requests = (store.INTERNAL_MESSAGES || [])
+    .filter(m => m.category === 'Credential Reset' || (m.subject && m.subject.toLowerCase().includes('credential')))
+    .map(m => ({
+      subject: m.subject,
+      sender_name: m.sender_name,
+      sender_email: m.sender_email,
+      body: m.body,
+      created_display: m.created_at ? new Date(m.created_at).toLocaleString('en-GB') : 'Recent'
+    }));
+  const { filtered: audit_rows } = getFilteredAuditRows(req);
+
   res.render('settings/admin_users.html', {
     ...baseCtx(req, 'settings'),
-    users: store.ADMIN_USERS || []
+    admin_users: user_rows,
+    users: user_rows,
+    user_rows,
+    edit_user,
+    admin_count,
+    active_count,
+    reset_requests,
+    audit_rows: audit_rows.slice(0, 8),
+    module_labels: MODULE_LABELS,
+    permission_presets: presets
   });
 });
 
 app.post('/settings/admin-users/create', (req, res) => {
-  const user = {
-    id: 'USR-' + Math.floor(100 + Math.random() * 900),
-    name: req.body.name,
-    email: req.body.email,
-    password: req.body.password || 'Admin@123',
-    role: req.body.role || 'Viewer',
-    access_scope: req.body.access_scope || 'Department',
-    department: req.body.department || 'Engineering',
-    company_id: req.body.company_id || 'comp-001',
-    active: true,
-    permissions: ['dashboard', 'reports']
+  if (!store.ADMIN_USERS) store.ADMIN_USERS = [];
+  const presets = {
+    Administrator: ['all', 'dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'companies'],
+    Manager: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports'],
+    Technician: ['dashboard', 'assets', 'breakdowns', 'maintenance'],
+    Viewer: ['dashboard', 'reports']
   };
-  store.ADMIN_USERS.push(user);
+  const role = req.body.role || 'Viewer';
+  let perms = req.body.permissions;
+  if (!perms) {
+    perms = presets[role] || presets.Viewer;
+  } else if (!Array.isArray(perms)) {
+    perms = [perms];
+  }
+  if (role === 'Administrator' && !perms.includes('all')) {
+    perms = ['all', ...perms];
+  }
+
+  const existingId = (req.body.user_id || '').trim();
+  let target = existingId ? store.ADMIN_USERS.find(u => u.id === existingId) : null;
+  const isNew = !target;
+
+  if (isNew) {
+    target = {
+      id: 'USR-' + Math.floor(100 + Math.random() * 900),
+      active: true,
+      created_at: new Date().toISOString()
+    };
+    store.ADMIN_USERS.push(target);
+  }
+
+  target.name = (req.body.name || target.name || 'Authorized User').trim();
+  target.email = (req.body.email || target.email || '').trim();
+  if (req.body.password && String(req.body.password).trim()) {
+    target.password = String(req.body.password).trim();
+  } else if (!target.password) {
+    target.password = 'Admin@123';
+  }
+  target.role = role;
+  target.access_scope = role === 'Administrator' ? 'Full System' : (req.body.access_scope || 'Department');
+  target.department = req.body.department || target.department || 'Engineering';
+  target.company_id = req.body.company_id || target.company_id || store.ACTIVE_COMPANY_ID || 'comp-001';
+  target.permissions = perms;
+  target.signature_name = req.body.signature_name || target.name;
+  target.signature_title = req.body.signature_title || target.role;
+  target.signature_font = req.body.signature_font || target.signature_font || 'Inter';
+  target.signature_color = req.body.signature_color || target.signature_color || '#7E22CE';
+
   saveStore();
-  flash('success', 'Admin user created.');
+  logAudit(isNew ? 'User Account Provisioned' : 'User Credentials Updated', `${isNew ? 'Created' : 'Updated'} ${target.name} (${target.email}) as ${target.role}`, 'security', '/settings/admin-users');
+  flash('success', isNew ? `User account for ${target.name} created permanently.` : `Credentials and permissions for ${target.name} updated permanently.`);
   res.redirect('/settings/admin-users');
 });
 
 app.post('/settings/admin-users/:user_id/toggle', (req, res) => {
-  const user = store.ADMIN_USERS.find(u => u.id === req.params.user_id);
+  const user = (store.ADMIN_USERS || []).find(u => u.id === req.params.user_id);
   if (user) {
     user.active = !user.active;
     saveStore();
-    flash('info', `User account status updated.`);
+    logAudit('User Status Toggled', `Set ${user.name} (${user.email}) active=${user.active}`, 'security', '/settings/admin-users');
+    flash('info', `User account status updated for ${user.name}.`);
   }
   res.redirect('/settings/admin-users');
 });
 
 app.post('/settings/admin-users/:user_id/delete', (req, res) => {
-  const idx = store.ADMIN_USERS.findIndex(u => u.id === req.params.user_id);
+  const idx = (store.ADMIN_USERS || []).findIndex(u => u.id === req.params.user_id);
   if (idx !== -1) {
+    if (store.ADMIN_USERS.length <= 1) {
+      flash('error', 'Cannot delete the primary system administrator account.');
+      return res.redirect('/settings/admin-users');
+    }
     const deleted = store.ADMIN_USERS.splice(idx, 1)[0];
-    moveToRecycleBin('user', `${deleted.name} (${deleted.email})`, deleted.id, deleted);
+    const actor = getCurrentActor(req);
+    moveToRecycleBin('user', `${deleted.name} (${deleted.email})`, deleted.id, deleted, actor.name, {
+      deleted_by_email: actor.email,
+      deleted_by_role: actor.role
+    });
     logAudit('User Account Removed', `Moved user ${deleted.email} to Admin Recycle Bin`, 'settings', '/settings/recycle-bin', 'warning');
     flash('success', 'User account moved to Admin Recycle Bin.');
   }
@@ -5215,11 +6006,32 @@ app.post('/settings/messages/draft/:draft_id/delete', (req, res) => {
   if (!store.DRAFT_MESSAGES) store.DRAFT_MESSAGES = [];
   const idx = store.DRAFT_MESSAGES.findIndex(d => d.id === req.params.draft_id);
   if (idx !== -1) {
-    store.DRAFT_MESSAGES.splice(idx, 1);
+    const deleted = store.DRAFT_MESSAGES.splice(idx, 1)[0];
+    const actor = getCurrentActor(req);
+    moveToRecycleBin('message', `Draft: ${deleted.subject || 'Untitled'} (${deleted.id})`, deleted.id, deleted, actor.name, {
+      deleted_by_email: actor.email,
+      deleted_by_role: actor.role
+    });
     saveStore();
-    flash('info', 'Draft discarded.');
+    flash('info', 'Draft moved to Admin Recycle Bin.');
   }
   res.redirect('/settings/messages?folder=drafts');
+});
+
+app.post('/settings/messages/outbox/:outbox_id/delete', (req, res) => {
+  if (!store.OUTBOX_MESSAGES) store.OUTBOX_MESSAGES = [];
+  const idx = store.OUTBOX_MESSAGES.findIndex(o => o.id === req.params.outbox_id);
+  if (idx !== -1) {
+    const deleted = store.OUTBOX_MESSAGES.splice(idx, 1)[0];
+    const actor = getCurrentActor(req);
+    moveToRecycleBin('message', `Outbox: ${deleted.subject || 'Queued'} (${deleted.id})`, deleted.id, deleted, actor.name, {
+      deleted_by_email: actor.email,
+      deleted_by_role: actor.role
+    });
+    saveStore();
+    flash('info', 'Queued message moved to Admin Recycle Bin.');
+  }
+  res.redirect('/settings/messages?folder=outbox');
 });
 
 app.get('/settings/notifications', (req, res) => {
@@ -5262,11 +6074,23 @@ app.get('/settings/profile', (req, res) => {
   });
 });
 
-app.post('/settings/profile/save', (req, res) => {
+app.post('/settings/profile/save', upload.fields([
+  { name: 'profile_image', maxCount: 1 },
+  { name: 'signature_image', maxCount: 1 }
+]), (req, res) => {
   if (store.ADMIN_USERS && store.ADMIN_USERS.length > 0) {
-    Object.assign(store.ADMIN_USERS[0], req.body);
+    const target = getCurrentActor(req);
+    Object.assign(target, req.body);
+    const profFile = req.files && req.files['profile_image'] && req.files['profile_image'][0];
+    const sigFile = req.files && req.files['signature_image'] && req.files['signature_image'][0];
+    if (profFile) {
+      target.profile_image_url = fileToDataUrl(profFile) || `/static/uploads/${profFile.filename}`;
+    }
+    if (sigFile) {
+      target.signature_image_url = fileToDataUrl(sigFile) || `/static/uploads/${sigFile.filename}`;
+    }
     saveStore();
-    flash('success', 'Profile settings updated.');
+    flash('success', 'Profile settings saved permanently.');
   }
   res.redirect('/settings/profile');
 });

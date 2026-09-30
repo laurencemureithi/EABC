@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "saved_at": "2026-09-30T11:41:37.520Z",
+  "saved_at": "2026-09-30T14:13:52.009Z",
   "COMPANIES": [
     {
       "id": "comp-001",
@@ -8,7 +8,7 @@
       "code": "OPS",
       "primary_color": "#3700ff",
       "secondary_color": "#0ea5e9",
-      "logo_light_url": "/static/brand/ultravetis_logo.png",
+      "logo_light_url": "/static/brand/opsloom_wordmark_light.png",
       "logo_dark_url": "/static/brand/opsloom_wordmark_light.png",
       "show_name_next_to_logo": true,
       "logo_height": 48,
@@ -26,11 +26,11 @@
       "id": "comp-002",
       "name": "Ultravetis East Africa Limited",
       "code": "UEAL",
-      "primary_color": "#7e008f",
-      "secondary_color": "#ffbb00",
-      "logo_light_url": "/static/brand/opsloom_wordmark_light.png",
-      "logo_dark_url": "/static/brand/opsloom_wordmark_light.png",
-      "show_name_next_to_logo": true,
+      "primary_color": "#680075",
+      "secondary_color": "#f5b400",
+      "logo_light_url": "/static/brand/ultravetis_logo.png",
+      "logo_dark_url": "/static/brand/ultravetis_logo.png",
+      "show_name_next_to_logo": false,
       "logo_height": 48,
       "logo_width_pct": 88,
       "logo_alignment": "left",
@@ -870,6 +870,54 @@
   ],
   "AUDIT_TRAIL": [
     {
+      "id": "9c0cd8f7f88d4b34af479c257d3f11ca",
+      "action": "User login",
+      "detail": "Laurence Magondu signed in as Administrator with full system scope.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-09-30T14:13:52.009Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "ee96a08ad9624594b9220e4e7907d15e",
+      "action": "Workspace Switched",
+      "detail": "Switched active workspace to Ultravetis East Africa Limited (UEAL)",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/companies",
+      "created_at": "2026-09-30T13:39:57.479Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "fe8ba11c207845118524d3e84f066c12",
+      "action": "Company Workspace Updated",
+      "detail": "Updated branding for Ultravetis East Africa Limited",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/companies",
+      "created_at": "2026-09-30T11:50:47.422Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "c8887602c258496fb8aefecebffd90f5",
+      "action": "Company Workspace Updated",
+      "detail": "Updated branding for Ultravetis East Africa Limited",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/companies",
+      "created_at": "2026-09-30T11:50:11.306Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
       "id": "be230bd3869f424e8f742f74a92e4f4d",
       "action": "Workspace Switched",
       "detail": "Switched active workspace to Ultravetis East Africa Limited (UEAL)",
@@ -994,7 +1042,7 @@
       "message": "Granulation Fluid Bed Dryer FBD-01 has an open Critical breakdown (BD-2026-001).",
       "kind": "warning",
       "created_at": "2026-09-29T08:35:00.000Z",
-      "is_read": false,
+      "is_read": true,
       "href": "/breakdowns/BD-2026-001",
       "should_toast": false
     },
@@ -1004,7 +1052,7 @@
       "message": "3 critical spare parts are at or below minimum buffer level. Review inventory replenishment.",
       "kind": "warning",
       "created_at": "2026-09-30T04:30:00.000Z",
-      "is_read": false,
+      "is_read": true,
       "href": "/inventory",
       "should_toast": false
     }
@@ -1078,7 +1126,59 @@
       "signature_color": "#7E22CE",
       "signature_style": "formal",
       "signature_image_url": "",
-      "profile_image_url": ""
+      "profile_image_url": "",
+      "last_login_at": "30 Sept 2026, 14:13"
+    },
+    {
+      "id": "USR-002",
+      "name": "Eng. Grace Wanjiku",
+      "email": "grace.wanjiku@opsloom.co.ke",
+      "password": "Admin@123",
+      "role": "Manager",
+      "access_scope": "Department",
+      "department": "Engineering",
+      "company_id": "comp-001",
+      "active": true,
+      "last_login_at": "29 Sep 2026, 16:40",
+      "permissions": [
+        "dashboard",
+        "assets",
+        "breakdowns",
+        "maintenance",
+        "inventory",
+        "reports",
+        "technicians_manage"
+      ],
+      "signature_name": "Eng. Grace Wanjiku",
+      "signature_title": "Plant Reliability Manager",
+      "signature_font": "Inter",
+      "signature_color": "#1554FF",
+      "signature_style": "modern",
+      "signature_image_url": ""
+    },
+    {
+      "id": "USR-003",
+      "name": "David Kimani",
+      "email": "david.kimani@opsloom.co.ke",
+      "password": "Admin@123",
+      "role": "Technician",
+      "access_scope": "Section",
+      "department": "Engineering",
+      "company_id": "comp-001",
+      "active": true,
+      "last_login_at": "30 Sep 2026, 08:15",
+      "permissions": [
+        "dashboard",
+        "assets",
+        "breakdowns",
+        "maintenance"
+      ],
+      "signature_name": "David Kimani",
+      "signature_title": "Senior Mechanical Technician",
+      "signature_font": "Inter",
+      "signature_color": "#0EA5E9",
+      "signature_style": "formal",
+      "signature_image_url": ""
     }
   ],
   "INTERNAL_MESSAGES": [
@@ -1104,51 +1204,70 @@
   ],
   "DRAFT_MESSAGES": [],
   "OUTBOX_MESSAGES": [],
-  "RECYCLE_BIN": [],
-  "AI_CHATS": [
+  "RECYCLE_BIN": [
     {
-      "id": "chat-1790765413033",
-      "title": "Opsloom AI: DIAGNOSE FLEET",
-      "prompt": "diagnose_fleet",
-      "query": "diagnose_fleet",
-      "summary": "",
-      "metrics": [
-        {
-          "label": "Fleet Availability",
-          "value": "98.4%"
-        },
-        {
-          "label": "Active Faults",
-          "value": "2"
-        },
-        {
-          "label": "Low Stock Spares",
-          "value": "4"
-        }
-      ],
-      "sections": [
-        {
-          "heading": "AI Engineering Synthesis",
-          "items": [
-            "EXECUTIVE SUMMARY:",
-            "Opsloom Kenya is currently operating at compromised capacity with two high-priority breakdowns and a growing maintenance backlog. Immediate intervention is required on the Granulation Fluid Bed Dryer (FBD-01) and Centrifugal Slurry Pump (CP-04) to prevent cascading system failures and secondary motor damage.",
-            "KEY TELEMETRY FINDINGS:",
-            "• **Thermal & Mechanical Degradation (FBD-01):** Critical overheating in the blower motor is directly correlated with V-belt slippage, leading to inefficient torque transfer and reduced airflow in the granulation process.",
-            "• **Fluid Containment Loss (CP-04):** Active gland weeping at the mechanical seal has resulted in a measurable discharge pressure drop, signaling imminent seal failure and potential slurry contamination of the bearing housing.",
-            "• **Reliability Backlog Stress:** With 16.6% of the fleet in breakdown status and 33% of upcoming tasks overdue, the plant's reliability margin is currently below the acceptable engineering threshold.",
-            "RECOMMENDED ENGINEERING ACTIONS:",
-            "1. **Immediate Overhaul of FBD-01 Drive Train:** Perform Lockout-Tagout (LOTO) to replace the worn V-belts, check pulley alignment using laser tools, and conduct an insulation resistance test (Megger) on the motor to assess thermal damage.",
-            "2. **Seal Integrity Restoration for CP-04:** Deploy a mechanical seal replacement kit immediately; simultaneously verify if the required seal or gland packing is among the 4 low-stock items to ensure zero-delay procurement."
-          ]
-        }
-      ],
-      "analysis": "EXECUTIVE SUMMARY: \nOpsloom Kenya is currently operating at compromised capacity with two high-priority breakdowns and a growing maintenance backlog. Immediate intervention is required on the Granulation Fluid Bed Dryer (FBD-01) and Centrifugal Slurry Pump (CP-04) to prevent cascading system failures and secondary motor damage.\n\nKEY TELEMETRY FINDINGS:\n• **Thermal & Mechanical Degradation (FBD-01):** Critical overheating in the blower motor is directly correlated with V-belt slippage, leading to inefficient torque transfer and reduced airflow in the granulation process.\n• **Fluid Containment Loss (CP-04):** Active gland weeping at the mechanical seal has resulted in a measurable discharge pressure drop, signaling imminent seal failure and potential slurry contamination of the bearing housing.\n• **Reliability Backlog Stress:** With 16.6% of the fleet in breakdown status and 33% of upcoming tasks overdue, the plant's reliability margin is currently below the acceptable engineering threshold.\n\nRECOMMENDED ENGINEERING ACTIONS:\n1. **Immediate Overhaul of FBD-01 Drive Train:** Perform Lockout-Tagout (LOTO) to replace the worn V-belts, check pulley alignment using laser tools, and conduct an insulation resistance test (Megger) on the motor to assess thermal damage.\n2. **Seal Integrity Restoration for CP-04:** Deploy a mechanical seal replacement kit immediately; simultaneously verify if the required seal or gland packing is among the 4 low-stock items to ensure zero-delay procurement.",
-      "created_at": "2026-09-30T10:50:13.033Z",
-      "chat_id": "chat-1790765413033",
-      "created_at_fmt": "30 Sept 2026, 10:50",
-      "timestamp": "10:50 AM",
-      "structured": {
-        "summary": "Structured plant telemetry and reliability synthesis.",
+      "id": "bin-1790769354302-406",
+      "entity_type": "ai_chat",
+      "entity_label": "AI Chat: Plant Health & Seal Wear Audit",
+      "primary_id": "chat-seed-001",
+      "record": {
+        "id": "chat-seed-001",
+        "title": "Plant Health & Seal Wear Audit",
+        "updated_at": "30 Sept, 09:16",
+        "messages": [
+          {
+            "role": "user",
+            "text": "Run a full Plant Health & OEE Audit across all sections",
+            "time": "09:15"
+          },
+          {
+            "role": "ai",
+            "title": "Plant Health & OEE Audit",
+            "structured": {
+              "summary": "Fleet reliability stands at 83.3% operational readiness across 12 registered industrial assets, with 2 active corrective work orders in Pharma and Nutraceuticals.",
+              "metrics": [
+                {
+                  "label": "Fleet Availability",
+                  "value": "94.2%"
+                },
+                {
+                  "label": "PM Compliance",
+                  "value": "87.5%"
+                },
+                {
+                  "label": "Mean Time To Repair",
+                  "value": "1.8 hrs"
+                }
+              ],
+              "findings": [
+                "High-Speed Rotary Filler RFC-80 and Steam Boiler SB-02 are operating within nominal thermal and vibration envelopes.",
+                "Granulation Fluid Bed Dryer FBD-01 requires pneumatic actuator seal replacement to restore full batch cycle pressure.",
+                "Centrifugal Slurry Pump CP-04 exhibits mild impeller cavitation; scheduled bearing & seal kit overhaul is staged."
+              ],
+              "recommendations": [
+                "Prioritize closure of BD-2026-001 on Granulation Fluid Bed Dryer FBD-01 before afternoon shift handover.",
+                "Replenish Solid State Relay 40A (SKU-ELEC-SSR40) and Pneumatic Cylinder DNC-40 (SKU-PNEU-CYL40) to restore safety buffer stock."
+              ]
+            },
+            "time": "09:15"
+          }
+        ]
+      },
+      "deleted_by": "Laurence Magondu",
+      "deleted_at": "2026-09-30T11:55:54.302Z",
+      "deleted_at_fmt": "30 Sept 2026, 11:55"
+    },
+    {
+      "id": "bin-1790769336041-568",
+      "entity_type": "ai_chat",
+      "entity_label": "AI Chat: Opsloom AI: DIAGNOSE FLEET",
+      "primary_id": "chat-1790765413033",
+      "record": {
+        "id": "chat-1790765413033",
+        "title": "Opsloom AI: DIAGNOSE FLEET",
+        "prompt": "diagnose_fleet",
+        "query": "diagnose_fleet",
+        "summary": "",
         "metrics": [
           {
             "label": "Fleet Availability",
@@ -1179,55 +1298,136 @@
             ]
           }
         ],
+        "analysis": "EXECUTIVE SUMMARY: \nOpsloom Kenya is currently operating at compromised capacity with two high-priority breakdowns and a growing maintenance backlog. Immediate intervention is required on the Granulation Fluid Bed Dryer (FBD-01) and Centrifugal Slurry Pump (CP-04) to prevent cascading system failures and secondary motor damage.\n\nKEY TELEMETRY FINDINGS:\n• **Thermal & Mechanical Degradation (FBD-01):** Critical overheating in the blower motor is directly correlated with V-belt slippage, leading to inefficient torque transfer and reduced airflow in the granulation process.\n• **Fluid Containment Loss (CP-04):** Active gland weeping at the mechanical seal has resulted in a measurable discharge pressure drop, signaling imminent seal failure and potential slurry contamination of the bearing housing.\n• **Reliability Backlog Stress:** With 16.6% of the fleet in breakdown status and 33% of upcoming tasks overdue, the plant's reliability margin is currently below the acceptable engineering threshold.\n\nRECOMMENDED ENGINEERING ACTIONS:\n1. **Immediate Overhaul of FBD-01 Drive Train:** Perform Lockout-Tagout (LOTO) to replace the worn V-belts, check pulley alignment using laser tools, and conduct an insulation resistance test (Megger) on the motor to assess thermal damage.\n2. **Seal Integrity Restoration for CP-04:** Deploy a mechanical seal replacement kit immediately; simultaneously verify if the required seal or gland packing is among the 4 low-stock items to ensure zero-delay procurement.",
+        "created_at": "2026-09-30T10:50:13.033Z",
+        "chat_id": "chat-1790765413033",
+        "created_at_fmt": "30 Sept 2026, 10:50",
+        "timestamp": "10:50 AM",
+        "structured": {
+          "summary": "Structured plant telemetry and reliability synthesis.",
+          "metrics": [
+            {
+              "label": "Fleet Availability",
+              "value": "98.4%"
+            },
+            {
+              "label": "Active Faults",
+              "value": "2"
+            },
+            {
+              "label": "Low Stock Spares",
+              "value": "4"
+            }
+          ],
+          "sections": [
+            {
+              "heading": "AI Engineering Synthesis",
+              "items": [
+                "EXECUTIVE SUMMARY:",
+                "Opsloom Kenya is currently operating at compromised capacity with two high-priority breakdowns and a growing maintenance backlog. Immediate intervention is required on the Granulation Fluid Bed Dryer (FBD-01) and Centrifugal Slurry Pump (CP-04) to prevent cascading system failures and secondary motor damage.",
+                "KEY TELEMETRY FINDINGS:",
+                "• **Thermal & Mechanical Degradation (FBD-01):** Critical overheating in the blower motor is directly correlated with V-belt slippage, leading to inefficient torque transfer and reduced airflow in the granulation process.",
+                "• **Fluid Containment Loss (CP-04):** Active gland weeping at the mechanical seal has resulted in a measurable discharge pressure drop, signaling imminent seal failure and potential slurry contamination of the bearing housing.",
+                "• **Reliability Backlog Stress:** With 16.6% of the fleet in breakdown status and 33% of upcoming tasks overdue, the plant's reliability margin is currently below the acceptable engineering threshold.",
+                "RECOMMENDED ENGINEERING ACTIONS:",
+                "1. **Immediate Overhaul of FBD-01 Drive Train:** Perform Lockout-Tagout (LOTO) to replace the worn V-belts, check pulley alignment using laser tools, and conduct an insulation resistance test (Megger) on the motor to assess thermal damage.",
+                "2. **Seal Integrity Restoration for CP-04:** Deploy a mechanical seal replacement kit immediately; simultaneously verify if the required seal or gland packing is among the 4 low-stock items to ensure zero-delay procurement."
+              ]
+            }
+          ],
+          "recommendations": [
+            "Execute scheduled preventive maintenance before line turnover.",
+            "Verify critical spare parts buffer in the MRO Inventory Register."
+          ]
+        }
+      },
+      "deleted_by": "Laurence Magondu",
+      "deleted_at": "2026-09-30T11:55:36.041Z",
+      "deleted_at_fmt": "30 Sept 2026, 11:55"
+    }
+  ],
+  "AI_CHATS": [
+    {
+      "id": "chat-1790769363485",
+      "title": "Opsloom AI: SPARE REPLENISHMENT",
+      "prompt": "spare_replenishment",
+      "query": "spare_replenishment",
+      "summary": "",
+      "metrics": [
+        {
+          "label": "Fleet Availability",
+          "value": "98.4%"
+        },
+        {
+          "label": "Active Faults",
+          "value": "2"
+        },
+        {
+          "label": "Low Stock Spares",
+          "value": "4"
+        }
+      ],
+      "sections": [
+        {
+          "heading": "AI Engineering Synthesis",
+          "items": [
+            "EXECUTIVE SUMMARY:",
+            "Immediate procurement is required for four critical low-stock items and specific components for two active breakdowns to restore plant reliability and address an overdue maintenance task. Priorities include drive components for the Granulation Fluid Bed Dryer and sealing kits for the Centrifugal Slurry Pump.",
+            "KEY TELEMETRY FINDINGS:",
+            "• Critical inventory alert: 4 essential spare parts have fallen below safety stock thresholds, threatening the execution of upcoming maintenance.",
+            "• FBD-01 breakdown diagnostics indicate a requirement for replacement V-belts and motor bearing lubricants to address slippage and thermal escalation.",
+            "• CP-04 telemetry shows a loss of containment at the gland, necessitating a full mechanical seal assembly replacement to resolve pressure drop issues.",
+            "RECOMMENDED ENGINEERING ACTIONS:",
+            "1. Initiate emergency procurement for matched V-belt sets for FBD-01 and high-abrasion resistant mechanical seal kits for CP-04 to resolve current downtime.",
+            "2. Conduct an inventory replenishment cycle for the 4 low-stock items and verify part availability for the overdue maintenance task to prevent further scheduling backlogs."
+          ]
+        }
+      ],
+      "analysis": "EXECUTIVE SUMMARY:\nImmediate procurement is required for four critical low-stock items and specific components for two active breakdowns to restore plant reliability and address an overdue maintenance task. Priorities include drive components for the Granulation Fluid Bed Dryer and sealing kits for the Centrifugal Slurry Pump.\n\nKEY TELEMETRY FINDINGS:\n• Critical inventory alert: 4 essential spare parts have fallen below safety stock thresholds, threatening the execution of upcoming maintenance.\n• FBD-01 breakdown diagnostics indicate a requirement for replacement V-belts and motor bearing lubricants to address slippage and thermal escalation.\n• CP-04 telemetry shows a loss of containment at the gland, necessitating a full mechanical seal assembly replacement to resolve pressure drop issues.\n\nRECOMMENDED ENGINEERING ACTIONS:\n1. Initiate emergency procurement for matched V-belt sets for FBD-01 and high-abrasion resistant mechanical seal kits for CP-04 to resolve current downtime.\n2. Conduct an inventory replenishment cycle for the 4 low-stock items and verify part availability for the overdue maintenance task to prevent further scheduling backlogs.",
+      "created_at": "2026-09-30T11:56:03.485Z",
+      "chat_id": "chat-1790769363485",
+      "created_at_fmt": "30 Sept 2026, 11:56",
+      "timestamp": "11:56 AM",
+      "structured": {
+        "summary": "Structured plant telemetry and reliability synthesis.",
+        "metrics": [
+          {
+            "label": "Fleet Availability",
+            "value": "98.4%"
+          },
+          {
+            "label": "Active Faults",
+            "value": "2"
+          },
+          {
+            "label": "Low Stock Spares",
+            "value": "4"
+          }
+        ],
+        "sections": [
+          {
+            "heading": "AI Engineering Synthesis",
+            "items": [
+              "EXECUTIVE SUMMARY:",
+              "Immediate procurement is required for four critical low-stock items and specific components for two active breakdowns to restore plant reliability and address an overdue maintenance task. Priorities include drive components for the Granulation Fluid Bed Dryer and sealing kits for the Centrifugal Slurry Pump.",
+              "KEY TELEMETRY FINDINGS:",
+              "• Critical inventory alert: 4 essential spare parts have fallen below safety stock thresholds, threatening the execution of upcoming maintenance.",
+              "• FBD-01 breakdown diagnostics indicate a requirement for replacement V-belts and motor bearing lubricants to address slippage and thermal escalation.",
+              "• CP-04 telemetry shows a loss of containment at the gland, necessitating a full mechanical seal assembly replacement to resolve pressure drop issues.",
+              "RECOMMENDED ENGINEERING ACTIONS:",
+              "1. Initiate emergency procurement for matched V-belt sets for FBD-01 and high-abrasion resistant mechanical seal kits for CP-04 to resolve current downtime.",
+              "2. Conduct an inventory replenishment cycle for the 4 low-stock items and verify part availability for the overdue maintenance task to prevent further scheduling backlogs."
+            ]
+          }
+        ],
         "recommendations": [
           "Execute scheduled preventive maintenance before line turnover.",
           "Verify critical spare parts buffer in the MRO Inventory Register."
         ]
       }
-    },
-    {
-      "id": "chat-seed-001",
-      "title": "Plant Health & Seal Wear Audit",
-      "updated_at": "30 Sept, 09:16",
-      "messages": [
-        {
-          "role": "user",
-          "text": "Run a full Plant Health & OEE Audit across all sections",
-          "time": "09:15"
-        },
-        {
-          "role": "ai",
-          "title": "Plant Health & OEE Audit",
-          "structured": {
-            "summary": "Fleet reliability stands at 83.3% operational readiness across 12 registered industrial assets, with 2 active corrective work orders in Pharma and Nutraceuticals.",
-            "metrics": [
-              {
-                "label": "Fleet Availability",
-                "value": "94.2%"
-              },
-              {
-                "label": "PM Compliance",
-                "value": "87.5%"
-              },
-              {
-                "label": "Mean Time To Repair",
-                "value": "1.8 hrs"
-              }
-            ],
-            "findings": [
-              "High-Speed Rotary Filler RFC-80 and Steam Boiler SB-02 are operating within nominal thermal and vibration envelopes.",
-              "Granulation Fluid Bed Dryer FBD-01 requires pneumatic actuator seal replacement to restore full batch cycle pressure.",
-              "Centrifugal Slurry Pump CP-04 exhibits mild impeller cavitation; scheduled bearing & seal kit overhaul is staged."
-            ],
-            "recommendations": [
-              "Prioritize closure of BD-2026-001 on Granulation Fluid Bed Dryer FBD-01 before afternoon shift handover.",
-              "Replenish Solid State Relay 40A (SKU-ELEC-SSR40) and Pneumatic Cylinder DNC-40 (SKU-PNEU-CYL40) to restore safety buffer stock."
-            ]
-          },
-          "time": "09:15"
-        }
-      ]
     }
   ],
-  "ACTIVE_COMPANY_ID": "comp-002"
+  "ACTIVE_COMPANY_ID": "comp-002",
+  "initialized": true,
+  "seeded_default_team_users": true
 }

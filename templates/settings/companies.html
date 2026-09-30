@@ -86,13 +86,13 @@
             <div class="p-3 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-100 dark:bg-slate-900/60 flex flex-col items-center justify-center gap-2">
               <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Light Theme</span>
               <div class="h-12 w-full flex items-center justify-center bg-white rounded-lg p-1.5 shadow-xs">
-                <img src="{{ comp.logo_light_url if comp.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png') }}" alt="Light Logo" class="max-h-full max-w-full object-contain" />
+                <img src="{{ comp.logo_light_url if comp.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png') }}" onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_light.png';" alt="Light Logo" class="max-h-full max-w-full object-contain" />
               </div>
             </div>
             <div class="p-3 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-800 dark:bg-slate-950 flex flex-col items-center justify-center gap-2 text-white">
               <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Dark Theme</span>
               <div class="h-12 w-full flex items-center justify-center bg-slate-900 rounded-lg p-1.5 shadow-xs">
-                <img src="{{ comp.logo_dark_url if comp.logo_dark_url else (comp.logo_light_url if comp.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png')) }}" alt="Dark Logo" class="max-h-full max-w-full object-contain" />
+                <img src="{{ comp.logo_dark_url if comp.logo_dark_url else (comp.logo_light_url if comp.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png')) }}" onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_light.png';" alt="Dark Logo" class="max-h-full max-w-full object-contain" />
               </div>
             </div>
           </div>
@@ -112,7 +112,7 @@
               <span class="material-symbols-outlined text-sm">edit</span> Customize
             </button>
             {% if companies.length > 1 %}
-              <form method="post" action="/settings/companies/{{ comp.id }}/delete" onsubmit="return confirm('Remove workspace {{ comp.name }}?');">
+              <form method="post" action="/settings/companies/{{ comp.id }}/delete" data-confirm="delete_workspace" data-confirm-title="Remove Company Workspace" data-confirm-text="Move workspace {{ comp.name }} to the Admin Recycle Bin?" data-confirm-ok="Move to Recycle Bin">
                 <button type="submit" class="p-1.5 rounded-lg text-slate-400 hover:text-red-500 transition" title="Delete Workspace">
                   <span class="material-symbols-outlined text-sm">delete</span>
                 </button>
@@ -195,8 +195,9 @@
                 <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">Light Theme Logo</label>
                 <p class="text-[11px] text-slate-400">Logo image when the application is viewed in Light Mode</p>
                 <input type="text" name="logo_light_url" id="compFormLogoLight" placeholder="/static/brand/opsloom_wordmark_light.png" class="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-800 text-xs font-mono" oninput="updateSimulator()">
+                <input type="hidden" name="logo_light_base64" id="compFormLogoLightBase64" value="">
                 <label class="block text-[10px] text-slate-500 font-bold uppercase mt-1">Or Upload Image</label>
-                <input type="file" name="logo_light_file" accept="image/*" class="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-slate-100 dark:file:bg-slate-800">
+                <input type="file" name="logo_light_file" id="compFormLogoLightFile" accept="image/*" onchange="handleLogoFileSelect(this, 'light')" class="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-slate-100 dark:file:bg-slate-800">
               </div>
 
               <!-- Dark Theme Logo -->
@@ -204,8 +205,9 @@
                 <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">Dark Theme Logo</label>
                 <p class="text-[11px] text-slate-400">Logo image when the application is viewed in Dark Mode</p>
                 <input type="text" name="logo_dark_url" id="compFormLogoDark" placeholder="/static/brand/opsloom_wordmark_light.png" class="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-800 text-xs font-mono" oninput="updateSimulator()">
+                <input type="hidden" name="logo_dark_base64" id="compFormLogoDarkBase64" value="">
                 <label class="block text-[10px] text-slate-500 font-bold uppercase mt-1">Or Upload Image</label>
-                <input type="file" name="logo_dark_file" accept="image/*" class="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-slate-100 dark:file:bg-slate-800">
+                <input type="file" name="logo_dark_file" id="compFormLogoDarkFile" accept="image/*" onchange="handleLogoFileSelect(this, 'dark')" class="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-slate-100 dark:file:bg-slate-800">
               </div>
             </div>
 
@@ -326,6 +328,12 @@ function openCreateCompanyModal() {
   document.getElementById('compFormSecondaryHex').value = '#F59E0B';
   document.getElementById('compFormLogoLight').value = '/static/brand/opsloom_wordmark_light.png';
   document.getElementById('compFormLogoDark').value = '/static/brand/opsloom_wordmark_light.png';
+  document.getElementById('compFormLogoLightBase64').value = '';
+  document.getElementById('compFormLogoDarkBase64').value = '';
+  const lf = document.getElementById('compFormLogoLightFile');
+  const df = document.getElementById('compFormLogoDarkFile');
+  if (lf) lf.value = '';
+  if (df) df.value = '';
   document.getElementById('compFormShowName').checked = false;
   document.getElementById('compFormHeight').value = 52;
   document.getElementById('compFormWidth').value = 100;
@@ -348,6 +356,12 @@ function editCompany(id) {
   document.getElementById('compFormSecondaryHex').value = comp.secondary_color || '#F59E0B';
   document.getElementById('compFormLogoLight').value = comp.logo_light_url || '';
   document.getElementById('compFormLogoDark').value = comp.logo_dark_url || '';
+  document.getElementById('compFormLogoLightBase64').value = '';
+  document.getElementById('compFormLogoDarkBase64').value = '';
+  const lf = document.getElementById('compFormLogoLightFile');
+  const df = document.getElementById('compFormLogoDarkFile');
+  if (lf) lf.value = '';
+  if (df) df.value = '';
   document.getElementById('compFormShowName').checked = !!comp.show_name_next_to_logo;
   document.getElementById('compFormHeight').value = comp.logo_height || 52;
   document.getElementById('compFormWidth').value = comp.logo_width_pct || 100;
@@ -355,6 +369,38 @@ function editCompany(id) {
   document.getElementById('compFormFit').value = comp.logo_fit || 'contain';
   updateSimulator();
   document.getElementById('companyModal').classList.remove('hidden');
+}
+
+function handleLogoFileSelect(input, mode) {
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    const dataUrl = evt.target && evt.target.result ? String(evt.target.result) : '';
+    if (!dataUrl) return;
+    if (mode === 'light') {
+      document.getElementById('compFormLogoLightBase64').value = dataUrl;
+      document.getElementById('compFormLogoLight').value = dataUrl;
+      // Also mirror to dark mode if no separate dark file was chosen yet
+      const df = document.getElementById('compFormLogoDarkFile');
+      if (!df || !df.files || !df.files.length) {
+        document.getElementById('compFormLogoDarkBase64').value = dataUrl;
+        document.getElementById('compFormLogoDark').value = dataUrl;
+      }
+      setSimTheme('light');
+    } else {
+      document.getElementById('compFormLogoDarkBase64').value = dataUrl;
+      document.getElementById('compFormLogoDark').value = dataUrl;
+      const lf = document.getElementById('compFormLogoLightFile');
+      if (!lf || !lf.files || !lf.files.length) {
+        document.getElementById('compFormLogoLightBase64').value = dataUrl;
+        document.getElementById('compFormLogoLight').value = dataUrl;
+      }
+      setSimTheme('dark');
+    }
+    updateSimulator();
+  };
+  reader.readAsDataURL(file);
 }
 
 function closeCompanyModal() {
@@ -394,10 +440,10 @@ function updateSimulator() {
   const showName = document.getElementById('compFormShowName').checked;
   const name = document.getElementById('compFormName').value || 'Company Name';
   const code = document.getElementById('compFormCode').value || 'CODE';
-  const rawLight = document.getElementById('compFormLogoLight').value || '/static/brand/opsloom_wordmark_light.png';
-  const rawDark = document.getElementById('compFormLogoDark').value || rawLight;
-  const safeLight = (rawLight.includes('ultravetis_logo.png') || rawLight.includes('opsloom_wordmark_dark.png')) ? '/static/brand/opsloom_wordmark_light.png' : rawLight;
-  const safeDark = (rawDark.includes('ultravetis_logo.png') || rawDark.includes('opsloom_wordmark_dark.png')) ? '/static/brand/opsloom_wordmark_light.png' : rawDark;
+  const rawLight = document.getElementById('compFormLogoLightBase64').value || document.getElementById('compFormLogoLight').value || '/static/brand/opsloom_wordmark_light.png';
+  const rawDark = document.getElementById('compFormLogoDarkBase64').value || document.getElementById('compFormLogoDark').value || rawLight;
+  const safeLight = rawLight.includes('opsloom_wordmark_dark.png') ? '/static/brand/opsloom_wordmark_light.png' : rawLight;
+  const safeDark = rawDark.includes('opsloom_wordmark_dark.png') ? '/static/brand/opsloom_wordmark_light.png' : rawDark;
 
   document.getElementById('heightValBadge').textContent = h + 'px';
   document.getElementById('widthValBadge').textContent = w + '%';

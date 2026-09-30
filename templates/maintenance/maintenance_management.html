@@ -93,8 +93,8 @@
 <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
   <form method="GET" class="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
     <!-- Left: Search + Filters -->
-    <div class="flex items-center gap-3 w-full">
-      <div class="relative flex-1 min-w-[240px]">
+    <div class="flex items-center gap-2 sm:gap-3 w-full min-w-0">
+      <div class="relative flex-1 min-w-0">
         <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
         <input name="q" value="{{ q or '' }}"
                class="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
@@ -196,7 +196,7 @@
     </div>
 
     <!-- Right: Actions -->
-    <div class="flex items-center gap-3 w-full lg:w-auto justify-end" data-no-print>
+    <div class="flex flex-wrap items-center gap-2 sm:gap-3 w-full lg:w-auto justify-start lg:justify-end" data-no-print>
       {% set export_links = [
         {"href": url_for('maintenance_export', fmt='csv', q=q, section=selected_section, type=selected_type, frequency=selected_frequency, technician=selected_technician, status=selected_status, due_from=selected_due_from, due_to=selected_due_to), "icon": "description", "label": "Export CSV"},
         {"href": url_for('maintenance_export', fmt='xlsx', q=q, section=selected_section, type=selected_type, frequency=selected_frequency, technician=selected_technician, status=selected_status, due_from=selected_due_from, due_to=selected_due_to), "icon": "table_view", "label": "Export Excel"},
@@ -207,11 +207,11 @@
       {% include 'partials/export_menu.html' %}
 
       <a href="{{ url_for('maintenance_schedule_step1') }}"
-         class="bg-ueal-gold text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-ueal-gold/90 transition-shadow shadow-md">
+         class="bg-ueal-gold text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 hover:bg-ueal-gold/90 transition-shadow shadow-md flex-1 sm:flex-initial">
         <span class="material-symbols-outlined text-lg">add</span> SCHEDULE NEW PM
       </a>
       <a href="{{ url_for('maintenance_calendar') }}"
-         class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+         class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-center">
         View Calendar
       </a>
     </div>

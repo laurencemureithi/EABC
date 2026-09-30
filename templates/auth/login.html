@@ -205,7 +205,7 @@
       <div class="auth-brand-inner">
         <div>
           <div class="auth-logo-row">
-            <img src="{{ active_company.logo_dark_url if active_company and active_company.logo_dark_url else (active_company.logo_light_url if active_company and active_company.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png')) }}" alt="{{ active_company.name if active_company else 'Opsloom' }}" class="auth-brand-image auth-brand-wordmark">
+            <img src="{{ url_for('static', filename='brand/opsloom_wordmark_light.png') }}" onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_light.png';" alt="Opsloom System Provider" class="auth-brand-image auth-brand-wordmark">
           </div>
           <p class="auth-kicker" style="margin-top:48px;">Secure Access Portal</p>
           <h2 class="auth-title">Engineering Asset &amp; Breakdown Core</h2>
@@ -222,9 +222,15 @@
     <section class="auth-card-wrap" style="background:linear-gradient(180deg,rgba(248,250,252,0.96),rgba(241,245,249,0.98));">
       <div class="auth-card">
         <div class="auth-card-head">
-          <p class="auth-kicker" style="color:#94a3b8;">System Access</p>
-          <h2 style="margin-top:8px;font-size:44px;font-weight:900;line-height:1.05;color:#0f172a;" class="dark:text-white">Sign In</h2>
-          <p style="margin-top:10px;font-size:15px;color:#64748b;" class="dark:text-slate-300">Use your active company account to access the correct department workspace.</p>
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="auth-kicker" style="color:#94a3b8;">System Access</p>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[11px] font-extrabold uppercase tracking-wider">
+              <span class="material-symbols-outlined text-sm">shield_lock</span>
+              {{ session_timeout_minutes or 30 }}m Session Security
+            </span>
+          </div>
+          <h2 style="margin-top:8px;font-size:clamp(2rem, 5vw, 2.75rem);font-weight:900;line-height:1.05;color:#0f172a;" class="dark:text-white">Sign In</h2>
+          <p style="margin-top:10px;font-size:15px;color:#64748b;" class="dark:text-slate-300">Authenticate with your authorized corporate account to unlock the workspace on this device.</p>
         </div>
 
         <div class="auth-card-body">
@@ -237,18 +243,31 @@
             </div>
           {% endif %}
 
-          <form method="post" action="{{ url_for('login_submit') }}" class="space-y-5">
+          <form id="loginForm" method="post" action="{{ url_for('login_submit') }}" class="space-y-5">
             <input type="hidden" name="next" value="{{ request.args.get('next','') }}">
             <div>
               <label class="auth-label">Company Email</label>
-              <input name="email" type="email" required placeholder="name@company.com" class="auth-input">
+              <input id="loginEmailInput" name="email" type="email" required placeholder="opsloom.ke@gmail.com" class="auth-input">
             </div>
             <div>
-              <label class="auth-label">Password</label>
-              <input name="password" type="password" required placeholder="Enter your password" class="auth-input">
+              <div class="flex items-center justify-between mb-2">
+                <label class="auth-label" style="margin-bottom:0;">Password</label>
+                <button type="button" onclick="fillDemoAdmin()" class="text-[11px] font-extrabold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer">
+                  Quick Fill Admin Credentials
+                </button>
+              </div>
+              <input id="loginPasswordInput" name="password" type="password" required placeholder="Enter your password" class="auth-input">
             </div>
-            <button class="auth-primary" type="submit">Sign In to Workspace</button>
+            <button class="auth-primary cursor-pointer" type="submit">Sign In to Workspace</button>
           </form>
+          <script>
+            function fillDemoAdmin() {
+              var e = document.getElementById('loginEmailInput');
+              var p = document.getElementById('loginPasswordInput');
+              if (e) e.value = 'opsloom.ke@gmail.com';
+              if (p) p.value = 'Admin@123';
+            }
+          </script>
 
           <div class="auth-divider">Or continue with</div>
 

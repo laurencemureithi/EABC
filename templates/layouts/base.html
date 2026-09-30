@@ -426,14 +426,126 @@
   <button
     type="button"
     onclick="openOpsloomAiModal()"
-    class="flex items-center gap-2.5 px-4 py-3 rounded-full text-white shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer group border border-white/20 print:hidden"
-    style="position: fixed !important; right: 24px !important; bottom: 24px !important; z-index: 1000 !important; background: linear-gradient(135deg, var(--brand-primary, #7E22CE), #1e1b4b); box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.4);"
+    class="opsloom-fab flex items-center gap-2 px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-full text-white shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer group border border-white/20 print:hidden"
+    style="position: fixed !important; right: 16px !important; z-index: 950 !important; background: linear-gradient(135deg, var(--brand-primary, #7E22CE), #1e1b4b); box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.4);"
     title="Open Opsloom AI Plant Intelligence"
     aria-label="Opsloom AI"
   >
-    <span class="material-symbols-outlined text-amber-400 text-xl animate-pulse">auto_awesome</span>
-    <span class="text-xs font-black tracking-wide pr-1">Opsloom AI</span>
+    <span class="material-symbols-outlined text-amber-400 text-lg sm:text-xl animate-pulse">auto_awesome</span>
+    <span class="text-xs font-black tracking-wide pr-0.5">Opsloom AI</span>
   </button>
+
+  <!-- Mobile Bottom Quick-Navigation Bar (Phones & Tablets) -->
+  <nav class="app-mobile-bottom-nav print:hidden" aria-label="Mobile Primary Navigation" data-no-print>
+    <a href="{{ url_for('dashboard') }}" class="app-mobile-bottom-item {% if active_nav == 'dashboard' %}is-active{% endif %}">
+      <span class="material-symbols-outlined text-[20px]">dashboard</span>
+      <span>Home</span>
+    </a>
+    <a href="{{ url_for('assets_master_list') }}" class="app-mobile-bottom-item {% if active_nav == 'assets' %}is-active{% endif %}">
+      <span class="material-symbols-outlined text-[20px]">inventory</span>
+      <span>Assets</span>
+    </a>
+    <a href="{{ url_for('breakdowns') }}" class="app-mobile-bottom-item {% if active_nav == 'breakdowns' %}is-active{% endif %}">
+      <span class="material-symbols-outlined text-[20px]">error_outline</span>
+      <span>Breakdowns</span>
+    </a>
+    <a href="{{ url_for('maintenance_management') }}" class="app-mobile-bottom-item {% if active_nav == 'maintenance' %}is-active{% endif %}">
+      <span class="material-symbols-outlined text-[20px]">build</span>
+      <span>PM / Tasks</span>
+    </a>
+    <a href="{{ url_for('inventory_management') }}" class="app-mobile-bottom-item {% if active_nav == 'inventory' %}is-active{% endif %}">
+      <span class="material-symbols-outlined text-[20px]">inventory_2</span>
+      <span>Spares</span>
+    </a>
+    <button type="button" onclick="openAppSidebar()" class="app-mobile-bottom-item {% if active_nav in ['reports','settings','companies','recycle_bin'] %}is-active{% endif %}">
+      <span class="material-symbols-outlined text-[20px]">menu</span>
+      <span>More</span>
+    </button>
+  </nav>
+
+  <!-- Session Security Inactivity Timeout Warning Modal -->
+  <div id="sessionTimeoutModal" class="fixed inset-0 z-[1200] hidden" aria-hidden="true" data-no-print>
+    <div class="absolute inset-0 bg-slate-950/70 backdrop-blur-xs"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+      <div class="w-full max-w-md rounded-2xl bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border shadow-2xl overflow-hidden">
+        <div class="p-5 border-b border-slate-100 dark:border-dark-border flex items-start gap-3.5 bg-amber-50/60 dark:bg-amber-950/20">
+          <div class="w-11 h-11 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+            <span class="material-symbols-outlined text-2xl">lock_clock</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600 dark:text-amber-400">Security Protection</p>
+            <h3 class="font-black text-base text-slate-900 dark:text-white mt-0.5">Session Timeout Warning</h3>
+            <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">
+              Your workspace has been inactive. For security, this device will automatically lock in <span id="sessionTimeoutCountdown" class="font-black text-rose-600 dark:text-rose-400">60</span> seconds.
+            </p>
+          </div>
+        </div>
+        <div class="p-5 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
+          <a href="/logout?reason=timeout" class="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-dark-border text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-center">
+            Lock &amp; Sign Out
+          </a>
+          <button type="button" id="sessionStaySignedInBtn" class="px-5 py-2.5 rounded-xl bg-ueal-purple text-white text-xs font-black uppercase tracking-wider shadow-md hover:brightness-110 cursor-pointer">
+            Stay Signed In
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var timeoutMinutes = Number("{{ session_timeout_minutes or 30 }}") || 30;
+      var timeoutMs = Math.max(5, timeoutMinutes) * 60 * 1000;
+      var warningBeforeMs = 60 * 1000;
+      var lastActivity = Date.now();
+      var warningShown = false;
+      var modal = document.getElementById('sessionTimeoutModal');
+      var countdownEl = document.getElementById('sessionTimeoutCountdown');
+      var stayBtn = document.getElementById('sessionStaySignedInBtn');
+
+      function recordUserActivity() {
+        if (warningShown) return;
+        lastActivity = Date.now();
+      }
+
+      ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'].forEach(function (ev) {
+        window.addEventListener(ev, recordUserActivity, { passive: true });
+      });
+
+      async function keepSessionAlive() {
+        lastActivity = Date.now();
+        warningShown = false;
+        if (modal) {
+          modal.classList.add('hidden');
+          modal.setAttribute('aria-hidden', 'true');
+        }
+        try {
+          await fetch('/api/session/ping', { method: 'POST', credentials: 'same-origin' });
+        } catch (e) {}
+      }
+
+      if (stayBtn) {
+        stayBtn.addEventListener('click', keepSessionAlive);
+      }
+
+      setInterval(function () {
+        var elapsed = Date.now() - lastActivity;
+        var remainingMs = timeoutMs - elapsed;
+        if (remainingMs <= 0) {
+          window.location.href = '/logout?reason=timeout';
+          return;
+        }
+        if (remainingMs <= warningBeforeMs) {
+          warningShown = true;
+          if (countdownEl) countdownEl.textContent = String(Math.max(1, Math.ceil(remainingMs / 1000)));
+          if (modal && modal.classList.contains('hidden')) {
+            modal.classList.remove('hidden');
+            modal.setAttribute('aria-hidden', 'false');
+          }
+        }
+      }, 1000);
+    })();
+  </script>
 
   {% include "partials/system_health_modal.html" %}
   {% include "partials/opsloom_ai_modal.html" %}

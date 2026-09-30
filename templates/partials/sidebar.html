@@ -2,8 +2,8 @@
   <!-- Brand & Configurable Workspace Logo -->
   {% set raw_light_logo = active_company.logo_light_url if active_company and active_company.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png') %}
   {% set raw_dark_logo = active_company.logo_dark_url if active_company and active_company.logo_dark_url else raw_light_logo %}
-  {% set safe_light_logo = url_for('static', filename='brand/opsloom_wordmark_light.png') if ('ultravetis_logo.png' in raw_light_logo or 'opsloom_wordmark_dark.png' in raw_light_logo) else raw_light_logo %}
-  {% set safe_dark_logo = url_for('static', filename='brand/opsloom_wordmark_light.png') if ('ultravetis_logo.png' in raw_dark_logo or 'opsloom_wordmark_dark.png' in raw_dark_logo) else raw_dark_logo %}
+  {% set safe_light_logo = url_for('static', filename='brand/opsloom_wordmark_light.png') if ('opsloom_wordmark_dark.png' in raw_light_logo) else raw_light_logo %}
+  {% set safe_dark_logo = url_for('static', filename='brand/opsloom_wordmark_light.png') if ('opsloom_wordmark_dark.png' in raw_dark_logo) else raw_dark_logo %}
   {% set logo_h = active_company.logo_height if active_company and active_company.logo_height else 52 %}
   {% set logo_w = active_company.logo_width_pct if active_company and active_company.logo_width_pct else 100 %}
   {% set logo_align = active_company.logo_alignment if active_company and active_company.logo_alignment else 'left' %}
@@ -14,12 +14,14 @@
       <!-- Light Theme Logo Image (shown on dark sidebar when app is in light mode) -->
       <img id="sidebarLogoLight"
            src="{{ safe_light_logo }}"
+           onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_light.png';"
            alt="{{ active_company.name if active_company else 'Opsloom' }}"
            class="block dark:hidden transition-all duration-200"
            style="height: {{ logo_h }}px; max-height: {{ logo_h }}px; width: {{ 'auto' if (active_company and active_company.show_name_next_to_logo) else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: contain; object-position: {{ logo_obj_pos }};" />
       <!-- Dark Theme Logo Image (shown on dark sidebar when app is in dark mode) -->
       <img id="sidebarLogoDark"
            src="{{ safe_dark_logo }}"
+           onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_light.png';"
            alt="{{ active_company.name if active_company else 'Opsloom' }}"
            class="hidden dark:block transition-all duration-200"
            style="height: {{ logo_h }}px; max-height: {{ logo_h }}px; width: {{ 'auto' if (active_company and active_company.show_name_next_to_logo) else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: contain; object-position: {{ logo_obj_pos }};" />
@@ -155,13 +157,23 @@
       <span class="ml-auto text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300">COPILOT</span>
     </button>
 
-    <a
-      class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-all text-red-300 hover:text-red-200 group border border-red-500/20 hover:border-red-500/40"
-      href="{{ url_for('logout') }}"
-    >
-      <span class="material-symbols-outlined text-xl">logout</span>
-      <span class="font-bold text-sm">Logout</span>
-    </a>
+    <div class="grid grid-cols-2 gap-2">
+      <a
+        class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 transition-all text-amber-300 hover:text-amber-200 border border-amber-500/20"
+        href="/lock?next={{ request.path }}"
+        title="Lock session now"
+      >
+        <span class="material-symbols-outlined text-lg">lock</span>
+        <span class="font-bold text-xs">Lock</span>
+      </a>
+      <a
+        class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-all text-red-300 hover:text-red-200 border border-red-500/20"
+        href="{{ url_for('logout') }}"
+      >
+        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="font-bold text-xs">Logout</span>
+      </a>
+    </div>
   </div>
 
   <!-- Department Context -->
