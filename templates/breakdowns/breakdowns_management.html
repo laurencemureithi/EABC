@@ -139,7 +139,8 @@
             {% set export_links = [
               {"href": url_for('breakdowns_export', q=q, status=selected_status, severity=selected_severity, technician=selected_technician, dt_from=selected_dt_from, dt_to=selected_dt_to, format='csv'), "icon": "description", "label": "Export CSV"},
               {"href": url_for('breakdowns_export', q=q, status=selected_status, severity=selected_severity, technician=selected_technician, dt_from=selected_dt_from, dt_to=selected_dt_to, format='xlsx'), "icon": "table_view", "label": "Export Excel"},
-              {"href": url_for('breakdowns_export', q=q, status=selected_status, severity=selected_severity, technician=selected_technician, dt_from=selected_dt_from, dt_to=selected_dt_to, format='pdf'), "icon": "picture_as_pdf", "label": "Export PDF"}
+              {"href": url_for('breakdowns_export', q=q, status=selected_status, severity=selected_severity, technician=selected_technician, dt_from=selected_dt_from, dt_to=selected_dt_to, format='pdf'), "icon": "picture_as_pdf", "label": "Export PDF"},
+              {"href": url_for('breakdowns_export', q=q, status=selected_status, severity=selected_severity, technician=selected_technician, dt_from=selected_dt_from, dt_to=selected_dt_to, format='pptx'), "icon": "slideshow", "label": "Export PowerPoint"}
             ] %}
             {% set button_label = 'EXPORT' %}
             {% include 'partials/export_menu.html' %}
@@ -522,6 +523,7 @@
             <textarea id="freqNotes" rows="3" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 px-3 text-sm text-slate-700 dark:text-slate-200" placeholder="Optional management notes to include in the printed/exported report."></textarea>
             <div class="mt-3 flex flex-wrap items-center justify-end gap-2">
               <button type="button" id="freqPrintBtn" class="px-3 py-2 rounded-lg text-xs font-extrabold border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">Print</button>
+              <button type="button" data-freq-export="pptx" class="px-3 py-2 rounded-lg text-xs font-extrabold bg-ueal-gold text-white">PowerPoint</button>
               <button type="button" data-freq-export="pdf" class="px-3 py-2 rounded-lg text-xs font-extrabold bg-ueal-purple text-white">PDF</button>
               <button type="button" data-freq-export="xlsx" class="px-3 py-2 rounded-lg text-xs font-extrabold border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">Excel</button>
               <button type="button" data-freq-export="csv" class="px-3 py-2 rounded-lg text-xs font-extrabold border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">CSV</button>

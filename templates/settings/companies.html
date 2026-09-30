@@ -126,11 +126,11 @@
 </div>
 
 <!-- Edit / Create Company Modal -->
-<div id="companyModal" class="fixed inset-0 z-50 hidden overflow-y-auto" role="dialog" aria-modal="true">
-  <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeCompanyModal()"></div>
+<div id="companyModal" class="fixed inset-0 z-50 hidden overflow-y-auto" style="position: fixed; inset: 0; z-index: 9990;" role="dialog" aria-modal="true">
+  <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" style="position: fixed; inset: 0; background-color: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px);" onclick="closeCompanyModal()"></div>
 
-  <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
-    <div class="relative transform overflow-hidden rounded-2xl bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-2xl">
+  <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0" style="position: relative; z-index: 1; min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 1rem;">
+    <div class="relative transform overflow-hidden rounded-2xl bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-2xl" style="width: 100%; max-width: 42rem;">
       <form id="companyForm" method="post" action="/settings/companies/save" enctype="multipart/form-data">
         <input type="hidden" name="id" id="compFormId" value="">
 
@@ -287,16 +287,13 @@
               <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
                 <span class="material-symbols-outlined text-xs">straighten</span> True Sidebar Scale (Width: 256px)
               </div>
-              <div id="sidebarSimBox" class="rounded-xl px-4 py-3 transition-all duration-200 bg-[#0B1020] border border-white/10 flex items-center justify-between gap-2 overflow-hidden shadow-2xl" style="width: 256px; min-width: 256px; max-width: 256px; box-sizing: border-box; min-height: 64px;">
+              <div id="sidebarSimBox" class="rounded-xl px-3 py-2.5 transition-all duration-200 bg-[#0B1020] border border-white/10 flex items-center justify-between gap-2 overflow-hidden shadow-2xl" style="width: 256px; min-width: 256px; max-width: 256px; box-sizing: border-box; min-height: 64px;">
                 <div id="simLogoWrap" class="flex-1 flex items-center gap-2.5 min-w-0 justify-start">
-                  <img id="simLogoImg" src="/static/brand/ultravetis_logo.png" alt="Simulated Logo" class="block transition-all" style="height: 48px; max-height: 84px; width: auto; max-width: 100%; object-fit: contain;">
+                  <img id="simLogoImg" src="/static/brand/opsloom_wordmark_light.png" alt="Simulated Logo" class="block transition-all" style="height: 48px; max-height: 84px; width: 100%; max-width: 100%; object-fit: contain; object-position: left center;">
                   <div id="simNameBox" class="hidden flex-col min-w-0">
                     <span id="simNameText" class="font-black text-sm text-white tracking-tight truncate leading-tight">Company Name</span>
                     <span id="simCodeText" class="text-[9px] font-black uppercase tracking-wider text-amber-400">UEAL</span>
                   </div>
-                </div>
-                <div class="w-8 h-8 rounded-lg bg-white/10 text-white flex items-center justify-center text-xs shrink-0">
-                  <span class="material-symbols-outlined text-sm">close</span>
                 </div>
               </div>
             </div>
@@ -330,8 +327,8 @@ function openCreateCompanyModal() {
   document.getElementById('compFormLogoLight').value = '/static/brand/opsloom_wordmark_light.png';
   document.getElementById('compFormLogoDark').value = '/static/brand/opsloom_wordmark_light.png';
   document.getElementById('compFormShowName').checked = false;
-  document.getElementById('compFormHeight').value = 44;
-  document.getElementById('compFormWidth').value = 85;
+  document.getElementById('compFormHeight').value = 52;
+  document.getElementById('compFormWidth').value = 100;
   document.getElementById('compFormAlign').value = 'left';
   document.getElementById('compFormFit').value = 'contain';
   updateSimulator();
@@ -352,8 +349,8 @@ function editCompany(id) {
   document.getElementById('compFormLogoLight').value = comp.logo_light_url || '';
   document.getElementById('compFormLogoDark').value = comp.logo_dark_url || '';
   document.getElementById('compFormShowName').checked = !!comp.show_name_next_to_logo;
-  document.getElementById('compFormHeight').value = comp.logo_height || 44;
-  document.getElementById('compFormWidth').value = comp.logo_width_pct || 85;
+  document.getElementById('compFormHeight').value = comp.logo_height || 52;
+  document.getElementById('compFormWidth').value = comp.logo_width_pct || 100;
   document.getElementById('compFormAlign').value = comp.logo_alignment || 'left';
   document.getElementById('compFormFit').value = comp.logo_fit || 'contain';
   updateSimulator();
@@ -377,8 +374,8 @@ function setSimTheme(theme) {
   const dBtn = document.getElementById('simDarkBtn');
   const lBtn = document.getElementById('simLightBtn');
   if (theme === 'light') {
-    box.style.backgroundColor = '#ffffff';
-    box.style.borderColor = '#cbd5e1';
+    box.style.backgroundColor = '#0B1020';
+    box.style.borderColor = 'rgba(255,255,255,0.1)';
     lBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-ueal-purple text-white';
     dBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-300 text-slate-800';
   } else {
@@ -394,12 +391,13 @@ function updateSimulator() {
   const h = document.getElementById('compFormHeight').value;
   const w = document.getElementById('compFormWidth').value;
   const align = document.getElementById('compFormAlign').value;
-  const fit = document.getElementById('compFormFit').value;
   const showName = document.getElementById('compFormShowName').checked;
   const name = document.getElementById('compFormName').value || 'Company Name';
   const code = document.getElementById('compFormCode').value || 'CODE';
-  const logoLight = document.getElementById('compFormLogoLight').value || '/static/brand/ultravetis_logo.png';
-  const logoDark = document.getElementById('compFormLogoDark').value || logoLight;
+  const rawLight = document.getElementById('compFormLogoLight').value || '/static/brand/opsloom_wordmark_light.png';
+  const rawDark = document.getElementById('compFormLogoDark').value || rawLight;
+  const safeLight = (rawLight.includes('ultravetis_logo.png') || rawLight.includes('opsloom_wordmark_dark.png')) ? '/static/brand/opsloom_wordmark_light.png' : rawLight;
+  const safeDark = (rawDark.includes('ultravetis_logo.png') || rawDark.includes('opsloom_wordmark_dark.png')) ? '/static/brand/opsloom_wordmark_light.png' : rawDark;
 
   document.getElementById('heightValBadge').textContent = h + 'px';
   document.getElementById('widthValBadge').textContent = w + '%';
@@ -414,12 +412,14 @@ function updateSimulator() {
     simBox.style.minHeight = minH + 'px';
   }
 
+  const objPos = align === 'center' ? 'center center' : (align === 'right' ? 'right center' : 'left center');
   img.style.height = h + 'px';
   img.style.maxHeight = h + 'px';
-  img.style.width = 'auto';
+  img.style.width = showName ? 'auto' : (w + '%');
   img.style.maxWidth = w + '%';
-  img.style.objectFit = fit;
-  img.src = currentSimTheme === 'light' ? logoLight : logoDark;
+  img.style.objectFit = 'contain';
+  img.style.objectPosition = objPos;
+  img.src = currentSimTheme === 'light' ? safeLight : safeDark;
 
   wrap.className = 'flex-1 flex items-center gap-2.5 min-w-0 ' + (align === 'center' ? 'justify-center' : (align === 'right' ? 'justify-end' : 'justify-start'));
 

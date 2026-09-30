@@ -12,6 +12,7 @@
   <div class="flex flex-wrap items-center justify-end gap-3">
     <a href="{{ url_for('audit_trail_export', format='preview', q=audit_q, module=selected_module) }}" target="_blank" class="px-4 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-100">Print Preview</a>
     <a href="{{ url_for('audit_trail_export', format='preview', q=audit_q, module=selected_module, autoprint=1) }}" target="_blank" class="px-4 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-100">Print</a>
+    <a href="{{ url_for('audit_trail_export', format='pptx', q=audit_q, module=selected_module) }}" class="px-4 py-2 rounded-lg bg-ueal-purple text-white text-sm font-bold">Export PPTX</a>
     <a href="{{ url_for('audit_trail_export', format='pdf', q=audit_q, module=selected_module) }}" class="px-4 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-100">Export PDF</a>
     <a href="{{ url_for('audit_trail_export', format='xlsx', q=audit_q, module=selected_module) }}" class="px-4 py-2 rounded-lg bg-ueal-gold text-white text-sm font-bold">Export XLSX</a>
   </div>

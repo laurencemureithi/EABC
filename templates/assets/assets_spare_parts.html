@@ -112,7 +112,8 @@
               {% set export_links = [
                 {"href": url_for('assets_spare_parts_export', asset_uid=asset.uid, fmt='csv', q=q, category=selected_category, stock_state=selected_stock_state), "icon": "description", "label": "Export CSV"},
                 {"href": url_for('assets_spare_parts_export', asset_uid=asset.uid, fmt='xlsx', q=q, category=selected_category, stock_state=selected_stock_state), "icon": "table_view", "label": "Export Excel"},
-                {"href": url_for('assets_spare_parts_export', asset_uid=asset.uid, fmt='pdf', q=q, category=selected_category, stock_state=selected_stock_state), "icon": "picture_as_pdf", "label": "Export PDF"}
+                {"href": url_for('assets_spare_parts_export', asset_uid=asset.uid, fmt='pdf', q=q, category=selected_category, stock_state=selected_stock_state), "icon": "picture_as_pdf", "label": "Export PDF"},
+                {"href": url_for('assets_spare_parts_export', asset_uid=asset.uid, fmt='pptx', q=q, category=selected_category, stock_state=selected_stock_state), "icon": "slideshow", "label": "Export PowerPoint"}
               ] %}
               {% include 'partials/export_menu.html' %}
               <a

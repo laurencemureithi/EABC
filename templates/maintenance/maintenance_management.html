@@ -200,7 +200,8 @@
       {% set export_links = [
         {"href": url_for('maintenance_export', fmt='csv', q=q, section=selected_section, type=selected_type, frequency=selected_frequency, technician=selected_technician, status=selected_status, due_from=selected_due_from, due_to=selected_due_to), "icon": "description", "label": "Export CSV"},
         {"href": url_for('maintenance_export', fmt='xlsx', q=q, section=selected_section, type=selected_type, frequency=selected_frequency, technician=selected_technician, status=selected_status, due_from=selected_due_from, due_to=selected_due_to), "icon": "table_view", "label": "Export Excel"},
-        {"href": url_for('maintenance_export', fmt='pdf', q=q, section=selected_section, type=selected_type, frequency=selected_frequency, technician=selected_technician, status=selected_status, due_from=selected_due_from, due_to=selected_due_to), "icon": "picture_as_pdf", "label": "Export PDF"}
+        {"href": url_for('maintenance_export', fmt='pdf', q=q, section=selected_section, type=selected_type, frequency=selected_frequency, technician=selected_technician, status=selected_status, due_from=selected_due_from, due_to=selected_due_to), "icon": "picture_as_pdf", "label": "Export PDF"},
+        {"href": url_for('maintenance_export', fmt='pptx', q=q, section=selected_section, type=selected_type, frequency=selected_frequency, technician=selected_technician, status=selected_status, due_from=selected_due_from, due_to=selected_due_to), "icon": "slideshow", "label": "Export PowerPoint"}
       ] %}
       {% set button_label = 'EXPORT' %}
       {% include 'partials/export_menu.html' %}
@@ -458,6 +459,7 @@
         <textarea id="mdNotes" rows="3" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2 px-3 text-sm text-slate-700 dark:text-slate-200" placeholder="Optional management notes to include in the printed/exported report."></textarea>
         <div class="mt-3 flex flex-wrap items-center justify-end gap-2">
           <button type="button" id="mdPrintBtn" class="px-3 py-2 rounded-lg text-xs font-extrabold border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">Print</button>
+          <button type="button" data-md-export="pptx" class="px-3 py-2 rounded-lg text-xs font-extrabold bg-ueal-gold text-white">PowerPoint</button>
           <button type="button" data-md-export="pdf" class="px-3 py-2 rounded-lg text-xs font-extrabold bg-ueal-purple text-white">PDF</button>
           <button type="button" data-md-export="xlsx" class="px-3 py-2 rounded-lg text-xs font-extrabold border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">Excel</button>
           <button type="button" data-md-export="csv" class="px-3 py-2 rounded-lg text-xs font-extrabold border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">CSV</button>

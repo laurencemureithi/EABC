@@ -76,6 +76,7 @@
                 {% set action_items = [
                   {'href': url_for('reports_view', rid=r.id), 'label': 'View', 'icon': 'visibility'},
                   {'href': url_for('reports_export', report_id=r.id, fmt='pdf', inline=1), 'label': 'Print Preview', 'icon': 'print', 'target': '_blank'},
+                  {'href': url_for('reports_export', report_id=r.id, fmt='pptx'), 'label': 'Export PowerPoint', 'icon': 'slideshow'},
                   {'href': url_for('reports_export', report_id=r.id, fmt='pdf'), 'label': 'Export PDF', 'icon': 'picture_as_pdf'},
                   {'href': url_for('reports_export', report_id=r.id, fmt='xlsx'), 'label': 'Export Excel', 'icon': 'table_view'},
                   {'href': url_for('reports_export', report_id=r.id, fmt='csv'), 'label': 'Export CSV', 'icon': 'description'},

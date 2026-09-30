@@ -66,15 +66,19 @@
     <section class="business-print-card compact-card">
       <h2>{{ export.category or 'Report' }} Metrics (cont.)</h2>
       <div class="business-print-kpis">
-        {% for card in page_cards if card %}
+        {% for card in page_cards %}
+          {% if card %}
           <div class="business-print-kpi"><span>{{ card.label }}</span><strong>{{ card.value }}</strong><small>{{ export.scope_target or export.generated_for or export.department }}</small></div>
+          {% endif %}
         {% endfor %}
       </div>
       <table class="business-print-table compact mt-4">
         <thead><tr><th>Metric</th><th>Value</th></tr></thead>
         <tbody>
-          {% for card in page_cards if card %}
+          {% for card in page_cards %}
+            {% if card %}
             <tr><td>{{ card.label }}</td><td>{{ card.value }}</td></tr>
+            {% endif %}
           {% endfor %}
         </tbody>
       </table>

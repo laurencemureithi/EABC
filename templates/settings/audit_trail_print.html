@@ -2,6 +2,10 @@
 {% block title %}Audit Trail Print Preview • Opsloom{% endblock %}
 {% block preview_title %}Audit Trail{% endblock %}
 {% block preview_actions %}
+  <a href="{{ url_for('audit_trail_export', format='pptx', q=audit_q, module=selected_module) }}" class="inline-flex items-center gap-2 rounded-lg bg-white text-slate-700 px-4 py-2 text-sm font-black border border-slate-200 hover:bg-slate-50">
+    <span class="material-symbols-outlined text-[18px]">slideshow</span>
+    Export PPTX
+  </a>
   <a href="{{ url_for('audit_trail_export', format='xlsx', q=audit_q, module=selected_module) }}" class="inline-flex items-center gap-2 rounded-lg bg-white text-slate-700 px-4 py-2 text-sm font-black border border-slate-200 hover:bg-slate-50">
     <span class="material-symbols-outlined text-[18px]">table_view</span>
     Export XLSX
@@ -20,7 +24,8 @@
 {% set document_department = current_department %}
 {% set audit_pages = audit_rows|batch(24, None)|list %}
 <div class="business-print-shell max-w-5xl mx-auto">
-  {% for page_rows in audit_pages if page_rows %}
+  {% if audit_pages and (audit_pages|length) > 0 %}
+  {% for page_rows in audit_pages %}
   <div class="business-print-page">
     {% include "partials/report_document_header.html" %}
 
@@ -35,7 +40,7 @@
         <div><span>Scope</span><strong>Audit Trail</strong></div>
         <div><span>Target</span><strong>{{ current_department_display }}</strong></div>
         <div><span>Rows</span><strong>{{ total_audit_rows or (audit_rows|length) }}</strong></div>
-        <div><span>Generated</span><strong>{{ audit_generated_at or '' }}</strong></div>
+        <div><span>Generated</span><strong>{{ audit_generated_at or generated_at or '' }}</strong></div>
       </div>
     </div>
 
@@ -43,7 +48,7 @@
       <h2>Applied Filters</h2>
       <table class="business-print-table compact">
         <tbody>
-          <tr><td>Search</td><td>{{ audit_q or 'All records' }}</td></tr>
+          <tr><td>Search</td><td>{{ audit_q or selected_q or 'All records' }}</td></tr>
           <tr><td>Module</td><td>{{ selected_module|replace('_',' ')|title if selected_module else 'All modules' }}</td></tr>
           <tr><td>Rows included</td><td>{{ audit_rows|length }}</td></tr>
         </tbody>
@@ -74,19 +79,22 @@
           </tr>
         </thead>
         <tbody>
-          {% for row in page_rows if row %}
+          {% for row in page_rows %}
+          {% if row %}
           <tr>
             <td>{{ (row.created_at or '')|replace('T',' ') }}</td>
-            <td>{{ row.action or '—' }}</td>
+            <td>{{ row.action or row.title or '—' }}</td>
             <td>{{ row.module or '—' }}</td>
             <td>{{ row.user_name or '—' }}</td>
             <td>{{ row.detail or '—' }}</td>
           </tr>
+          {% endif %}
           {% endfor %}
         </tbody>
       </table>
     </section>
   </div>
+  {% endfor %}
   {% else %}
   <div class="business-print-page">
     {% include "partials/report_document_header.html" %}
@@ -95,6 +103,6 @@
       <p class="text-sm text-slate-600">No audit activity matched the current filters.</p>
     </section>
   </div>
-  {% endfor %}
+  {% endif %}
 </div>
 {% endblock %}

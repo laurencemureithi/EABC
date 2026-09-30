@@ -117,7 +117,8 @@
             {% set export_links = [
               {"href": url_for('assets_export', fmt='csv', q=q, section=selected_section, status=selected_status, criticality=selected_criticality), "icon": "description", "label": "Export CSV"},
               {"href": url_for('assets_export', fmt='xlsx', q=q, section=selected_section, status=selected_status, criticality=selected_criticality), "icon": "table_view", "label": "Export Excel"},
-              {"href": url_for('assets_export', fmt='pdf', q=q, section=selected_section, status=selected_status, criticality=selected_criticality), "icon": "picture_as_pdf", "label": "Export PDF"}
+              {"href": url_for('assets_export', fmt='pdf', q=q, section=selected_section, status=selected_status, criticality=selected_criticality), "icon": "picture_as_pdf", "label": "Export PDF"},
+              {"href": url_for('assets_export', fmt='pptx', q=q, section=selected_section, status=selected_status, criticality=selected_criticality), "icon": "slideshow", "label": "Export PowerPoint"}
             ] %}
             {% include 'partials/export_menu.html' %}
 
@@ -349,7 +350,12 @@
           </p>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <a id="btnDownloadPptx"
+             href="/assets/export?fmt=pptx"
+             class="px-4 py-2 rounded-lg text-sm font-bold bg-ueal-gold text-white hover:opacity-95 transition">
+            PowerPoint
+          </a>
           <a id="btnDownloadPdf"
              href="{{ url_for('assets_master_list') }}"
              class="px-4 py-2 rounded-lg text-sm font-bold bg-ueal-purple text-white hover:opacity-95 transition">
@@ -498,6 +504,7 @@
 
       const btnPrint = document.getElementById("btnPrint");
       const btnDownloadPdf = document.getElementById("btnDownloadPdf");
+      const btnDownloadPptx = document.getElementById("btnDownloadPptx");
 
       let allAssets = [];
       let selectedSections = new Set(); // empty => ALL
@@ -735,6 +742,10 @@
         if (btnDownloadPdf) {
           const qs = buildQueryForReport();
           btnDownloadPdf.href = "/assets/report/pdf" + (qs ? ("?" + qs) : "");
+        }
+        if (btnDownloadPptx) {
+          const qs = buildQueryForReport();
+          btnDownloadPptx.href = "/assets/export?fmt=pptx" + (qs ? ("&" + qs) : "");
         }
       }
 

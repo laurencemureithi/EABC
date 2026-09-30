@@ -53,6 +53,8 @@
           <div class="w-20 h-24 rounded-xl flex flex-col items-center justify-center shrink-0
                       {% if export.format == 'pdf' %}
                         bg-red-50 border border-red-100
+                      {% elif export.format == 'pptx' %}
+                        bg-amber-50 border border-amber-100
                       {% elif export.format == 'xlsx' %}
                         bg-green-50 border border-green-100
                       {% else %}
@@ -61,6 +63,9 @@
             {% if export.format == 'pdf' %}
               <span class="material-symbols-outlined text-red-500 text-4xl mb-1">picture_as_pdf</span>
               <span class="text-[10px] font-black text-red-600 uppercase tracking-tighter">PDF</span>
+            {% elif export.format == 'pptx' %}
+              <span class="material-symbols-outlined text-amber-600 text-4xl mb-1">slideshow</span>
+              <span class="text-[10px] font-black text-amber-700 uppercase tracking-tighter">PPTX</span>
             {% elif export.format == 'xlsx' %}
               <span class="material-symbols-outlined text-green-600 text-4xl mb-1">table_view</span>
               <span class="text-[10px] font-black text-green-700 uppercase tracking-tighter">XLSX</span>

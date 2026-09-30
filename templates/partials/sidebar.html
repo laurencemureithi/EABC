@@ -1,14 +1,28 @@
 <aside id="appSidebar" class="app-sidebar sidebar-bg w-64 flex-shrink-0 flex flex-col text-white h-screen relative">
   <!-- Brand & Configurable Workspace Logo -->
-  <div class="px-4 py-3 sm:px-4 sm:py-3.5 flex items-center justify-between gap-2 border-b border-white/10"
-       style="min-height: {{ [((active_company.logo_height or 52) + 20), 64]|max }}px;">
-    <div class="min-w-0 flex-1 flex items-center gap-2.5 {% if active_company and active_company.logo_alignment == 'center' %}justify-center{% elif active_company and active_company.logo_alignment == 'right' %}justify-end{% else %}justify-start{% endif %}">
-      <!-- Dark Theme Logo Image -->
-      <img id="sidebarLogoDark"
-           src="{{ active_company.logo_dark_url if active_company and active_company.logo_dark_url else (active_company.logo_light_url if active_company and active_company.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png')) }}"
+  {% set raw_light_logo = active_company.logo_light_url if active_company and active_company.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png') %}
+  {% set raw_dark_logo = active_company.logo_dark_url if active_company and active_company.logo_dark_url else raw_light_logo %}
+  {% set safe_light_logo = url_for('static', filename='brand/opsloom_wordmark_light.png') if ('ultravetis_logo.png' in raw_light_logo or 'opsloom_wordmark_dark.png' in raw_light_logo) else raw_light_logo %}
+  {% set safe_dark_logo = url_for('static', filename='brand/opsloom_wordmark_light.png') if ('ultravetis_logo.png' in raw_dark_logo or 'opsloom_wordmark_dark.png' in raw_dark_logo) else raw_dark_logo %}
+  {% set logo_h = active_company.logo_height if active_company and active_company.logo_height else 52 %}
+  {% set logo_w = active_company.logo_width_pct if active_company and active_company.logo_width_pct else 100 %}
+  {% set logo_align = active_company.logo_alignment if active_company and active_company.logo_alignment else 'left' %}
+  {% set logo_obj_pos = 'center center' if logo_align == 'center' else ('right center' if logo_align == 'right' else 'left center') %}
+  <div class="px-3 py-2.5 flex items-center justify-between gap-2 border-b border-white/10"
+       style="min-height: {{ [(logo_h + 20), 64]|max }}px;">
+    <div class="min-w-0 flex-1 flex items-center gap-2.5 {% if logo_align == 'center' %}justify-center{% elif logo_align == 'right' %}justify-end{% else %}justify-start{% endif %}">
+      <!-- Light Theme Logo Image (shown on dark sidebar when app is in light mode) -->
+      <img id="sidebarLogoLight"
+           src="{{ safe_light_logo }}"
            alt="{{ active_company.name if active_company else 'Opsloom' }}"
-           class="block transition-all duration-200"
-           style="height: {{ active_company.logo_height or 52 }}px; max-height: {{ active_company.logo_height or 80 }}px; width: auto; max-width: 100%; object-fit: {{ active_company.logo_fit or 'contain' }};" />
+           class="block dark:hidden transition-all duration-200"
+           style="height: {{ logo_h }}px; max-height: {{ logo_h }}px; width: {{ 'auto' if (active_company and active_company.show_name_next_to_logo) else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: contain; object-position: {{ logo_obj_pos }};" />
+      <!-- Dark Theme Logo Image (shown on dark sidebar when app is in dark mode) -->
+      <img id="sidebarLogoDark"
+           src="{{ safe_dark_logo }}"
+           alt="{{ active_company.name if active_company else 'Opsloom' }}"
+           class="hidden dark:block transition-all duration-200"
+           style="height: {{ logo_h }}px; max-height: {{ logo_h }}px; width: {{ 'auto' if (active_company and active_company.show_name_next_to_logo) else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: contain; object-position: {{ logo_obj_pos }};" />
 
       {% if active_company and active_company.show_name_next_to_logo %}
         <div class="flex flex-col min-w-0">

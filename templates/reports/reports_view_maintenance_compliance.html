@@ -42,6 +42,7 @@
         Download
       </button>
       <div data-dd-menu class="absolute right-0 mt-2 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg hidden z-20">
+        <a class="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700" href="{{ url_for('reports_export', report_id=export.id, fmt='pptx') }}">PowerPoint (PPTX)</a>
         <a class="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700" data-live-report-action="pdf" data-live-report-id="{{ export.id }}" href="{{ url_for('reports_export', report_id=export.id, fmt='pdf') }}">PDF</a>
         <a class="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700" href="{{ url_for('reports_export', report_id=export.id, fmt='xlsx') }}">XLSX</a>
         <a class="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700" href="{{ url_for('reports_export', report_id=export.id, fmt='csv') }}">CSV</a>

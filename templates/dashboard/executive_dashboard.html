@@ -37,6 +37,16 @@
 
       <form id="strategicExportForm" method="GET" action="{{ url_for('dashboard_strategic_export') }}" class="flex flex-wrap items-end justify-end gap-2">
         <div>
+          <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">Format</label>
+          <select name="format" class="px-3 py-2 border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface rounded-lg text-sm font-bold text-slate-600 dark:text-slate-200">
+            <option value="pptx" selected>PowerPoint (PPTX)</option>
+            <option value="pdf">PDF Document</option>
+            <option value="xlsx">Excel (XLSX)</option>
+            <option value="csv">CSV Data</option>
+            <option value="print">Print Preview</option>
+          </select>
+        </div>
+        <div>
           <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">Timeline</label>
           <select id="dashboardExportRange" name="range" class="px-3 py-2 border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface rounded-lg text-sm font-bold text-slate-600 dark:text-slate-200">
             <option value="mtd" selected>Current MTD</option>

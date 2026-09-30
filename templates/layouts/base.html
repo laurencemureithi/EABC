@@ -354,8 +354,8 @@
     window.__reportUseSelectedYear = Boolean(qGrain || qYear);
 
     function buildLiveReportUrl(rid, actionName){
-      if (actionName === 'pdf') {
-        return new URL(`/reports/export/${encodeURIComponent(rid)}/pdf`, window.location.origin).toString();
+      if (actionName === 'pdf' || actionName === 'pptx' || actionName === 'xlsx' || actionName === 'csv') {
+        return new URL(`/reports/export/${encodeURIComponent(rid)}/${actionName}`, window.location.origin).toString();
       }
       const url = new URL(`/reports/view/${encodeURIComponent(rid)}`, window.location.origin);
       url.searchParams.set('print', '1');
