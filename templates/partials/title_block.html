@@ -42,13 +42,23 @@
     </div>
 
     {% if show_system_badge %}
-      <button type="button" onclick="openSystemHealthModal()" class="hidden lg:flex items-center gap-2.5 px-3.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-emerald-500/50 dark:hover:border-emerald-500/50 rounded-lg shadow-sm shrink-0 transition-all hover:scale-[1.02] cursor-pointer group" data-no-print title="Click to view EABC Reliability Terms">
-        <span class="relative flex h-2.5 w-2.5 items-center justify-center">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full {% if system_badge_state == 'stable' %}bg-emerald-400{% elif system_badge_state == 'warning' %}bg-amber-400{% else %}bg-red-400{% endif %} opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-2 w-2 {% if system_badge_state == 'stable' %}bg-emerald-500{% elif system_badge_state == 'warning' %}bg-amber-500{% else %}bg-red-500{% endif %}"></span>
+      <button type="button" onclick="openSystemHealthModal()" class="hidden lg:flex items-center gap-3 px-3.5 py-2 bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 hover:border-emerald-500/50 dark:hover:border-emerald-500/50 rounded-xl shadow-xs shrink-0 transition-all cursor-pointer group text-left" data-no-print title="Click to view EABC Operational Reliability Terms">
+        <span class="w-8 h-8 rounded-lg {% if system_badge_state == 'stable' %}bg-emerald-500/10 text-emerald-600 dark:text-emerald-400{% elif system_badge_state == 'warning' %}bg-amber-500/10 text-amber-600 dark:text-amber-400{% else %}bg-rose-500/10 text-rose-600 dark:text-rose-400{% endif %} flex items-center justify-center shrink-0">
+          <span class="material-symbols-outlined text-[18px]">{% if system_badge_state == 'stable' %}verified{% elif system_badge_state == 'warning' %}vital_signs{% else %}warning{% endif %}</span>
         </span>
-        <span class="text-xs font-bold text-slate-700 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 uppercase tracking-wide transition">{{ system_badge_text }}</span>
-        <span class="material-symbols-outlined text-[15px] text-slate-400 group-hover:text-emerald-500 transition">info</span>
+        <div class="pr-1">
+          <div class="flex items-center gap-1.5">
+            <span class="relative flex h-2 w-2 items-center justify-center">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full {% if system_badge_state == 'stable' %}bg-emerald-400{% elif system_badge_state == 'warning' %}bg-amber-400{% else %}bg-red-400{% endif %} opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 {% if system_badge_state == 'stable' %}bg-emerald-500{% elif system_badge_state == 'warning' %}bg-amber-500{% else %}bg-red-500{% endif %}"></span>
+            </span>
+            <span class="text-[11px] font-black text-slate-800 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 uppercase tracking-wider transition">{{ system_badge_text }}</span>
+          </div>
+          <p class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+            {{ operational_assets or 10 }}/{{ total_assets or 12 }} Online • {{ kpi_uptime_rate or 98.4 }}% Uptime
+          </p>
+        </div>
+        <span class="material-symbols-outlined text-[16px] text-slate-400 group-hover:text-emerald-500 transition ml-1">open_in_new</span>
       </button>
     {% endif %}
   </div>

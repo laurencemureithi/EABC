@@ -23,17 +23,22 @@
     </div>
 
     <div class="flex flex-col items-end gap-3">
-      {% if kpi_uptime_rate >= kpi_uptime_target %}
-        <div id="dashboardHealthBadge" class="hidden lg:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
-          <span id="dashboardHealthDot" class="w-2 h-2 rounded-full bg-green-500"></span>
-          <span id="dashboardHealthText">SYSTEM STABLE</span>
+      <button type="button" onclick="openSystemHealthModal()" id="dashboardHealthBadge" class="hidden lg:flex items-center gap-3 px-3.5 py-2 bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 hover:border-emerald-500/50 rounded-xl shadow-xs text-left transition-all cursor-pointer group">
+        <span class="w-8 h-8 rounded-lg {% if kpi_uptime_rate >= kpi_uptime_target %}bg-emerald-500/10 text-emerald-600 dark:text-emerald-400{% else %}bg-rose-500/10 text-rose-600 dark:text-rose-400{% endif %} flex items-center justify-center shrink-0">
+          <span class="material-symbols-outlined text-[18px]">{% if kpi_uptime_rate >= kpi_uptime_target %}verified{% else %}warning{% endif %}</span>
+        </span>
+        <div class="pr-1">
+          <div class="flex items-center gap-1.5">
+            <span id="dashboardHealthDot" class="w-2 h-2 rounded-full {% if kpi_uptime_rate >= kpi_uptime_target %}bg-emerald-500{% else %}bg-rose-500{% endif %}"></span>
+            <span id="dashboardHealthText" class="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+              {% if kpi_uptime_rate >= kpi_uptime_target %}SYSTEM STABLE{% else %}SYSTEM AT RISK{% endif %}
+            </span>
+          </div>
+          <p class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+            {{ operational_assets }}/{{ total_assets }} Assets Online • {{ "%.0f"|format(pm_compliance or 92) }}% PM SLA
+          </p>
         </div>
-      {% else %}
-        <div id="dashboardHealthBadge" class="hidden lg:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
-          <span id="dashboardHealthDot" class="w-2 h-2 rounded-full bg-red-500"></span>
-          <span id="dashboardHealthText">SYSTEM AT RISK</span>
-        </div>
-      {% endif %}
+      </button>
 
       <form id="strategicExportForm" method="GET" action="{{ url_for('dashboard_strategic_export') }}" class="flex flex-wrap items-end justify-end gap-2">
         <div>
@@ -466,14 +471,12 @@
   const money = n => 'KES ' + Number(n || 0).toLocaleString(undefined, {maximumFractionDigits:0});
   function setText(id, value){ const el = document.getElementById(id); if(el) el.textContent = value; }
   function setBadge(uptime, target){
-    const badge = document.getElementById('dashboardHealthBadge');
     const text = document.getElementById('dashboardHealthText');
     const dot = document.getElementById('dashboardHealthDot');
-    if(!badge || !text || !dot) return;
+    if(!text || !dot) return;
     const stable = Number(uptime || 0) >= Number(target || 0);
-    badge.className = 'hidden lg:inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide';
     text.textContent = stable ? 'SYSTEM STABLE' : 'SYSTEM AT RISK';
-    dot.className = stable ? 'w-2 h-2 rounded-full bg-green-500' : 'w-2 h-2 rounded-full bg-red-500';
+    dot.className = stable ? 'w-2 h-2 rounded-full bg-emerald-500' : 'w-2 h-2 rounded-full bg-rose-500';
   }
   function setDelta(id, n, positiveBad){
     const el = document.getElementById(id);

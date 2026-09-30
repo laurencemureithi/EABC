@@ -1,0 +1,119 @@
+{% extends "layouts/base.html" %}
+{% block title %}Admin Recycle Bin • Opsloom{% endblock %}
+{% block content %}
+{% set page_title = "Admin Recycle Bin & Data Recovery" %}
+{% set title_icon = "restore_from_trash" %}
+{% set page_subtitle = "Any data deleted by a user across Assets, Breakdowns, Maintenance, Inventory, Reports, Messages, or AI Chats is preserved here until an Administrator restores or permanently removes it." %}
+{% set show_system_badge = true %}
+{% set breadcrumbs = [{"label":"Settings / Admin", "href": url_for('settings_admin')}, {"label":"Recycle Bin"}] %}
+{% include "partials/title_block.html" %}
+
+<div class="max-w-7xl mx-auto space-y-6">
+  <!-- Top Summary & Filter Bar -->
+  <div class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="flex items-center gap-3.5">
+      <div class="w-11 h-11 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined text-[24px]">delete_sweep</span>
+      </div>
+      <div>
+        <h2 class="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">Data Governance &amp; Retention Vault ({{ items|length }} Records)</h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Deleted items remain recoverable by the Administrator until permanently purged.</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 flex-wrap">
+      <form method="get" action="/settings/recycle-bin" class="flex items-center gap-2">
+        <select name="type" onchange="this.form.submit()" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold">
+          <option value="all" {% if selected_type == 'all' %}selected{% endif %}>All Modules ({{ total_bin_count }})</option>
+          <option value="asset" {% if selected_type == 'asset' %}selected{% endif %}>Assets</option>
+          <option value="breakdown" {% if selected_type == 'breakdown' %}selected{% endif %}>Breakdowns</option>
+          <option value="maintenance" {% if selected_type == 'maintenance' %}selected{% endif %}>Maintenance Tasks</option>
+          <option value="inventory" {% if selected_type == 'inventory' %}selected{% endif %}>Inventory Spares</option>
+          <option value="report" {% if selected_type == 'report' %}selected{% endif %}>Generated Reports</option>
+          <option value="message" {% if selected_type == 'message' %}selected{% endif %}>Messages</option>
+          <option value="ai_chat" {% if selected_type == 'ai_chat' %}selected{% endif %}>Opsloom AI Chats</option>
+        </select>
+      </form>
+      {% if items and items|length > 0 %}
+      <form method="post" action="/settings/recycle-bin/empty"
+            data-confirm="empty_recycle_bin"
+            data-confirm-title="Permanently Empty Recycle Bin"
+            data-confirm-text="This will permanently remove all deleted items from the Admin Recycle Bin. This action cannot be undone."
+            data-confirm-ok="Purge All Permanently">
+        <button type="submit" class="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-black flex items-center gap-1.5 shadow cursor-pointer">
+          <span class="material-symbols-outlined text-sm">delete_forever</span> Empty Recycle Bin
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Recycle Bin Table -->
+  <div class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left">
+        <thead>
+          <tr class="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-300 uppercase text-[10px] font-black tracking-wider border-b border-slate-200 dark:border-dark-border">
+            <th class="px-6 py-4">Module / Type</th>
+            <th class="px-6 py-4">Deleted Record &amp; Identifier</th>
+            <th class="px-6 py-4">Record Snapshot</th>
+            <th class="px-6 py-4">Deleted By</th>
+            <th class="px-6 py-4">Deleted At</th>
+            <th class="px-6 py-4 text-right">Admin Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-dark-border text-sm">
+          {% for item in items %}
+          <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition">
+            <td class="px-6 py-4">
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-black uppercase tracking-wider">
+                <span class="material-symbols-outlined text-xs">folder_delete</span>
+                {{ item.entity_type }}
+              </span>
+            </td>
+            <td class="px-6 py-4">
+              <p class="font-bold text-slate-900 dark:text-white">{{ item.entity_label }}</p>
+              <p class="text-xs text-slate-400 mt-0.5">ID: {{ item.identifier }}</p>
+            </td>
+            <td class="px-6 py-4">
+              <p class="text-xs text-slate-600 dark:text-slate-300 max-w-md truncate">{{ item.summary or 'Full record state preserved in vault' }}</p>
+            </td>
+            <td class="px-6 py-4 text-xs font-semibold text-slate-700 dark:text-slate-200">
+              {{ item.deleted_by or 'Laurence Magondu' }}
+            </td>
+            <td class="px-6 py-4 text-xs text-slate-500">
+              {{ item.deleted_at_fmt or (item.deleted_at or '')[:16]|replace('T', ' ') }}
+            </td>
+            <td class="px-6 py-4 text-right">
+              <div class="inline-flex items-center gap-2">
+                <form method="post" action="/settings/recycle-bin/{{ item.bin_id }}/restore">
+                  <button type="submit" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1 cursor-pointer">
+                    <span class="material-symbols-outlined text-sm">restore</span> Restore
+                  </button>
+                </form>
+                <form method="post" action="/settings/recycle-bin/{{ item.bin_id }}/purge"
+                      data-confirm="purge_bin_item"
+                      data-confirm-title="Permanently Delete Record"
+                      data-confirm-text="Permanently remove {{ item.entity_label }} from the Recycle Bin? This cannot be undone."
+                      data-confirm-ok="Delete Forever">
+                  <button type="submit" class="px-3 py-1.5 rounded-lg border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 hover:bg-rose-50 text-xs font-black flex items-center gap-1 cursor-pointer">
+                    <span class="material-symbols-outlined text-sm">delete_forever</span> Remove Permanently
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="px-6 py-12 text-center text-slate-500">
+              <span class="material-symbols-outlined text-3xl text-slate-300 block mb-2">Inventory</span>
+              No deleted records in the Recycle Bin for this filter.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

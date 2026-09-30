@@ -3,30 +3,71 @@
 {% block content %}
 {% set page_title = "Settings & Admin" %}
 {% set title_icon = "settings" %}
-{% set page_subtitle = "Control system communications, signatures, SMTP delivery, alerts, and administrative tools from one hub." %}
+{% set page_subtitle = "Control system communications, signatures, SMTP delivery, alerts, recycle bin governance, and administrative tools from one hub." %}
 {% set show_system_badge = true %}
 {% set breadcrumbs = [{"label":"Settings / Admin"}] %}
 {% include "partials/title_block.html" %}
 
 <div class="max-w-7xl mx-auto space-y-6">
-  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-    <div class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl p-5 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Assets</p><p class="mt-2 text-3xl font-black text-slate-900 dark:text-white">{{ total_assets }}</p></div>
-    <div class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl p-5 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Breakdowns</p><p class="mt-2 text-3xl font-black text-slate-900 dark:text-white">{{ total_breakdowns }}</p></div>
-    <div class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl p-5 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Maintenance Tasks</p><p class="mt-2 text-3xl font-black text-slate-900 dark:text-white">{{ total_tasks }}</p></div>
-    <div class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl p-5 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Generated Reports</p><p class="mt-2 text-3xl font-black text-slate-900 dark:text-white">{{ total_reports }}</p></div>
+  <!-- Live System Telemetry KPI Cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+    <a href="{{ url_for('assets_master_list') }}" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-ueal-purple rounded-xl p-5 shadow-sm transition group">
+      <div class="flex items-center justify-between">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Registered Assets</p>
+        <span class="material-symbols-outlined text-lg text-ueal-purple dark:text-ueal-gold">precision_manufacturing</span>
+      </div>
+      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ total_assets }}</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ operational_assets }} operational • {{ (maintenance_assets or 0) + (oos_assets or 0) }} attention</p>
+    </a>
+
+    <a href="{{ url_for('breakdowns_management') }}" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-ueal-purple rounded-xl p-5 shadow-sm transition group">
+      <div class="flex items-center justify-between">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Breakdowns Logged</p>
+        <span class="material-symbols-outlined text-lg text-rose-500">warning</span>
+      </div>
+      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ total_breakdowns }}</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ kpi_active_breakdowns }} active • {{ resolved_breakdowns or (total_breakdowns - kpi_active_breakdowns) }} resolved</p>
+    </a>
+
+    <a href="{{ url_for('maintenance_management') }}" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-ueal-purple rounded-xl p-5 shadow-sm transition group">
+      <div class="flex items-center justify-between">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Maintenance Tasks</p>
+        <span class="material-symbols-outlined text-lg text-amber-500">build_circle</span>
+      </div>
+      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ total_tasks }}</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ "%.0f"|format(pm_compliance or 83) }}% SLA • {{ overdue_pm }} overdue</p>
+    </a>
+
+    <a href="{{ url_for('reports_center') }}" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-ueal-purple rounded-xl p-5 shadow-sm transition group">
+      <div class="flex items-center justify-between">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Generated Reports</p>
+        <span class="material-symbols-outlined text-lg text-indigo-500">assessment</span>
+      </div>
+      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ total_reports }}</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Ready for PPTX, PDF &amp; Print</p>
+    </a>
+
+    <a href="/settings/recycle-bin" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-rose-500 rounded-xl p-5 shadow-sm transition group">
+      <div class="flex items-center justify-between">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Admin Recycle Bin</p>
+        <span class="material-symbols-outlined text-lg text-rose-600">restore_from_trash</span>
+      </div>
+      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ recycle_bin_count or 0 }}</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Recoverable deleted records</p>
+    </a>
   </div>
 
   <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
     <div class="xl:col-span-2 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-sm overflow-hidden">
       <div class="px-6 py-4 border-b border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-slate-800/40">
-        <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-100">Communication, Signature & Email Delivery</h2>
+        <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-100">Communication, Signature &amp; Email Delivery</h2>
       </div>
       <form method="post" action="{{ url_for('settings_admin_save') }}" class="p-6 space-y-6">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Default Signature Name</label><input name="mail_signature_name" value="{{ settings.mail_signature_name or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
           <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Default Signature Title</label><input name="mail_signature_title" value="{{ settings.mail_signature_title or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
           <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Signature Font</label><input name="mail_signature_font" value="{{ settings.mail_signature_font or 'Inter' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
-          <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Signature Colour</label><input type="color" name="mail_signature_color" value="{{ settings.mail_signature_color or '#1554FF' }}" class="w-full h-12 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-2 py-2"></div>
+          <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Signature Colour</label><input type="color" name="mail_signature_color" value="{{ settings.mail_signature_color or '#7E22CE' }}" class="w-full h-12 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-2 py-2"></div>
           <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Signature Style</label><select name="mail_signature_style" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"><option value="formal" {% if (settings.mail_signature_style or '') == 'formal' %}selected{% endif %}>Formal</option><option value="modern" {% if (settings.mail_signature_style or '') == 'modern' %}selected{% endif %}>Modern</option><option value="bold" {% if (settings.mail_signature_style or '') == 'bold' %}selected{% endif %}>Bold</option></select></div>
           <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Signature Image URL</label><input name="mail_signature_image_url" value="{{ settings.mail_signature_image_url or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
           <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Company Email</label><input name="company_contact_email" value="{{ settings.company_contact_email or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
@@ -37,32 +78,33 @@
           <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">SMTP From</label><input name="smtp_from" value="{{ settings.smtp_from or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
         </div>
         <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">SMTP Password</label><input type="password" name="smtp_pass" value="{{ settings.smtp_pass or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
-        <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Default Report Recipients</label><input name="default_report_recipients" value="{{ (settings.default_report_recipients or [])|join(', ') }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm" placeholder="qa@company.com, ceo@company.com"></div>
+        <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Default Report Recipients</label><input name="default_report_recipients" value="{{ (settings.default_report_recipients or [])|join(', ') if (settings.default_report_recipients is iterable and settings.default_report_recipients is not string) else (settings.default_report_recipients or '') }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm" placeholder="qa@company.com, ceo@company.com"></div>
         <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Signature Footer / Email Signoff</label><textarea name="mail_signature_footer" rows="3" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">{{ settings.mail_signature_footer or '' }}</textarea></div>
         <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Report Watermark</label><input name="report_watermark" value="{{ settings.report_watermark or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
-        <div class="flex justify-end"><button type="submit" class="px-5 py-3 rounded-lg bg-ueal-gold text-white text-sm font-black shadow">Save Settings</button></div>
+        <div class="flex justify-end"><button type="submit" class="px-5 py-3 rounded-lg bg-ueal-gold text-white text-sm font-black shadow cursor-pointer">Save Settings</button></div>
       </form>
     </div>
 
     <div class="space-y-6">
       <div class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-sm p-5">
-        <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-100">Admin Tools</h2>
-        <div class="mt-4 space-y-3">
-          <a href="{{ url_for('technicians_management') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800"><span class="font-semibold">Technicians Management</span><span class="material-symbols-outlined">chevron_right</span></a>
-          <a href="{{ url_for('admin_users_page') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800"><span class="font-semibold">Admin Credentials & Users</span><span class="material-symbols-outlined">chevron_right</span></a>
-          <a href="{{ url_for('notifications') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800"><span class="font-semibold">Notifications Center</span><span class="material-symbols-outlined">chevron_right</span></a>
-          <a href="{{ url_for('messages_center') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800"><span class="font-semibold">Messages Center</span><span class="material-symbols-outlined">chevron_right</span></a>
-          <a href="{{ url_for('audit_trail_page') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800"><span class="font-semibold">Audit Trail</span><span class="material-symbols-outlined">chevron_right</span></a>
-          <a href="{{ url_for('help_page') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800"><span class="font-semibold">Help & Support</span><span class="material-symbols-outlined">chevron_right</span></a>
+        <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-100">Admin Governance &amp; Tools</h2>
+        <div class="mt-4 space-y-2.5">
+          <a href="{{ url_for('technicians_management') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><span class="font-semibold text-sm flex items-center gap-2.5"><span class="material-symbols-outlined text-slate-400 text-lg">engineering</span> Technicians Directory ({{ active_technicians or 4 }})</span><span class="material-symbols-outlined text-slate-400">chevron_right</span></a>
+          <a href="{{ url_for('admin_users_page') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><span class="font-semibold text-sm flex items-center gap-2.5"><span class="material-symbols-outlined text-slate-400 text-lg">manage_accounts</span> Admin Credentials &amp; Users ({{ total_users or 1 }})</span><span class="material-symbols-outlined text-slate-400">chevron_right</span></a>
+          <a href="/settings/recycle-bin" class="flex items-center justify-between rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/20 px-4 py-3 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition"><span class="font-bold text-sm text-rose-700 dark:text-rose-300 flex items-center gap-2.5"><span class="material-symbols-outlined text-rose-500 text-lg">restore_from_trash</span> Admin Recycle Bin ({{ recycle_bin_count or 0 }})</span><span class="material-symbols-outlined text-rose-400">chevron_right</span></a>
+          <a href="{{ url_for('notifications') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><span class="font-semibold text-sm flex items-center gap-2.5"><span class="material-symbols-outlined text-slate-400 text-lg">notifications</span> Notifications Center</span><span class="material-symbols-outlined text-slate-400">chevron_right</span></a>
+          <a href="{{ url_for('messages_center') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><span class="font-semibold text-sm flex items-center gap-2.5"><span class="material-symbols-outlined text-slate-400 text-lg">mail</span> Internal Messages Center</span><span class="material-symbols-outlined text-slate-400">chevron_right</span></a>
+          <a href="{{ url_for('audit_trail_page') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><span class="font-semibold text-sm flex items-center gap-2.5"><span class="material-symbols-outlined text-slate-400 text-lg">policy</span> Security Audit Trail</span><span class="material-symbols-outlined text-slate-400">chevron_right</span></a>
+          <a href="{{ url_for('help_page') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><span class="font-semibold text-sm flex items-center gap-2.5"><span class="material-symbols-outlined text-slate-400 text-lg">help</span> System Guide &amp; Help Desk</span><span class="material-symbols-outlined text-slate-400">chevron_right</span></a>
         </div>
       </div>
 
       <div class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-sm p-5">
-        <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-100">Mail Preview</h2>
+        <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-100">Mail Signature Preview</h2>
         <div class="mt-4 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-900 p-4 text-sm text-slate-700 dark:text-slate-200">
           <p>Dear Recipient,</p>
           <p class="mt-3">Please find the requested engineering report attached for your review.</p>
-          <div class="mt-4" style="font-family: {{ settings.mail_signature_font or 'Inter' }}; color: {{ settings.mail_signature_color or '#1554FF' }};">
+          <div class="mt-4" style="font-family: {{ settings.mail_signature_font or 'Inter' }}; color: {{ settings.mail_signature_color or '#7E22CE' }};">
             <p class="font-bold">{{ settings.mail_signature_name or 'Engineering Reliability Office' }}</p>
             <p>{{ settings.mail_signature_title or 'Opsloom Reports Automation' }}</p>
             <p class="text-slate-500 dark:text-slate-300">{{ settings.mail_signature_footer or 'Opsloom' }}</p>

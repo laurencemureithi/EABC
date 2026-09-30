@@ -126,6 +126,20 @@
       <span class="material-symbols-outlined text-xl">settings</span>
       <span class="font-medium text-sm">Settings / Admin</span>
     </a>
+
+    <a
+      class="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg transition-colors
+        {% if active_nav=='recycle_bin' %} bg-ueal-gold text-white shadow-lg shadow-black/20 {% else %} text-white/70 hover:bg-white/10 hover:text-white {% endif %}"
+      href="/settings/recycle-bin"
+    >
+      <span class="flex items-center gap-3">
+        <span class="material-symbols-outlined text-xl">restore_from_trash</span>
+        <span class="font-medium text-sm">Recycle Bin</span>
+      </span>
+      {% if recycle_bin_count and recycle_bin_count > 0 %}
+      <span class="px-1.5 py-0.5 rounded-full bg-rose-500/80 text-white text-[10px] font-black">{{ recycle_bin_count }}</span>
+      {% endif %}
+    </a>
     {% endif %}
   </nav>
 

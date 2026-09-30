@@ -8,12 +8,19 @@ const crypto = require('crypto');
 const PptxGenJS = require('pptxgenjs');
 const { GoogleGenAI } = require('@google/genai');
 
-let aiClient = null;
-if (process.env.GEMINI_API_KEY) {
+function getAiClient() {
+  if (!process.env.GEMINI_API_KEY) return null;
   try {
-    aiClient = new GoogleGenAI({});
+    return new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build'
+        }
+      }
+    });
   } catch (err) {
-    console.warn('[AI Studio] Gemini client note:', err.message);
+    return null;
   }
 }
 
@@ -159,7 +166,9 @@ let store = {
     }
   ],
   DRAFT_MESSAGES: [],
-  OUTBOX_MESSAGES: []
+  OUTBOX_MESSAGES: [],
+  RECYCLE_BIN: [],
+  AI_CHATS: []
 };
 
 // Seed realistic demo assets if store has none
@@ -184,262 +193,729 @@ function seedInitialDataIfEmpty() {
     ];
   }
 
-  if (!store.ASSETS || store.ASSETS.length === 0) {
-    store.ASSETS = [
-      {
-        uid: 'asset-001',
-        asset_id: 'ENG-AST-0101',
-        asset_name: 'High-Speed Rotary Filler RFC-80',
-        section: 'Pharma',
-        department: 'Engineering',
-        status: 'operational',
-        criticality: 'A',
-        serial_no: 'RFC-2022-9841',
-        manufacturer: 'Bosch Packaging',
-        model_number: 'RFC-80X',
-        installation_date: '2022-03-15',
-        power_rating: '45 kW',
-        supplier: 'Bosch Kenya Ltd',
-        technical_notes: 'Primary sterile vial packaging filler. Maintenance cycle 30 days.'
-      },
-      {
-        uid: 'asset-002',
-        asset_id: 'ENG-AST-0102',
-        asset_name: 'Steam Boiler Unit SB-02',
-        section: 'Premises',
-        department: 'Engineering',
-        status: 'operational',
-        criticality: 'A',
-        serial_no: 'SB-400-K09',
-        manufacturer: 'Thermax Limited',
-        model_number: 'CPX-400',
-        installation_date: '2020-08-20',
-        power_rating: '250 kW',
-        supplier: 'Energy Solutions Africa',
-        technical_notes: 'High pressure steam utility generator for sterilization and jackets.'
-      },
-      {
-        uid: 'asset-003',
-        asset_id: 'ENG-AST-0103',
-        asset_name: 'Centrifugal Slurry Pump CP-04',
-        section: 'Acaricide',
-        department: 'Engineering',
-        status: 'degraded',
-        criticality: 'B',
-        serial_no: 'CP-4028-21',
-        manufacturer: 'Grundfos',
-        model_number: 'NBG-65-40',
-        installation_date: '2021-06-11',
-        power_rating: '18.5 kW',
-        supplier: 'Davis & Shirtliff',
-        technical_notes: 'Secondary transfer line pump. Mild impeller cavitation detected.'
-      },
-      {
-        uid: 'asset-004',
-        asset_id: 'ENG-AST-0104',
-        asset_name: 'Granulation Fluid Bed Dryer FBD-01',
-        section: 'Nutraceuticals',
-        department: 'Engineering',
-        status: 'breakdown',
-        criticality: 'A',
-        serial_no: 'FBD-150-19',
-        manufacturer: 'Glatt Systems',
-        model_number: 'WSG-150',
-        installation_date: '2019-11-04',
-        power_rating: '35 kW',
-        supplier: 'PharmaTech East Africa',
-        technical_notes: 'Fluidized bed drying chamber with pneumatic air delivery.'
-      }
-    ];
+  const defaultAssets = [
+    {
+      uid: 'asset-001',
+      asset_id: 'ENG-AST-0101',
+      asset_name: 'High-Speed Rotary Filler RFC-80',
+      section: 'Pharma',
+      department: 'Engineering',
+      status: 'operational',
+      criticality: 'A',
+      serial_no: 'RFC-2022-9841',
+      manufacturer: 'Bosch Packaging',
+      model_number: 'RFC-80X',
+      installation_date: '2022-03-15',
+      power_rating: '45 kW',
+      supplier: 'Bosch Kenya Ltd',
+      technical_notes: 'Primary sterile vial packaging filler. Maintenance cycle 30 days.'
+    },
+    {
+      uid: 'asset-002',
+      asset_id: 'ENG-AST-0102',
+      asset_name: 'Steam Boiler Unit SB-02',
+      section: 'Premises',
+      department: 'Engineering',
+      status: 'operational',
+      criticality: 'A',
+      serial_no: 'SB-400-K09',
+      manufacturer: 'Thermax Limited',
+      model_number: 'CPX-400',
+      installation_date: '2020-08-20',
+      power_rating: '250 kW',
+      supplier: 'Energy Solutions Africa',
+      technical_notes: 'High pressure steam utility generator for sterilization and jackets.'
+    },
+    {
+      uid: 'asset-003',
+      asset_id: 'ENG-AST-0103',
+      asset_name: 'Centrifugal Slurry Pump CP-04',
+      section: 'Acaricide',
+      department: 'Engineering',
+      status: 'degraded',
+      criticality: 'B',
+      serial_no: 'CP-4028-21',
+      manufacturer: 'Grundfos',
+      model_number: 'NBG-65-40',
+      installation_date: '2021-06-11',
+      power_rating: '18.5 kW',
+      supplier: 'Davis & Shirtliff',
+      technical_notes: 'Secondary transfer line pump. Mild impeller cavitation detected.'
+    },
+    {
+      uid: 'asset-004',
+      asset_id: 'ENG-AST-0104',
+      asset_name: 'Granulation Fluid Bed Dryer FBD-01',
+      section: 'Nutraceuticals',
+      department: 'Engineering',
+      status: 'breakdown',
+      criticality: 'A',
+      serial_no: 'FBD-150-19',
+      manufacturer: 'Glatt Systems',
+      model_number: 'WSG-150',
+      installation_date: '2019-11-04',
+      power_rating: '35 kW',
+      supplier: 'PharmaTech East Africa',
+      technical_notes: 'Fluidized bed drying chamber with pneumatic air delivery.'
+    },
+    {
+      uid: 'asset-005',
+      asset_id: 'ENG-AST-0105',
+      asset_name: 'Rotary Tablet Press RTP-33',
+      section: 'Pharma',
+      department: 'Engineering',
+      status: 'operational',
+      criticality: 'A',
+      serial_no: 'RTP-2023-1120',
+      manufacturer: 'Fette Compacting',
+      model_number: 'FE55',
+      installation_date: '2023-01-19',
+      power_rating: '28 kW',
+      supplier: 'PharmaTech East Africa',
+      technical_notes: 'High-speed double-sided rotary tablet press with force feeder.'
+    },
+    {
+      uid: 'asset-006',
+      asset_id: 'ENG-AST-0106',
+      asset_name: 'Acaricide Emulsion Mixer EM-02',
+      section: 'Acaricide',
+      department: 'Engineering',
+      status: 'operational',
+      criticality: 'A',
+      serial_no: 'EM-2021-553',
+      manufacturer: 'Silverson Machines',
+      model_number: 'FX600',
+      installation_date: '2021-09-12',
+      power_rating: '37 kW',
+      supplier: 'Process Industrial EA',
+      technical_notes: 'High-shear batch homogenizer for EC acaricide formulations.'
+    },
+    {
+      uid: 'asset-007',
+      asset_id: 'ENG-AST-0107',
+      asset_name: 'Automated Seed Coating Drum SCD-01',
+      section: 'Seeds',
+      department: 'Engineering',
+      status: 'operational',
+      criticality: 'B',
+      serial_no: 'SCD-2022-884',
+      manufacturer: 'Cimbria',
+      model_number: 'CC-250',
+      installation_date: '2022-05-14',
+      power_rating: '22 kW',
+      supplier: 'AgriEquip Kenya',
+      technical_notes: 'Continuous rotary seed treater with peristaltic dosing pumps.'
+    },
+    {
+      uid: 'asset-008',
+      asset_id: 'ENG-AST-0108',
+      asset_name: 'Optical Seed Sorter & Grader OSG-03',
+      section: 'Seeds',
+      department: 'Engineering',
+      status: 'operational',
+      criticality: 'C',
+      serial_no: 'OSG-2023-309',
+      manufacturer: 'Buhler Sortex',
+      model_number: 'Sortex A',
+      installation_date: '2023-04-02',
+      power_rating: '12 kW',
+      supplier: 'Buhler East Africa',
+      technical_notes: 'Multi-chromatic optical camera sorter with pneumatic ejectors.'
+    },
+    {
+      uid: 'asset-009',
+      asset_id: 'ENG-AST-0109',
+      asset_name: 'Blister Packaging Line BPL-04',
+      section: 'Nutraceuticals',
+      department: 'Engineering',
+      status: 'operational',
+      criticality: 'B',
+      serial_no: 'BPL-2021-771',
+      manufacturer: 'Uhlmann',
+      model_number: 'BEC-300',
+      installation_date: '2021-11-28',
+      power_rating: '30 kW',
+      supplier: 'Bosch Kenya Ltd',
+      technical_notes: 'Thermoforming blister packager and integrated cartoner.'
+    },
+    {
+      uid: 'asset-010',
+      asset_id: 'ENG-AST-0110',
+      asset_name: 'Standby Diesel Generator 750kVA DG-01',
+      section: 'Premises',
+      department: 'Engineering',
+      status: 'operational',
+      criticality: 'A',
+      serial_no: 'CAT-750-8821',
+      manufacturer: 'Caterpillar',
+      model_number: 'C27-750',
+      installation_date: '2019-07-01',
+      power_rating: '600 kW',
+      supplier: 'Mantrac Kenya',
+      technical_notes: 'Prime backup power generator with automatic transfer switch (ATS).'
+    },
+    {
+      uid: 'asset-011',
+      asset_id: 'ENG-AST-0111',
+      asset_name: 'Reverse Osmosis Water Purification RO-01',
+      section: 'Pharma',
+      department: 'Engineering',
+      status: 'operational',
+      criticality: 'A',
+      serial_no: 'RO-2022-410',
+      manufacturer: 'Veolia Water Tech',
+      model_number: 'Orion-4000',
+      installation_date: '2022-02-10',
+      power_rating: '15 kW',
+      supplier: 'Davis & Shirtliff',
+      technical_notes: 'USP purified water loop with EDI and UV sanitization.'
+    },
+    {
+      uid: 'asset-012',
+      asset_id: 'ENG-AST-0112',
+      asset_name: 'Rotary Screw Air Compressor SAC-02',
+      section: 'Premises',
+      department: 'Engineering',
+      status: 'degraded',
+      criticality: 'B',
+      serial_no: 'AC-GA55-992',
+      manufacturer: 'Atlas Copco',
+      model_number: 'GA-55VSD+',
+      installation_date: '2020-10-15',
+      power_rating: '55 kW',
+      supplier: 'Atlas Copco Eastern Africa',
+      technical_notes: 'Plant-wide instrument air supply. Scheduled separator element change.'
+    }
+  ];
+  if (!store.ASSETS || store.ASSETS.length < 12) {
+    const existingUids = new Set((store.ASSETS || []).map(a => a.uid));
+    store.ASSETS = [...(store.ASSETS || []), ...defaultAssets.filter(a => !existingUids.has(a.uid))];
   }
 
-  if (!store.BREAKDOWNS || store.BREAKDOWNS.length === 0) {
-    store.BREAKDOWNS = [
-      {
-        breakdown_id: 'BD-2026-001',
-        asset_uid: 'asset-004',
-        asset_id: 'ENG-AST-0104',
-        asset_name: 'Granulation Fluid Bed Dryer FBD-01',
-        section: 'Nutraceuticals',
-        department: 'Engineering',
-        incident_title: 'Blower Motor Overheating and V-Belt Slip',
-        severity: 'critical',
-        failure_category: 'Mechanical',
-        status: 'open',
-        technician_name: 'David Kimani',
-        reported_dt: '2026-09-28 08:30',
-        reported_date: '2026-09-28',
-        reported_time: '08:30',
-        duration_mins: 240,
-        downtime_hours: 4.0,
-        symptoms: 'Loud squealing noise followed by high temperature alarm (85°C) on blower drive.',
-        notes: 'Initial inspection revealed worn belts and motor bearing play. Spare belts requested.',
-        created_at: '2026-09-28T08:30:00'
-      },
-      {
-        breakdown_id: 'BD-2026-002',
-        asset_uid: 'asset-003',
-        asset_id: 'ENG-AST-0103',
-        asset_name: 'Centrifugal Slurry Pump CP-04',
-        section: 'Acaricide',
-        department: 'Engineering',
-        incident_title: 'Mechanical Seal Weeping and Pressure Drop',
-        severity: 'medium',
-        failure_category: 'Mechanical',
-        status: 'in_progress',
-        technician_name: 'Sarah Njeri',
-        reported_dt: '2026-09-27 14:15',
-        reported_date: '2026-09-27',
-        reported_time: '14:15',
-        duration_mins: 180,
-        downtime_hours: 3.0,
-        symptoms: 'Minor slurry weeping from primary seal gland. Pressure output dropped by 1.2 bar.',
-        notes: 'Replaced gland packing temporary seal, awaiting permanent silicon carbide face ring.',
-        created_at: '2026-09-27T14:15:00'
-      }
-    ];
+  const defaultBreakdowns = [
+    {
+      breakdown_id: 'BD-2026-001',
+      asset_uid: 'asset-004',
+      asset_id: 'ENG-AST-0104',
+      asset_name: 'Granulation Fluid Bed Dryer FBD-01',
+      section: 'Nutraceuticals',
+      department: 'Engineering',
+      incident_title: 'Blower Motor Overheating and V-Belt Slip',
+      severity: 'critical',
+      failure_category: 'Mechanical',
+      status: 'open',
+      technician_name: 'David Kimani',
+      reported_dt: '2026-09-28 08:30',
+      reported_date: '2026-09-28',
+      reported_time: '08:30',
+      duration_mins: 240,
+      downtime_hours: 4.0,
+      cost_subtotal: 38000,
+      cost_vat_amount: 6080,
+      cost_total: 44080,
+      symptoms: 'Loud squealing noise followed by high temperature alarm (85°C) on blower drive.',
+      notes: 'Initial inspection revealed worn belts and motor bearing play. Spare belts requested.',
+      created_at: '2026-09-28T08:30:00'
+    },
+    {
+      breakdown_id: 'BD-2026-002',
+      asset_uid: 'asset-003',
+      asset_id: 'ENG-AST-0103',
+      asset_name: 'Centrifugal Slurry Pump CP-04',
+      section: 'Acaricide',
+      department: 'Engineering',
+      incident_title: 'Mechanical Seal Weeping and Pressure Drop',
+      severity: 'medium',
+      failure_category: 'Mechanical',
+      status: 'in_progress',
+      technician_name: 'Sarah Njeri',
+      reported_dt: '2026-09-27 14:15',
+      reported_date: '2026-09-27',
+      reported_time: '14:15',
+      duration_mins: 180,
+      downtime_hours: 3.0,
+      cost_subtotal: 24000,
+      cost_vat_amount: 3840,
+      cost_total: 27840,
+      symptoms: 'Minor slurry weeping from primary seal gland. Pressure output dropped by 1.2 bar.',
+      notes: 'Replaced gland packing temporary seal, awaiting permanent silicon carbide face ring.',
+      created_at: '2026-09-27T14:15:00'
+    },
+    {
+      breakdown_id: 'BD-2026-003',
+      asset_uid: 'asset-001',
+      asset_id: 'ENG-AST-0101',
+      asset_name: 'High-Speed Rotary Filler RFC-80',
+      section: 'Pharma',
+      department: 'Engineering',
+      incident_title: 'Vial Indexing Starwheel Sensor Fault',
+      severity: 'high',
+      failure_category: 'Electrical',
+      status: 'resolved',
+      technician_name: 'James Omondi',
+      reported_dt: '2026-09-24 10:20',
+      reported_date: '2026-09-24',
+      reported_time: '10:20',
+      resolved_date: '2026-09-24',
+      resolved_time: '12:50',
+      duration_mins: 150,
+      downtime_hours: 2.5,
+      cost_subtotal: 18500,
+      cost_vat_amount: 2960,
+      cost_total: 21460,
+      symptoms: 'Intermittent false rejects on vial indexing starwheel optical sensor.',
+      notes: 'Replaced 24VDC opto-electronic sensor and recalibrated PLC timing cam.',
+      created_at: '2026-09-24T10:20:00'
+    },
+    {
+      breakdown_id: 'BD-2026-004',
+      asset_uid: 'asset-007',
+      asset_id: 'ENG-AST-0107',
+      asset_name: 'Automated Seed Coating Drum SCD-01',
+      section: 'Seeds',
+      department: 'Engineering',
+      incident_title: 'Dosing Peristaltic Hose Rupture',
+      severity: 'medium',
+      failure_category: 'Hydraulic / Pneumatic',
+      status: 'resolved',
+      technician_name: 'Peter Njoroge',
+      reported_dt: '2026-09-21 15:00',
+      reported_date: '2026-09-21',
+      reported_time: '15:00',
+      resolved_date: '2026-09-21',
+      resolved_time: '17:12',
+      duration_mins: 132,
+      downtime_hours: 2.2,
+      cost_subtotal: 14000,
+      cost_vat_amount: 2240,
+      cost_total: 16240,
+      symptoms: 'Uneven polymer coating flow rate alarm on line 1.',
+      notes: 'Installed new reinforced Santoprene peristaltic tube and verified flow meter.',
+      created_at: '2026-09-21T15:00:00'
+    },
+    {
+      breakdown_id: 'BD-2026-005',
+      asset_uid: 'asset-012',
+      asset_id: 'ENG-AST-0112',
+      asset_name: 'Rotary Screw Air Compressor SAC-02',
+      section: 'Premises',
+      department: 'Engineering',
+      incident_title: 'Unloader Solenoid Valve Sticking',
+      severity: 'medium',
+      failure_category: 'Pneumatic',
+      status: 'resolved',
+      technician_name: 'David Kimani',
+      reported_dt: '2026-09-18 09:10',
+      reported_date: '2026-09-18',
+      reported_time: '09:10',
+      resolved_date: '2026-09-18',
+      resolved_time: '11:40',
+      duration_mins: 150,
+      downtime_hours: 2.5,
+      cost_subtotal: 21000,
+      cost_vat_amount: 3360,
+      cost_total: 24360,
+      symptoms: 'Compressor failing to transition smoothly from load to unload cycle at 7.5 bar.',
+      notes: 'Overhauled intake unloader valve assembly and replaced solenoid coil.',
+      created_at: '2026-09-18T09:10:00'
+    }
+  ];
+  if (!store.BREAKDOWNS || store.BREAKDOWNS.length < 5) {
+    const existingIds = new Set((store.BREAKDOWNS || []).map(b => b.breakdown_id));
+    store.BREAKDOWNS = [...(store.BREAKDOWNS || []), ...defaultBreakdowns.filter(b => !existingIds.has(b.breakdown_id))];
   }
 
-  if (!store.MAINTENANCE_TASKS || store.MAINTENANCE_TASKS.length === 0) {
-    store.MAINTENANCE_TASKS = [
-      {
-        task_id: 'TASK-2026-001',
-        task_title: 'Monthly Turret Lubrication & Vacuum Inspection',
-        asset_uid: 'asset-001',
-        asset_id: 'ENG-AST-0101',
-        asset_name: 'High-Speed Rotary Filler RFC-80',
-        section: 'Pharma',
-        department: 'Engineering',
-        maintenance_type: 'PM',
-        frequency: 'Monthly',
-        technician: 'David Kimani',
-        task_description: 'Full lubrication of rotary turret bearings, seal ring inspection, and vacuum check.',
-        due_date: '2026-10-05',
-        scheduled_date: '2026-10-05',
-        status: 'upcoming',
-        priority: 'high',
-        cost: 25000,
-        created_at: '2026-09-20T10:00:00'
-      },
-      {
-        task_id: 'TASK-2026-002',
-        task_title: 'Quarterly Boiler Safety Valve Pop Test',
-        asset_uid: 'asset-002',
-        asset_id: 'ENG-AST-0102',
-        asset_name: 'Steam Boiler Unit SB-02',
-        section: 'Premises',
-        department: 'Engineering',
-        maintenance_type: 'PM',
-        frequency: 'Quarterly',
-        technician: 'James Omondi',
-        task_description: 'Safety pressure valve pop test, water level gauge blowdown, and burner calibration.',
-        due_date: '2026-10-12',
-        scheduled_date: '2026-10-12',
-        status: 'in_progress',
-        priority: 'urgent',
-        cost: 45000,
-        created_at: '2026-09-22T09:00:00'
-      },
-      {
-        task_id: 'TASK-2026-003',
-        task_title: 'Weekly Nozzle Alignment & Calibration',
-        asset_uid: 'asset-001',
-        asset_id: 'ENG-AST-0101',
-        asset_name: 'High-Speed Rotary Filler RFC-80',
-        section: 'Pharma',
-        department: 'Engineering',
-        maintenance_type: 'PM',
-        frequency: 'Weekly',
-        technician: 'Sarah Njeri',
-        task_description: 'Nozzle alignment calibration and optical sensor wipe-down.',
-        due_date: '2026-09-25',
-        scheduled_date: '2026-09-25',
-        status: 'completed',
-        priority: 'medium',
-        cost: 12000,
-        completed_at: '2026-09-25 11:30',
-        completion_notes: 'Sensors calibrated within ±0.2mm tolerance.',
-        created_at: '2026-09-18T11:00:00'
-      }
-    ];
+  const defaultTasks = [
+    {
+      task_id: 'TASK-2026-001',
+      task_title: 'Monthly Turret Lubrication & Vacuum Inspection',
+      asset_uid: 'asset-001',
+      asset_id: 'ENG-AST-0101',
+      asset_name: 'High-Speed Rotary Filler RFC-80',
+      section: 'Pharma',
+      department: 'Engineering',
+      maintenance_type: 'PM',
+      frequency: 'Monthly',
+      technician: 'David Kimani',
+      task_description: 'Full lubrication of rotary turret bearings, seal ring inspection, and vacuum check.',
+      due_date: '2026-10-05',
+      scheduled_date: '2026-10-05',
+      status: 'upcoming',
+      priority: 'high',
+      cost: 25000,
+      cost_total: 25000,
+      created_at: '2026-09-20T10:00:00'
+    },
+    {
+      task_id: 'TASK-2026-002',
+      task_title: 'Quarterly Boiler Safety Valve Pop Test',
+      asset_uid: 'asset-002',
+      asset_id: 'ENG-AST-0102',
+      asset_name: 'Steam Boiler Unit SB-02',
+      section: 'Premises',
+      department: 'Engineering',
+      maintenance_type: 'PM',
+      frequency: 'Quarterly',
+      technician: 'James Omondi',
+      task_description: 'Safety pressure valve pop test, water level gauge blowdown, and burner calibration.',
+      due_date: '2026-10-12',
+      scheduled_date: '2026-10-12',
+      status: 'in_progress',
+      priority: 'urgent',
+      cost: 45000,
+      cost_total: 45000,
+      created_at: '2026-09-22T09:00:00'
+    },
+    {
+      task_id: 'TASK-2026-003',
+      task_title: 'Weekly Nozzle Alignment & Calibration',
+      asset_uid: 'asset-001',
+      asset_id: 'ENG-AST-0101',
+      asset_name: 'High-Speed Rotary Filler RFC-80',
+      section: 'Pharma',
+      department: 'Engineering',
+      maintenance_type: 'PM',
+      frequency: 'Weekly',
+      technician: 'Sarah Njeri',
+      task_description: 'Nozzle alignment calibration and optical sensor wipe-down.',
+      due_date: '2026-09-25',
+      scheduled_date: '2026-09-25',
+      status: 'completed',
+      priority: 'medium',
+      cost: 12000,
+      cost_total: 12000,
+      completed_at: '2026-09-25 11:30',
+      completion_notes: 'Sensors calibrated within ±0.2mm tolerance.',
+      created_at: '2026-09-18T11:00:00'
+    },
+    {
+      task_id: 'TASK-2026-004',
+      task_title: 'Blower Drive Belt & Bearing Replacement',
+      asset_uid: 'asset-004',
+      asset_id: 'ENG-AST-0104',
+      asset_name: 'Granulation Fluid Bed Dryer FBD-01',
+      section: 'Nutraceuticals',
+      department: 'Engineering',
+      maintenance_type: 'CM',
+      frequency: 'Monthly',
+      technician: 'David Kimani',
+      task_description: 'Replace SPA-1250 matched belt set and laser-align motor sheave.',
+      due_date: '2026-09-26',
+      scheduled_date: '2026-09-26',
+      status: 'overdue',
+      priority: 'urgent',
+      cost: 32000,
+      cost_total: 32000,
+      created_at: '2026-09-20T14:00:00'
+    },
+    {
+      task_id: 'TASK-2026-005',
+      task_title: 'High-Shear Homogenizer Stator Inspection',
+      asset_uid: 'asset-006',
+      asset_id: 'ENG-AST-0106',
+      asset_name: 'Acaricide Emulsion Mixer EM-02',
+      section: 'Acaricide',
+      department: 'Engineering',
+      maintenance_type: 'PM',
+      frequency: 'Monthly',
+      technician: 'Peter Njoroge',
+      task_description: 'Inspect rotor-stator clearance, shaft runout, and mechanical seal flush.',
+      due_date: '2026-10-08',
+      scheduled_date: '2026-10-08',
+      status: 'upcoming',
+      priority: 'high',
+      cost: 28000,
+      cost_total: 28000,
+      created_at: '2026-09-25T08:30:00'
+    },
+    {
+      task_id: 'TASK-2026-006',
+      task_title: 'Seed Coating Dosing Pump Calibration',
+      asset_uid: 'asset-007',
+      asset_id: 'ENG-AST-0107',
+      asset_name: 'Automated Seed Coating Drum SCD-01',
+      section: 'Seeds',
+      department: 'Engineering',
+      maintenance_type: 'PM',
+      frequency: 'Monthly',
+      technician: 'Grace Wanjiku',
+      task_description: 'Calibrate peristaltic dosing pumps and clean atomizing spinner disc.',
+      due_date: '2026-09-22',
+      scheduled_date: '2026-09-22',
+      status: 'completed',
+      priority: 'medium',
+      cost: 18000,
+      cost_total: 18000,
+      completed_at: '2026-09-22 16:00',
+      completion_notes: 'Flow rate verified within 0.5% accuracy across all 3 nozzles.',
+      created_at: '2026-09-15T09:00:00'
+    }
+  ];
+  if (!store.MAINTENANCE_TASKS || store.MAINTENANCE_TASKS.length < 6) {
+    const existingTaskIds = new Set((store.MAINTENANCE_TASKS || []).map(t => t.task_id));
+    store.MAINTENANCE_TASKS = [...(store.MAINTENANCE_TASKS || []), ...defaultTasks.filter(t => !existingTaskIds.has(t.task_id))];
   }
 
-  if (!store.INVENTORY_PARTS || store.INVENTORY_PARTS.length === 0) {
-    store.INVENTORY_PARTS = [
+  const defaultParts = [
+    {
+      uid: 'part-001',
+      part_name: 'High-Temp Silicon Carbide Seal Ring 45mm',
+      sku: 'SKU-SEAL-45SC',
+      category: 'Mechanical',
+      qty: 14,
+      min_qty: 5,
+      target_qty: 20,
+      storage_location: 'Bin M-12',
+      unit_price: 8500,
+      supplier: 'SealTech Kenya',
+      is_critical: true,
+      lead_time_days: 7,
+      created_at: '2026-08-01T08:00:00'
+    },
+    {
+      uid: 'part-002',
+      part_name: 'Opto-Electronic Vial Sensor 24VDC',
+      sku: 'SKU-SENS-24OP',
+      category: 'Control',
+      qty: 4,
+      min_qty: 6,
+      target_qty: 12,
+      storage_location: 'Cabinet E-03',
+      unit_price: 12000,
+      supplier: 'Industrial Sensors Africa',
+      is_critical: true,
+      lead_time_days: 14,
+      created_at: '2026-08-05T08:00:00'
+    },
+    {
+      uid: 'part-003',
+      part_name: 'Industrial SPA V-Belt 1250mm',
+      sku: 'SKU-BELT-SPA125',
+      category: 'Power Transmission',
+      qty: 22,
+      min_qty: 10,
+      target_qty: 30,
+      storage_location: 'Rack P-04',
+      unit_price: 2400,
+      supplier: 'DriveLine Systems',
+      is_critical: false,
+      lead_time_days: 3,
+      created_at: '2026-08-10T08:00:00'
+    },
+    {
+      uid: 'part-004',
+      part_name: 'Pneumatic Cylinder DNC-40-100-PPV',
+      sku: 'SKU-PNEU-CYL40',
+      category: 'Pneumatic',
+      qty: 2,
+      min_qty: 4,
+      target_qty: 8,
+      storage_location: 'Bin N-08',
+      unit_price: 18500,
+      supplier: 'Festo East Africa Ltd',
+      is_critical: true,
+      lead_time_days: 21,
+      created_at: '2026-08-15T08:00:00'
+    },
+    {
+      uid: 'part-005',
+      part_name: 'Solid State Relay 40A 240VAC',
+      sku: 'SKU-ELEC-SSR40',
+      category: 'Electrical',
+      qty: 0,
+      min_qty: 3,
+      target_qty: 6,
+      storage_location: 'Cabinet E-01',
+      unit_price: 4200,
+      supplier: 'Schneider Electric EA',
+      is_critical: true,
+      lead_time_days: 5,
+      created_at: '2026-08-20T08:00:00'
+    },
+    {
+      uid: 'part-006',
+      part_name: 'SKF Deep Groove Ball Bearing 6309-2RS1',
+      sku: 'SKU-BRG-6309',
+      category: 'Bearings',
+      qty: 12,
+      min_qty: 6,
+      target_qty: 16,
+      storage_location: 'Bin B-02',
+      unit_price: 6800,
+      supplier: 'SKF Authorized Kenya',
+      is_critical: true,
+      lead_time_days: 4,
+      created_at: '2026-08-22T08:00:00'
+    },
+    {
+      uid: 'part-007',
+      part_name: 'Food-Grade Synthetic Gear Oil ISO VG 220 (20L)',
+      sku: 'SKU-LUB-VG220',
+      category: 'Lubricants',
+      qty: 8,
+      min_qty: 4,
+      target_qty: 10,
+      storage_location: 'Lubricant Store L-01',
+      unit_price: 24500,
+      supplier: 'TotalEnergies Marketing Kenya',
+      is_critical: false,
+      lead_time_days: 3,
+      created_at: '2026-08-25T08:00:00'
+    },
+    {
+      uid: 'part-008',
+      part_name: 'PTFE Diaphragm Repair Kit 2-Inch',
+      sku: 'SKU-KIT-PTFE2',
+      category: 'Mechanical',
+      qty: 3,
+      min_qty: 4,
+      target_qty: 8,
+      storage_location: 'Bin M-19',
+      unit_price: 15200,
+      supplier: 'Davis & Shirtliff',
+      is_critical: true,
+      lead_time_days: 10,
+      created_at: '2026-08-28T08:00:00'
+    }
+  ];
+  if (!store.INVENTORY_PARTS || store.INVENTORY_PARTS.length < 8) {
+    const existingPartUids = new Set((store.INVENTORY_PARTS || []).map(p => p.uid));
+    store.INVENTORY_PARTS = [...(store.INVENTORY_PARTS || []), ...defaultParts.filter(p => !existingPartUids.has(p.uid))];
+  }
+
+  const defaultReports = [
+    {
+      id: 'rep-2026-001',
+      name: 'Q3 2026 Executive Strategic & Financial ROI • 2026-09-01 to 2026-09-30',
+      report_title: 'Q3 2026 Executive Strategic & Financial ROI',
+      category: 'Strategic & Financial ROI',
+      category_key: 'strategic_roi',
+      department: 'Engineering',
+      scope_mode: 'department',
+      start_date: '2026-09-01',
+      end_date: '2026-09-30',
+      period: '2026-09-01 → 2026-09-30',
+      format: 'PDF',
+      status: 'READY',
+      created_at: '2026-09-29T14:20:00.000Z',
+      created_at_fmt: '29 Sep 2026',
+      generated_label: '29 Sep 2026',
+      user_name: 'Laurence Magondu'
+    },
+    {
+      id: 'rep-2026-002',
+      name: 'September 2026 Breakdown & Root Cause Analytics • 2026-09-01 to 2026-09-30',
+      report_title: 'September 2026 Breakdown & Root Cause Analytics',
+      category: 'Breakdown Analytics',
+      category_key: 'breakdown_analytics',
+      department: 'Engineering',
+      scope_mode: 'department',
+      start_date: '2026-09-01',
+      end_date: '2026-09-30',
+      period: '2026-09-01 → 2026-09-30',
+      format: 'PPTX',
+      status: 'READY',
+      created_at: '2026-09-28T16:45:00.000Z',
+      created_at_fmt: '28 Sep 2026',
+      generated_label: '28 Sep 2026',
+      user_name: 'Laurence Magondu'
+    },
+    {
+      id: 'rep-2026-003',
+      name: 'Plant Asset Reliability & OEE Benchmark • 2026-09-01 to 2026-09-30',
+      report_title: 'Plant Asset Reliability & OEE Benchmark',
+      category: 'Asset Reliability',
+      category_key: 'asset_reliability',
+      department: 'Engineering',
+      scope_mode: 'department',
+      start_date: '2026-09-01',
+      end_date: '2026-09-30',
+      period: '2026-09-01 → 2026-09-30',
+      format: 'PDF',
+      status: 'READY',
+      created_at: '2026-09-27T11:10:00.000Z',
+      created_at_fmt: '27 Sep 2026',
+      generated_label: '27 Sep 2026',
+      user_name: 'Laurence Magondu'
+    },
+    {
+      id: 'rep-2026-004',
+      name: 'Preventive Maintenance SLA Compliance • 2026-09-01 to 2026-09-30',
+      report_title: 'Preventive Maintenance SLA Compliance',
+      category: 'Maintenance Compliance',
+      category_key: 'maintenance_compliance',
+      department: 'Engineering',
+      scope_mode: 'department',
+      start_date: '2026-09-01',
+      end_date: '2026-09-30',
+      period: '2026-09-01 → 2026-09-30',
+      format: 'XLSX',
+      status: 'READY',
+      created_at: '2026-09-26T09:30:00.000Z',
+      created_at_fmt: '26 Sep 2026',
+      generated_label: '26 Sep 2026',
+      user_name: 'Laurence Magondu'
+    },
+    {
+      id: 'rep-2026-005',
+      name: 'Engineering Spares Valuation & Reorder Audit • 2026-09-01 to 2026-09-30',
+      report_title: 'Engineering Spares Valuation & Reorder Audit',
+      category: 'Inventory & Spares',
+      category_key: 'inventory_spares',
+      department: 'Engineering',
+      scope_mode: 'department',
+      start_date: '2026-09-01',
+      end_date: '2026-09-30',
+      period: '2026-09-01 → 2026-09-30',
+      format: 'PDF',
+      status: 'READY',
+      created_at: '2026-09-25T15:00:00.000Z',
+      created_at_fmt: '25 Sep 2026',
+      generated_label: '25 Sep 2026',
+      user_name: 'Laurence Magondu'
+    }
+  ];
+  if (!store.REPORT_EXPORTS || store.REPORT_EXPORTS.length < 5) {
+    const existingRepIds = new Set((store.REPORT_EXPORTS || []).map(r => r.id));
+    store.REPORT_EXPORTS = [...(store.REPORT_EXPORTS || []), ...defaultReports.filter(r => !existingRepIds.has(r.id))];
+  }
+
+  if (!store.RECYCLE_BIN) store.RECYCLE_BIN = [];
+  if (!store.AI_CHATS || store.AI_CHATS.length === 0) {
+    store.AI_CHATS = [
       {
-        uid: 'part-001',
-        part_name: 'High-Temp Silicon Carbide Seal Ring 45mm',
-        sku: 'SKU-SEAL-45SC',
-        category: 'Mechanical',
-        qty: 14,
-        min_qty: 5,
-        target_qty: 20,
-        storage_location: 'Bin M-12',
-        unit_price: 8500,
-        supplier: 'SealTech Kenya',
-        is_critical: true,
-        lead_time_days: 7,
-        created_at: '2026-08-01T08:00:00'
-      },
-      {
-        uid: 'part-002',
-        part_name: 'Opto-Electronic Vial Sensor 24VDC',
-        sku: 'SKU-SENS-24OP',
-        category: 'Control',
-        qty: 4,
-        min_qty: 6,
-        target_qty: 12,
-        storage_location: 'Cabinet E-03',
-        unit_price: 12000,
-        supplier: 'Industrial Sensors Africa',
-        is_critical: true,
-        lead_time_days: 14,
-        created_at: '2026-08-05T08:00:00'
-      },
-      {
-        uid: 'part-003',
-        part_name: 'Industrial SPA V-Belt 1250mm',
-        sku: 'SKU-BELT-SPA125',
-        category: 'Power Transmission',
-        qty: 22,
-        min_qty: 10,
-        target_qty: 30,
-        storage_location: 'Rack P-04',
-        unit_price: 2400,
-        supplier: 'DriveLine Systems',
-        is_critical: false,
-        lead_time_days: 3,
-        created_at: '2026-08-10T08:00:00'
-      },
-      {
-        uid: 'part-004',
-        part_name: 'Pneumatic Cylinder DNC-40-100-PPV',
-        sku: 'SKU-PNEU-CYL40',
-        category: 'Pneumatic',
-        qty: 2,
-        min_qty: 4,
-        target_qty: 8,
-        storage_location: 'Bin N-08',
-        unit_price: 18500,
-        supplier: 'Festo East Africa Ltd',
-        is_critical: true,
-        lead_time_days: 21,
-        created_at: '2026-08-15T08:00:00'
-      },
-      {
-        uid: 'part-005',
-        part_name: 'Solid State Relay 40A 240VAC',
-        sku: 'SKU-ELEC-SSR40',
-        category: 'Electrical',
-        qty: 0,
-        min_qty: 3,
-        target_qty: 6,
-        storage_location: 'Cabinet E-01',
-        unit_price: 4200,
-        supplier: 'Schneider Electric EA',
-        is_critical: true,
-        lead_time_days: 5,
-        created_at: '2026-08-20T08:00:00'
+        id: 'chat-seed-001',
+        title: 'Plant Health & Seal Wear Audit',
+        updated_at: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+        messages: [
+          {
+            role: 'user',
+            text: 'Run a full Plant Health & OEE Audit across all sections',
+            time: '09:15'
+          },
+          {
+            role: 'ai',
+            title: 'Plant Health & OEE Audit',
+            structured: {
+              summary: 'Fleet reliability stands at 83.3% operational readiness across 12 registered industrial assets, with 2 active corrective work orders in Pharma and Nutraceuticals.',
+              metrics: [
+                { label: 'Fleet Availability', value: '94.2%' },
+                { label: 'PM Compliance', value: '87.5%' },
+                { label: 'Mean Time To Repair', value: '1.8 hrs' }
+              ],
+              findings: [
+                'High-Speed Rotary Filler RFC-80 and Steam Boiler SB-02 are operating within nominal thermal and vibration envelopes.',
+                'Granulation Fluid Bed Dryer FBD-01 requires pneumatic actuator seal replacement to restore full batch cycle pressure.',
+                'Centrifugal Slurry Pump CP-04 exhibits mild impeller cavitation; scheduled bearing & seal kit overhaul is staged.'
+              ],
+              recommendations: [
+                'Prioritize closure of BD-2026-001 on Granulation Fluid Bed Dryer FBD-01 before afternoon shift handover.',
+                'Replenish Solid State Relay 40A (SKU-ELEC-SSR40) and Pneumatic Cylinder DNC-40 (SKU-PNEU-CYL40) to restore safety buffer stock.'
+              ]
+            },
+            time: '09:15'
+          }
+        ]
       }
     ];
   }
@@ -521,6 +997,23 @@ function pushNotification(title, message, kind = 'info', href = '/dashboard', sh
   if (!store.SYSTEM_NOTIFICATIONS) store.SYSTEM_NOTIFICATIONS = [];
   store.SYSTEM_NOTIFICATIONS.unshift(notif);
   saveStore();
+}
+
+function moveToRecycleBin(entity_type, entity_label, primary_id, record, deleted_by = 'Laurence Magondu') {
+  if (!store.RECYCLE_BIN) store.RECYCLE_BIN = [];
+  const entry = {
+    id: 'bin-' + Date.now() + '-' + Math.floor(100 + Math.random() * 900),
+    entity_type,
+    entity_label: entity_label || primary_id || 'Deleted Record',
+    primary_id: primary_id || '',
+    record: record || {},
+    deleted_by,
+    deleted_at: new Date().toISOString(),
+    deleted_at_fmt: new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  };
+  store.RECYCLE_BIN.unshift(entry);
+  saveStore();
+  return entry;
 }
 
 // Configure Nunjucks
@@ -631,9 +1124,10 @@ function url_for(endpoint, params = {}) {
     'messages_delete_outbox': (p) => `/settings/messages/outbox/${p.mid}/delete`,
     'messages_send_outbox': (p) => `/settings/messages/outbox/${p.mid}/send`,
     'notifications': '/settings/notifications',
-    'notifications_toggle': (p) => `/settings/notifications/${p.nid}/toggle`,
-    'notifications_open': (p) => `/settings/notifications/${p.nid}/open`,
+    'notifications_toggle': (p) => `/settings/notifications/${p.nid || p.notification_id}/toggle`,
+    'notifications_open': (p) => `/settings/notifications/${p.nid || p.notification_id}/open`,
     'notifications_read_all': '/settings/notifications/read-all',
+    'recycle_bin_page': '/settings/recycle-bin',
     'profile': '/settings/profile',
     'profile_save': '/settings/profile/save',
     'help_page': '/settings/help',
@@ -649,7 +1143,7 @@ function url_for(endpoint, params = {}) {
   const handler = routes[endpoint];
   if (typeof handler === 'function') {
     const base = handler(params);
-    const consumed = new Set(['asset_uid', 'part_uid', 'spare_id', 'doc_uid', 'doc_id', 'breakdown_id', 'task_id', 'work_order_id', 'rid', 'report_id', 'fmt', 'tech_id', 'user_id', 'mid', 'nid', 'inline']);
+    const consumed = new Set(['asset_uid', 'part_uid', 'spare_id', 'doc_uid', 'doc_id', 'breakdown_id', 'task_id', 'work_order_id', 'rid', 'report_id', 'fmt', 'tech_id', 'user_id', 'mid', 'nid', 'notification_id', 'inline']);
     const query = [];
     for (const [k, v] of Object.entries(params || {})) {
       if (!consumed.has(k) && v !== undefined && v !== null && v !== '') {
@@ -708,11 +1202,65 @@ nunjucksEnv.addFilter('int', (v, def = 0) => { const n = parseInt(v, 10); return
 nunjucksEnv.addFilter('round', (v, p = 0) => Math.round((Number(v) || 0) * Math.pow(10, p)) / Math.pow(10, p));
 nunjucksEnv.addFilter('title', (str) => String(str || '').replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()));
 nunjucksEnv.addFilter('slice', (val, start = 0, end) => {
-  if (typeof val === 'string' || Array.isArray(val)) {
+  if (Array.isArray(val)) {
+    if (end !== undefined) {
+      return val.slice(start, end);
+    }
+    const slices = Math.max(1, Number(start) || 1);
+    const out = [];
+    const chunkSize = Math.ceil(val.length / slices) || 1;
+    for (let i = 0; i < slices; i++) {
+      out.push(val.slice(i * chunkSize, (i + 1) * chunkSize));
+    }
+    return out;
+  }
+  if (typeof val === 'string') {
     return end !== undefined ? val.slice(start, end) : val.slice(start);
   }
   return val || '';
 });
+
+function buildSvgBarChart(labels = [], values = [], title = 'Metric Overview', colorHex = '#7E22CE', unit = '') {
+  const safeLabels = labels.length ? labels : ['Q1', 'Q2', 'Q3', 'Q4'];
+  const safeVals = values.length ? values.map(v => Number(v) || 0) : [4, 6, 3, 5];
+  const maxVal = Math.max(1, ...safeVals);
+  const w = 720;
+  const h = 240;
+  const padL = 56;
+  const padR = 24;
+  const padT = 32;
+  const padB = 46;
+  const chartW = w - padL - padR;
+  const chartH = h - padT - padB;
+  const step = chartW / safeLabels.length;
+  const barW = Math.min(54, Math.max(18, step * 0.56));
+
+  let gridLines = '';
+  for (let i = 0; i <= 4; i++) {
+    const y = Math.round(padT + (chartH / 4) * i);
+    const gVal = Math.round((maxVal * (4 - i) / 4) * 10) / 10;
+    gridLines += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="#E2E8F0" stroke-dasharray="3,3" stroke-width="1"/>`;
+    gridLines += `<text x="${padL - 8}" y="${y + 4}" text-anchor="end" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="600" fill="#64748B">${gVal}${unit}</text>`;
+  }
+
+  let bars = '';
+  safeLabels.forEach((lbl, idx) => {
+    const val = safeVals[idx] || 0;
+    const bh = Math.max(4, Math.round((val / maxVal) * chartH));
+    const bx = Math.round(padL + idx * step + (step - barW) / 2);
+    const by = padT + chartH - bh;
+    const shortLbl = String(lbl).length > 14 ? String(lbl).slice(0, 12) + '…' : String(lbl);
+    bars += `<rect x="${bx}" y="${by}" width="${barW}" height="${bh}" rx="5" fill="${colorHex}" opacity="0.9"/>`;
+    bars += `<text x="${bx + barW / 2}" y="${by - 6}" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="700" fill="#1E293B">${val}${unit}</text>`;
+    bars += `<text x="${bx + barW / 2}" y="${h - 16}" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="600" fill="#475569">${shortLbl}</text>`;
+  });
+
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${title}">
+    <rect width="${w}" height="${h}" rx="12" fill="#FFFFFF"/>
+    ${gridLines}
+    ${bars}
+  </svg>`;
+}
 nunjucksEnv.addFilter('batch', (arr, size = 10, fillWith = null) => {
   if (!Array.isArray(arr) || !arr.length) return [];
   const out = [];
@@ -1118,13 +1666,94 @@ function buildReportAnalysis(report = {}) {
         value: Number(p.qty || 0) * Number(p.unit_price || 0)
       }
     ]).sort((a, b) => b[1].value - a[1].value),
-    print_chart_sections: [],
+    print_chart_sections: [
+      {
+        title: 'Downtime Hours by Top Contributing Assets',
+        note: 'Cumulative equipment stoppage hours recorded within the active reporting window.',
+        svg: buildSvgBarChart(
+          topAssets.slice(0, 5).map(a => a[0]),
+          topAssets.slice(0, 5).map(a => a[1].downtime_hours),
+          'Downtime Hours by Asset',
+          '#7E22CE',
+          'h'
+        )
+      },
+      {
+        title: 'Plant Availability (%) by Production Section',
+        note: 'Section-level operational uptime benchmarked against the 95.0% target SLA.',
+        svg: buildSvgBarChart(
+          availabilityBySection.map(s => s.section),
+          availabilityBySection.map(s => s.availability_pct),
+          'Section Availability',
+          '#10B981',
+          '%'
+        )
+      }
+    ],
     raw: {
       assets,
       breakdowns,
       tasks,
       inventory_parts: parts
     }
+  };
+}
+
+function buildChartExportReport(options = {}) {
+  const labels = options.labels || ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+  const values = options.values || [4, 5, 3, 6];
+  const unit = options.unit || '';
+  const color = options.color || '#7E22CE';
+  const costSubtotal = Number(options.cost_subtotal !== undefined ? options.cost_subtotal : 380000);
+  const vatAmount = Number(options.vat_amount !== undefined ? options.vat_amount : Math.round(costSubtotal * 0.16));
+  const totalCost = Number(options.total_cost !== undefined ? options.total_cost : costSubtotal + vatAmount);
+  const estSubtotal = Number(options.estimated_cost_subtotal !== undefined ? options.estimated_cost_subtotal : Math.round(costSubtotal * 1.1));
+  const estVat = Math.round(estSubtotal * 0.16);
+  const estTotal = estSubtotal + estVat;
+
+  const costSeries = labels.map((_, idx) => Math.round((totalCost / Math.max(1, labels.length)) * (0.85 + (idx % 3) * 0.15)));
+  const rows = options.rows || labels.map((lbl, idx) => {
+    const rowSub = Math.round(costSubtotal / Math.max(1, labels.length));
+    const rowVat = Math.round(rowSub * 0.16);
+    return {
+      period: lbl,
+      value: `${values[idx] !== undefined ? values[idx] : 0}${unit}`,
+      pm: options.pm_values ? options.pm_values[idx] : values[idx] || 2,
+      cm: options.cm_values ? options.cm_values[idx] : 1,
+      total: (options.pm_values ? options.pm_values[idx] : (values[idx] || 2)) + (options.cm_values ? options.cm_values[idx] : 1),
+      cost_subtotal: rowSub,
+      vat_amount: rowVat,
+      total_cost: rowSub + rowVat,
+      estimated_total_cost: Math.round((rowSub + rowVat) * 1.1)
+    };
+  });
+
+  return {
+    title: options.title || 'Executive Operational Report',
+    subtitle: options.subtitle || 'Verified operational telemetry and financial summary.',
+    department: options.department || 'Engineering',
+    department_display: options.department_display || 'Engineering & Operations',
+    period_label: options.period_label || 'Current Period',
+    scope_label: options.scope_label || 'All Plant Sections',
+    reported_by: options.reported_by || 'Laurence Magondu',
+    generated_label: options.generated_label || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    cost_subtotal: costSubtotal,
+    vat_amount: vatAmount,
+    vat_rate_label: '16% Standard VAT',
+    total_cost: totalCost,
+    estimated_cost_subtotal: estSubtotal,
+    estimated_vat_amount: estVat,
+    estimated_total_cost: estTotal,
+    record_count: options.record_count !== undefined ? options.record_count : rows.length,
+    main_chart_svg: buildSvgBarChart(labels, values, options.title || 'Primary Chart', color, unit),
+    cost_chart_svg: buildSvgBarChart(labels, costSeries, 'Cost Distribution (KES)', '#F59E0B', ''),
+    total_cost_values: costSeries,
+    insights: options.insights || [
+      'All operational records and cost lines are reconciled against the live Opsloom plant register.',
+      'Preventive maintenance adherence and rapid seal/actuator replacement remain primary drivers of OEE stability.',
+      'Critical spare parts buffers are continuously monitored to prevent unscheduled line stoppages.'
+    ],
+    rows
   };
 }
 
@@ -1164,6 +1793,26 @@ function baseCtx(req, activeNav = 'dashboard') {
   const unreadMsgs = (store.INTERNAL_MESSAGES || []).filter(m => !m.is_read_by?.includes('opsloom.ke@gmail.com')).length;
   const latestUnread = (store.SYSTEM_NOTIFICATIONS || []).find(n => !n.is_read && n.should_toast);
 
+  const allAssets = store.ASSETS || [];
+  const allBreakdowns = store.BREAKDOWNS || [];
+  const allTasks = store.MAINTENANCE_TASKS || [];
+  const allParts = store.INVENTORY_PARTS || [];
+
+  const totalAssetsCount = allAssets.length;
+  const operationalAssetsCount = allAssets.filter(a => a.status === 'operational').length;
+  const maintenanceAssetsCount = allAssets.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
+  const oosAssetsCount = allAssets.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
+  const globalUptime = totalAssetsCount ? Math.round((operationalAssetsCount / totalAssetsCount) * 1000) / 10 : 98.4;
+
+  const activeBreakdownsCount = allBreakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved').length;
+  const completedTasksCount = allTasks.filter(t => t.status === 'completed').length;
+  const upcomingTasksCount = allTasks.filter(t => t.status === 'upcoming').length;
+  const overdueTasksCount = allTasks.filter(t => t.status === 'overdue').length;
+  const globalPmCompliance = allTasks.length ? Math.round(((completedTasksCount + upcomingTasksCount) / allTasks.length) * 1000) / 10 : 92.0;
+
+  const invLowCount = allParts.filter(p => Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) <= Number(p.min_qty !== undefined ? p.min_qty : p.reorder_level || 5) && Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) > 0).length;
+  const invOutCount = allParts.filter(p => Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) <= 0).length;
+
   return {
     active_nav: activeNav,
     current_user_name: 'Laurence Magondu',
@@ -1190,6 +1839,18 @@ function baseCtx(req, activeNav = 'dashboard') {
     settings: store.SYSTEM_SETTINGS || {},
     companies: store.COMPANIES || [],
     active_company: activeCompany,
+    kpi_uptime_rate: globalUptime,
+    kpi_uptime_target: 80.0,
+    total_assets: totalAssetsCount,
+    operational_assets: operationalAssetsCount,
+    maintenance_assets: maintenanceAssetsCount,
+    oos_assets: oosAssetsCount,
+    kpi_active_breakdowns: activeBreakdownsCount,
+    pm_compliance: globalPmCompliance,
+    overdue_pm: overdueTasksCount,
+    inventory_low_stock: invLowCount,
+    inventory_out_of_stock: invOutCount,
+    recycle_bin_count: (store.RECYCLE_BIN || []).length,
     permission_presets: {
       Administrator: ['all', 'dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'companies'],
       Manager: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports'],
@@ -1379,6 +2040,8 @@ app.get('/dashboard', (req, res) => {
   const parts = store.INVENTORY_PARTS || [];
   const totalAssets = assets.length || 1;
   const operationalAssets = assets.filter(a => a.status === 'operational').length;
+  const maintenanceAssets = assets.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
+  const oosAssets = assets.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
   const kpiUptimeRate = Math.round((operationalAssets / totalAssets) * 1000) / 10;
 
   const activeBds = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved');
@@ -1387,8 +2050,38 @@ app.get('/dashboard', (req, res) => {
     ? Math.round((totalDowntime / breakdowns.length) * 10) / 10
     : 1.8;
   const completedTasks = tasks.filter(t => t.status === 'completed').length;
-  const pmCompliance = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 92;
-  const lowStockCount = parts.filter(p => Number(p.qty) <= Number(p.min_qty)).length;
+  const upcomingTasks = tasks.filter(t => t.status === 'upcoming').length;
+  const overduePm = tasks.filter(t => t.status === 'overdue').length;
+  const pmCompliance = tasks.length ? Math.round(((completedTasks + upcomingTasks) / tasks.length) * 1000) / 10 : 92.0;
+
+  const normalizedParts = parts.map(p => ({
+    ...p,
+    qty: Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0),
+    min_qty: Number(p.min_qty !== undefined ? p.min_qty : p.reorder_level || 5),
+    unit_price: Number(p.unit_price !== undefined ? p.unit_price : p.unit_cost || 0)
+  }));
+  const inventoryValue = normalizedParts.reduce((s, p) => s + (p.qty * p.unit_price), 0);
+  const inventoryCriticalSpares = normalizedParts.filter(p => p.is_critical).length;
+  const lowStockCount = normalizedParts.filter(p => p.qty <= p.min_qty && p.qty > 0).length;
+  const outOfStockCount = normalizedParts.filter(p => p.qty <= 0).length;
+
+  const maintenanceCostTotal = tasks.reduce((s, t) => s + Number(t.cost_total || t.cost || 0), 0);
+  const breakdownCostTotal = breakdowns.reduce((s, b) => s + Number(b.cost_total || b.cost || 0), 0);
+
+  // Root causes aggregation
+  const causeMap = {};
+  breakdowns.forEach(b => {
+    const c = b.failure_category || 'Mechanical';
+    causeMap[c] = (causeMap[c] || 0) + 1;
+  });
+  const totalCauseCount = Math.max(1, breakdowns.length);
+  const root_causes = Object.entries(causeMap)
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, count]) => ({
+      label,
+      count,
+      percent: Math.round((count / totalCauseCount) * 100)
+    }));
 
   // Only include assets that actually have breakdown incidents so there are NEVER downtimes without incidents
   const worstAssets = assets.map(a => {
@@ -1431,22 +2124,45 @@ app.get('/dashboard', (req, res) => {
     };
   });
 
-  const critical_risks = worstAssets.slice(0, 4).map(w => {
-    const latestBd = breakdowns.find(b => b.asset_uid === w.asset_uid || b.asset_id === w.asset_id) || {};
-    const isHigh = latestBd.status === 'open' || latestBd.status === 'in_progress' || w.downtime_hours >= 3;
-    return {
-      asset_uid: w.asset_uid,
-      asset_name: w.asset_name,
-      asset_id: w.asset_id,
-      section: w.section,
-      risk_level: isHigh ? 'HIGH' : 'MEDIUM',
-      summary: `${latestBd.incident_title || 'Recurring mechanical stoppage'} — ${w.downtime_hours.toFixed(1)} hrs cumulative downtime across ${w.incidents} incident(s).`,
-      metric_1_label: 'Downtime',
-      metric_1_value: `${w.downtime_hours.toFixed(1)} hrs`,
-      metric_2_label: 'Incidents',
-      metric_2_value: `${w.incidents} ${w.incidents === 1 ? 'fault' : 'faults'}`
-    };
-  });
+  // Open critical / high breakdown list for "Critical Risks" widget
+  const critical_open = activeBds.map(b => ({
+    breakdown_id: b.breakdown_id,
+    incident_title: b.incident_title || 'Equipment Stoppage',
+    asset_name: b.asset_name || 'Industrial Asset',
+    section: b.section || 'Engineering',
+    status: b.status || 'open',
+    severity: b.severity || 'High'
+  }));
+
+  // Strategic AI-Driven Action Feed
+  const action_feed = [
+    {
+      icon: 'build_circle',
+      title: activeBds[0] ? `Resolve ${activeBds[0].breakdown_id}: ${activeBds[0].asset_name}` : 'Inspect Critical Class-A Rotary Fillers',
+      meta: 'HIGH PRIORITY',
+      body: activeBds[0]
+        ? `${activeBds[0].incident_title} in ${activeBds[0].section} section requires immediate technician containment to restore line availability.`
+        : 'All Class-A sterile filling assets are online. Verify 30-day lubrication and seal integrity.',
+      href: activeBds[0] ? `/breakdowns/${activeBds[0].breakdown_id}` : '/breakdowns',
+      cta: 'Open Breakdown Control'
+    },
+    {
+      icon: 'inventory_2',
+      title: `Replenish ${lowStockCount + outOfStockCount} Low / Stockout Spare Parts`,
+      meta: 'SPARES BUFFER',
+      body: `${outOfStockCount} stockout(s) and ${lowStockCount} low-stock SKU(s) identified (including Solid State Relays & Pneumatic Cylinders).`,
+      href: '/inventory?stock_state=low',
+      cta: 'Review Spares Buffer'
+    },
+    {
+      icon: 'event_repeat',
+      title: overduePm > 0 ? `Close ${overduePm} Overdue Preventive Work Order(s)` : 'Maintain Preventive Schedule Cadence',
+      meta: `PM SLA ${pmCompliance}%`,
+      body: `Closing overdue preventive tasks across Pharma and Nutraceuticals protects fleet MTBF and prevents seal/bearing trips.`,
+      href: '/maintenance',
+      cta: 'Open PM Schedule'
+    }
+  ];
 
   const financialExposure = Math.round(totalDowntime * 18500);
 
@@ -1454,7 +2170,7 @@ app.get('/dashboard', (req, res) => {
     ...baseCtx(req, 'dashboard'),
     kpi_uptime: kpiUptimeRate,
     kpi_uptime_rate: kpiUptimeRate,
-    kpi_uptime_target: 95.0,
+    kpi_uptime_target: 80.0,
     kpi_uptime_delta: 1.4,
     kpi_active_breakdowns: activeBds.length,
     active_breakdowns_count: activeBds.length,
@@ -1465,23 +2181,39 @@ app.get('/dashboard', (req, res) => {
     kpi_mtbf_hours: 142.5,
     kpi_mtbf_delta: 8.2,
     kpi_pm_compliance: pmCompliance,
+    pm_compliance: pmCompliance,
+    overdue_pm: overduePm,
     kpi_pm_delta: 3.5,
     kpi_downtime_mtd_hours: totalDowntime,
     kpi_downtime_financial_mtd: financialExposure,
+    maintenance_cost_total: maintenanceCostTotal,
+    breakdown_cost_total: breakdownCostTotal,
+    total_assets: assets.length,
     total_assets_count: assets.length,
+    operational_assets: operationalAssets,
+    maintenance_assets: maintenanceAssets,
+    oos_assets: oosAssets,
+    inventory_value: inventoryValue,
+    inventory_critical_spares: inventoryCriticalSpares,
+    inventory_low_stock: lowStockCount,
+    inventory_out_of_stock: outOfStockCount,
+    reports_count: (store.REPORT_EXPORTS || []).length,
     upcoming_tasks_count: tasks.filter(t => t.status !== 'completed').length,
     quick: {
       assets_monitored: assets.length,
       open_incidents: activeBds.length,
       upcoming_tasks: tasks.filter(t => t.status !== 'completed').length,
-      low_stock_alerts: lowStockCount
+      low_stock_alerts: lowStockCount + outOfStockCount
     },
+    root_causes,
+    action_feed,
     worst_assets: worstAssets.slice(0, 5),
     worst_assets_chart_labels,
     worst_assets_chart_values,
     pm_cm,
     recent_breakdowns,
-    critical_risks,
+    critical_risks: critical_open.length,
+    critical_open,
     audit_preview: (store.AUDIT_TRAIL || []).slice(0, 5)
   });
 });
@@ -1529,9 +2261,12 @@ app.get('/dashboard/strategic-export', async (req, res) => {
   }
 
   if (fmt === 'pdf' || fmt === 'print' || fmt === 'html') {
+    const bdSubtotal = breakdowns.reduce((s, b) => s + Number(b.cost_subtotal || b.cost || 24000), 0);
+    const maintSubtotal = tasks.reduce((s, t) => s + Number(t.cost_total || t.cost || 15000), 0);
+    const combinedSub = bdSubtotal + maintSubtotal;
     return res.render('reports/chart_export_print.html', {
       ...baseCtx(req, 'dashboard'),
-      report: {
+      report: buildChartExportReport({
         title: 'Executive Strategic Operations & Reliability Summary',
         subtitle: `Plant-wide KPI performance, active breakdowns, and downtime exposure (${range}).`,
         department: 'Engineering',
@@ -1539,8 +2274,17 @@ app.get('/dashboard/strategic-export', async (req, res) => {
         period_label: `Window: ${range}`,
         scope_label: 'All Plant Sections',
         reported_by: 'Laurence Magondu',
-        generated_label: new Date().toLocaleDateString('en-GB')
-      },
+        cost_subtotal: combinedSub,
+        record_count: breakdowns.length + tasks.length,
+        labels: breakdowns.map(b => b.asset_id || b.breakdown_id),
+        values: breakdowns.map(b => calculateDowntimeHours(b)),
+        unit: 'h',
+        insights: [
+          `Fleet Uptime stands at ${uptime}% across ${assets.length} monitored industrial assets.`,
+          `There are ${activeBds.length} active breakdown incident(s) and ${totalDowntime} cumulative downtime hours across ${breakdowns.length} recorded incidents.`,
+          `Preventive maintenance schedule tracks ${tasks.filter(t => t.status === 'completed').length} completed and ${tasks.filter(t => t.status !== 'completed').length} open/upcoming work orders.`
+        ]
+      }),
       report_kind: 'strategic',
       kpi_records: kpiRecords,
       table_rows: tableRows
@@ -4279,6 +5023,7 @@ app.post('/api/ai/query', async (req, res) => {
   const { action, query } = req.body || {};
   const promptInput = query || action || 'Plant Health Summary';
 
+  const aiClient = getAiClient();
   if (aiClient) {
     try {
       const plantSummary = `
@@ -4286,7 +5031,7 @@ Plant: ${(store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].name) || '
 Total Registered Assets: ${(store.ASSETS || []).length}
 Active Breakdowns: ${(store.BREAKDOWNS || []).filter(b => b.status !== 'closed' && b.status !== 'resolved').length}
 Upcoming Maintenance Tasks: ${(store.MAINTENANCE_TASKS || []).filter(t => t.status !== 'completed').length}
-Low Stock Spare Parts: ${(store.INVENTORY_PARTS || []).filter(p => Number(p.quantity_on_hand || 0) <= Number(p.reorder_level || 0)).length}
+Low Stock Spare Parts: ${(store.INVENTORY_PARTS || []).filter(p => Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) <= Number(p.min_qty !== undefined ? p.min_qty : p.reorder_level || 0)).length}
 Active Breakdowns Detail: ${(store.BREAKDOWNS || []).slice(0, 3).map(b => `${b.asset_name}: ${b.incident_title} (${b.severity})`).join('; ')}
 `;
 
@@ -4298,7 +5043,7 @@ The engineering user has requested: "${promptInput}".
 Provide a concise, professional engineering synthesis (2-3 concise paragraphs or bullet points). Focus on actionable root causes, maintenance adherence, downtime reduction, and spare parts readiness.`;
 
       const response = await aiClient.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: geminiPrompt,
       });
 
@@ -4310,7 +5055,7 @@ Provide a concise, professional engineering synthesis (2-3 concise paragraphs or
         });
       }
     } catch (err) {
-      console.warn('[AI Studio] Gemini query fallback:', err.message);
+      // Fall back silently to deterministic engineering synthesis if rate-limited or offline
     }
   }
 

@@ -1,6 +1,10 @@
 {
   "name": "Opsloom - Engineering Asset & Breakdown Management",
   "description": "Comprehensive maintenance, asset lifecycle, breakdown tracking, and inventory management system.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ],
   "capabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
