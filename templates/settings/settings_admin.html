@@ -9,42 +9,42 @@
 {% include "partials/title_block.html" %}
 
 <div class="max-w-7xl mx-auto space-y-6">
-  <!-- Live System Telemetry KPI Cards -->
+  <!-- Systems & Admin Governance KPI Cards -->
   <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-    <a href="{{ url_for('assets_master_list') }}" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-ueal-purple rounded-xl p-5 shadow-sm transition group">
+    <a href="{{ url_for('admin_users_page') }}" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-ueal-purple rounded-xl p-5 shadow-sm transition group">
       <div class="flex items-center justify-between">
-        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Registered Assets</p>
-        <span class="material-symbols-outlined text-lg text-ueal-purple dark:text-ueal-gold">precision_manufacturing</span>
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Admin &amp; Access Users</p>
+        <span class="material-symbols-outlined text-lg text-ueal-purple dark:text-ueal-gold">manage_accounts</span>
       </div>
-      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ total_assets }}</p>
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ operational_assets }} operational • {{ (maintenance_assets or 0) + (oos_assets or 0) }} attention</p>
+      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ users_count or 1 }}</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ active_users_count or users_count or 1 }} active • {{ companies_count or 2 }} workspaces</p>
     </a>
 
-    <a href="{{ url_for('breakdowns_management') }}" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-ueal-purple rounded-xl p-5 shadow-sm transition group">
+    <a href="{{ url_for('technicians_management') }}" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-ueal-purple rounded-xl p-5 shadow-sm transition group">
       <div class="flex items-center justify-between">
-        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Breakdowns Logged</p>
-        <span class="material-symbols-outlined text-lg text-rose-500">warning</span>
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Technicians Roster</p>
+        <span class="material-symbols-outlined text-lg text-emerald-500">engineering</span>
       </div>
-      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ total_breakdowns }}</p>
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ kpi_active_breakdowns }} active • {{ resolved_breakdowns or (total_breakdowns - kpi_active_breakdowns) }} resolved</p>
+      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ technicians_count or 4 }}</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ active_technicians or technicians_count or 4 }} active • Field &amp; shift leads</p>
     </a>
 
-    <a href="{{ url_for('maintenance_management') }}" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-ueal-purple rounded-xl p-5 shadow-sm transition group">
+    <a href="{{ url_for('audit_trail_page') }}" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-ueal-purple rounded-xl p-5 shadow-sm transition group">
       <div class="flex items-center justify-between">
-        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Maintenance Tasks</p>
-        <span class="material-symbols-outlined text-lg text-amber-500">build_circle</span>
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Security Audit Log</p>
+        <span class="material-symbols-outlined text-lg text-amber-500">policy</span>
       </div>
-      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ total_tasks }}</p>
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ "%.0f"|format(pm_compliance or 83) }}% SLA • {{ overdue_pm }} overdue</p>
+      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ audit_count or 0 }}</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ security_events_count or 0 }} security/admin • Verified trail</p>
     </a>
 
-    <a href="{{ url_for('reports_center') }}" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-ueal-purple rounded-xl p-5 shadow-sm transition group">
+    <a href="{{ url_for('messages_center') }}" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-ueal-purple rounded-xl p-5 shadow-sm transition group">
       <div class="flex items-center justify-between">
-        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Generated Reports</p>
-        <span class="material-symbols-outlined text-lg text-indigo-500">assessment</span>
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Comms &amp; SMTP Hub</p>
+        <span class="material-symbols-outlined text-lg text-indigo-500">forward_to_inbox</span>
       </div>
-      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ total_reports }}</p>
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Ready for PPTX, PDF &amp; Print</p>
+      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ total_messages_count or 1 }}</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ unread_messages_count or 0 }} unread • {{ recipients_count or 1 }} report recipient(s)</p>
     </a>
 
     <a href="/settings/recycle-bin" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-rose-500 rounded-xl p-5 shadow-sm transition group">

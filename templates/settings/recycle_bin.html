@@ -82,7 +82,7 @@
               {{ item.deleted_by or 'Laurence Magondu' }}
             </td>
             <td class="px-6 py-4 text-xs text-slate-500">
-              {{ item.deleted_at_fmt or (item.deleted_at or '')[:16]|replace('T', ' ') }}
+              {{ item.deleted_at_fmt or (item.deleted_at or '')|slice(0, 16)|replace('T', ' ') }}
             </td>
             <td class="px-6 py-4 text-right">
               <div class="inline-flex items-center gap-2">

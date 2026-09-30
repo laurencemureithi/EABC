@@ -1,16 +1,16 @@
 {
   "version": 2,
-  "saved_at": "2026-09-30T07:20:00.000Z",
+  "saved_at": "2026-09-30T11:41:37.520Z",
   "COMPANIES": [
     {
       "id": "comp-001",
-      "name": "Ultravetis East Africa Ltd",
-      "code": "UEAL",
-      "primary_color": "#7E22CE",
-      "secondary_color": "#F59E0B",
+      "name": "Opsloom Kenya",
+      "code": "OPS",
+      "primary_color": "#3700ff",
+      "secondary_color": "#0ea5e9",
       "logo_light_url": "/static/brand/ultravetis_logo.png",
       "logo_dark_url": "/static/brand/opsloom_wordmark_light.png",
-      "show_name_next_to_logo": false,
+      "show_name_next_to_logo": true,
       "logo_height": 48,
       "logo_width_pct": 88,
       "logo_alignment": "left",
@@ -24,13 +24,13 @@
     },
     {
       "id": "comp-002",
-      "name": "Opsloom Industrial Core",
-      "code": "OPSL",
-      "primary_color": "#1554FF",
-      "secondary_color": "#10B981",
+      "name": "Ultravetis East Africa Limited",
+      "code": "UEAL",
+      "primary_color": "#7e008f",
+      "secondary_color": "#ffbb00",
       "logo_light_url": "/static/brand/opsloom_wordmark_light.png",
       "logo_dark_url": "/static/brand/opsloom_wordmark_light.png",
-      "show_name_next_to_logo": false,
+      "show_name_next_to_logo": true,
       "logo_height": 48,
       "logo_width_pct": 88,
       "logo_alignment": "left",
@@ -151,6 +151,102 @@
       "power_rating": "22 kW",
       "supplier": "AgroMachinery EA",
       "technical_notes": "Rotary batch seed treater with peristaltic dosing pump."
+    },
+    {
+      "uid": "asset-007",
+      "asset_id": "ENG-AST-0107",
+      "asset_name": "Automated Seed Coating Drum SCD-01",
+      "section": "Seeds",
+      "department": "Engineering",
+      "status": "operational",
+      "criticality": "B",
+      "serial_no": "SCD-2022-884",
+      "manufacturer": "Cimbria",
+      "model_number": "CC-250",
+      "installation_date": "2022-05-14",
+      "power_rating": "22 kW",
+      "supplier": "AgriEquip Kenya",
+      "technical_notes": "Continuous rotary seed treater with peristaltic dosing pumps."
+    },
+    {
+      "uid": "asset-008",
+      "asset_id": "ENG-AST-0108",
+      "asset_name": "Optical Seed Sorter & Grader OSG-03",
+      "section": "Seeds",
+      "department": "Engineering",
+      "status": "operational",
+      "criticality": "C",
+      "serial_no": "OSG-2023-309",
+      "manufacturer": "Buhler Sortex",
+      "model_number": "Sortex A",
+      "installation_date": "2023-04-02",
+      "power_rating": "12 kW",
+      "supplier": "Buhler East Africa",
+      "technical_notes": "Multi-chromatic optical camera sorter with pneumatic ejectors."
+    },
+    {
+      "uid": "asset-009",
+      "asset_id": "ENG-AST-0109",
+      "asset_name": "Blister Packaging Line BPL-04",
+      "section": "Nutraceuticals",
+      "department": "Engineering",
+      "status": "operational",
+      "criticality": "B",
+      "serial_no": "BPL-2021-771",
+      "manufacturer": "Uhlmann",
+      "model_number": "BEC-300",
+      "installation_date": "2021-11-28",
+      "power_rating": "30 kW",
+      "supplier": "Bosch Kenya Ltd",
+      "technical_notes": "Thermoforming blister packager and integrated cartoner."
+    },
+    {
+      "uid": "asset-010",
+      "asset_id": "ENG-AST-0110",
+      "asset_name": "Standby Diesel Generator 750kVA DG-01",
+      "section": "Premises",
+      "department": "Engineering",
+      "status": "operational",
+      "criticality": "A",
+      "serial_no": "CAT-750-8821",
+      "manufacturer": "Caterpillar",
+      "model_number": "C27-750",
+      "installation_date": "2019-07-01",
+      "power_rating": "600 kW",
+      "supplier": "Mantrac Kenya",
+      "technical_notes": "Prime backup power generator with automatic transfer switch (ATS)."
+    },
+    {
+      "uid": "asset-011",
+      "asset_id": "ENG-AST-0111",
+      "asset_name": "Reverse Osmosis Water Purification RO-01",
+      "section": "Pharma",
+      "department": "Engineering",
+      "status": "operational",
+      "criticality": "A",
+      "serial_no": "RO-2022-410",
+      "manufacturer": "Veolia Water Tech",
+      "model_number": "Orion-4000",
+      "installation_date": "2022-02-10",
+      "power_rating": "15 kW",
+      "supplier": "Davis & Shirtliff",
+      "technical_notes": "USP purified water loop with EDI and UV sanitization."
+    },
+    {
+      "uid": "asset-012",
+      "asset_id": "ENG-AST-0112",
+      "asset_name": "Rotary Screw Air Compressor SAC-02",
+      "section": "Premises",
+      "department": "Engineering",
+      "status": "degraded",
+      "criticality": "B",
+      "serial_no": "AC-GA55-992",
+      "manufacturer": "Atlas Copco",
+      "model_number": "GA-55VSD+",
+      "installation_date": "2020-10-15",
+      "power_rating": "55 kW",
+      "supplier": "Atlas Copco Eastern Africa",
+      "technical_notes": "Plant-wide instrument air supply. Scheduled separator element change."
     }
   ],
   "BREAKDOWNS": [
@@ -232,7 +328,7 @@
       "reported_time": "11:00",
       "resolved_at": "2026-09-25 13:00",
       "duration_mins": 120,
-      "downtime_hours": 2.0,
+      "downtime_hours": 2,
       "cost_subtotal": 18000,
       "cost_vat_pct": 16,
       "cost_vat_amount": 2880,
@@ -349,7 +445,7 @@
       "reported_time": "10:00",
       "resolved_at": "2026-09-10 12:00",
       "duration_mins": 120,
-      "downtime_hours": 2.0,
+      "downtime_hours": 2,
       "cost_subtotal": 22000,
       "cost_vat_pct": 16,
       "cost_vat_amount": 3520,
@@ -611,6 +707,51 @@
       "is_critical": true,
       "lead_time_days": 5,
       "created_at": "2026-08-20T08:00:00"
+    },
+    {
+      "uid": "part-006",
+      "part_name": "SKF Deep Groove Ball Bearing 6309-2RS1",
+      "sku": "SKU-BRG-6309",
+      "category": "Bearings",
+      "qty": 12,
+      "min_qty": 6,
+      "target_qty": 16,
+      "storage_location": "Bin B-02",
+      "unit_price": 6800,
+      "supplier": "SKF Authorized Kenya",
+      "is_critical": true,
+      "lead_time_days": 4,
+      "created_at": "2026-08-22T08:00:00"
+    },
+    {
+      "uid": "part-007",
+      "part_name": "Food-Grade Synthetic Gear Oil ISO VG 220 (20L)",
+      "sku": "SKU-LUB-VG220",
+      "category": "Lubricants",
+      "qty": 8,
+      "min_qty": 4,
+      "target_qty": 10,
+      "storage_location": "Lubricant Store L-01",
+      "unit_price": 24500,
+      "supplier": "TotalEnergies Marketing Kenya",
+      "is_critical": false,
+      "lead_time_days": 3,
+      "created_at": "2026-08-25T08:00:00"
+    },
+    {
+      "uid": "part-008",
+      "part_name": "PTFE Diaphragm Repair Kit 2-Inch",
+      "sku": "SKU-KIT-PTFE2",
+      "category": "Mechanical",
+      "qty": 3,
+      "min_qty": 4,
+      "target_qty": 8,
+      "storage_location": "Bin M-19",
+      "unit_price": 15200,
+      "supplier": "Davis & Shirtliff",
+      "is_critical": true,
+      "lead_time_days": 10,
+      "created_at": "2026-08-28T08:00:00"
     }
   ],
   "SPARE_PARTS": [],
@@ -728,6 +869,54 @@
     }
   ],
   "AUDIT_TRAIL": [
+    {
+      "id": "be230bd3869f424e8f742f74a92e4f4d",
+      "action": "Workspace Switched",
+      "detail": "Switched active workspace to Ultravetis East Africa Limited (UEAL)",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/companies",
+      "created_at": "2026-09-30T11:41:37.520Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "261b32ba305d4b28aa8775e6446e63fa",
+      "action": "Company Workspace Updated",
+      "detail": "Updated branding for Opsloom Kenya",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/companies",
+      "created_at": "2026-09-30T10:34:09.068Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "bfdc1bf73a594f2fae20cc12844ea07e",
+      "action": "Company Workspace Updated",
+      "detail": "Updated branding for Ultravetis East Africa Limited",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/companies",
+      "created_at": "2026-09-30T10:33:15.298Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "934617b640ba41a3babe102dd3d5b958",
+      "action": "Company Workspace Updated",
+      "detail": "Updated branding for Ultravetis East Africa Limited",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/companies",
+      "created_at": "2026-09-30T10:32:41.330Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
     {
       "id": "audit-001",
       "action": "Breakdown Incident Logged",
@@ -905,12 +1094,140 @@
       "body": "Your administrator workspace is ready. Use Admin Credentials & Users to control access, messages, and audit visibility.",
       "attachments": [],
       "created_at": "2026-09-29T10:00:00.000Z",
-      "is_read_by": [],
+      "is_read_by": [
+        "opsloom.ke@gmail.com"
+      ],
       "forwarded_from": "",
       "delivery_status": "sent",
       "sent_at": "2026-09-29T10:00:00.000Z"
     }
   ],
   "DRAFT_MESSAGES": [],
-  "OUTBOX_MESSAGES": []
+  "OUTBOX_MESSAGES": [],
+  "RECYCLE_BIN": [],
+  "AI_CHATS": [
+    {
+      "id": "chat-1790765413033",
+      "title": "Opsloom AI: DIAGNOSE FLEET",
+      "prompt": "diagnose_fleet",
+      "query": "diagnose_fleet",
+      "summary": "",
+      "metrics": [
+        {
+          "label": "Fleet Availability",
+          "value": "98.4%"
+        },
+        {
+          "label": "Active Faults",
+          "value": "2"
+        },
+        {
+          "label": "Low Stock Spares",
+          "value": "4"
+        }
+      ],
+      "sections": [
+        {
+          "heading": "AI Engineering Synthesis",
+          "items": [
+            "EXECUTIVE SUMMARY:",
+            "Opsloom Kenya is currently operating at compromised capacity with two high-priority breakdowns and a growing maintenance backlog. Immediate intervention is required on the Granulation Fluid Bed Dryer (FBD-01) and Centrifugal Slurry Pump (CP-04) to prevent cascading system failures and secondary motor damage.",
+            "KEY TELEMETRY FINDINGS:",
+            "• **Thermal & Mechanical Degradation (FBD-01):** Critical overheating in the blower motor is directly correlated with V-belt slippage, leading to inefficient torque transfer and reduced airflow in the granulation process.",
+            "• **Fluid Containment Loss (CP-04):** Active gland weeping at the mechanical seal has resulted in a measurable discharge pressure drop, signaling imminent seal failure and potential slurry contamination of the bearing housing.",
+            "• **Reliability Backlog Stress:** With 16.6% of the fleet in breakdown status and 33% of upcoming tasks overdue, the plant's reliability margin is currently below the acceptable engineering threshold.",
+            "RECOMMENDED ENGINEERING ACTIONS:",
+            "1. **Immediate Overhaul of FBD-01 Drive Train:** Perform Lockout-Tagout (LOTO) to replace the worn V-belts, check pulley alignment using laser tools, and conduct an insulation resistance test (Megger) on the motor to assess thermal damage.",
+            "2. **Seal Integrity Restoration for CP-04:** Deploy a mechanical seal replacement kit immediately; simultaneously verify if the required seal or gland packing is among the 4 low-stock items to ensure zero-delay procurement."
+          ]
+        }
+      ],
+      "analysis": "EXECUTIVE SUMMARY: \nOpsloom Kenya is currently operating at compromised capacity with two high-priority breakdowns and a growing maintenance backlog. Immediate intervention is required on the Granulation Fluid Bed Dryer (FBD-01) and Centrifugal Slurry Pump (CP-04) to prevent cascading system failures and secondary motor damage.\n\nKEY TELEMETRY FINDINGS:\n• **Thermal & Mechanical Degradation (FBD-01):** Critical overheating in the blower motor is directly correlated with V-belt slippage, leading to inefficient torque transfer and reduced airflow in the granulation process.\n• **Fluid Containment Loss (CP-04):** Active gland weeping at the mechanical seal has resulted in a measurable discharge pressure drop, signaling imminent seal failure and potential slurry contamination of the bearing housing.\n• **Reliability Backlog Stress:** With 16.6% of the fleet in breakdown status and 33% of upcoming tasks overdue, the plant's reliability margin is currently below the acceptable engineering threshold.\n\nRECOMMENDED ENGINEERING ACTIONS:\n1. **Immediate Overhaul of FBD-01 Drive Train:** Perform Lockout-Tagout (LOTO) to replace the worn V-belts, check pulley alignment using laser tools, and conduct an insulation resistance test (Megger) on the motor to assess thermal damage.\n2. **Seal Integrity Restoration for CP-04:** Deploy a mechanical seal replacement kit immediately; simultaneously verify if the required seal or gland packing is among the 4 low-stock items to ensure zero-delay procurement.",
+      "created_at": "2026-09-30T10:50:13.033Z",
+      "chat_id": "chat-1790765413033",
+      "created_at_fmt": "30 Sept 2026, 10:50",
+      "timestamp": "10:50 AM",
+      "structured": {
+        "summary": "Structured plant telemetry and reliability synthesis.",
+        "metrics": [
+          {
+            "label": "Fleet Availability",
+            "value": "98.4%"
+          },
+          {
+            "label": "Active Faults",
+            "value": "2"
+          },
+          {
+            "label": "Low Stock Spares",
+            "value": "4"
+          }
+        ],
+        "sections": [
+          {
+            "heading": "AI Engineering Synthesis",
+            "items": [
+              "EXECUTIVE SUMMARY:",
+              "Opsloom Kenya is currently operating at compromised capacity with two high-priority breakdowns and a growing maintenance backlog. Immediate intervention is required on the Granulation Fluid Bed Dryer (FBD-01) and Centrifugal Slurry Pump (CP-04) to prevent cascading system failures and secondary motor damage.",
+              "KEY TELEMETRY FINDINGS:",
+              "• **Thermal & Mechanical Degradation (FBD-01):** Critical overheating in the blower motor is directly correlated with V-belt slippage, leading to inefficient torque transfer and reduced airflow in the granulation process.",
+              "• **Fluid Containment Loss (CP-04):** Active gland weeping at the mechanical seal has resulted in a measurable discharge pressure drop, signaling imminent seal failure and potential slurry contamination of the bearing housing.",
+              "• **Reliability Backlog Stress:** With 16.6% of the fleet in breakdown status and 33% of upcoming tasks overdue, the plant's reliability margin is currently below the acceptable engineering threshold.",
+              "RECOMMENDED ENGINEERING ACTIONS:",
+              "1. **Immediate Overhaul of FBD-01 Drive Train:** Perform Lockout-Tagout (LOTO) to replace the worn V-belts, check pulley alignment using laser tools, and conduct an insulation resistance test (Megger) on the motor to assess thermal damage.",
+              "2. **Seal Integrity Restoration for CP-04:** Deploy a mechanical seal replacement kit immediately; simultaneously verify if the required seal or gland packing is among the 4 low-stock items to ensure zero-delay procurement."
+            ]
+          }
+        ],
+        "recommendations": [
+          "Execute scheduled preventive maintenance before line turnover.",
+          "Verify critical spare parts buffer in the MRO Inventory Register."
+        ]
+      }
+    },
+    {
+      "id": "chat-seed-001",
+      "title": "Plant Health & Seal Wear Audit",
+      "updated_at": "30 Sept, 09:16",
+      "messages": [
+        {
+          "role": "user",
+          "text": "Run a full Plant Health & OEE Audit across all sections",
+          "time": "09:15"
+        },
+        {
+          "role": "ai",
+          "title": "Plant Health & OEE Audit",
+          "structured": {
+            "summary": "Fleet reliability stands at 83.3% operational readiness across 12 registered industrial assets, with 2 active corrective work orders in Pharma and Nutraceuticals.",
+            "metrics": [
+              {
+                "label": "Fleet Availability",
+                "value": "94.2%"
+              },
+              {
+                "label": "PM Compliance",
+                "value": "87.5%"
+              },
+              {
+                "label": "Mean Time To Repair",
+                "value": "1.8 hrs"
+              }
+            ],
+            "findings": [
+              "High-Speed Rotary Filler RFC-80 and Steam Boiler SB-02 are operating within nominal thermal and vibration envelopes.",
+              "Granulation Fluid Bed Dryer FBD-01 requires pneumatic actuator seal replacement to restore full batch cycle pressure.",
+              "Centrifugal Slurry Pump CP-04 exhibits mild impeller cavitation; scheduled bearing & seal kit overhaul is staged."
+            ],
+            "recommendations": [
+              "Prioritize closure of BD-2026-001 on Granulation Fluid Bed Dryer FBD-01 before afternoon shift handover.",
+              "Replenish Solid State Relay 40A (SKU-ELEC-SSR40) and Pneumatic Cylinder DNC-40 (SKU-PNEU-CYL40) to restore safety buffer stock."
+            ]
+          },
+          "time": "09:15"
+        }
+      ]
+    }
+  ],
+  "ACTIVE_COMPANY_ID": "comp-002"
 }

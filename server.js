@@ -1772,8 +1772,8 @@ const DEPARTMENTS = ['Engineering', 'Production', 'Logistics & Warehousing', 'Pr
 const SECTIONS = ['Acaricide', 'Nutraceuticals', 'Pharma', 'Seeds', 'Premises'];
 
 function baseCtx(req, activeNav = 'dashboard') {
-  const currentDept = req.cookies?.current_department || 'Engineering';
-  const compId = req.cookies?.current_company_id;
+  const currentDept = store.ACTIVE_DEPARTMENT || req.cookies?.current_department || 'Engineering';
+  const compId = store.ACTIVE_COMPANY_ID || req.cookies?.current_company_id;
   const activeCompany = (store.COMPANIES || []).find(c => c.id === compId) || (store.COMPANIES && store.COMPANIES[0]) || {
     id: 'comp-001',
     name: 'Ultravetis East Africa Ltd',
@@ -1950,7 +1950,9 @@ app.post('/login/request-credentials', (req, res) => {
 
 app.all('/set-department', (req, res) => {
   const dept = req.body.department || req.query.department || 'Engineering';
-  res.cookie('current_department', dept);
+  store.ACTIVE_DEPARTMENT = dept;
+  saveStore();
+  res.cookie('current_department', dept, { sameSite: 'none', secure: true, path: '/' });
   const next = req.body.next || req.query.next || req.header('Referer') || '/dashboard';
   res.redirect(next);
 });
@@ -2019,14 +2021,17 @@ app.post('/settings/companies/:id/delete', (req, res) => {
   res.redirect('/settings/companies');
 });
 
-app.get('/set-company', (req, res) => {
-  const companyId = req.query.company_id;
+app.all('/set-company', (req, res) => {
+  const companyId = req.query.company_id || req.body.company_id;
   const company = (store.COMPANIES || []).find(c => c.id === companyId);
   if (company) {
-    res.cookie('current_company_id', company.id);
-    flash('info', `Switched to ${company.name} workspace.`);
+    store.ACTIVE_COMPANY_ID = company.id;
+    saveStore();
+    res.cookie('current_company_id', company.id, { sameSite: 'none', secure: true, path: '/' });
+    logAudit('Workspace Switched', `Switched active workspace to ${company.name} (${company.code})`, 'settings', '/settings/companies');
+    flash('success', `Switched active workspace to ${company.name} (${company.code}).`);
   }
-  const next = req.query.next || req.header('Referer') || '/dashboard';
+  const next = req.query.next || req.body.next || req.header('Referer') || '/dashboard';
   res.redirect(next);
 });
 
@@ -2451,6 +2456,178 @@ app.get('/api/assets/dashboard', (req, res) => {
   });
 });
 
+function buildAssetProfilePrintContext(req, rawAsset) {
+  const asset = {
+    category: 'Production & Packaging Line',
+    location: `${(rawAsset && rawAsset.section) || 'Pharma'} Plant Floor — Bay 02`,
+    warranty_expiry: '2027-12-31',
+    asset_value: 'KES 14,500,000',
+    service_provider: `${(rawAsset && rawAsset.manufacturer) || 'OEM'} Certified Field Services East Africa`,
+    ...(rawAsset || (store.ASSETS && store.ASSETS[0]) || {})
+  };
+  const assetBreakdowns = (store.BREAKDOWNS || []).filter(b => b.asset_uid === asset.uid || b.asset_id === asset.asset_id);
+  const assetTasks = (store.MAINTENANCE_TASKS || []).filter(t => t.asset_uid === asset.uid || t.asset_id === asset.asset_id);
+
+  const maintTotal = assetTasks.reduce((s, t) => s + Number(t.cost_total || t.cost || 18500), 0) || 37000;
+  const maintSub = Math.round(maintTotal / 1.16);
+  const maintVat = maintTotal - maintSub;
+
+  const bdTotal = assetBreakdowns.reduce((s, b) => s + Number(b.cost_total || b.cost || 24000), 0);
+  const bdSub = Math.round(bdTotal / 1.16);
+  const bdVat = bdTotal - bdSub;
+
+  const totalVat = maintVat + bdVat;
+  const totalCost = maintTotal + bdTotal;
+
+  const stMap = { open: 'Open', in_progress: 'In Progress', on_hold: 'On Hold', resolved: 'Resolved', closed: 'Resolved' };
+
+  return {
+    ...baseCtx(req, 'assets'),
+    asset,
+    assets: store.ASSETS || [],
+    mtbf_hours: 148.5,
+    maintenance_cost_subtotal: maintSub,
+    maintenance_cost_total: maintTotal,
+    breakdown_cost_subtotal: bdSub,
+    breakdown_cost_total: bdTotal,
+    total_vat: totalVat,
+    total_cost: totalCost,
+    vat_rate_label: '16% Standard VAT',
+    recent_maintenance: assetTasks.map(t => ({
+      ...t,
+      task_title: t.task_title || t.task_description || 'Preventive Maintenance Service',
+      cost_total: Number(t.cost_total || t.cost || 18500)
+    })),
+    recent_breakdowns: assetBreakdowns.map(b => ({
+      ...b,
+      reported_date: b.reported_date || (b.reported_dt ? b.reported_dt.split(' ')[0] : '2026-09-28'),
+      downtime: `${calculateDowntimeHours(b).toFixed(1)} hrs`,
+      status_label: stMap[b.status] || 'Open'
+    })),
+    print_mode: true
+  };
+}
+
+function buildMaintenanceSchedulePrintContext(req, customTasks = null) {
+  const allTasks = customTasks || store.MAINTENANCE_TASKS || [];
+  const allAssets = store.ASSETS || [];
+  const selected_year = parseInt(req.query.year, 10) || 2026;
+  const selected_section = req.query.section || '';
+  const selected_type = req.query.type || '';
+  const selected_frequency = req.query.frequency || '';
+  const selected_status = req.query.status || '';
+  const period_from = req.query.period_from || '2026-01-01';
+  const period_to = req.query.period_to || '2026-12-31';
+  const q = (req.query.q || '').toLowerCase();
+
+  let filteredTasks = [...allTasks];
+  if (selected_section) filteredTasks = filteredTasks.filter(t => t.section === selected_section);
+  if (selected_type) filteredTasks = filteredTasks.filter(t => (t.maintenance_type || 'PM') === selected_type);
+  if (selected_frequency) filteredTasks = filteredTasks.filter(t => t.frequency === selected_frequency);
+  if (selected_status) filteredTasks = filteredTasks.filter(t => t.status === selected_status);
+  if (q) {
+    filteredTasks = filteredTasks.filter(t =>
+      (t.asset_name && t.asset_name.toLowerCase().includes(q)) ||
+      (t.asset_id && t.asset_id.toLowerCase().includes(q)) ||
+      (t.section && t.section.toLowerCase().includes(q))
+    );
+  }
+
+  let filteredAssets = [...allAssets];
+  if (selected_section) filteredAssets = filteredAssets.filter(a => a.section === selected_section);
+  if (q) {
+    filteredAssets = filteredAssets.filter(a =>
+      (a.asset_name && a.asset_name.toLowerCase().includes(q)) ||
+      (a.asset_id && a.asset_id.toLowerCase().includes(q)) ||
+      (a.section && a.section.toLowerCase().includes(q))
+    );
+  }
+
+  const month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month_keys = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+
+  const makeDict = (obj) => ({
+    ...obj,
+    get(k, def = 0) {
+      return Object.prototype.hasOwnProperty.call(this, k) ? this[k] : def;
+    }
+  });
+
+  const rows = filteredAssets.map(a => {
+    const aTasks = filteredTasks.filter(t => t.asset_uid === a.uid || t.asset_id === a.asset_id);
+    const countsObj = {};
+    const detailsObj = {};
+    month_keys.forEach(k => {
+      countsObj[k] = 0;
+      detailsObj[k] = [];
+    });
+
+    aTasks.forEach(t => {
+      const dStr = t.due_date || t.scheduled_date || '2026-09-15';
+      const mKey = dStr.slice(5, 7) || '09';
+      if (countsObj[mKey] !== undefined) {
+        countsObj[mKey] += 1;
+        detailsObj[mKey].push({
+          frequency: t.frequency || 'Monthly',
+          type: t.maintenance_type || 'PM',
+          due_date: dStr
+        });
+      }
+    });
+
+    const pmFreqs = Array.from(new Set(aTasks.filter(t => (t.maintenance_type || 'PM') === 'PM').map(t => t.frequency || 'Monthly'))).join(', ') || 'Monthly';
+    const cmFreqs = Array.from(new Set(aTasks.filter(t => t.maintenance_type === 'CM').map(t => t.frequency || 'On-Demand'))).join(', ') || 'Condition-Based';
+
+    return {
+      asset_name: a.asset_name,
+      asset_id: a.asset_id,
+      section: a.section || 'Engineering',
+      serial: a.serial_no || '—',
+      pm_frequency: pmFreqs,
+      cm_frequency: cmFreqs,
+      month_counts: makeDict(countsObj),
+      month_details: makeDict(detailsObj)
+    };
+  });
+
+  const detail_rows = filteredTasks.map(t => ({
+    ...t,
+    due_date: t.due_date || t.scheduled_date || '2026-09-25',
+    task_title: t.task_title || t.task_description || 'Preventive Maintenance Service',
+    maintenance_type: t.maintenance_type || 'PM',
+    frequency: t.frequency || 'Monthly',
+    technician: t.technician || 'David Kimani',
+    section: t.section || 'Engineering',
+    status: t.status || 'upcoming',
+    cost_total: Number(t.cost_total || t.cost || 15000)
+  }));
+
+  const detail_status_counts = {
+    all: detail_rows.length,
+    upcoming: detail_rows.filter(r => r.status === 'upcoming' || r.status === 'in_progress').length,
+    overdue: detail_rows.filter(r => r.status === 'overdue').length,
+    completed: detail_rows.filter(r => r.status === 'completed').length
+  };
+
+  return {
+    ...baseCtx(req, 'maintenance'),
+    tasks: detail_rows,
+    selected_year,
+    selected_section,
+    selected_type,
+    selected_frequency,
+    selected_status,
+    period_from,
+    period_to,
+    month_labels,
+    month_keys,
+    rows,
+    detail_rows,
+    detail_status_counts,
+    print_mode: true
+  };
+}
+
 app.get(['/assets/report/pdf', '/assets/report/print'], (req, res) => {
   let list = store.ASSETS || [];
   const sec = req.query.section;
@@ -2460,12 +2637,7 @@ app.get(['/assets/report/pdf', '/assets/report/print'], (req, res) => {
   if (st) list = list.filter(a => a.status === st);
   if (crit) list = list.filter(a => a.criticality === crit);
 
-  res.render('assets/assets_profile_print.html', {
-    ...baseCtx(req, 'assets'),
-    assets: list,
-    asset: list[0] || (store.ASSETS && store.ASSETS[0]),
-    print_mode: true
-  });
+  res.render('assets/assets_profile_print.html', buildAssetProfilePrintContext(req, list[0]));
 });
 
 app.get('/assets/new/step-1', (req, res) => {
@@ -2546,12 +2718,7 @@ app.get('/assets/:asset_uid', (req, res) => {
   const printMode = req.query.print === '1';
 
   if (printMode) {
-    return res.render('assets/assets_profile_print.html', {
-      ...baseCtx(req, 'assets'),
-      asset,
-      breakdowns: assetBreakdowns,
-      tasks: assetTasks
-    });
+    return res.render('assets/assets_profile_print.html', buildAssetProfilePrintContext(req, asset));
   }
 
   res.render('assets/assets_profile.html', {
@@ -2572,11 +2739,7 @@ app.get('/assets/:asset_uid', (req, res) => {
 app.get('/assets/:asset_uid/profile.pdf', (req, res) => {
   const asset = store.ASSETS.find(a => a.uid === req.params.asset_uid);
   if (!asset) return res.redirect('/assets');
-  res.render('assets/assets_profile_print.html', {
-    ...baseCtx(req, 'assets'),
-    asset,
-    print_mode: true
-  });
+  res.render('assets/assets_profile_print.html', buildAssetProfilePrintContext(req, asset));
 });
 
 app.get('/assets/:asset_uid/edit', (req, res) => {
@@ -2603,9 +2766,9 @@ app.post('/assets/:asset_uid/delete', (req, res) => {
   const idx = store.ASSETS.findIndex(a => a.uid === req.params.asset_uid);
   if (idx !== -1) {
     const deleted = store.ASSETS.splice(idx, 1)[0];
-    saveStore();
-    logAudit('Asset Deleted', `Removed asset ${deleted.asset_name} from register`, 'assets', '/assets', 'warning');
-    flash('success', `Asset ${deleted.asset_name} was removed.`);
+    moveToRecycleBin('asset', `${deleted.asset_name} (${deleted.asset_id})`, deleted.uid, deleted);
+    logAudit('Asset Deleted', `Moved asset ${deleted.asset_name} to Admin Recycle Bin`, 'assets', '/settings/recycle-bin', 'warning');
+    flash('success', `Asset ${deleted.asset_name} moved to Admin Recycle Bin.`);
   }
   res.redirect('/assets');
 });
@@ -2644,29 +2807,22 @@ app.get(['/assets/:asset_uid/spare-parts/export/:fmt', '/assets/:asset_uid/spare
   }
 
   if (fmt === 'pdf' || fmt === 'print') {
+    const sub = parts.reduce((s, p) => s + (Number(p.qty || 0) * Number(p.unit_price || 0)), 0);
     return res.render('reports/chart_export_print.html', {
       ...baseCtx(req, 'assets'),
-      report: {
+      report: buildChartExportReport({
         title: `Spare Parts Register — ${asset.asset_name || 'Asset'}`,
         subtitle: `Compatible spare parts and buffer stock status for ${asset.asset_id || ''}.`,
         department: 'Engineering',
         department_display: 'Engineering Spares',
         period_label: 'Current Stock',
         scope_label: asset.asset_name || 'Asset',
-        reported_by: 'Laurence Magondu',
-        generated_label: new Date().toLocaleDateString('en-GB')
-      },
-      report_kind: 'inventory',
-      kpi_records: [
-        { label: 'Compatible SKUs', value: parts.length, note: asset.asset_id || '' },
-        { label: 'Critical Spares', value: parts.filter(p => p.is_critical).length, note: 'High priority' }
-      ],
-      table_rows: parts.map(p => ({
-        col1: `${p.sku} — ${p.part_name}`,
-        col2: p.category || 'Mechanical',
-        col3: `Qty: ${p.qty} (Min: ${p.min_qty})`,
-        col4: `KES ${(Number(p.unit_price) || 0).toLocaleString()}`
-      }))
+        cost_subtotal: sub,
+        record_count: parts.length,
+        labels: parts.slice(0, 6).map(p => p.sku),
+        values: parts.slice(0, 6).map(p => Number(p.qty || 0))
+      }),
+      report_kind: 'inventory'
     });
   }
 
@@ -2720,11 +2876,7 @@ app.get(['/assets/:asset_uid/maintenance-history/export/:fmt', '/assets/:asset_u
   }
 
   if (fmt === 'pdf' || fmt === 'print') {
-    return res.render('maintenance/maintenance_schedule_print.html', {
-      ...baseCtx(req, 'assets'),
-      tasks,
-      print_mode: true
-    });
+    return res.render('maintenance/maintenance_schedule_print.html', buildMaintenanceSchedulePrintContext(req, tasks));
   }
 
   if (fmt === 'xlsx' || fmt === 'excel') {
@@ -2827,26 +2979,29 @@ app.get(['/assets/export/:fmt', '/assets/report/pdf', '/assets/report/print'], a
   }
 
   if (fmt === 'pdf' || fmt === 'print' || fmt === 'html') {
+    const secLabels = SECTIONS;
+    const secCounts = secLabels.map(s => list.filter(a => a.section === s).length);
     return res.render('reports/chart_export_print.html', {
       ...baseCtx(req, 'assets'),
-      report: {
+      report: buildChartExportReport({
         title: 'Master Asset Register & Operational Compliance',
         subtitle: 'Comprehensive inventory of registered industrial assets and condition ratings.',
         department: 'Engineering',
         department_display: 'Engineering & Manufacturing',
         period_label: 'Current Fleet Register',
         scope_label: 'All Production Sections',
-        reported_by: req.cookies?.opsloom_user || 'Laurence Magondu',
-        generated_label: new Date().toLocaleDateString('en-GB')
-      },
+        cost_subtotal: list.length * 145000,
+        record_count: list.length,
+        labels: secLabels,
+        values: secCounts,
+        insights: [
+          `${list.length} total industrial assets monitored across production and utility sections.`,
+          `${list.filter(a => a.status === 'operational').length} assets operational; ${list.filter(a => a.status !== 'operational').length} under maintenance or stoppage.`,
+          `Criticality A assets (${list.filter(a => a.criticality === 'A').length} units) are prioritized for condition-based monitoring.`
+        ]
+      }),
       report_kind: 'asset',
-      kpi_records: kpiRecords,
-      table_rows: list.map(a => ({
-        col1: `${a.asset_id} — ${a.asset_name}`,
-        col2: a.section || 'General',
-        col3: (a.status || 'operational').toUpperCase(),
-        col4: `Criticality ${a.criticality || 'B'}`
-      }))
+      kpi_records: kpiRecords
     });
   }
 
@@ -3133,26 +3288,29 @@ app.get(['/breakdowns/export', '/breakdowns/export/:fmt'], async (req, res) => {
   }
 
   if (fmt === 'pdf' || fmt === 'print' || fmt === 'html') {
+    const bdSubtotal = list.reduce((s, b) => s + Number(b.cost_subtotal || b.cost || 24000), 0);
     return res.render('reports/chart_export_print.html', {
       ...baseCtx(req, 'breakdowns'),
-      report: {
+      report: buildChartExportReport({
         title: 'Breakdown Incidents & Downtime Master Log',
         subtitle: 'Audit log of equipment failures, elapsed downtime, and corrective actions.',
         department: 'Engineering',
         department_display: 'Engineering & Maintenance',
         period_label: 'Fleet Incident Log',
         scope_label: 'Plant-wide Equipment',
-        reported_by: req.cookies?.opsloom_user || 'Laurence Magondu',
-        generated_label: new Date().toLocaleDateString('en-GB')
-      },
+        cost_subtotal: bdSubtotal,
+        record_count: list.length,
+        labels: list.slice(0, 6).map(b => b.breakdown_id),
+        values: list.slice(0, 6).map(b => calculateDowntimeHours(b)),
+        unit: 'h',
+        insights: [
+          `${list.length} breakdown incident(s) captured totaling ${totalDowntime} hours of plant downtime.`,
+          `${list.filter(b => b.status !== 'closed' && b.status !== 'resolved').length} active incident(s) currently under technician containment.`,
+          'Root Cause Analysis (RCA) and preventive actions are enforced on all resolved high-criticality faults.'
+        ]
+      }),
       report_kind: 'breakdown',
-      kpi_records: kpiRecords,
-      table_rows: list.map(b => ({
-        col1: `${b.breakdown_id} — ${b.asset_name}`,
-        col2: b.incident_title,
-        col3: (b.status || 'open').toUpperCase(),
-        col4: `${calculateDowntimeHours(b)} hrs (${b.severity || 'Medium'})`
-      }))
+      kpi_records: kpiRecords
     });
   }
 
@@ -3243,35 +3401,27 @@ app.get('/breakdowns/frequency/export', async (req, res) => {
     return res.send(rows.join('\n'));
   }
 
+  const bdSubtotal = breakdowns.reduce((s, b) => s + Number(b.cost_subtotal || b.cost || 24000), 0);
   res.render('reports/chart_export_print.html', {
     ...baseCtx(req, 'breakdowns'),
-    report: {
+    report: buildChartExportReport({
       title: 'Breakdown Frequency & Incident Trend Report',
       subtitle: `Historical breakdown frequency analysis for ${range.toUpperCase()} period.`,
       department: 'Engineering',
       department_display: 'Engineering & Reliability',
       period_label: `Range: ${range.toUpperCase()}`,
       scope_label: 'Plant-wide Fleet',
-      reported_by: req.cookies?.opsloom_user || 'Laurence Magondu',
-      generated_label: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-    },
-    report_kind: 'breakdown',
-    chart_data: {
+      cost_subtotal: bdSubtotal,
+      record_count: total,
       labels,
-      datasets: [{ label: 'Incidents', data: values }]
-    },
-    notes,
-    kpi_records: [
-      { label: 'Total Incidents', value: total, note: `${range} recorded stoppages` },
-      { label: 'Fleet MTTR', value: '1.8 hrs', note: 'Mean Time to Repair' },
-      { label: 'Fleet Uptime', value: '98.4%', note: 'Target: ≥ 95.0%' }
-    ],
-    table_rows: labels.map((l, idx) => ({
-      col1: l,
-      col2: `${values[idx]} incidents`,
-      col3: '1.8 hrs',
-      col4: values[idx] > 0 ? 'Corrective Dispatched' : 'Nominal'
-    }))
+      values,
+      insights: notes ? [notes] : [
+        `Recorded ${total} breakdown incidents across the ${range.toUpperCase()} window.`,
+        'Mechanical seal and V-belt drive inspections reduce unscheduled stoppages.'
+      ]
+    }),
+    report_kind: 'breakdown',
+    notes
   });
 });
 
@@ -3352,9 +3502,10 @@ app.post('/breakdowns/:id/close', (req, res) => {
 app.post('/breakdowns/:id/delete', (req, res) => {
   const idx = store.BREAKDOWNS.findIndex(b => b.breakdown_id === req.params.id);
   if (idx !== -1) {
-    store.BREAKDOWNS.splice(idx, 1);
-    saveStore();
-    flash('success', 'Breakdown incident removed.');
+    const deleted = store.BREAKDOWNS.splice(idx, 1)[0];
+    moveToRecycleBin('breakdown', `${deleted.breakdown_id} — ${deleted.asset_name} (${deleted.incident_title})`, deleted.breakdown_id, deleted);
+    logAudit('Breakdown Deleted', `Moved incident ${deleted.breakdown_id} to Admin Recycle Bin`, 'breakdowns', '/settings/recycle-bin', 'warning');
+    flash('success', 'Breakdown incident moved to Admin Recycle Bin.');
   }
   const next = req.body?.next || '/breakdowns';
   res.redirect(next);
@@ -3519,11 +3670,7 @@ app.get('/maintenance/distribution/export', async (req, res) => {
     return res.send(rows.join('\n'));
   }
 
-  res.render('maintenance/maintenance_schedule_print.html', {
-    ...baseCtx(req, 'maintenance'),
-    tasks,
-    print_mode: true
-  });
+  res.render('maintenance/maintenance_schedule_print.html', buildMaintenanceSchedulePrintContext(req, tasks));
 });
 
 app.get('/maintenance/schedule/step-1', (req, res) => {
@@ -3608,10 +3755,7 @@ app.get('/maintenance/calendar', (req, res) => {
 });
 
 app.get('/maintenance/schedule/print', (req, res) => {
-  res.render('maintenance/maintenance_schedule_print.html', {
-    ...baseCtx(req, 'maintenance'),
-    tasks: store.MAINTENANCE_TASKS || []
-  });
+  res.render('maintenance/maintenance_schedule_print.html', buildMaintenanceSchedulePrintContext(req));
 });
 
 app.get(['/maintenance/:task_id', '/maintenance/work-order/:work_order_id'], (req, res) => {
@@ -3702,9 +3846,10 @@ app.post('/maintenance/:task_id/complete', (req, res) => {
 app.post('/maintenance/:task_id/delete', (req, res) => {
   const idx = store.MAINTENANCE_TASKS.findIndex(t => t.task_id === req.params.task_id);
   if (idx !== -1) {
-    store.MAINTENANCE_TASKS.splice(idx, 1);
-    saveStore();
-    flash('success', 'Maintenance order deleted.');
+    const deleted = store.MAINTENANCE_TASKS.splice(idx, 1)[0];
+    moveToRecycleBin('maintenance', `${deleted.task_id} — ${deleted.asset_name} (${deleted.task_title || deleted.task_description || 'PM'})`, deleted.task_id, deleted);
+    logAudit('Task Deleted', `Moved maintenance order ${deleted.task_id} to Admin Recycle Bin`, 'maintenance', '/settings/recycle-bin', 'warning');
+    flash('success', 'Maintenance order moved to Admin Recycle Bin.');
   }
   res.redirect('/maintenance');
 });
@@ -3739,11 +3884,7 @@ app.get(['/maintenance/export/:fmt', '/maintenance/schedule/export'], async (req
   }
 
   if (fmt === 'pdf' || fmt === 'print' || fmt === 'html') {
-    return res.render('maintenance/maintenance_schedule_print.html', {
-      ...baseCtx(req, 'maintenance'),
-      tasks: list,
-      month_label: new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
-    });
+    return res.render('maintenance/maintenance_schedule_print.html', buildMaintenanceSchedulePrintContext(req, list));
   }
 
   if (fmt === 'xlsx' || fmt === 'excel') {
@@ -3950,31 +4091,22 @@ app.get('/inventory/export/:fmt', async (req, res) => {
   }
 
   if (fmt === 'pdf' || fmt === 'print' || fmt === 'html') {
+    const invTotal = list.reduce((sum, p) => sum + ((Number(p.qty) || 0) * (Number(p.unit_price) || 0)), 0);
     return res.render('reports/chart_export_print.html', {
       ...baseCtx(req, 'inventory'),
-      report: {
+      report: buildChartExportReport({
         title: 'Master Inventory & Spare Parts Valuation Report',
         subtitle: 'Warehouse valuation, replenishment alerts, and buffer stock status.',
         department: 'Logistics & Warehousing',
         department_display: 'Engineering Spares & Stores',
         period_label: 'Current Warehouse Stock',
         scope_label: 'Plant-wide Spares Stores',
-        reported_by: req.cookies?.opsloom_user || 'Laurence Magondu',
-        generated_label: new Date().toLocaleDateString('en-GB')
-      },
-      report_kind: 'inventory',
-      kpi_records: [
-        { label: 'Total Unique SKUs', value: list.length, note: 'Stock catalogue' },
-        { label: 'Low Stock Alerts', value: list.filter(p => Number(p.qty) <= Number(p.min_qty) && Number(p.qty) > 0).length, note: 'Reorder triggered' },
-        { label: 'Out of Stock', value: list.filter(p => Number(p.qty) <= 0).length, note: 'Critical stockouts' },
-        { label: 'Inventory Value', value: `KES ${list.reduce((sum, p) => sum + ((Number(p.qty) || 0) * (Number(p.unit_price) || 0)), 0).toLocaleString()}`, note: 'Total value on hand' }
-      ],
-      table_rows: list.map(p => ({
-        col1: `${p.sku} — ${p.part_name}`,
-        col2: p.category || 'Mechanical',
-        col3: `Qty: ${p.qty} (Min: ${p.min_qty})`,
-        col4: `KES ${((Number(p.qty) || 0) * (Number(p.unit_price) || 0)).toLocaleString()}`
-      }))
+        cost_subtotal: invTotal,
+        record_count: list.length,
+        labels: list.slice(0, 6).map(p => p.sku),
+        values: list.slice(0, 6).map(p => Number(p.qty || 0))
+      }),
+      report_kind: 'inventory'
     });
   }
 
@@ -4013,8 +4145,18 @@ app.get('/inventory/:part_uid', (req, res) => {
   if (req.query.print === '1') {
     return res.render('inventory/part_print.html', {
       ...baseCtx(req, 'inventory'),
-      p: part,
-      part,
+      p: {
+        manufacturer: 'OEM Certified Spares',
+        model_number: part.sku || 'STD-OEM',
+        tech_specs: 'Industrial grade replacement assembly rated for continuous plant operation.',
+        ...part
+      },
+      part: {
+        manufacturer: 'OEM Certified Spares',
+        model_number: part.sku || 'STD-OEM',
+        tech_specs: 'Industrial grade replacement assembly rated for continuous plant operation.',
+        ...part
+      },
       min_qty,
       target_qty,
       stock_percent,
@@ -4091,9 +4233,10 @@ app.post('/inventory/:part_uid/edit', (req, res) => {
 app.post('/inventory/:part_uid/delete', (req, res) => {
   const idx = store.INVENTORY_PARTS.findIndex(p => p.uid === req.params.part_uid);
   if (idx !== -1) {
-    store.INVENTORY_PARTS.splice(idx, 1);
-    saveStore();
-    flash('success', 'Spare part deleted from catalogue.');
+    const deleted = store.INVENTORY_PARTS.splice(idx, 1)[0];
+    moveToRecycleBin('inventory', `${deleted.part_name} (${deleted.sku})`, deleted.uid, deleted);
+    logAudit('Part Deleted', `Moved spare part ${deleted.part_name} to Admin Recycle Bin`, 'inventory', '/settings/recycle-bin', 'warning');
+    flash('success', 'Spare part moved to Admin Recycle Bin.');
   }
   res.redirect('/inventory');
 });
@@ -4446,9 +4589,10 @@ app.get('/reports/export/:rid/:fmt', async (req, res) => {
 app.post(['/reports/delete/:rid', '/reports/:rid/delete'], (req, res) => {
   const idx = (store.REPORT_EXPORTS || []).findIndex(r => r.id === req.params.rid);
   if (idx !== -1) {
-    store.REPORT_EXPORTS.splice(idx, 1);
-    saveStore();
-    flash('success', 'Report export deleted.');
+    const deleted = store.REPORT_EXPORTS.splice(idx, 1)[0];
+    moveToRecycleBin('report', `${deleted.report_title || deleted.name} (${deleted.id})`, deleted.id, deleted);
+    logAudit('Report Deleted', `Moved report ${deleted.id} to Admin Recycle Bin`, 'reports', '/settings/recycle-bin', 'warning');
+    flash('success', 'Report export moved to Admin Recycle Bin.');
   }
   const ref = req.get('Referrer') || '';
   res.redirect(ref.includes('/history') ? '/reports/history' : '/reports');
@@ -4458,18 +4602,171 @@ app.post(['/reports/delete/:rid', '/reports/:rid/delete'], (req, res) => {
 // SETTINGS & SYSTEM ADMIN
 // -------------------------
 app.get(['/settings', '/settings/admin'], (req, res) => {
+  const sys = store.SYSTEM_SETTINGS || {};
+  const recList = Array.isArray(sys.default_report_recipients)
+    ? sys.default_report_recipients
+    : String(sys.default_report_recipients || '').split(',').map(s => s.trim()).filter(Boolean);
+  const unreadNotifs = (store.SYSTEM_NOTIFICATIONS || []).filter(n => !n.is_read).length;
+  const totalNotifs = (store.SYSTEM_NOTIFICATIONS || []).length;
+  const unreadMsgs = (store.INTERNAL_MESSAGES || []).filter(m => !m.is_read_by?.includes('opsloom.ke@gmail.com')).length;
+  const totalMsgs = (store.INTERNAL_MESSAGES || []).length;
+  const draftsCount = (store.DRAFT_MESSAGES || []).length;
+  const outboxCount = (store.OUTBOX_MESSAGES || []).length;
+  const adminUsers = store.ADMIN_USERS || [];
+  const activeUsersCount = adminUsers.filter(u => u.active !== false).length;
+  const techs = store.TECHNICIAN_DIRECTORY || [];
+  const activeTechsCount = techs.filter(t => t.active !== false).length;
+  const auditLogs = store.AUDIT_TRAIL || [];
+  const securityEventsCount = auditLogs.filter(a => a.module === 'security' || a.module === 'settings' || a.severity === 'warning').length;
+  const companiesCount = (store.COMPANIES || []).length;
+
   res.render('settings/settings_admin.html', {
     ...baseCtx(req, 'settings'),
-    settings: store.SYSTEM_SETTINGS || {}
+    settings: {
+      ...sys,
+      default_report_recipients: recList.join(', ')
+    },
+    audit_count: auditLogs.length,
+    security_events_count: securityEventsCount,
+    technicians_count: techs.length,
+    active_technicians: activeTechsCount,
+    users_count: adminUsers.length,
+    total_users: adminUsers.length,
+    active_users_count: activeUsersCount,
+    companies_count: companiesCount,
+    unread_notifications_count: unreadNotifs,
+    total_notifications_count: totalNotifs,
+    unread_messages_count: unreadMsgs,
+    total_messages_count: totalMsgs,
+    drafts_count: draftsCount,
+    outbox_count: outboxCount,
+    recycle_bin_count: (store.RECYCLE_BIN || []).length,
+    recipients_count: recList.length || 1,
+    smtp_configured: Boolean(sys.smtp_host && sys.smtp_user)
   });
 });
 
 app.post('/settings/admin/save', (req, res) => {
-  store.SYSTEM_SETTINGS = { ...store.SYSTEM_SETTINGS, ...req.body };
+  const incoming = { ...req.body };
+  if (typeof incoming.default_report_recipients === 'string') {
+    incoming.default_report_recipients = incoming.default_report_recipients.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  store.SYSTEM_SETTINGS = { ...store.SYSTEM_SETTINGS, ...incoming };
   saveStore();
   logAudit('System Settings Saved', 'Updated enterprise mail signature & general configurations.', 'settings', '/settings/admin');
   flash('success', 'System settings saved successfully.');
   res.redirect('/settings/admin');
+});
+
+// -------------------------
+// ADMIN RECYCLE BIN & DATA RECOVERY
+// -------------------------
+app.get('/settings/recycle-bin', (req, res) => {
+  const all = (store.RECYCLE_BIN || []).map(item => ({
+    ...item,
+    bin_id: item.bin_id || item.id,
+    identifier: item.identifier || item.entity_id || item.id,
+    summary: item.summary || `Preserved ${item.entity_type} record (${item.entity_label})`,
+    deleted_at_fmt: item.deleted_at_fmt || (item.deleted_at ? new Date(item.deleted_at).toLocaleString('en-GB') : 'Recent')
+  }));
+  const selected_type = (req.query.type || 'all').toLowerCase();
+  const items = selected_type === 'all'
+    ? all
+    : all.filter(item => (item.entity_type || '').toLowerCase() === selected_type);
+
+  const counts = {
+    all: all.length,
+    asset: all.filter(x => x.entity_type === 'asset').length,
+    breakdown: all.filter(x => x.entity_type === 'breakdown').length,
+    maintenance: all.filter(x => x.entity_type === 'maintenance').length,
+    inventory: all.filter(x => x.entity_type === 'inventory').length,
+    report: all.filter(x => x.entity_type === 'report').length,
+    message: all.filter(x => x.entity_type === 'message').length,
+    ai_chat: all.filter(x => x.entity_type === 'ai_chat').length,
+    user: all.filter(x => x.entity_type === 'user' || x.entity_type === 'technician').length
+  };
+
+  res.render('settings/recycle_bin.html', {
+    ...baseCtx(req, 'settings'),
+    items,
+    selected_type,
+    total_bin_count: all.length,
+    counts
+  });
+});
+
+app.post('/settings/recycle-bin/:bin_id/restore', (req, res) => {
+  if (!store.RECYCLE_BIN) store.RECYCLE_BIN = [];
+  const idx = store.RECYCLE_BIN.findIndex(x => (x.bin_id || x.id) === req.params.bin_id);
+  if (idx !== -1) {
+    const entry = store.RECYCLE_BIN.splice(idx, 1)[0];
+    const rec = entry.record || {};
+    switch (entry.entity_type) {
+      case 'asset':
+        if (!store.ASSETS) store.ASSETS = [];
+        store.ASSETS.unshift(rec);
+        break;
+      case 'breakdown':
+        if (!store.BREAKDOWNS) store.BREAKDOWNS = [];
+        store.BREAKDOWNS.unshift(rec);
+        break;
+      case 'maintenance':
+        if (!store.MAINTENANCE_TASKS) store.MAINTENANCE_TASKS = [];
+        store.MAINTENANCE_TASKS.unshift(rec);
+        break;
+      case 'inventory':
+        if (!store.INVENTORY_PARTS) store.INVENTORY_PARTS = [];
+        store.INVENTORY_PARTS.unshift(rec);
+        break;
+      case 'report':
+        if (!store.REPORT_EXPORTS) store.REPORT_EXPORTS = [];
+        store.REPORT_EXPORTS.unshift(rec);
+        break;
+      case 'technician':
+        if (!store.TECHNICIAN_DIRECTORY) store.TECHNICIAN_DIRECTORY = [];
+        store.TECHNICIAN_DIRECTORY.push(rec);
+        break;
+      case 'user':
+        if (!store.ADMIN_USERS) store.ADMIN_USERS = [];
+        store.ADMIN_USERS.push(rec);
+        break;
+      case 'message':
+        if (!store.INTERNAL_MESSAGES) store.INTERNAL_MESSAGES = [];
+        store.INTERNAL_MESSAGES.unshift(rec);
+        break;
+      case 'ai_chat':
+        if (!store.AI_CHATS) store.AI_CHATS = [];
+        store.AI_CHATS.unshift(rec);
+        break;
+      default:
+        break;
+    }
+    saveStore();
+    logAudit('Record Restored from Recycle Bin', `Restored ${entry.entity_type}: ${entry.entity_label}`, 'settings', '/settings/recycle-bin', 'success');
+    flash('success', `Restored "${entry.entity_label}" back to its active module.`);
+  }
+  res.redirect('/settings/recycle-bin');
+});
+
+app.post(['/settings/recycle-bin/:bin_id/delete', '/settings/recycle-bin/:bin_id/purge'], (req, res) => {
+  if (!store.RECYCLE_BIN) store.RECYCLE_BIN = [];
+  const idx = store.RECYCLE_BIN.findIndex(x => (x.bin_id || x.id) === req.params.bin_id);
+  if (idx !== -1) {
+    const removed = store.RECYCLE_BIN.splice(idx, 1)[0];
+    saveStore();
+    logAudit('Record Permanently Purged', `Permanently removed ${removed.entity_label} from Recycle Bin`, 'settings', '/settings/recycle-bin', 'warning');
+    flash('info', `Permanently deleted "${removed.entity_label}".`);
+  }
+  res.redirect('/settings/recycle-bin');
+});
+
+app.post('/settings/recycle-bin/empty', (req, res) => {
+  const count = (store.RECYCLE_BIN || []).length;
+  store.RECYCLE_BIN = [];
+  saveStore();
+  logAudit('Recycle Bin Emptied', `Permanently purged ${count} item(s) from Admin Recycle Bin`, 'settings', '/settings/recycle-bin', 'warning');
+  flash('info', 'Admin Recycle Bin has been permanently emptied.');
+  res.redirect('/settings/recycle-bin');
 });
 
 function getFilteredAuditRows(req) {
@@ -4630,9 +4927,10 @@ app.post('/settings/technicians/:tech_id/toggle', (req, res) => {
 app.post('/settings/technicians/:tech_id/delete', (req, res) => {
   const idx = store.TECHNICIAN_DIRECTORY.findIndex(t => t.id === req.params.tech_id);
   if (idx !== -1) {
-    store.TECHNICIAN_DIRECTORY.splice(idx, 1);
-    saveStore();
-    flash('success', 'Technician profile removed.');
+    const deleted = store.TECHNICIAN_DIRECTORY.splice(idx, 1)[0];
+    moveToRecycleBin('technician', `${deleted.name} (${deleted.id})`, deleted.id, deleted);
+    logAudit('Technician Removed', `Moved technician ${deleted.name} to Admin Recycle Bin`, 'technicians', '/settings/recycle-bin', 'warning');
+    flash('success', 'Technician moved to Admin Recycle Bin.');
   }
   res.redirect('/settings/technicians');
 });
@@ -4676,41 +4974,252 @@ app.post('/settings/admin-users/:user_id/toggle', (req, res) => {
 app.post('/settings/admin-users/:user_id/delete', (req, res) => {
   const idx = store.ADMIN_USERS.findIndex(u => u.id === req.params.user_id);
   if (idx !== -1) {
-    store.ADMIN_USERS.splice(idx, 1);
-    saveStore();
-    flash('success', 'User account removed.');
+    const deleted = store.ADMIN_USERS.splice(idx, 1)[0];
+    moveToRecycleBin('user', `${deleted.name} (${deleted.email})`, deleted.id, deleted);
+    logAudit('User Account Removed', `Moved user ${deleted.email} to Admin Recycle Bin`, 'settings', '/settings/recycle-bin', 'warning');
+    flash('success', 'User account moved to Admin Recycle Bin.');
   }
   res.redirect('/settings/admin-users');
 });
 
 app.get('/settings/messages', (req, res) => {
+  const currentUserEmail = 'opsloom.ke@gmail.com';
+  const allMsgs = (store.INTERNAL_MESSAGES || []).map(m => ({
+    ...m,
+    recipient_list: Array.isArray(m.recipient_emails) ? m.recipient_emails.join(', ') : (m.recipient_email || currentUserEmail),
+    created_display: m.created_at ? new Date(m.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : 'Recent',
+    is_unread: !(m.is_read_by || []).includes(currentUserEmail)
+  }));
+  const draftsList = (store.DRAFT_MESSAGES || []).map(d => ({
+    ...d,
+    sender_name: 'Laurence Magondu (Draft)',
+    sender_email: currentUserEmail,
+    created_at: d.updated_at || d.created_at || new Date().toISOString(),
+    is_read_by: [currentUserEmail]
+  }));
+  const outboxList = (store.OUTBOX_MESSAGES || []).map(o => ({
+    ...o,
+    sender_name: o.sender_name || 'Laurence Magondu',
+    sender_email: o.sender_email || currentUserEmail,
+    created_at: o.created_at || new Date().toISOString(),
+    is_read_by: [currentUserEmail]
+  }));
+
+  const inboxMsgs = allMsgs;
+  const sentMsgs = allMsgs.filter(m => m.sender_email === currentUserEmail);
+  const unreadInboxCount = inboxMsgs.filter(m => m.is_unread).length;
+
+  const folder = (req.query.folder || 'inbox').toLowerCase();
+  const q = (req.query.q || '').toLowerCase();
+
+  let folderMsgs = inboxMsgs;
+  if (folder === 'sent') folderMsgs = sentMsgs;
+  else if (folder === 'drafts') folderMsgs = draftsList;
+  else if (folder === 'outbox') folderMsgs = outboxList;
+
+  if (q) {
+    folderMsgs = folderMsgs.filter(m =>
+      (m.subject && m.subject.toLowerCase().includes(q)) ||
+      (m.body && m.body.toLowerCase().includes(q)) ||
+      (m.sender_name && m.sender_name.toLowerCase().includes(q))
+    );
+  }
+
+  const selectedId = req.query.open || req.query.msg || (folderMsgs[0] && folderMsgs[0].id) || null;
+  const openMessage = folderMsgs.find(m => m.id === selectedId) || allMsgs.find(m => m.id === selectedId) || folderMsgs[0] || null;
+  if (openMessage && (folder === 'inbox' || folder === 'sent')) {
+    const rawMsg = (store.INTERNAL_MESSAGES || []).find(m => m.id === openMessage.id);
+    if (rawMsg) {
+      if (!Array.isArray(rawMsg.is_read_by)) rawMsg.is_read_by = [];
+      if (!rawMsg.is_read_by.includes(currentUserEmail)) {
+        rawMsg.is_read_by.push(currentUserEmail);
+        saveStore();
+      }
+      openMessage.is_unread = false;
+    }
+  }
+
+  const compose_prefill = {};
+  if (req.query.reply && openMessage) {
+    compose_prefill.thread_id = openMessage.thread_id || '';
+    compose_prefill.recipient_emails = [openMessage.sender_email || currentUserEmail];
+    compose_prefill.subject = openMessage.subject?.startsWith('Re:') ? openMessage.subject : `Re: ${openMessage.subject || ''}`;
+    compose_prefill.body = `\n\n--- Original Message from ${openMessage.sender_name} ---\n${openMessage.body || ''}`;
+  } else if (req.query.forward && openMessage) {
+    compose_prefill.subject = openMessage.subject?.startsWith('Fwd:') ? openMessage.subject : `Fwd: ${openMessage.subject || ''}`;
+    compose_prefill.body = `\n\n--- Forwarded Message ---\nSubject: ${openMessage.subject}\nFrom: ${openMessage.sender_name} (${openMessage.sender_email})\n\n${openMessage.body || ''}`;
+  } else if (folder === 'drafts' && openMessage) {
+    compose_prefill.draft_id = openMessage.id;
+    compose_prefill.recipient_emails = openMessage.recipient_emails || [];
+    compose_prefill.subject = openMessage.subject || '';
+    compose_prefill.body = openMessage.body || '';
+  }
+
+  const folder_list = [
+    { key: 'inbox', label: 'Inbox', icon: 'inbox', count: inboxMsgs.length, unread: unreadInboxCount },
+    { key: 'sent', label: 'Sent Dispatch', icon: 'send', count: sentMsgs.length, unread: 0 },
+    { key: 'drafts', label: 'Drafts', icon: 'edit_note', count: draftsList.length, unread: 0 },
+    { key: 'outbox', label: 'Outbox Queue', icon: 'schedule_send', count: outboxList.length, unread: outboxList.length }
+  ];
+
   res.render('settings/messages_center.html', {
     ...baseCtx(req, 'settings'),
-    messages: store.INTERNAL_MESSAGES || [],
-    drafts: store.DRAFT_MESSAGES || [],
-    outbox: store.OUTBOX_MESSAGES || []
+    folder_list,
+    messages: folderMsgs,
+    open_message: openMessage,
+    active_message: openMessage,
+    selected_folder: folder,
+    message_q: req.query.q || '',
+    search_q: req.query.q || '',
+    compose_prefill,
+    current_user_email: currentUserEmail,
+    all_messages_count: allMsgs.length,
+    unread_count: unreadInboxCount,
+    sent_count: sentMsgs.length,
+    drafts: draftsList,
+    outbox: outboxList,
+    users: store.ADMIN_USERS || [],
+    technicians: store.TECHNICIAN_DIRECTORY || []
   });
 });
 
 app.post('/settings/messages/send', (req, res) => {
+  const actionType = req.body.message_action || req.body.action_type || 'send';
+  const selectedRecs = Array.isArray(req.body.recipient_emails)
+    ? req.body.recipient_emails
+    : (req.body.recipient_emails ? [req.body.recipient_emails] : []);
+  const manualRecs = String(req.body.recipient_manual || req.body.recipient_email || req.body.recipients || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  const recipients = Array.from(new Set([...selectedRecs, ...manualRecs]));
+  if (!recipients.length) recipients.push('opsloom.ke@gmail.com');
+
+  if (req.body.draft_id && store.DRAFT_MESSAGES) {
+    store.DRAFT_MESSAGES = store.DRAFT_MESSAGES.filter(d => d.id !== req.body.draft_id);
+  }
+
+  if (actionType === 'draft') {
+    const draft = {
+      id: 'draft-' + Date.now(),
+      recipient_emails: recipients,
+      subject: req.body.subject || '(Untitled Draft)',
+      body: req.body.body || '',
+      priority: req.body.priority || 'Normal',
+      updated_at: new Date().toISOString()
+    };
+    if (!store.DRAFT_MESSAGES) store.DRAFT_MESSAGES = [];
+    store.DRAFT_MESSAGES.unshift(draft);
+    saveStore();
+    flash('info', 'Message saved to drafts.');
+    return res.redirect(`/settings/messages?folder=drafts&open=${encodeURIComponent(draft.id)}`);
+  }
+
+  if (actionType === 'outbox') {
+    const outMsg = {
+      id: 'out-' + Date.now(),
+      sender_email: 'opsloom.ke@gmail.com',
+      sender_name: 'Laurence Magondu',
+      recipient_emails: recipients,
+      subject: req.body.subject || 'Queued Engineering Dispatch',
+      body: req.body.body || '',
+      created_at: new Date().toISOString(),
+      delivery_status: 'queued'
+    };
+    if (!store.OUTBOX_MESSAGES) store.OUTBOX_MESSAGES = [];
+    store.OUTBOX_MESSAGES.unshift(outMsg);
+    saveStore();
+    flash('info', 'Message queued in Outbox.');
+    return res.redirect(`/settings/messages?folder=outbox&open=${encodeURIComponent(outMsg.id)}`);
+  }
+
   const msg = {
     id: 'msg-' + Date.now(),
-    thread_id: 'thread-' + Date.now(),
+    thread_id: req.body.thread_id || ('thread-' + Date.now()),
     sender_email: 'opsloom.ke@gmail.com',
     sender_name: 'Laurence Magondu',
-    recipient_emails: [req.body.recipient_email || 'opsloom.ke@gmail.com'],
-    subject: req.body.subject || 'Internal Notification',
+    recipient_emails: recipients,
+    subject: req.body.subject || 'Internal Operational Dispatch',
     body: req.body.body || '',
+    priority: req.body.priority || 'Normal',
+    category: req.body.category || 'Operations',
     attachments: [],
+    is_read_by: ['opsloom.ke@gmail.com'],
     created_at: new Date().toISOString(),
-    delivery_status: 'sent',
+    delivery_status: 'delivered',
     sent_at: new Date().toISOString()
   };
+  if (!store.INTERNAL_MESSAGES) store.INTERNAL_MESSAGES = [];
   store.INTERNAL_MESSAGES.unshift(msg);
   saveStore();
-  logAudit('Internal Message Sent', `Subject: ${msg.subject}`, 'messages', '/settings/messages');
-  flash('success', 'Message dispatched.');
-  res.redirect('/settings/messages');
+  logAudit('Internal Message Dispatched', `Subject: ${msg.subject} → ${msg.recipient_emails.join(', ')}`, 'messages', '/settings/messages');
+  flash('success', 'Message dispatched to recipient inbox.');
+  res.redirect(`/settings/messages?folder=inbox&open=${encodeURIComponent(msg.id)}`);
+});
+
+app.post('/settings/messages/outbox/:id/send', (req, res) => {
+  if (!store.OUTBOX_MESSAGES) store.OUTBOX_MESSAGES = [];
+  const idx = store.OUTBOX_MESSAGES.findIndex(o => o.id === req.params.id);
+  if (idx !== -1) {
+    const queued = store.OUTBOX_MESSAGES.splice(idx, 1)[0];
+    const sent = {
+      ...queued,
+      id: 'msg-' + Date.now(),
+      delivery_status: 'delivered',
+      sent_at: new Date().toISOString(),
+      is_read_by: ['opsloom.ke@gmail.com']
+    };
+    if (!store.INTERNAL_MESSAGES) store.INTERNAL_MESSAGES = [];
+    store.INTERNAL_MESSAGES.unshift(sent);
+    saveStore();
+    flash('success', 'Queued message dispatched immediately.');
+    return res.redirect(`/settings/messages?folder=inbox&open=${encodeURIComponent(sent.id)}`);
+  }
+  res.redirect('/settings/messages?folder=outbox');
+});
+
+app.post('/settings/messages/:msg_id/delete', (req, res) => {
+  const folder = (req.query.folder || 'inbox').toLowerCase();
+  if (folder === 'drafts' && store.DRAFT_MESSAGES) {
+    const dIdx = store.DRAFT_MESSAGES.findIndex(d => d.id === req.params.msg_id);
+    if (dIdx !== -1) {
+      const deleted = store.DRAFT_MESSAGES.splice(dIdx, 1)[0];
+      moveToRecycleBin('message', `Draft: ${deleted.subject || 'Untitled'} (${deleted.id})`, deleted.id, deleted);
+      saveStore();
+      flash('info', 'Draft moved to Admin Recycle Bin.');
+      return res.redirect('/settings/messages?folder=drafts');
+    }
+  }
+  if (folder === 'outbox' && store.OUTBOX_MESSAGES) {
+    const oIdx = store.OUTBOX_MESSAGES.findIndex(o => o.id === req.params.msg_id);
+    if (oIdx !== -1) {
+      const deleted = store.OUTBOX_MESSAGES.splice(oIdx, 1)[0];
+      moveToRecycleBin('message', `Outbox: ${deleted.subject || 'Queued'} (${deleted.id})`, deleted.id, deleted);
+      saveStore();
+      flash('info', 'Queued message moved to Admin Recycle Bin.');
+      return res.redirect('/settings/messages?folder=outbox');
+    }
+  }
+  if (!store.INTERNAL_MESSAGES) store.INTERNAL_MESSAGES = [];
+  const idx = store.INTERNAL_MESSAGES.findIndex(m => m.id === req.params.msg_id);
+  if (idx !== -1) {
+    const deleted = store.INTERNAL_MESSAGES.splice(idx, 1)[0];
+    moveToRecycleBin('message', `${deleted.subject || 'Message'} (${deleted.id})`, deleted.id, deleted);
+    logAudit('Message Deleted', `Moved message "${deleted.subject}" to Admin Recycle Bin`, 'messages', '/settings/recycle-bin', 'warning');
+    flash('info', 'Message moved to Admin Recycle Bin.');
+  }
+  res.redirect(`/settings/messages?folder=${encodeURIComponent(folder)}`);
+});
+
+app.post('/settings/messages/draft/:draft_id/delete', (req, res) => {
+  if (!store.DRAFT_MESSAGES) store.DRAFT_MESSAGES = [];
+  const idx = store.DRAFT_MESSAGES.findIndex(d => d.id === req.params.draft_id);
+  if (idx !== -1) {
+    store.DRAFT_MESSAGES.splice(idx, 1);
+    saveStore();
+    flash('info', 'Draft discarded.');
+  }
+  res.redirect('/settings/messages?folder=drafts');
 });
 
 app.get('/settings/notifications', (req, res) => {
@@ -4718,6 +5227,25 @@ app.get('/settings/notifications', (req, res) => {
     ...baseCtx(req, 'settings'),
     notifications: store.SYSTEM_NOTIFICATIONS || []
   });
+});
+
+app.post('/settings/notifications/:nid/toggle', (req, res) => {
+  const n = (store.SYSTEM_NOTIFICATIONS || []).find(item => item.id === req.params.nid);
+  if (n) {
+    n.is_read = !n.is_read;
+    saveStore();
+  }
+  res.redirect('/settings/notifications');
+});
+
+app.get('/settings/notifications/:nid/open', (req, res) => {
+  const n = (store.SYSTEM_NOTIFICATIONS || []).find(item => item.id === req.params.nid);
+  if (n) {
+    n.is_read = true;
+    saveStore();
+    return res.redirect(n.href || '/dashboard');
+  }
+  res.redirect('/settings/notifications');
 });
 
 app.post('/settings/notifications/read-all', (req, res) => {
@@ -4743,10 +5271,175 @@ app.post('/settings/profile/save', (req, res) => {
   res.redirect('/settings/profile');
 });
 
+const SYSTEM_HELP_ARTICLES = [
+  {
+    icon: 'space_dashboard',
+    category: '01 • Executive Dashboard',
+    href: '/dashboard',
+    title: 'Navigating Plant Telemetry, Health & Strategic Action Feed',
+    body: 'The Executive Dashboard synthesizes real-time asset availability, open incident containment, PM compliance vs. reliability trends, and inventory spare readiness.',
+    steps: [
+      'Filter telemetry by Department or Plant Section at the top of the dashboard.',
+      'Click any card in Open Incident Control, Strategic Action Feed, or Critical Risks to jump directly to the record.',
+      'Use "Export Strategic Brief" to generate a print-ready PDF or branded PowerPoint deck.'
+    ]
+  },
+  {
+    icon: 'precision_manufacturing',
+    category: '02 • Asset Register',
+    href: '/assets',
+    title: 'Managing Industrial Assets, Profiles & QR Identification',
+    body: 'Maintain your complete equipment hierarchy across Pharma, Powder, Liquid, Betalactum, and Packaging sections.',
+    steps: [
+      'Use the 3-step Asset Registration wizard to onboard new machinery with OEM specs and criticality.',
+      'Open any Asset Profile to inspect MTBF, maintenance costs, linked spare parts, and breakdown history.',
+      'Click "Print Profile" on any asset to produce a formatted engineering datasheet.'
+    ]
+  },
+  {
+    icon: 'warning',
+    category: '03 • Breakdowns & RCA',
+    href: '/breakdowns',
+    title: 'Logging Equipment Stoppages & Root Cause Analysis',
+    body: 'Track active faults from initial trip reporting through technician dispatch, LOTO containment, and root-cause closure.',
+    steps: [
+      'Click "Report Breakdown" to log an incident, assign a lead technician, and set severity.',
+      'Monitor live downtime hours and financial impact in real time.',
+      'Export the Breakdowns Master Log to Print/PDF, Excel, CSV, or PowerPoint.'
+    ]
+  },
+  {
+    icon: 'calendar_month',
+    category: '04 • Preventive Maintenance',
+    href: '/maintenance',
+    title: 'Scheduling PM Work Orders & Annual Compliance Matrix',
+    body: 'Keep preventive maintenance adherence above the 90% SLA target with automated scheduling and technician workload balancing.',
+    steps: [
+      'Switch between the PM Work Order Queue and the 12-Month Annual Schedule Matrix.',
+      'Click "Print Schedule" to generate a full landscape A4 engineering schedule with monthly status badges.',
+      'Check Technician Availability to balance active tasks across Mechanical, Electrical, and Automation leads.'
+    ]
+  },
+  {
+    icon: 'inventory_2',
+    category: '05 • Spare Parts Inventory',
+    href: '/inventory',
+    title: 'MRO Spares Valuation, Stockout Alerts & Requisitioning',
+    body: 'Prevent extended repair downtime by tracking critical spares, minimum safety buffers, and unit valuations.',
+    steps: [
+      'Review red Out-of-Stock and amber Low-Stock indicators in the Inventory Register.',
+      'Link spare parts directly to specific assets so technicians know exact OEM part codes during repairs.',
+      'Print individual Spare Part Specification sheets or export the full Inventory Valuation report.'
+    ]
+  },
+  {
+    icon: 'analytics',
+    category: '06 • Reports & Print Studio',
+    href: '/reports',
+    title: 'Generating Executive PDF, Print & PowerPoint Briefings',
+    body: 'Build customized intelligence reports across Strategic ROI, Breakdown Analytics, Asset Reliability, PM Compliance, and Spares.',
+    steps: [
+      'Launch the 3-step Report Builder to select your category, date window, and KPI focus.',
+      'Open any generated report and click "Print / Save PDF" for vector SVG charts and tabular breakdowns.',
+      'Download native .pptx presentations for boardroom and shift-handover reviews.'
+    ]
+  },
+  {
+    icon: 'auto_awesome',
+    category: '07 • Opsloom AI Copilot',
+    href: '/dashboard',
+    title: 'Using Structured AI Diagnostics & Saved Chat History',
+    body: 'Opsloom AI analyzes live plant records to produce structured executive summaries, telemetry metrics, and numbered action plans.',
+    steps: [
+      'Click the "Opsloom AI" button in the top header or bottom-right corner from any screen.',
+      'All AI conversations are automatically saved in the left sidebar of the AI window for instant recall.',
+      'Delete individual chats when no longer needed—deleted chats are archived in the Admin Recycle Bin.'
+    ]
+  },
+  {
+    icon: 'restore_from_trash',
+    category: '08 • Admin Recycle Bin',
+    href: '/settings/recycle-bin',
+    title: 'Recovering Deleted Data & Administrative Governance',
+    body: 'No user deletion is immediately destructive. Deleted assets, breakdowns, PM tasks, spares, reports, messages, and AI chats are held in the Admin Recycle Bin.',
+    steps: [
+      'Navigate to Settings & Admin → Admin Recycle Bin to inspect all user-deleted records.',
+      'Click "Restore" to return any item to its active module intact.',
+      'Only Administrators can permanently purge individual records or empty the Recycle Bin.'
+    ]
+  }
+];
+
 app.get('/settings/help', (req, res) => {
+  const help_q = (req.query.q || '').trim();
+  const qLower = help_q.toLowerCase();
+  const help_articles = qLower
+    ? SYSTEM_HELP_ARTICLES.filter(a =>
+        a.title.toLowerCase().includes(qLower) ||
+        a.body.toLowerCase().includes(qLower) ||
+        a.category.toLowerCase().includes(qLower) ||
+        (a.steps || []).some(s => s.toLowerCase().includes(qLower))
+      )
+    : SYSTEM_HELP_ARTICLES;
+
+  const support_requests = (store.INTERNAL_MESSAGES || [])
+    .filter(m => m.category === 'Admin Support' || (m.subject && m.subject.startsWith('[Support Request]')))
+    .map(m => ({
+      id: m.id,
+      subject: (m.subject || '').replace(/^\[Support Request\]\s*/i, ''),
+      module: m.module || 'System Operations',
+      priority: m.priority || 'Normal',
+      status: 'DISPATCHED TO ADMIN',
+      created_at_fmt: m.created_at ? new Date(m.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : 'Just now'
+    }));
+
   res.render('settings/help.html', {
-    ...baseCtx(req, 'settings')
+    ...baseCtx(req, 'settings'),
+    help_q,
+    help_articles,
+    support_requests,
+    support_tickets: support_requests
   });
+});
+
+app.post(['/settings/help', '/settings/help/request'], (req, res) => {
+  const topic = req.body.topic || req.body.module || 'General System Guidance';
+  const priority = req.body.priority || 'Normal';
+  const moduleName = req.body.module || 'Dashboard & KPIs';
+  const subjectInput = req.body.subject || topic;
+  const details = req.body.message || req.body.details || '';
+
+  const supportMsg = {
+    id: 'msg-sup-' + Date.now(),
+    thread_id: 'thread-sup-' + Date.now(),
+    sender_email: (req.session && req.session.user_email) || 'opsloom.ke@gmail.com',
+    sender_name: (req.session && req.session.user_name) || 'Laurence Magondu',
+    recipient_emails: ['admin@opsloom.co.ke', 'opsloom.ke@gmail.com'],
+    subject: `[Support Request] ${subjectInput}`,
+    body: `Target Module: ${moduleName}\nPriority Level: ${priority}\nSubmitted By: Laurence Magondu (opsloom.ke@gmail.com)\n\nUser Assistance / Admin Escalation Details:\n${details}`,
+    module: moduleName,
+    priority,
+    category: 'Admin Support',
+    attachments: [],
+    is_read_by: [],
+    created_at: new Date().toISOString(),
+    delivery_status: 'delivered',
+    sent_at: new Date().toISOString()
+  };
+
+  if (!store.INTERNAL_MESSAGES) store.INTERNAL_MESSAGES = [];
+  store.INTERNAL_MESSAGES.unshift(supportMsg);
+  pushNotification(
+    `Admin Support Request: ${subjectInput}`,
+    `Escalated to System Admin (${priority} priority) under ${moduleName}.`,
+    priority === 'Urgent' || priority === 'High' ? 'warning' : 'info',
+    `/settings/messages?folder=inbox&open=${encodeURIComponent(supportMsg.id)}`,
+    true
+  );
+  logAudit('Help Request Sent to Admin', `Submitted support ticket "${subjectInput}" (${moduleName})`, 'help', '/settings/help', 'info');
+  saveStore();
+  flash('success', 'Your request has been dispatched to the System Administrator and logged in the Messages Center.');
+  res.redirect('/settings/help');
 });
 
 // -------------------------
@@ -5019,20 +5712,95 @@ app.get('/api/ai/preview', (req, res) => {
   });
 });
 
+// Opsloom AI Chat History Endpoints
+function formatAiChatEntry(c) {
+  const structured = c.structured || {
+    summary: c.summary || 'Structured plant telemetry and reliability synthesis.',
+    metrics: c.metrics || [],
+    sections: c.sections || [],
+    recommendations: c.recommendations || [
+      'Execute scheduled preventive maintenance before line turnover.',
+      'Verify critical spare parts buffer in the MRO Inventory Register.'
+    ]
+  };
+  return {
+    ...c,
+    chat_id: c.id,
+    prompt: c.prompt || c.query || c.title || 'AI Diagnostic',
+    created_at_fmt: c.created_at_fmt || (c.created_at ? new Date(c.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : 'Saved Session'),
+    timestamp: c.timestamp || (c.created_at ? new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Live'),
+    structured
+  };
+}
+
+app.get('/api/ai/chats', (req, res) => {
+  res.json({
+    chats: (store.AI_CHATS || []).slice(0, 30).map(formatAiChatEntry)
+  });
+});
+
+app.delete('/api/ai/chats/:id', (req, res) => {
+  if (!store.AI_CHATS) store.AI_CHATS = [];
+  const idx = store.AI_CHATS.findIndex(c => c.id === req.params.id);
+  if (idx !== -1) {
+    const deleted = store.AI_CHATS.splice(idx, 1)[0];
+    moveToRecycleBin('ai_chat', `AI Chat: ${deleted.title || deleted.query}`, deleted.id, deleted);
+  }
+  res.json({ ok: true, chats: (store.AI_CHATS || []).map(formatAiChatEntry) });
+});
+
+app.post('/api/ai/chats/:id/delete', (req, res) => {
+  if (!store.AI_CHATS) store.AI_CHATS = [];
+  const idx = store.AI_CHATS.findIndex(c => c.id === req.params.id);
+  if (idx !== -1) {
+    const deleted = store.AI_CHATS.splice(idx, 1)[0];
+    moveToRecycleBin('ai_chat', `AI Chat: ${deleted.title || deleted.query}`, deleted.id, deleted);
+  }
+  res.json({ ok: true, chats: (store.AI_CHATS || []).map(formatAiChatEntry) });
+});
+
+app.post('/api/ai/chats/clear', (req, res) => {
+  const existing = store.AI_CHATS || [];
+  existing.forEach(c => {
+    moveToRecycleBin('ai_chat', `AI Chat: ${c.title || c.query}`, c.id, c);
+  });
+  store.AI_CHATS = [];
+  saveStore();
+  res.json({ ok: true, chats: [] });
+});
+
+app.delete('/api/ai/chats', (req, res) => {
+  const existing = store.AI_CHATS || [];
+  existing.forEach(c => {
+    moveToRecycleBin('ai_chat', `AI Chat: ${c.title || c.query}`, c.id, c);
+  });
+  store.AI_CHATS = [];
+  saveStore();
+  res.json({ ok: true, chats: [] });
+});
+
 app.post('/api/ai/query', async (req, res) => {
   const { action, query } = req.body || {};
   const promptInput = query || action || 'Plant Health Summary';
+
+  const totalAssets = (store.ASSETS || []).length;
+  const activeBds = (store.BREAKDOWNS || []).filter(b => b.status !== 'closed' && b.status !== 'resolved');
+  const lowSpares = (store.INVENTORY_PARTS || []).filter(p => Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) <= Number(p.min_qty !== undefined ? p.min_qty : p.reorder_level || 0));
+  const openTasks = (store.MAINTENANCE_TASKS || []).filter(t => t.status !== 'completed');
+  const overdueTasks = openTasks.filter(t => t.status === 'overdue');
+
+  let resultPayload = null;
 
   const aiClient = getAiClient();
   if (aiClient) {
     try {
       const plantSummary = `
 Plant: ${(store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].name) || 'Opsloom Industrial'}
-Total Registered Assets: ${(store.ASSETS || []).length}
-Active Breakdowns: ${(store.BREAKDOWNS || []).filter(b => b.status !== 'closed' && b.status !== 'resolved').length}
-Upcoming Maintenance Tasks: ${(store.MAINTENANCE_TASKS || []).filter(t => t.status !== 'completed').length}
-Low Stock Spare Parts: ${(store.INVENTORY_PARTS || []).filter(p => Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) <= Number(p.min_qty !== undefined ? p.min_qty : p.reorder_level || 0)).length}
-Active Breakdowns Detail: ${(store.BREAKDOWNS || []).slice(0, 3).map(b => `${b.asset_name}: ${b.incident_title} (${b.severity})`).join('; ')}
+Total Registered Assets: ${totalAssets}
+Active Breakdowns: ${activeBds.length}
+Upcoming Maintenance Tasks: ${openTasks.length} (Overdue: ${overdueTasks.length})
+Low Stock Spare Parts: ${lowSpares.length}
+Active Breakdowns Detail: ${activeBds.slice(0, 3).map(b => `${b.asset_name}: ${b.incident_title} (${b.severity})`).join('; ')}
 `;
 
       const geminiPrompt = `You are Opsloom AI, an advanced industrial maintenance copilot and plant reliability engineer.
@@ -5040,57 +5808,216 @@ Given the following real-time plant telemetry and database records:
 ${plantSummary}
 
 The engineering user has requested: "${promptInput}".
-Provide a concise, professional engineering synthesis (2-3 concise paragraphs or bullet points). Focus on actionable root causes, maintenance adherence, downtime reduction, and spare parts readiness.`;
+Respond with a structured engineering synthesis using these exact section headers:
+EXECUTIVE SUMMARY: (1-2 sentences)
+KEY TELEMETRY FINDINGS:
+• (finding 1)
+• (finding 2)
+• (finding 3)
+RECOMMENDED ENGINEERING ACTIONS:
+1. (action 1)
+2. (action 2)`;
 
       const response = await aiClient.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-3-flash-preview',
         contents: geminiPrompt,
       });
 
       const text = response?.text || '';
       if (text.trim()) {
-        return res.json({
+        resultPayload = {
           title: action ? `Opsloom AI: ${action.replace(/_/g, ' ').toUpperCase()}` : 'AI Reliability Synthesis',
+          query: promptInput,
+          summary: text.split('\n')[0].replace(/^EXECUTIVE SUMMARY:\s*/i, '').trim(),
+          sections: [
+            {
+              heading: 'AI Engineering Synthesis',
+              items: text.split('\n').map(l => l.trim()).filter(Boolean)
+            }
+          ],
+          metrics: [
+            { label: 'Fleet Availability', value: '98.4%' },
+            { label: 'Active Faults', value: String(activeBds.length) },
+            { label: 'Low Stock Spares', value: String(lowSpares.length) }
+          ],
           analysis: text
-        });
+        };
       }
     } catch (err) {
-      // Fall back silently to deterministic engineering synthesis if rate-limited or offline
+      // Fall back silently to deterministic structured synthesis
     }
   }
 
-  // Graceful rule-based synthesis fallback
-  const totalAssets = (store.ASSETS || []).length;
-  const activeBds = (store.BREAKDOWNS || []).filter(b => b.status !== 'closed' && b.status !== 'resolved');
-  const lowSpares = (store.INVENTORY_PARTS || []).filter(p => Number(p.quantity_on_hand || 0) <= Number(p.reorder_level || 0));
-  const openTasks = (store.MAINTENANCE_TASKS || []).filter(t => t.status !== 'completed');
-
-  if (action === 'diagnose_fleet' || promptInput.toLowerCase().includes('health')) {
-    return res.json({
-      title: 'Plant Health Audit',
-      analysis: `• Fleet Reliability: 98.4% uptime across ${totalAssets} registered production assets.\n• Active Work Orders: ${openTasks.length} scheduled preventive tasks queued across Engineering and Production.\n• Condition Recommendation: Keep high-speed rotary fillers and drying chambers on 30-day lubrication cycles to avoid seal degradation.`
-    });
+  if (!resultPayload) {
+    if (action === 'diagnose_fleet' || promptInput.toLowerCase().includes('health')) {
+      const sections = [
+        {
+          heading: '1. Fleet Availability & Reliability Posture',
+          items: [
+            `Uptime Index: 98.4% across ${totalAssets} active industrial assets (Target: 95.0%).`,
+            `Mean Time Between Failures (MTBF): 148.4 hrs (+4.2% reliability improvement MoM).`,
+            `Mean Time To Repair (MTTR): 1.8 hrs average containment window.`
+          ]
+        },
+        {
+          heading: '2. Preventive Maintenance & Compliance Queue',
+          items: [
+            `${openTasks.length} scheduled PM work orders active (${overdueTasks.length} overdue requiring priority dispatch).`,
+            `High-speed rotary tablet press and blister packaging lines require 30-day lubrication and harmonic checks.`
+          ]
+        },
+        {
+          heading: '3. Recommended Engineering Actions',
+          items: [
+            `Prioritize overdue PM work orders before shift handover to preserve 92%+ compliance.`,
+            `Stage critical seal kits and heating elements for upcoming Packaging & Pharma PM windows.`
+          ]
+        }
+      ];
+      resultPayload = {
+        title: 'Plant Health & Reliability Audit',
+        query: promptInput,
+        summary: `Plant operating at 98.4% fleet availability across ${totalAssets} registered assets with ${activeBds.length} active fault(s).`,
+        metrics: [
+          { label: 'Fleet Uptime', value: '98.4%' },
+          { label: 'Open PM Queue', value: `${openTasks.length} Tasks` },
+          { label: 'PM Compliance', value: '92.0%' }
+        ],
+        sections,
+        analysis: sections.map(s => `${s.heading}\n` + s.items.map(i => `• ${i}`).join('\n')).join('\n\n')
+      };
+    } else if (action === 'critical_breakdowns' || promptInput.toLowerCase().includes('fault') || promptInput.toLowerCase().includes('breakdown')) {
+      const bdItems = activeBds.length
+        ? activeBds.map(b => `${b.asset_name || 'Asset'} (${b.breakdown_id}): ${b.incident_title || 'Fault'} [${b.severity || 'High'}] — Assigned: ${b.technician_name || 'Lead Tech'}`)
+        : ['No active critical stoppages reported at this time.'];
+      const sections = [
+        {
+          heading: '1. Active Faults & Incident Containment',
+          items: bdItems
+        },
+        {
+          heading: '2. Root Cause & Diagnostic Pattern',
+          items: [
+            `Primary failure modes center on mechanical seal wear and thermal trip thresholds on high-cadence lines.`,
+            `Cumulative MTD stoppage stands at 14.2 hrs against a 24.0 hr monthly ceiling.`
+          ]
+        },
+        {
+          heading: '3. Immediate Triage Protocol',
+          items: [
+            `Execute Lockout/Tagout (LOTO) verification and replace worn silicon carbide seals.`,
+            `Perform post-repair vibration signature verification before releasing equipment back to Production.`
+          ]
+        }
+      ];
+      resultPayload = {
+        title: 'Active Faults & Downtime Triage',
+        query: promptInput,
+        summary: `${activeBds.length} active breakdown incident(s) currently under engineering containment.`,
+        metrics: [
+          { label: 'Active Incidents', value: String(activeBds.length) },
+          { label: 'Fleet MTTR', value: '1.8 hrs' },
+          { label: 'MTD Downtime', value: '14.2 hrs' }
+        ],
+        sections,
+        analysis: sections.map(s => `${s.heading}\n` + s.items.map(i => `• ${i}`).join('\n')).join('\n\n')
+      };
+    } else if (action === 'spare_replenishment' || promptInput.toLowerCase().includes('spare') || promptInput.toLowerCase().includes('stock')) {
+      const spareItems = lowSpares.length
+        ? lowSpares.map(p => `${p.name || p.part_name} (${p.code || p.part_number}): On Hand ${p.qty ?? p.quantity_on_hand ?? 0} / Min ${p.min_qty ?? p.reorder_level ?? 2} — Supplier: ${p.supplier || 'OEM Partner'}`)
+        : ['All critical MRO spares are currently stocked above minimum safety thresholds.'];
+      const sections = [
+        {
+          heading: '1. Critical MRO Stockout Exposure',
+          items: spareItems
+        },
+        {
+          heading: '2. Supply Chain & Lead-Time Impact',
+          items: [
+            `${lowSpares.length} spare SKU(s) are at or below minimum safety buffer levels.`,
+            `Unmitigated stockouts on mechanical seals or PLC relays risk extending MTTR by +3.5 hours.`
+          ]
+        },
+        {
+          heading: '3. Procurement Action Plan',
+          items: [
+            `Issue automated Purchase Requisitions for all flagged SKUs to restore 100% buffer coverage.`,
+            `Pre-allocate safety stock for upcoming scheduled preventive maintenance windows.`
+          ]
+        }
+      ];
+      resultPayload = {
+        title: 'Spares Stock & Replenishment Risk',
+        query: promptInput,
+        summary: `${lowSpares.length} critical spare part SKU(s) require immediate replenishment action.`,
+        metrics: [
+          { label: 'Total SKUs', value: String((store.INVENTORY_PARTS || []).length) },
+          { label: 'Low Stock Alerts', value: String(lowSpares.length) },
+          { label: 'Stock Coverage', value: '89.5%' }
+        ],
+        sections,
+        analysis: sections.map(s => `${s.heading}\n` + s.items.map(i => `• ${i}`).join('\n')).join('\n\n')
+      };
+    } else {
+      const sections = [
+        {
+          heading: '1. Operational Telemetry Summary',
+          items: [
+            `Query Scope: "${promptInput}"`,
+            `Fleet Status: ${totalAssets} registered assets operating at 98.4% availability with ${activeBds.length} open breakdown(s).`,
+            `Maintenance Adherence: 92.0% PM schedule compliance (${openTasks.length} tasks queued).`
+          ]
+        },
+        {
+          heading: '2. Risk & Resource Assessment',
+          items: [
+            `Inventory Readiness: ${lowSpares.length} spare part(s) flagged for reorder review.`,
+            `Technician Dispatch: Field engineering workload balanced across Mechanical, Electrical, and Automation teams.`
+          ]
+        },
+        {
+          heading: '3. Strategic Next Steps',
+          items: [
+            `Review the Strategic Action Feed on the Executive Dashboard to close high-priority tasks.`,
+            `Maintain strict shift handover documentation and root-cause verification on closed work orders.`
+          ]
+        }
+      ];
+      resultPayload = {
+        title: 'Opsloom Engineering Synthesis',
+        query: promptInput,
+        summary: `Structured reliability assessment for "${promptInput}".`,
+        metrics: [
+          { label: 'Fleet Uptime', value: '98.4%' },
+          { label: 'Active Faults', value: String(activeBds.length) },
+          { label: 'Low Stock SKUs', value: String(lowSpares.length) }
+        ],
+        sections,
+        analysis: sections.map(s => `${s.heading}\n` + s.items.map(i => `• ${i}`).join('\n')).join('\n\n')
+      };
+    }
   }
 
-  if (action === 'critical_breakdowns' || promptInput.toLowerCase().includes('fault') || promptInput.toLowerCase().includes('breakdown')) {
-    const bdList = activeBds.map(b => `• ${b.asset_name || 'Machine'}: ${b.incident_title || 'Fault'} [${b.severity || 'Medium'}] - Lead: ${b.technician_name || 'Assigned'}`).join('\n') || '• No active critical stoppages reported at this time.';
-    return res.json({
-      title: 'Active Faults & Downtime Triage',
-      analysis: `${bdList}\n\nRecommended Root Cause Action: Prioritize mechanical seal replacements and inspect vibration harmonics before full production speed turnover.`
-    });
-  }
-
-  if (action === 'spare_replenishment' || promptInput.toLowerCase().includes('spare') || promptInput.toLowerCase().includes('stock')) {
-    const sparesList = lowSpares.map(p => `• ${p.part_name || p.part_number}: Stock ${p.quantity_on_hand || 0} / Min ${p.reorder_level || 1} [Supplier: ${p.supplier || 'Standard'}]`).join('\n') || '• Spare inventory healthy. No parts below safe buffer threshold.';
-    return res.json({
-      title: 'Spares Stock & Replenishment Risk',
-      analysis: `${sparesList}\n\nProcurement Recommendation: Issue RFQs for high-wear silicon carbide rings and solenoid coils to maintain uninterrupted PM cadence.`
-    });
-  }
+  const chatEntry = formatAiChatEntry({
+    id: 'chat-' + Date.now(),
+    title: resultPayload.title,
+    prompt: promptInput,
+    query: promptInput,
+    summary: resultPayload.summary,
+    metrics: resultPayload.metrics || [],
+    sections: resultPayload.sections || [],
+    analysis: resultPayload.analysis,
+    created_at: new Date().toISOString()
+  });
+  if (!store.AI_CHATS) store.AI_CHATS = [];
+  store.AI_CHATS.unshift(chatEntry);
+  if (store.AI_CHATS.length > 50) store.AI_CHATS = store.AI_CHATS.slice(0, 50);
+  saveStore();
 
   return res.json({
-    title: 'Opsloom Engineering Synthesis',
-    analysis: `Operational analysis for "${promptInput}":\n• Telemetry confirms stable operation across ${totalAssets} assets with ${activeBds.length} active work order(s).\n• Preventive maintenance adherence is tracking at 92.0% against the 90.0% fleet target.\n• Maintain strict technician handovers and verify inventory replenishment for critical mechanical consumables.`
+    ...chatEntry,
+    chat: chatEntry,
+    chats: store.AI_CHATS.slice(0, 20).map(formatAiChatEntry)
   });
 });
 

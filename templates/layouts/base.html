@@ -32,10 +32,12 @@
   <script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
 
   <!-- Brand Customization Palette Takeover -->
+  {% set raw_sec_color = (active_company.secondary_color if active_company and active_company.secondary_color else '#F59E0B')|lower %}
+  {% set safe_sec_color = '#F59E0B' if raw_sec_color in ['#ffffff', '#fff', 'white'] else raw_sec_color %}
   <style id="companyThemeStyles">
     :root {
       --brand-primary: {{ active_company.primary_color if active_company and active_company.primary_color else '#7E22CE' }};
-      --brand-secondary: {{ active_company.secondary_color if active_company and active_company.secondary_color else '#F59E0B' }};
+      --brand-secondary: {{ safe_sec_color }};
       --opsloom-blue: var(--brand-primary);
     }
     /* Brand Primary Color Takeover across whole application */
