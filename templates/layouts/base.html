@@ -36,33 +36,45 @@
     :root {
       --brand-primary: {{ active_company.primary_color if active_company and active_company.primary_color else '#7E22CE' }};
       --brand-secondary: {{ active_company.secondary_color if active_company and active_company.secondary_color else '#F59E0B' }};
+      --opsloom-blue: var(--brand-primary);
     }
-    .bg-blue-600, .bg-blue-500, .bg-ueal-purple, .btn-primary, .auth-primary, .bg-primary {
+    /* Brand Primary Color Takeover across whole application */
+    .bg-blue-600, .bg-blue-500, .bg-blue-700, .bg-ueal-purple, .btn-primary, .auth-primary, .bg-primary,
+    .app-sidebar a.bg-ueal-gold, .app-sidebar a.bg-blue-600, .app-sidebar a.bg-primary {
       background-color: var(--brand-primary) !important;
     }
     .hover\:bg-blue-700:hover, .hover\:bg-blue-600:hover, .hover\:bg-ueal-purple:hover {
+      background-color: var(--brand-primary) !important;
       filter: brightness(0.92);
     }
-    .text-blue-600, .text-blue-500, .text-ueal-purple, .text-primary {
+    .text-blue-600, .text-blue-500, .text-blue-700, .text-ueal-purple, .text-primary {
       color: var(--brand-primary) !important;
     }
-    .border-blue-600, .border-blue-500, .border-ueal-purple, .border-primary {
+    .border-blue-600, .border-blue-500, .border-blue-700, .border-ueal-purple, .border-primary {
       border-color: var(--brand-primary) !important;
     }
-    .focus\:ring-blue-500:focus, .focus\:ring-ueal-purple:focus {
+    .focus\:ring-blue-500:focus, .focus\:ring-blue-600:focus, .focus\:ring-ueal-purple:focus {
       --tw-ring-color: var(--brand-primary) !important;
     }
-    .app-sidebar a.bg-ueal-gold, .app-sidebar a.bg-blue-600 {
-      background-color: var(--brand-primary) !important;
+    .focus\:border-blue-500:focus, .focus\:border-blue-600:focus, .focus\:border-ueal-purple:focus {
+      border-color: var(--brand-primary) !important;
     }
+    /* Brand Secondary / Accent Color Takeover */
     .bg-ueal-gold {
       background-color: var(--brand-secondary) !important;
+    }
+    .hover\:bg-ueal-gold:hover {
+      background-color: var(--brand-secondary) !important;
+      filter: brightness(0.92);
     }
     .text-ueal-gold {
       color: var(--brand-secondary) !important;
     }
     .border-ueal-gold {
       border-color: var(--brand-secondary) !important;
+    }
+    .ring-ueal-gold {
+      --tw-ring-color: var(--brand-secondary) !important;
     }
   </style>
 
@@ -407,6 +419,19 @@
     })();
   </script>
   {% endif %}
+
+  <!-- Floating Opsloom AI Copilot Action Button -->
+  <button
+    type="button"
+    onclick="openOpsloomAiModal()"
+    class="flex items-center gap-2.5 px-4 py-3 rounded-full text-white shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer group border border-white/20 print:hidden"
+    style="position: fixed !important; right: 24px !important; bottom: 24px !important; z-index: 1000 !important; background: linear-gradient(135deg, var(--brand-primary, #7E22CE), #1e1b4b); box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.4);"
+    title="Open Opsloom AI Plant Intelligence"
+    aria-label="Opsloom AI"
+  >
+    <span class="material-symbols-outlined text-amber-400 text-xl animate-pulse">auto_awesome</span>
+    <span class="text-xs font-black tracking-wide pr-1">Opsloom AI</span>
+  </button>
 
   {% include "partials/system_health_modal.html" %}
   {% include "partials/opsloom_ai_modal.html" %}

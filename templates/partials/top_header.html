@@ -11,15 +11,15 @@
     <div class="app-topbar-brand-copy flex items-center gap-4 min-w-0">
       <div class="flex flex-col items-start min-w-0">
         <div class="flex items-center gap-2">
-          <p class="app-topbar-title text-2xl font-black leading-none tracking-tight" style="color: {{ active_company.primary_color if active_company and active_company.primary_color else '#1554FF' }};">
+          <p class="app-topbar-title text-2xl font-black leading-none tracking-tight" style="color: {{ active_company.primary_color if active_company and active_company.primary_color else '#7E22CE' }};">
             EABC
           </p>
-          <span class="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider text-white" style="background-color: {{ active_company.primary_color if active_company and active_company.primary_color else '#1554FF' }};">
+          <span class="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider text-white" style="background-color: {{ active_company.primary_color if active_company and active_company.primary_color else '#7E22CE' }};">
             CORE
           </span>
         </div>
-        <p class="app-topbar-subtitle text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-bold tracking-wider uppercase mt-1 whitespace-nowrap">
-          Engineering Asset &amp; Breakdown Core <span class="opacity-60">• Powered by Opsloom</span>
+        <p class="app-topbar-subtitle text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 font-semibold tracking-wide uppercase mt-1 whitespace-nowrap">
+          Engineering Asset &amp; Breakdown Core <span class="opacity-75 font-normal">• Powered by Opsloom</span>
         </p>
       </div>
 
@@ -63,7 +63,18 @@
   </div>
 
   <div class="app-topbar-meta flex items-center gap-4">
-    <div class="app-topbar-actions flex items-center gap-1.5 mr-2">
+    <div class="app-topbar-actions flex items-center gap-2 mr-2">
+      <!-- Opsloom AI Copilot Header Trigger -->
+      <button
+        type="button"
+        onclick="openOpsloomAiModal()"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-purple-200 dark:border-purple-800/60 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-xs font-black transition-all shadow-xs cursor-pointer"
+        title="Open Opsloom AI Copilot"
+      >
+        <span class="material-symbols-outlined text-[17px] text-amber-500 animate-pulse">auto_awesome</span>
+        <span class="hidden lg:inline">Opsloom AI</span>
+      </button>
+
       <a class="app-topbar-icon app-topbar-notifications w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors relative"
          href="{{ url_for('notifications') }}">
         <span class="material-symbols-outlined">notifications</span>

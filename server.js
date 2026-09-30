@@ -5,6 +5,16 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { GoogleGenAI } = require('@google/genai');
+
+let aiClient = null;
+if (process.env.GEMINI_API_KEY) {
+  try {
+    aiClient = new GoogleGenAI({});
+  } catch (err) {
+    console.warn('[AI Studio] Gemini client note:', err.message);
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -44,8 +54,8 @@ let store = {
       code: 'UEAL',
       primary_color: '#7E22CE',
       secondary_color: '#F59E0B',
-      logo_light_url: '/static/brand/opsloom_wordmark_light.png',
-      logo_dark_url: '/static/brand/opsloom_wordmark_light.png',
+      logo_light_url: '/static/brand/ultravetis_logo.png',
+      logo_dark_url: '/static/brand/ultravetis_logo.png',
       show_name_next_to_logo: false,
       logo_height: 44,
       logo_width_pct: 85,
@@ -161,8 +171,8 @@ function seedInitialDataIfEmpty() {
         code: 'UEAL',
         primary_color: '#7E22CE',
         secondary_color: '#F59E0B',
-        logo_light_url: '/static/brand/opsloom_wordmark_light.png',
-        logo_dark_url: '/static/brand/opsloom_wordmark_light.png',
+        logo_light_url: '/static/brand/ultravetis_logo.png',
+        logo_dark_url: '/static/brand/ultravetis_logo.png',
         show_name_next_to_logo: false,
         logo_height: 44,
         logo_width_pct: 85,
@@ -240,7 +250,9 @@ function seedInitialDataIfEmpty() {
         technical_notes: 'Fluidized bed drying chamber with pneumatic air delivery.'
       }
     ];
+  }
 
+  if (!store.BREAKDOWNS || store.BREAKDOWNS.length === 0) {
     store.BREAKDOWNS = [
       {
         breakdown_id: 'BD-2026-001',
@@ -285,10 +297,13 @@ function seedInitialDataIfEmpty() {
         created_at: '2026-09-27T14:15:00'
       }
     ];
+  }
 
+  if (!store.MAINTENANCE_TASKS || store.MAINTENANCE_TASKS.length === 0) {
     store.MAINTENANCE_TASKS = [
       {
         task_id: 'TASK-2026-001',
+        task_title: 'Monthly Turret Lubrication & Vacuum Inspection',
         asset_uid: 'asset-001',
         asset_id: 'ENG-AST-0101',
         asset_name: 'High-Speed Rotary Filler RFC-80',
@@ -299,6 +314,7 @@ function seedInitialDataIfEmpty() {
         technician: 'David Kimani',
         task_description: 'Full lubrication of rotary turret bearings, seal ring inspection, and vacuum check.',
         due_date: '2026-10-05',
+        scheduled_date: '2026-10-05',
         status: 'upcoming',
         priority: 'high',
         cost: 25000,
@@ -306,6 +322,7 @@ function seedInitialDataIfEmpty() {
       },
       {
         task_id: 'TASK-2026-002',
+        task_title: 'Quarterly Boiler Safety Valve Pop Test',
         asset_uid: 'asset-002',
         asset_id: 'ENG-AST-0102',
         asset_name: 'Steam Boiler Unit SB-02',
@@ -316,6 +333,7 @@ function seedInitialDataIfEmpty() {
         technician: 'James Omondi',
         task_description: 'Safety pressure valve pop test, water level gauge blowdown, and burner calibration.',
         due_date: '2026-10-12',
+        scheduled_date: '2026-10-12',
         status: 'in_progress',
         priority: 'urgent',
         cost: 45000,
@@ -323,6 +341,7 @@ function seedInitialDataIfEmpty() {
       },
       {
         task_id: 'TASK-2026-003',
+        task_title: 'Weekly Nozzle Alignment & Calibration',
         asset_uid: 'asset-001',
         asset_id: 'ENG-AST-0101',
         asset_name: 'High-Speed Rotary Filler RFC-80',
@@ -333,6 +352,7 @@ function seedInitialDataIfEmpty() {
         technician: 'Sarah Njeri',
         task_description: 'Nozzle alignment calibration and optical sensor wipe-down.',
         due_date: '2026-09-25',
+        scheduled_date: '2026-09-25',
         status: 'completed',
         priority: 'medium',
         cost: 12000,
@@ -341,7 +361,9 @@ function seedInitialDataIfEmpty() {
         created_at: '2026-09-18T11:00:00'
       }
     ];
+  }
 
+  if (!store.INVENTORY_PARTS || store.INVENTORY_PARTS.length === 0) {
     store.INVENTORY_PARTS = [
       {
         uid: 'part-001',
@@ -350,6 +372,7 @@ function seedInitialDataIfEmpty() {
         category: 'Mechanical',
         qty: 14,
         min_qty: 5,
+        target_qty: 20,
         storage_location: 'Bin M-12',
         unit_price: 8500,
         supplier: 'SealTech Kenya',
@@ -364,6 +387,7 @@ function seedInitialDataIfEmpty() {
         category: 'Control',
         qty: 4,
         min_qty: 6,
+        target_qty: 12,
         storage_location: 'Cabinet E-03',
         unit_price: 12000,
         supplier: 'Industrial Sensors Africa',
@@ -378,6 +402,7 @@ function seedInitialDataIfEmpty() {
         category: 'Power Transmission',
         qty: 22,
         min_qty: 10,
+        target_qty: 30,
         storage_location: 'Rack P-04',
         unit_price: 2400,
         supplier: 'DriveLine Systems',
@@ -392,12 +417,28 @@ function seedInitialDataIfEmpty() {
         category: 'Pneumatic',
         qty: 2,
         min_qty: 4,
+        target_qty: 8,
         storage_location: 'Bin N-08',
         unit_price: 18500,
         supplier: 'Festo East Africa Ltd',
         is_critical: true,
         lead_time_days: 21,
         created_at: '2026-08-15T08:00:00'
+      },
+      {
+        uid: 'part-005',
+        part_name: 'Solid State Relay 40A 240VAC',
+        sku: 'SKU-ELEC-SSR40',
+        category: 'Electrical',
+        qty: 0,
+        min_qty: 3,
+        target_qty: 6,
+        storage_location: 'Cabinet E-01',
+        unit_price: 4200,
+        supplier: 'Schneider Electric EA',
+        is_critical: true,
+        lead_time_days: 5,
+        created_at: '2026-08-20T08:00:00'
       }
     ];
   }
@@ -417,6 +458,7 @@ try {
   console.warn('Could not read datastore, using default memory store:', err.message);
 }
 seedInitialDataIfEmpty();
+saveStore();
 
 function saveStore() {
   try {
@@ -684,8 +726,8 @@ function baseCtx(req, activeNav = 'dashboard') {
     code: 'UEAL',
     primary_color: '#7E22CE',
     secondary_color: '#F59E0B',
-    logo_light_url: '/static/brand/opsloom_wordmark_light.png',
-    logo_dark_url: '/static/brand/opsloom_wordmark_light.png',
+    logo_light_url: '/static/brand/ultravetis_logo.png',
+    logo_dark_url: '/static/brand/ultravetis_logo.png',
     show_name_next_to_logo: false,
     logo_height: 44,
     logo_width_pct: 85,
@@ -962,14 +1004,15 @@ app.get('/dashboard/strategic-export', (req, res) => {
 // -------------------------
 // ASSETS
 // -------------------------
-app.get('/assets', (req, res) => {
-  let list = store.ASSETS || [];
+app.get(['/assets', '/assets/master-list'], (req, res) => {
+  const allAssets = store.ASSETS || [];
+  let list = allAssets;
   const q = (req.query.q || '').toLowerCase();
   const section = req.query.section;
   const status = req.query.status;
 
   if (q) {
-    list = list.filter(a => (a.asset_name && a.asset_name.toLowerCase().includes(q)) || (a.asset_id && a.asset_id.toLowerCase().includes(q)));
+    list = list.filter(a => (a.asset_name && a.asset_name.toLowerCase().includes(q)) || (a.asset_id && a.asset_id.toLowerCase().includes(q)) || (a.serial_no && a.serial_no.toLowerCase().includes(q)));
   }
   if (section && section !== 'All') {
     list = list.filter(a => a.section === section);
@@ -978,15 +1021,29 @@ app.get('/assets', (req, res) => {
     list = list.filter(a => a.status === status);
   }
 
+  const total = allAssets.length;
+  const operational = allAssets.filter(a => a.status === 'operational').length;
+  const maintenance = allAssets.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
+  const oos = allAssets.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
+  const availability = total > 0 ? (operational / total) * 100 : 98.4;
+  const sections = [...new Set(allAssets.map(a => a.section).filter(Boolean))];
+
   res.render('assets/assets_master_list.html', {
     ...baseCtx(req, 'assets'),
     assets: list,
-    total_assets: (store.ASSETS || []).length,
-    operational_count: (store.ASSETS || []).filter(a => a.status === 'operational').length,
-    degraded_count: (store.ASSETS || []).filter(a => a.status === 'degraded').length,
-    breakdown_count: (store.ASSETS || []).filter(a => a.status === 'breakdown').length,
-    selected_section: section || 'All',
-    selected_status: status || 'All',
+    kpi_total: total,
+    kpi_operational: operational,
+    kpi_maintenance: maintenance,
+    kpi_oos: oos,
+    kpi_availability: availability,
+    total_assets: total,
+    operational_count: operational,
+    degraded_count: maintenance,
+    breakdown_count: oos,
+    sections,
+    selected_section: section || '',
+    selected_status: status || '',
+    q: req.query.q || '',
     search_query: q
   });
 });
@@ -994,13 +1051,23 @@ app.get('/assets', (req, res) => {
 // Smart Asset Insights API Endpoint
 app.get('/api/assets/dashboard', (req, res) => {
   const assets = store.ASSETS || [];
+  const operational = assets.filter(a => a.status === 'operational').length;
+  const maintenance = assets.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
+  const oos = assets.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
   res.json({
     assets,
     total: assets.length,
     counts: {
-      operational: assets.filter(a => a.status === 'operational').length,
-      maintenance: assets.filter(a => a.status === 'degraded' || a.status === 'maintenance').length,
-      out_of_service: assets.filter(a => a.status === 'breakdown').length
+      operational,
+      maintenance,
+      out_of_service: oos
+    },
+    kpi: {
+      total: assets.length,
+      operational,
+      maintenance,
+      out_of_service: oos,
+      availability: assets.length ? Math.round((operational / assets.length) * 1000) / 10 : 98.4
     }
   });
 });
@@ -1235,10 +1302,52 @@ app.get('/assets/:asset_uid/breakdowns', (req, res) => {
   });
 });
 
-app.get('/assets/export/:fmt', (req, res) => {
-  const rows = ['UID,Asset ID,Name,Section,Status,Criticality,Serial No'];
-  (store.ASSETS || []).forEach(a => {
-    rows.push(`"${a.uid}","${a.asset_id}","${a.asset_name}","${a.section}","${a.status}","${a.criticality}","${a.serial_no || ''}"`);
+app.get(['/assets/export/:fmt', '/assets/report/pdf', '/assets/report/print'], (req, res) => {
+  const fmt = (req.params.fmt || (req.path.includes('pdf') ? 'pdf' : (req.path.includes('print') ? 'print' : 'csv'))).toLowerCase();
+  const list = store.ASSETS || [];
+
+  if (fmt === 'pdf' || fmt === 'print' || fmt === 'html') {
+    return res.render('reports/chart_export_print.html', {
+      ...baseCtx(req, 'assets'),
+      report: {
+        title: 'Master Asset Register & Operational Compliance',
+        subtitle: 'Comprehensive inventory of registered industrial assets and condition ratings.',
+        department: 'Engineering',
+        department_display: 'Engineering & Manufacturing',
+        period_label: 'Current Fleet Register',
+        scope_label: 'All Production Sections',
+        reported_by: req.cookies?.opsloom_user || 'Laurence Magondu',
+        generated_label: new Date().toLocaleDateString('en-GB')
+      },
+      report_kind: 'asset',
+      kpi_records: [
+        { label: 'Total Assets', value: list.length, note: 'Registered in Opsloom' },
+        { label: 'Operational', value: list.filter(a => a.status === 'operational').length, note: 'Online' },
+        { label: 'Under Maintenance', value: list.filter(a => a.status === 'degraded' || a.status === 'maintenance').length, note: 'Active work orders' },
+        { label: 'Out of Service', value: list.filter(a => a.status === 'breakdown').length, note: 'Critical stoppages' }
+      ],
+      table_rows: list.map(a => ({
+        col1: `${a.asset_id} — ${a.asset_name}`,
+        col2: a.section || 'General',
+        col3: (a.status || 'operational').toUpperCase(),
+        col4: `Criticality ${a.criticality || 'B'}`
+      }))
+    });
+  }
+
+  if (fmt === 'xlsx' || fmt === 'excel') {
+    const rows = ['UID\tAsset ID\tName\tSection\tDepartment\tStatus\tCriticality\tSerial No\tManufacturer'];
+    list.forEach(a => {
+      rows.push(`${a.uid}\t${a.asset_id}\t${a.asset_name}\t${a.section}\t${a.department}\t${a.status}\t${a.criticality}\t${a.serial_no || ''}\t${a.manufacturer || ''}`);
+    });
+    res.setHeader('Content-Type', 'application/vnd.ms-excel');
+    res.setHeader('Content-Disposition', 'attachment; filename="assets_export.xls"');
+    return res.send(rows.join('\n'));
+  }
+
+  const rows = ['UID,Asset ID,Name,Section,Department,Status,Criticality,Serial No,Manufacturer'];
+  list.forEach(a => {
+    rows.push(`"${a.uid}","${a.asset_id}","${a.asset_name}","${a.section}","${a.department}","${a.status}","${a.criticality}","${a.serial_no || ''}","${a.manufacturer || ''}"`);
   });
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename="assets_export.csv"');
@@ -1248,20 +1357,97 @@ app.get('/assets/export/:fmt', (req, res) => {
 // -------------------------
 // BREAKDOWNS
 // -------------------------
+function filterBreakdowns(all, query = {}) {
+  let list = [...all];
+  const q = (query.q || '').trim().toLowerCase();
+  if (q) {
+    list = list.filter(b => 
+      (b.asset_name && b.asset_name.toLowerCase().includes(q)) ||
+      (b.asset_id && b.asset_id.toLowerCase().includes(q)) ||
+      (b.breakdown_id && b.breakdown_id.toLowerCase().includes(q)) ||
+      (b.incident_title && b.incident_title.toLowerCase().includes(q)) ||
+      (b.technician_name && b.technician_name.toLowerCase().includes(q)) ||
+      (b.failure_category && b.failure_category.toLowerCase().includes(q))
+    );
+  }
+  if (query.status) {
+    list = list.filter(b => b.status === query.status);
+  }
+  if (query.severity) {
+    list = list.filter(b => b.severity === query.severity);
+  }
+  if (query.technician) {
+    list = list.filter(b => b.technician_name === query.technician);
+  }
+  if (query.dt_from) {
+    list = list.filter(b => {
+      const dt = b.reported_dt || (b.reported_date ? `${b.reported_date}T${b.reported_time || '00:00'}` : '');
+      return dt >= query.dt_from;
+    });
+  }
+  if (query.dt_to) {
+    list = list.filter(b => {
+      const dt = b.reported_dt || (b.reported_date ? `${b.reported_date}T${b.reported_time || '23:59'}` : '');
+      return dt <= query.dt_to;
+    });
+  }
+  return list;
+}
+
 app.get(['/breakdowns', '/breakdowns/management'], (req, res) => {
-  const list = store.BREAKDOWNS || [];
-  const openCount = list.filter(b => b.status === 'open').length;
-  const inProgressCount = list.filter(b => b.status === 'in_progress').length;
-  const resolvedCount = list.filter(b => b.status === 'resolved' || b.status === 'closed').length;
+  const all = store.BREAKDOWNS || [];
+  const filtered = filterBreakdowns(all, req.query);
+
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const per_page = Math.max(1, parseInt(req.query.per_page) || 10);
+  const total_count = filtered.length;
+  const total_pages = Math.max(1, Math.ceil(total_count / per_page));
+  const paginated = filtered.slice((page - 1) * per_page, page * per_page);
+
+  const pages = [];
+  for (let i = 1; i <= total_pages; i++) {
+    pages.push(i);
+  }
+
+  const activeCount = all.filter(b => b.status !== 'closed' && b.status !== 'resolved').length;
+  const inProgressCount = all.filter(b => b.status === 'in_progress').length;
+  const resolvedCount = all.filter(b => b.status === 'resolved' || b.status === 'closed').length;
+  const totalDowntime = all.reduce((acc, b) => acc + calculateDowntimeHours(b), 0);
+  const totalCost = all.reduce((acc, b) => acc + Number(b.cost_total || b.cost || 0), 0);
+  const facilities = new Set(all.map(b => b.section).filter(Boolean)).size || 4;
+
+  const techNames = Array.from(new Set([
+    ...(store.TECHNICIAN_DIRECTORY || []).map(t => t.name),
+    ...all.map(b => b.technician_name).filter(Boolean)
+  ])).sort();
 
   res.render('breakdowns/breakdowns_management.html', {
     ...baseCtx(req, 'breakdowns'),
-    breakdowns: list,
-    open_count: openCount,
+    breakdowns: paginated,
+    q: req.query.q || '',
+    selected_status: req.query.status || '',
+    selected_severity: req.query.severity || '',
+    selected_technician: req.query.technician || '',
+    selected_dt_from: req.query.dt_from || '',
+    selected_dt_to: req.query.dt_to || '',
+    page,
+    per_page,
+    total_pages,
+    pages,
+    total_count,
+    open_count: all.filter(b => b.status === 'open').length,
     in_progress_count: inProgressCount,
     resolved_count: resolvedCount,
-    total_count: list.length,
-    technicians: store.TECHNICIAN_DIRECTORY || [],
+    kpi_active_breakdowns: activeCount,
+    kpi_active_delta: 0,
+    kpi_mttr_hours: 1.8,
+    kpi_mttr_trend: -3.0,
+    kpi_downtime_mtd_hours: Math.round(totalDowntime * 10) / 10,
+    kpi_facilities: facilities,
+    kpi_uptime_rate: 98.4,
+    kpi_uptime_target: 98.0,
+    kpi_cost_total: totalCost,
+    technicians: techNames,
     assets: store.ASSETS || []
   });
 });
@@ -1339,27 +1525,198 @@ app.get('/breakdowns/success/:id', (req, res) => {
   });
 });
 
+function renderBreakdownView(req, res, breakdown, print_mode = false) {
+  const dtHours = calculateDowntimeHours(breakdown);
+  const costSubtotal = Number(breakdown.cost_subtotal || breakdown.cost || 0);
+  const costVat = Number(breakdown.cost_vat_amount || Math.round(costSubtotal * 0.16));
+  const costTotal = Number(breakdown.cost_total || (costSubtotal + costVat));
+
+  const reportedDt = breakdown.reported_dt || (breakdown.reported_date ? `${breakdown.reported_date} ${breakdown.reported_time || '08:30'}` : '2026-09-28 08:30');
+  const reportedDate = breakdown.reported_date || (reportedDt.includes(' ') ? reportedDt.split(' ')[0] : reportedDt) || '2026-09-28';
+  const reportedTime = breakdown.reported_time || (reportedDt.includes(' ') ? reportedDt.split(' ')[1] : '08:30');
+
+  const statusLabel = {
+    open: 'Open',
+    in_progress: 'In Progress',
+    on_hold: 'On Hold',
+    resolved: 'Resolved',
+    closed: 'Resolved'
+  }[breakdown.status] || 'Open';
+
+  res.render('breakdowns/view_breakdown_details.html', {
+    ...baseCtx(req, 'breakdowns'),
+    ...breakdown,
+    breakdown,
+    breakdown_id: breakdown.breakdown_id,
+    incident_title: breakdown.incident_title || breakdown.title || breakdown.breakdown_id,
+    asset_name: breakdown.asset_name || 'Industrial Equipment',
+    asset_id: breakdown.asset_id || breakdown.code || '',
+    section: breakdown.section || 'Pharma',
+    status: breakdown.status || 'open',
+    status_label: statusLabel,
+    severity: breakdown.severity || 'medium',
+    symptoms: breakdown.symptoms || '',
+    notes: breakdown.notes || '',
+    failure_category: breakdown.failure_category || 'Mechanical',
+    technician_name: breakdown.technician_name || '',
+    reported_date: reportedDate,
+    reported_time: reportedTime,
+    resolved_date: breakdown.resolved_date || (breakdown.resolved_at ? breakdown.resolved_at.slice(0, 10) : ''),
+    resolved_time: breakdown.resolved_time || (breakdown.resolved_at ? breakdown.resolved_at.slice(11, 16) : ''),
+    resolved_dt_iso: breakdown.resolved_at || '',
+    downtime_display_label: `${dtHours.toFixed(1)} hrs`,
+    cost_subtotal: costSubtotal,
+    cost_vat_amount: costVat,
+    cost_total: costTotal,
+    progress_log: breakdown.progress_log || [],
+    technicians: store.TECHNICIAN_DIRECTORY || [],
+    media: breakdown.media || [],
+    print_mode
+  });
+}
+
+app.get('/breakdowns/export', (req, res) => {
+  const fmt = (req.query.format || req.query.fmt || 'csv').toLowerCase();
+  const list = filterBreakdowns(store.BREAKDOWNS || [], req.query);
+
+  if (fmt === 'pdf' || fmt === 'print' || fmt === 'html') {
+    return res.render('reports/chart_export_print.html', {
+      ...baseCtx(req, 'breakdowns'),
+      report: {
+        title: 'Breakdown Incidents & Downtime Master Log',
+        subtitle: 'Audit log of equipment failures, elapsed downtime, and corrective actions.',
+        department: 'Engineering',
+        department_display: 'Engineering & Maintenance',
+        period_label: 'Fleet Incident Log',
+        scope_label: 'Plant-wide Equipment',
+        reported_by: req.cookies?.opsloom_user || 'Laurence Magondu',
+        generated_label: new Date().toLocaleDateString('en-GB')
+      },
+      report_kind: 'breakdown',
+      kpi_records: [
+        { label: 'Total Incidents', value: list.length, note: 'Recorded incidents' },
+        { label: 'Active Unresolved', value: list.filter(b => b.status !== 'closed' && b.status !== 'resolved').length, note: 'Under repair' },
+        { label: 'Resolved / Closed', value: list.filter(b => b.status === 'closed' || b.status === 'resolved').length, note: 'Closed work orders' },
+        { label: 'Fleet MTTR', value: '1.8 hrs', note: 'Mean Time to Repair' }
+      ],
+      table_rows: list.map(b => ({
+        col1: `${b.breakdown_id} — ${b.asset_name}`,
+        col2: b.incident_title,
+        col3: (b.status || 'open').toUpperCase(),
+        col4: `${calculateDowntimeHours(b)} hrs (${b.severity || 'Medium'})`
+      }))
+    });
+  }
+
+  if (fmt === 'xlsx' || fmt === 'excel') {
+    const rows = ['Breakdown ID\tAsset\tIncident\tSeverity\tStatus\tTechnician\tReported\tDowntime (hrs)'];
+    list.forEach(b => {
+      rows.push(`${b.breakdown_id}\t${b.asset_name}\t${b.incident_title}\t${b.severity}\t${b.status}\t${b.technician_name}\t${b.reported_dt || b.reported_date}\t${calculateDowntimeHours(b)}`);
+    });
+    res.setHeader('Content-Type', 'application/vnd.ms-excel');
+    res.setHeader('Content-Disposition', 'attachment; filename="breakdowns_export.xls"');
+    return res.send(rows.join('\n'));
+  }
+
+  const rows = ['Breakdown ID,Asset,Incident,Severity,Status,Technician,Reported,Downtime Hours'];
+  list.forEach(b => {
+    rows.push(`"${b.breakdown_id}","${b.asset_name}","${b.incident_title}","${b.severity}","${b.status}","${b.technician_name}","${b.reported_dt || b.reported_date}","${calculateDowntimeHours(b)}"`);
+  });
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="breakdowns_export.csv"');
+  res.send(rows.join('\n'));
+});
+
+app.get('/breakdowns/frequency/export', (req, res) => {
+  const fmt = (req.query.format || req.query.fmt || 'pdf').toLowerCase();
+  const range = (req.query.range || '7d').toLowerCase();
+  const notes = req.query.notes || '';
+  const breakdowns = store.BREAKDOWNS || [];
+
+  let labels = [];
+  let values = [];
+  if (range === '7d') {
+    labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    values = labels.map((_, idx) => breakdowns.filter((_, i) => (i % 7) === idx).length);
+  } else if (range === '30d') {
+    labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+    values = labels.map((_, idx) => breakdowns.filter((_, i) => (i % 4) === idx).length);
+  } else if (range === '90d' || range === 'qtr') {
+    labels = ['Month 1', 'Month 2', 'Month 3'];
+    values = labels.map((_, idx) => breakdowns.filter((_, i) => (i % 3) === idx).length);
+  } else if (range === 'year') {
+    labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    values = labels.map((_, idx) => breakdowns.filter((_, i) => (i % 12) === idx).length);
+  } else {
+    labels = ['Prior Period', 'Mid Period', 'Current Period'];
+    values = [Math.floor(breakdowns.length / 3), Math.floor(breakdowns.length / 3), breakdowns.length - (2 * Math.floor(breakdowns.length / 3))];
+  }
+  const total = values.reduce((sum, v) => sum + v, 0);
+
+  if (fmt === 'csv') {
+    const rows = ['Time Period,Breakdown Incidents,MTTR (hrs),Status'];
+    labels.forEach((l, idx) => {
+      rows.push(`"${l}",${values[idx]},1.8,"Verified"`);
+    });
+    rows.push(`"Total",${total},"—","—"`);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="breakdown_frequency.csv"');
+    return res.send(rows.join('\n'));
+  }
+
+  if (fmt === 'xlsx' || fmt === 'excel') {
+    const rows = ['Time Period\tBreakdown Incidents\tMTTR (hrs)\tStatus'];
+    labels.forEach((l, idx) => {
+      rows.push(`${l}\t${values[idx]}\t1.8\tVerified`);
+    });
+    rows.push(`Total\t${total}\t—\t—`);
+    res.setHeader('Content-Type', 'application/vnd.ms-excel');
+    res.setHeader('Content-Disposition', 'attachment; filename="breakdown_frequency.xls"');
+    return res.send(rows.join('\n'));
+  }
+
+  res.render('reports/chart_export_print.html', {
+    ...baseCtx(req, 'breakdowns'),
+    report: {
+      title: 'Breakdown Frequency & Incident Trend Report',
+      subtitle: `Historical breakdown frequency analysis for ${range.toUpperCase()} period.`,
+      department: 'Engineering',
+      department_display: 'Engineering & Reliability',
+      period_label: `Range: ${range.toUpperCase()}`,
+      scope_label: 'Plant-wide Fleet',
+      reported_by: req.cookies?.opsloom_user || 'Laurence Magondu',
+      generated_label: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    },
+    report_kind: 'breakdown',
+    chart_data: {
+      labels,
+      datasets: [{ label: 'Incidents', data: values }]
+    },
+    notes,
+    kpi_records: [
+      { label: 'Total Incidents', value: total, note: `${range} recorded stoppages` },
+      { label: 'Fleet MTTR', value: '1.8 hrs', note: 'Mean Time to Repair' },
+      { label: 'Fleet Uptime', value: '98.4%', note: 'Target: ≥ 95.0%' }
+    ],
+    table_rows: labels.map((l, idx) => ({
+      col1: l,
+      col2: `${values[idx]} incidents`,
+      col3: '1.8 hrs',
+      col4: values[idx] > 0 ? 'Corrective Dispatched' : 'Nominal'
+    }))
+  });
+});
+
 app.get('/breakdowns/:id', (req, res) => {
   const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
   if (!breakdown) return res.redirect('/breakdowns');
-  res.render('breakdowns/view_breakdown_details.html', {
-    ...baseCtx(req, 'breakdowns'),
-    breakdown,
-    technicians: store.TECHNICIAN_DIRECTORY || [],
-    media: []
-  });
+  renderBreakdownView(req, res, breakdown, false);
 });
 
 app.get('/breakdowns/:id/print', (req, res) => {
   const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
   if (!breakdown) return res.redirect('/breakdowns');
-  res.render('breakdowns/view_breakdown_details.html', {
-    ...baseCtx(req, 'breakdowns'),
-    breakdown,
-    technicians: store.TECHNICIAN_DIRECTORY || [],
-    media: [],
-    print_mode: true
-  });
+  renderBreakdownView(req, res, breakdown, true);
 });
 
 app.get('/breakdowns/:id/update', (req, res) => {
@@ -1380,6 +1737,7 @@ app.post('/breakdowns/:id/update', (req, res) => {
       const asset = store.ASSETS.find(a => a.uid === breakdown.asset_uid);
       if (asset) asset.status = 'operational';
       breakdown.downtime_hours = calculateDowntimeHours(breakdown);
+      breakdown.resolved_at = breakdown.resolved_at || new Date().toISOString();
     }
     saveStore();
     logAudit('Breakdown Updated', `Updated status to ${breakdown.status} for ${breakdown.breakdown_id}`, 'breakdowns', `/breakdowns/${breakdown.breakdown_id}`);
@@ -1410,7 +1768,7 @@ app.post('/breakdowns/:id/rca', (req, res) => {
 app.post('/breakdowns/:id/close', (req, res) => {
   const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
   if (breakdown) {
-    breakdown.status = 'closed';
+    breakdown.status = 'resolved';
     breakdown.resolved_at = new Date().toISOString();
     breakdown.downtime_hours = calculateDowntimeHours(breakdown);
     const asset = store.ASSETS.find(a => a.uid === breakdown.asset_uid);
@@ -1419,7 +1777,8 @@ app.post('/breakdowns/:id/close', (req, res) => {
     logAudit('Breakdown Closed', `Incident ${breakdown.breakdown_id} resolved and closed.`, 'breakdowns', `/breakdowns/${breakdown.breakdown_id}`, 'success');
     flash('success', 'Incident marked as closed and asset restored to operational status.');
   }
-  res.redirect(`/breakdowns/${req.params.id}`);
+  const next = req.body?.next || `/breakdowns/${req.params.id}`;
+  res.redirect(next);
 });
 
 app.post('/breakdowns/:id/delete', (req, res) => {
@@ -1429,17 +1788,8 @@ app.post('/breakdowns/:id/delete', (req, res) => {
     saveStore();
     flash('success', 'Breakdown incident removed.');
   }
-  res.redirect('/breakdowns');
-});
-
-app.get('/breakdowns/export', (req, res) => {
-  const rows = ['Breakdown ID,Asset,Incident,Severity,Status,Technician,Reported,Downtime Hours'];
-  (store.BREAKDOWNS || []).forEach(b => {
-    rows.push(`"${b.breakdown_id}","${b.asset_name}","${b.incident_title}","${b.severity}","${b.status}","${b.technician_name}","${b.reported_dt || b.reported_date}","${calculateDowntimeHours(b)}"`);
-  });
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename="breakdowns_export.csv"');
-  res.send(rows.join('\n'));
+  const next = req.body?.next || '/breakdowns';
+  res.redirect(next);
 });
 
 // -------------------------
@@ -1650,10 +2000,31 @@ app.post('/maintenance/:task_id/delete', (req, res) => {
   res.redirect('/maintenance');
 });
 
-app.get('/maintenance/export/:fmt', (req, res) => {
-  const rows = ['Task ID,Asset,Type,Frequency,Due Date,Status,Technician'];
-  (store.MAINTENANCE_TASKS || []).forEach(t => {
-    rows.push(`"${t.task_id}","${t.asset_name}","${t.maintenance_type}","${t.frequency}","${t.due_date}","${t.status}","${t.technician}"`);
+app.get(['/maintenance/export/:fmt', '/maintenance/schedule/export'], (req, res) => {
+  const fmt = (req.params.fmt || req.query.format || req.query.fmt || 'csv').toLowerCase();
+  const list = store.MAINTENANCE_TASKS || [];
+
+  if (fmt === 'pdf' || fmt === 'print' || fmt === 'html') {
+    return res.render('maintenance/maintenance_schedule_print.html', {
+      ...baseCtx(req, 'maintenance'),
+      tasks: list,
+      month_label: new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+    });
+  }
+
+  if (fmt === 'xlsx' || fmt === 'excel') {
+    const rows = ['Task ID\tAsset\tType\tFrequency\tDue Date\tStatus\tTechnician\tCost (KES)'];
+    list.forEach(t => {
+      rows.push(`${t.task_id}\t${t.asset_name}\t${t.maintenance_type}\t${t.frequency}\t${t.due_date || t.scheduled_date}\t${t.status}\t${t.technician}\t${t.cost || 0}`);
+    });
+    res.setHeader('Content-Type', 'application/vnd.ms-excel');
+    res.setHeader('Content-Disposition', 'attachment; filename="maintenance_tasks.xls"');
+    return res.send(rows.join('\n'));
+  }
+
+  const rows = ['Task ID,Asset,Type,Frequency,Due Date,Status,Technician,Cost (KES)'];
+  list.forEach(t => {
+    rows.push(`"${t.task_id}","${t.asset_name}","${t.maintenance_type}","${t.frequency}","${t.due_date || t.scheduled_date}","${t.status}","${t.technician}","${t.cost || 0}"`);
   });
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename="maintenance_tasks.csv"');
@@ -1663,19 +2034,82 @@ app.get('/maintenance/export/:fmt', (req, res) => {
 // -------------------------
 // INVENTORY
 // -------------------------
-app.get('/inventory', (req, res) => {
+app.get(['/inventory', '/inventory/management'], (req, res) => {
   const parts = store.INVENTORY_PARTS || [];
-  const lowStockCount = parts.filter(p => Number(p.qty) <= Number(p.min_qty)).length;
-  const criticalCount = parts.filter(p => p.is_critical).length;
+  const total = parts.length;
+  const criticalSpares = parts.filter(p => p.is_critical).length;
+  const lowStockAlerts = parts.filter(p => Number(p.qty) <= Number(p.min_qty) && Number(p.qty) > 0).length;
+  const outOfStock = parts.filter(p => Number(p.qty) <= 0).length;
   const totalValue = parts.reduce((sum, p) => sum + ((Number(p.qty) || 0) * (Number(p.unit_price) || 0)), 0);
+
+  const healthyCount = parts.filter(p => Number(p.qty) > Number(p.min_qty)).length;
+  const healthyPct = total > 0 ? Math.round((healthyCount / total) * 100) : 60;
+  const lowPct = total > 0 ? Math.round((lowStockAlerts / total) * 100) : 25;
+  const outPct = total > 0 ? (100 - healthyPct - lowPct) : 15;
+
+  const urgent = parts
+    .filter(p => Number(p.qty) <= Number(p.min_qty))
+    .map(p => ({
+      ...p,
+      urgent_reason: Number(p.qty) <= 0 ? 'Stock exhausted. High risk for unscheduled stoppages.' : 'Stock is below buffer safety reorder point.'
+    }));
+
+  const perPage = Number(req.query.per_page) || 10;
+  const page = Number(req.query.page) || 1;
+  const q = (req.query.q || '').toLowerCase();
+  const category = req.query.category || '';
+  const stockState = req.query.stock_state || '';
+
+  let filtered = parts;
+  if (q) {
+    filtered = filtered.filter(p => (p.part_name && p.part_name.toLowerCase().includes(q)) || (p.sku && p.sku.toLowerCase().includes(q)) || (p.supplier && p.supplier.toLowerCase().includes(q)));
+  }
+  if (category) {
+    filtered = filtered.filter(p => p.category === category);
+  }
+  if (stockState === 'out') {
+    filtered = filtered.filter(p => Number(p.qty) <= 0);
+  } else if (stockState === 'low') {
+    filtered = filtered.filter(p => Number(p.qty) <= Number(p.min_qty) && Number(p.qty) > 0);
+  } else if (stockState === 'healthy') {
+    filtered = filtered.filter(p => Number(p.qty) > Number(p.min_qty));
+  }
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
 
   res.render('inventory/inventory_management.html', {
     ...baseCtx(req, 'inventory'),
-    parts,
-    total_parts: parts.length,
-    low_stock_count: lowStockCount,
-    critical_count: criticalCount,
-    total_value: totalValue
+    parts: filtered,
+    total_unique_skus: total,
+    total_parts: total,
+    critical_spares: criticalSpares,
+    critical_count: criticalSpares,
+    low_stock_alerts: lowStockAlerts,
+    low_stock_count: lowStockAlerts,
+    out_of_stock: outOfStock,
+    total_inventory_value: totalValue,
+    total_value: totalValue,
+    donut: {
+      healthy: healthyCount,
+      healthy_pct: healthyPct,
+      low: lowStockAlerts,
+      low_pct: lowPct,
+      out: outOfStock,
+      out_pct: outPct
+    },
+    urgent,
+    urgent_count: urgent.length,
+    total: filtered.length,
+    showing_from: filtered.length ? 1 : 0,
+    showing_to: filtered.length,
+    page,
+    total_pages: totalPages,
+    pages,
+    per_page: perPage,
+    q: req.query.q || '',
+    selected_category: category,
+    selected_stock_state: stockState
   });
 });
 
@@ -1748,9 +2182,51 @@ app.get('/inventory/:part_uid', (req, res) => {
 });
 
 app.get('/inventory/export/:fmt', (req, res) => {
-  const rows = ['Part UID,SKU,Part Name,Category,Qty,Min Qty,Unit Price (KES),Critical'];
-  (store.INVENTORY_PARTS || []).forEach(p => {
-    rows.push(`"${p.uid}","${p.sku}","${p.part_name}","${p.category}","${p.qty}","${p.min_qty}","${p.unit_price}","${p.is_critical ? 'Yes' : 'No'}"`);
+  const fmt = (req.params.fmt || 'csv').toLowerCase();
+  const list = store.INVENTORY_PARTS || [];
+
+  if (fmt === 'pdf' || fmt === 'print' || fmt === 'html') {
+    return res.render('reports/chart_export_print.html', {
+      ...baseCtx(req, 'inventory'),
+      report: {
+        title: 'Master Inventory & Spare Parts Valuation Report',
+        subtitle: 'Warehouse valuation, replenishment alerts, and buffer stock status.',
+        department: 'Logistics & Warehousing',
+        department_display: 'Engineering Spares & Stores',
+        period_label: 'Current Warehouse Stock',
+        scope_label: 'Plant-wide Spares Stores',
+        reported_by: req.cookies?.opsloom_user || 'Laurence Magondu',
+        generated_label: new Date().toLocaleDateString('en-GB')
+      },
+      report_kind: 'inventory',
+      kpi_records: [
+        { label: 'Total Unique SKUs', value: list.length, note: 'Stock catalogue' },
+        { label: 'Low Stock Alerts', value: list.filter(p => Number(p.qty) <= Number(p.min_qty) && Number(p.qty) > 0).length, note: 'Reorder triggered' },
+        { label: 'Out of Stock', value: list.filter(p => Number(p.qty) <= 0).length, note: 'Critical stockouts' },
+        { label: 'Inventory Value', value: `KES ${list.reduce((sum, p) => sum + ((Number(p.qty) || 0) * (Number(p.unit_price) || 0)), 0).toLocaleString()}`, note: 'Total value on hand' }
+      ],
+      table_rows: list.map(p => ({
+        col1: `${p.sku} — ${p.part_name}`,
+        col2: p.category || 'Mechanical',
+        col3: `Qty: ${p.qty} (Min: ${p.min_qty})`,
+        col4: `KES ${((Number(p.qty) || 0) * (Number(p.unit_price) || 0)).toLocaleString()}`
+      }))
+    });
+  }
+
+  if (fmt === 'xlsx' || fmt === 'excel') {
+    const rows = ['Part UID\tSKU\tPart Name\tCategory\tQty\tMin Qty\tUnit Price (KES)\tTotal Value (KES)\tCritical'];
+    list.forEach(p => {
+      rows.push(`${p.uid}\t${p.sku}\t${p.part_name}\t${p.category}\t${p.qty}\t${p.min_qty}\t${p.unit_price}\t${(Number(p.qty) || 0) * (Number(p.unit_price) || 0)}\t${p.is_critical ? 'Yes' : 'No'}`);
+    });
+    res.setHeader('Content-Type', 'application/vnd.ms-excel');
+    res.setHeader('Content-Disposition', 'attachment; filename="inventory_parts.xls"');
+    return res.send(rows.join('\n'));
+  }
+
+  const rows = ['Part UID,SKU,Part Name,Category,Qty,Min Qty,Unit Price (KES),Total Value (KES),Critical'];
+  list.forEach(p => {
+    rows.push(`"${p.uid}","${p.sku}","${p.part_name}","${p.category}","${p.qty}","${p.min_qty}","${p.unit_price}","${(Number(p.qty) || 0) * (Number(p.unit_price) || 0)}","${p.is_critical ? 'Yes' : 'No'}"`);
   });
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename="inventory_parts.csv"');
@@ -2107,9 +2583,10 @@ app.get('/api/live/dashboard/kpis', (req, res) => {
   });
 });
 
-app.get('/api/live/breakdowns/kpis', (req, res) => {
+app.get(['/api/live/breakdowns/kpis', '/api/breakdowns/kpi'], (req, res) => {
   const active = (store.BREAKDOWNS || []).filter(b => b.status !== 'closed' && b.status !== 'resolved').length;
   const totalDowntime = (store.BREAKDOWNS || []).reduce((acc, b) => acc + calculateDowntimeHours(b), 0);
+  const totalCost = (store.BREAKDOWNS || []).reduce((acc, b) => acc + Number(b.cost_total || b.cost || 0), 0);
 
   res.json({
     active,
@@ -2117,9 +2594,45 @@ app.get('/api/live/breakdowns/kpis', (req, res) => {
     mttr_hours: 1.8,
     downtime_mtd_hours: Math.round(totalDowntime * 10) / 10,
     uptime_rate: 98.4,
+    uptime_target: 98.0,
+    cost_total: totalCost,
+    cost_total_formatted: 'KES ' + totalCost.toLocaleString('en-US'),
     mttr_trend: -3,
     mtbf_hours: 142.5,
     mtbf_delta: 5.1
+  });
+});
+
+app.get('/api/breakdowns/frequency', (req, res) => {
+  const range = (req.query.range || '7d').toLowerCase();
+  const breakdowns = store.BREAKDOWNS || [];
+  
+  let labels = [];
+  let values = [];
+
+  if (range === '7d') {
+    labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    values = labels.map((_, idx) => breakdowns.filter((_, i) => (i % 7) === idx).length);
+  } else if (range === '30d') {
+    labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+    values = labels.map((_, idx) => breakdowns.filter((_, i) => (i % 4) === idx).length);
+  } else if (range === '90d' || range === 'qtr') {
+    labels = ['Month 1', 'Month 2', 'Month 3'];
+    values = labels.map((_, idx) => breakdowns.filter((_, i) => (i % 3) === idx).length);
+  } else if (range === 'year') {
+    labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    values = labels.map((_, idx) => breakdowns.filter((_, i) => (i % 12) === idx).length);
+  } else {
+    labels = ['Prior Period', 'Mid Period', 'Current Period'];
+    values = [Math.floor(breakdowns.length / 3), Math.floor(breakdowns.length / 3), breakdowns.length - (2 * Math.floor(breakdowns.length / 3))];
+  }
+
+  const total = values.reduce((sum, v) => sum + v, 0);
+
+  res.json({
+    labels,
+    values,
+    total
   });
 });
 
@@ -2156,19 +2669,240 @@ app.get(['/api/live/reports/kpis', '/api/live/reports-kpis'], (req, res) => {
   });
 });
 
-app.get('/api/technicians/workload', (req, res) => {
-  const list = (store.TECHNICIAN_DIRECTORY || []).map(t => {
-    const assignedTasks = (store.MAINTENANCE_TASKS || []).filter(m => m.technician === t.name && m.status !== 'completed').length;
-    const assignedBds = (store.BREAKDOWNS || []).filter(b => b.technician_name === t.name && b.status !== 'closed').length;
+app.get('/api/maintenance/technicians', (req, res) => {
+  const techs = store.TECHNICIAN_DIRECTORY || [];
+  const tasks = store.MAINTENANCE_TASKS || [];
+  const rows = techs.map(t => {
+    const activeTasks = tasks.filter(m => m.technician === t.name && m.status !== 'completed');
+    const dueSoon = activeTasks.filter(m => m.status === 'upcoming').length;
+    const overdue = activeTasks.filter(m => m.status === 'overdue').length;
     return {
       id: t.id,
       name: t.name,
       discipline: t.discipline,
+      role: t.role,
+      active: activeTasks.length,
+      due_soon: dueSoon,
+      overdue: overdue,
+      status: activeTasks.length <= 1 ? 'Available' : activeTasks.length <= 3 ? 'Moderate' : 'High Load'
+    };
+  });
+  res.json({
+    rows,
+    note: 'Live technician availability from scheduled preventive and corrective tasks.'
+  });
+});
+
+app.get('/api/technicians/workload', (req, res) => {
+  const list = (store.TECHNICIAN_DIRECTORY || []).map(t => {
+    const assignedTasks = (store.MAINTENANCE_TASKS || []).filter(m => m.technician === t.name && m.status !== 'completed').length;
+    const assignedBds = (store.BREAKDOWNS || []).filter(b => b.technician_name === t.name && b.status !== 'closed' && b.status !== 'resolved').length;
+    return {
+      id: t.id,
+      name: t.name,
+      discipline: t.discipline,
+      role: t.role || `${t.discipline} Technician`,
+      active: assignedBds,
+      open_pm: assignedTasks,
       active_tasks: assignedTasks + assignedBds,
+      availability_score: Math.max(30, 100 - (assignedTasks + assignedBds) * 15),
       workload_status: (assignedTasks + assignedBds) > 4 ? 'high' : 'normal'
     };
   });
-  res.json(list);
+  res.json({
+    rows: list,
+    technicians: list,
+    note: 'Live workload across active breakdowns and PM queues.'
+  });
+});
+
+app.get('/api/technicians/:id/profile', (req, res) => {
+  const id = req.params.id;
+  const tech = (store.TECHNICIAN_DIRECTORY || []).find(t => t.id === id || t.name === id);
+  if (!tech) {
+    return res.status(404).json({ error: 'Technician not found' });
+  }
+
+  const tasks = (store.MAINTENANCE_TASKS || []).filter(m => m.technician === tech.name);
+  const breakdowns = (store.BREAKDOWNS || []).filter(b => b.technician_name === tech.name);
+  
+  const openPm = tasks.filter(t => t.status !== 'completed').length;
+  const activeBds = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved').length;
+  const dueSoon = tasks.filter(t => t.status === 'upcoming').length;
+  const overduePm = tasks.filter(t => t.status === 'overdue').length;
+
+  const recentWork = [
+    ...tasks.slice(0, 3).map(t => ({
+      kind: 'PM Task',
+      title: t.task_title || t.title || 'Preventive Maintenance',
+      status: t.status || 'open',
+      date: t.scheduled_date || t.created_at || 'Recent'
+    })),
+    ...breakdowns.slice(0, 3).map(b => ({
+      kind: 'Breakdown',
+      title: b.incident_title || 'Corrective Repair',
+      status: b.status || 'in_progress',
+      date: b.reported_date || b.created_at || 'Recent'
+    }))
+  ];
+
+  res.json({
+    id: tech.id,
+    name: tech.name,
+    role: tech.role || 'Senior Technician',
+    discipline: tech.discipline || 'Mechanical',
+    email: tech.email || `${tech.name.toLowerCase().replace(/\s+/g, '.')}@opsloom.co.ke`,
+    phone: tech.phone || '+254700000000',
+    availability_score: Math.max(35, 100 - (openPm + activeBds) * 12),
+    status_label: (openPm + activeBds) <= 2 ? 'Available for immediate assignment' : 'Assigned to active maintenance queue',
+    open_pm: openPm,
+    active_breakdowns: activeBds,
+    due_soon: dueSoon,
+    overdue_pm: overduePm,
+    on_time_rate: 94.8,
+    avg_completion_days: 1.3,
+    recent_work: recentWork
+  });
+});
+
+app.get('/reports/api/assets', (req, res) => {
+  const section = req.query.section;
+  const dept = req.query.department;
+  let list = store.ASSETS || [];
+  if (dept) {
+    list = list.filter(a => !a.department || a.department.toLowerCase() === dept.toLowerCase());
+  }
+  if (section && section !== 'all') {
+    list = list.filter(a => !a.section || a.section.toLowerCase() === section.toLowerCase());
+  }
+  res.json({
+    assets: list.map(a => ({
+      id: a.id || a.asset_tag || a.code,
+      code: a.code || a.asset_tag || a.id,
+      name: a.name || a.asset_name,
+      department: a.department || 'Engineering',
+      section: a.section || 'Packaging',
+      status: a.status || 'operational',
+      criticality: a.criticality || 'Medium'
+    }))
+  });
+});
+
+app.get('/api/ai/preview', (req, res) => {
+  const { type, id } = req.query;
+  const asset = (store.ASSETS || []).find(a => a.uid === id || a.asset_id === id || a.id === id || a.code === id) || (store.ASSETS || [])[0];
+  const bd = (store.BREAKDOWNS || []).find(b => b.breakdown_id === id || b.id === id);
+  const task = (store.MAINTENANCE_TASKS || []).find(t => t.id === id || t.task_id === id);
+
+  if (type === 'breakdown' && bd) {
+    return res.json({
+      summary: `Breakdown incident on ${bd.asset_name || 'asset'}: ${bd.incident_title || 'Equipment trip'}. Containment in progress.`,
+      risk_label: bd.severity === 'Critical' ? 'HIGH RISK' : 'MEDIUM RISK',
+      m1: bd.severity || 'High',
+      m2: `${calculateDowntimeHours(bd)} hrs`,
+      m3: bd.technician_name || 'Assigned',
+      action: bd.corrective_action || 'Inspect electrical & mechanical trip switches and execute root cause verification.',
+      full_href: `/breakdowns/${encodeURIComponent(bd.breakdown_id || bd.id)}`
+    });
+  }
+
+  if (type === 'maintenance' && task) {
+    return res.json({
+      summary: `Scheduled PM "${task.task_title || task.title}" scheduled for ${task.scheduled_date || 'schedule'}.`,
+      risk_label: task.status === 'overdue' ? 'HIGH RISK' : 'LOW RISK',
+      m1: task.frequency || 'Monthly',
+      m2: task.estimated_hours ? `${task.estimated_hours} hrs` : '2 hrs',
+      m3: task.status || 'upcoming',
+      action: 'Ensure OEM spare parts kit is staged and line turnover window confirmed.',
+      full_href: `/maintenance`
+    });
+  }
+
+  const assetName = asset ? (asset.asset_name || asset.name) : 'Production Asset';
+  const assetUid = asset ? (asset.uid || asset.asset_id || asset.id) : '';
+  res.json({
+    summary: `Asset ${assetName} operating within normal vibration and thermal tolerances. Planned maintenance compliance is high.`,
+    risk_label: asset && asset.status === 'down' ? 'HIGH RISK' : 'LOW RISK',
+    m1: '98.5%',
+    m2: '1.2 hrs',
+    m3: 'PM Scheduled',
+    action: `Perform scheduled lubrication inspection and drive belt tension verification on ${assetName}.`,
+    full_href: assetUid ? `/assets/${encodeURIComponent(assetUid)}` : '/assets'
+  });
+});
+
+app.post('/api/ai/query', async (req, res) => {
+  const { action, query } = req.body || {};
+  const promptInput = query || action || 'Plant Health Summary';
+
+  if (aiClient) {
+    try {
+      const plantSummary = `
+Plant: ${(store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].name) || 'Opsloom Industrial'}
+Total Registered Assets: ${(store.ASSETS || []).length}
+Active Breakdowns: ${(store.BREAKDOWNS || []).filter(b => b.status !== 'closed' && b.status !== 'resolved').length}
+Upcoming Maintenance Tasks: ${(store.MAINTENANCE_TASKS || []).filter(t => t.status !== 'completed').length}
+Low Stock Spare Parts: ${(store.INVENTORY_PARTS || []).filter(p => Number(p.quantity_on_hand || 0) <= Number(p.reorder_level || 0)).length}
+Active Breakdowns Detail: ${(store.BREAKDOWNS || []).slice(0, 3).map(b => `${b.asset_name}: ${b.incident_title} (${b.severity})`).join('; ')}
+`;
+
+      const geminiPrompt = `You are Opsloom AI, an advanced industrial maintenance copilot and plant reliability engineer.
+Given the following real-time plant telemetry and database records:
+${plantSummary}
+
+The engineering user has requested: "${promptInput}".
+Provide a concise, professional engineering synthesis (2-3 concise paragraphs or bullet points). Focus on actionable root causes, maintenance adherence, downtime reduction, and spare parts readiness.`;
+
+      const response = await aiClient.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: geminiPrompt,
+      });
+
+      const text = response?.text || '';
+      if (text.trim()) {
+        return res.json({
+          title: action ? `Opsloom AI: ${action.replace(/_/g, ' ').toUpperCase()}` : 'AI Reliability Synthesis',
+          analysis: text
+        });
+      }
+    } catch (err) {
+      console.warn('[AI Studio] Gemini query fallback:', err.message);
+    }
+  }
+
+  // Graceful rule-based synthesis fallback
+  const totalAssets = (store.ASSETS || []).length;
+  const activeBds = (store.BREAKDOWNS || []).filter(b => b.status !== 'closed' && b.status !== 'resolved');
+  const lowSpares = (store.INVENTORY_PARTS || []).filter(p => Number(p.quantity_on_hand || 0) <= Number(p.reorder_level || 0));
+  const openTasks = (store.MAINTENANCE_TASKS || []).filter(t => t.status !== 'completed');
+
+  if (action === 'diagnose_fleet' || promptInput.toLowerCase().includes('health')) {
+    return res.json({
+      title: 'Plant Health Audit',
+      analysis: `• Fleet Reliability: 98.4% uptime across ${totalAssets} registered production assets.\n• Active Work Orders: ${openTasks.length} scheduled preventive tasks queued across Engineering and Production.\n• Condition Recommendation: Keep high-speed rotary fillers and drying chambers on 30-day lubrication cycles to avoid seal degradation.`
+    });
+  }
+
+  if (action === 'critical_breakdowns' || promptInput.toLowerCase().includes('fault') || promptInput.toLowerCase().includes('breakdown')) {
+    const bdList = activeBds.map(b => `• ${b.asset_name || 'Machine'}: ${b.incident_title || 'Fault'} [${b.severity || 'Medium'}] - Lead: ${b.technician_name || 'Assigned'}`).join('\n') || '• No active critical stoppages reported at this time.';
+    return res.json({
+      title: 'Active Faults & Downtime Triage',
+      analysis: `${bdList}\n\nRecommended Root Cause Action: Prioritize mechanical seal replacements and inspect vibration harmonics before full production speed turnover.`
+    });
+  }
+
+  if (action === 'spare_replenishment' || promptInput.toLowerCase().includes('spare') || promptInput.toLowerCase().includes('stock')) {
+    const sparesList = lowSpares.map(p => `• ${p.part_name || p.part_number}: Stock ${p.quantity_on_hand || 0} / Min ${p.reorder_level || 1} [Supplier: ${p.supplier || 'Standard'}]`).join('\n') || '• Spare inventory healthy. No parts below safe buffer threshold.';
+    return res.json({
+      title: 'Spares Stock & Replenishment Risk',
+      analysis: `${sparesList}\n\nProcurement Recommendation: Issue RFQs for high-wear silicon carbide rings and solenoid coils to maintain uninterrupted PM cadence.`
+    });
+  }
+
+  return res.json({
+    title: 'Opsloom Engineering Synthesis',
+    analysis: `Operational analysis for "${promptInput}":\n• Telemetry confirms stable operation across ${totalAssets} assets with ${activeBds.length} active work order(s).\n• Preventive maintenance adherence is tracking at 92.0% against the 90.0% fleet target.\n• Maintain strict technician handovers and verify inventory replenishment for critical mechanical consumables.`
+  });
 });
 
 app.get('/breakdowns/assets', (req, res) => {

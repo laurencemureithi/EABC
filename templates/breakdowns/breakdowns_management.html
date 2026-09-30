@@ -96,7 +96,7 @@
         <div class="flex justify-between items-start">
           <div>
             <p class="text-sm font-medium text-slate-500 dark:text-slate-400">Breakdown Cost</p>
-            <h3 class="text-3xl font-bold mt-1 text-slate-900 dark:text-white">{{ kpi_cost_total|kes0 }}</h3>
+            <h3 class="text-3xl font-bold mt-1 text-slate-900 dark:text-white" id="kpiCostTotal">{{ kpi_cost_total|kes0 }}</h3>
           </div>
           <div class="p-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg">
             <span class="material-symbols-outlined">payments</span>
@@ -585,6 +585,7 @@
       const mttrTrend = document.getElementById("kpiMttrTrend");
       const d = document.getElementById("kpiDowntimeMtd");
       const u = document.getElementById("kpiUptime");
+      const c = document.getElementById("kpiCostTotal");
 
       function setTrend(el, pct){
         const n = Number(pct || 0);
@@ -601,7 +602,7 @@
           if(!res.ok) return;
           const j = await res.json();
 
-          if(a) a.textContent = j.active;
+          if(a && j.active !== undefined) a.textContent = j.active;
 
           if(ad){
             const delta = Number(j.active_delta || 0);
@@ -616,10 +617,13 @@
             }
           }
 
-          if(mttr) mttr.textContent = Number(j.mttr_hours || 0).toFixed(1);
-          if(mttrTrend) setTrend(mttrTrend, j.mttr_trend);
-          if(d) d.textContent = Math.round(Number(j.downtime_mtd_hours || 0));
-          if(u) u.textContent = Number(j.uptime_rate || 0).toFixed(1);
+          if(mttr && j.mttr_hours !== undefined) mttr.textContent = Number(j.mttr_hours || 0).toFixed(1);
+          if(mttrTrend && j.mttr_trend !== undefined) setTrend(mttrTrend, j.mttr_trend);
+          if(d && j.downtime_mtd_hours !== undefined) d.textContent = Math.round(Number(j.downtime_mtd_hours || 0));
+          if(u && j.uptime_rate !== undefined) u.textContent = Number(j.uptime_rate || 0).toFixed(1);
+          if(c && (j.cost_total_formatted || j.cost_total !== undefined)){
+            c.textContent = j.cost_total_formatted || ('KES ' + Number(j.cost_total).toLocaleString('en-US'));
+          }
         }catch(e){}
       }
 
@@ -713,27 +717,27 @@
           const h = Math.round((v / maxVal) * 100);
 
           const wrap = document.createElement("div");
-          wrap.className = "flex flex-col items-center gap-2";
-
-          const bar = document.createElement("div");
-          bar.className = "w-full rounded-lg bg-ueal-purple/20 dark:bg-ueal-purple/20 overflow-hidden";
-          bar.style.height = "110px";
-          bar.title = `${labels[i]}: ${v}`;
-
-          const fill = document.createElement("div");
-          fill.className = "w-full bg-ueal-purple";
-          fill.style.height = `${h}%`;
-          fill.style.marginTop = `${100 - h}%`;
-
-          bar.appendChild(fill);
-
-          const lab = document.createElement("div");
-          lab.className = "text-[10px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400 truncate max-w-[80px]";
-          lab.textContent = labels[i];
+          wrap.className = "flex flex-col items-center gap-1.5 h-full justify-end";
 
           const val = document.createElement("div");
           val.className = "text-[11px] font-extrabold text-slate-800 dark:text-white";
           val.textContent = v;
+
+          const bar = document.createElement("div");
+          bar.className = "w-full rounded-lg bg-slate-100 dark:bg-slate-800/80 overflow-hidden flex flex-col justify-end transition-all relative";
+          bar.style.height = "100px";
+          bar.title = `${labels[i]}: ${v} incident(s)`;
+
+          const fill = document.createElement("div");
+          fill.className = "w-full rounded-t-md transition-all duration-300";
+          fill.style.backgroundColor = "var(--brand-primary, #7E22CE)";
+          fill.style.height = `${v > 0 ? Math.max(12, h) : 0}%`;
+
+          bar.appendChild(fill);
+
+          const lab = document.createElement("div");
+          lab.className = "text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate max-w-[80px] text-center";
+          lab.textContent = labels[i];
 
           wrap.appendChild(val);
           wrap.appendChild(bar);
@@ -872,42 +876,5 @@
 
 
 {% block page_scripts %}
-<script>
-(function(){
-  const url = {{ url_for('api_live_breakdowns_kpis')|tojson }};
-  const fmtNum = v => Number(v || 0).toFixed(1);
-  function setDelta(val){
-    const el = document.getElementById('kpiActiveDelta');
-    if(!el) return;
-    const n = Number(val || 0);
-    el.textContent = (n >= 0 ? '↑ ' + n : '↓ ' + Math.abs(n));
-    el.className = (n >= 0 ? 'text-red-500' : 'text-green-500') + ' font-bold';
-  }
-  function setTrend(val){
-    const el = document.getElementById('kpiMttrTrend');
-    if(!el) return;
-    const n = Number(val || 0);
-    el.textContent = (n <= 0 ? '↓ ' : '↑ ') + Math.abs(Math.round(n)) + '%';
-    el.className = (n <= 0 ? 'text-green-500' : 'text-red-500') + ' font-bold';
-  }
-  async function refreshKpis(){
-    try{
-      const r = await fetch(url, {headers: {'X-Requested-With':'XMLHttpRequest'}});
-      if(!r.ok) return;
-      const data = await r.json();
-      const map = {
-        kpiActive: data.active,
-        kpiMttr: fmtNum(data.mttr_hours),
-        kpiDowntimeMtd: Math.round(Number(data.downtime_mtd_hours || 0)),
-        kpiUptime: fmtNum(data.uptime_rate)
-      };
-      Object.entries(map).forEach(([id, value]) => { const el = document.getElementById(id); if(el) el.textContent = value; });
-      setDelta(data.active_delta);
-      setTrend(data.mttr_trend);
-    }catch(e){}
-  }
-  refreshKpis();
-  setInterval(refreshKpis, 1000);
-})();
-</script>
+{# Consolidated live KPI poller active above #}
 {% endblock %}

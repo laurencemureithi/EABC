@@ -513,31 +513,38 @@
 }
 
 
-/* Opsloom brand overrides */
+/* Opsloom brand dynamic overrides */
 :root {
-  --opsloom-blue-rgb: 21 84 255;
-  --opsloom-blue: #1554FF;
+  --brand-primary: #7E22CE;
+  --brand-secondary: #F59E0B;
+  --opsloom-blue: var(--brand-primary);
   --opsloom-navy-rgb: 11 16 32;
   --opsloom-navy: #0B1020;
 }
 .sidebar-bg { background-color: var(--opsloom-navy) !important; }
-.text-ueal-purple { color: var(--opsloom-blue) !important; }
-.dark .text-ueal-purple { color: #ffffff !important; }
-.text-ueal-gold { color: var(--opsloom-blue) !important; }
-.dark .text-ueal-gold { color: #93c5fd !important; }
-.bg-ueal-gold, .bg-ueal-purple { background-color: var(--opsloom-blue) !important; }
-.bg-ueal-gold\/5, .bg-ueal-purple\/5 { background-color: rgb(var(--opsloom-blue-rgb) / 0.05) !important; }
-.bg-ueal-gold\/10, .bg-ueal-purple\/10 { background-color: rgb(var(--opsloom-blue-rgb) / 0.10) !important; }
-.bg-ueal-gold\/20, .bg-ueal-purple\/40 { background-color: rgb(var(--opsloom-blue-rgb) / 0.20) !important; }
-.bg-ueal-gold\/80, .bg-ueal-purple\/80, .bg-ueal-purple\/60 { background-color: rgb(var(--opsloom-blue-rgb) / 0.80) !important; }
-.border-ueal-gold, .border-ueal-purple { border-color: var(--opsloom-blue) !important; }
-.border-ueal-gold\/30, .border-ueal-gold\/40, .border-ueal-gold\/50, .border-ueal-purple\/10, .border-ueal-purple\/20, .border-ueal-purple\/30 { border-color: rgb(var(--opsloom-blue-rgb) / 0.30) !important; }
-.ring-ueal-gold, .ring-ueal-purple { --tw-ring-color: var(--opsloom-blue) !important; }
-.ring-ueal-gold\/20 { --tw-ring-color: rgb(var(--opsloom-blue-rgb) / 0.20) !important; }
-.shadow-ueal-gold\/20 { --tw-shadow-color: rgb(var(--opsloom-blue-rgb) / 0.20) !important; --tw-shadow: 0 10px 15px -3px rgb(var(--opsloom-blue-rgb) / 0.20),0 4px 6px -4px rgb(var(--opsloom-blue-rgb) / 0.20) !important; box-shadow: var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow) !important; }
-.hover\:text-ueal-gold:hover, .hover\:text-ueal-purple:hover { color: var(--opsloom-blue) !important; }
-.hover\:bg-ueal-gold:hover, .hover\:bg-ueal-purple:hover { background-color: var(--opsloom-blue) !important; }
-.hover\:border-ueal-gold:hover, .hover\:border-ueal-purple:hover { border-color: var(--opsloom-blue) !important; }
+.text-ueal-purple { color: var(--brand-primary) !important; }
+.dark .text-ueal-purple { color: #f3e8ff !important; }
+.text-ueal-gold { color: var(--brand-secondary) !important; }
+.dark .text-ueal-gold { color: #fef3c7 !important; }
+.bg-ueal-purple { background-color: var(--brand-primary) !important; }
+.bg-ueal-gold { background-color: var(--brand-secondary) !important; }
+.bg-ueal-purple\/5 { background-color: color-mix(in srgb, var(--brand-primary) 5%, transparent) !important; }
+.bg-ueal-purple\/10 { background-color: color-mix(in srgb, var(--brand-primary) 10%, transparent) !important; }
+.bg-ueal-purple\/20 { background-color: color-mix(in srgb, var(--brand-primary) 20%, transparent) !important; }
+.bg-ueal-purple\/80 { background-color: color-mix(in srgb, var(--brand-primary) 80%, transparent) !important; }
+.bg-ueal-gold\/5 { background-color: color-mix(in srgb, var(--brand-secondary) 5%, transparent) !important; }
+.bg-ueal-gold\/10 { background-color: color-mix(in srgb, var(--brand-secondary) 10%, transparent) !important; }
+.bg-ueal-gold\/20 { background-color: color-mix(in srgb, var(--brand-secondary) 20%, transparent) !important; }
+.border-ueal-purple { border-color: var(--brand-primary) !important; }
+.border-ueal-gold { border-color: var(--brand-secondary) !important; }
+.ring-ueal-purple { --tw-ring-color: var(--brand-primary) !important; }
+.ring-ueal-gold { --tw-ring-color: var(--brand-secondary) !important; }
+.hover\:text-ueal-purple:hover { color: var(--brand-primary) !important; }
+.hover\:text-ueal-gold:hover { color: var(--brand-secondary) !important; }
+.hover\:bg-ueal-purple:hover { background-color: var(--brand-primary) !important; filter: brightness(0.92); }
+.hover\:bg-ueal-gold:hover { background-color: var(--brand-secondary) !important; filter: brightness(0.92); }
+.hover\:border-ueal-purple:hover { border-color: var(--brand-primary) !important; }
+.hover\:border-ueal-gold:hover { border-color: var(--brand-secondary) !important; }
 .opsloom-sidebar-wordmark { display:flex; align-items:center; min-height:44px; }
 .auth-logo-mark-image { width:auto; height:auto; background:none; border:none; box-shadow:none; border-radius:0; padding:0; }
 .auth-brand-image { width: min(340px, 100%); height:auto; display:block; }

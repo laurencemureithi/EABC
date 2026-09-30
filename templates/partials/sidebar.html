@@ -1,13 +1,14 @@
 <aside id="appSidebar" class="app-sidebar sidebar-bg w-64 flex-shrink-0 flex flex-col text-white h-screen relative">
   <!-- Brand & Configurable Workspace Logo -->
-  <div class="p-4 sm:p-5 flex items-center justify-between gap-3 border-b border-white/10">
+  <div class="px-4 py-3 sm:px-4 sm:py-3.5 flex items-center justify-between gap-2 border-b border-white/10"
+       style="min-height: {{ [((active_company.logo_height or 52) + 20), 64]|max }}px;">
     <div class="min-w-0 flex-1 flex items-center gap-2.5 {% if active_company and active_company.logo_alignment == 'center' %}justify-center{% elif active_company and active_company.logo_alignment == 'right' %}justify-end{% else %}justify-start{% endif %}">
       <!-- Dark Theme Logo Image -->
       <img id="sidebarLogoDark"
            src="{{ active_company.logo_dark_url if active_company and active_company.logo_dark_url else (active_company.logo_light_url if active_company and active_company.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png')) }}"
            alt="{{ active_company.name if active_company else 'Opsloom' }}"
-           class="block max-w-full transition-all duration-200"
-           style="height: {{ active_company.logo_height or 44 }}px; max-height: 80px; width: {{ active_company.logo_width_pct or 90 }}%; object-fit: {{ active_company.logo_fit or 'contain' }};" />
+           class="block transition-all duration-200"
+           style="height: {{ active_company.logo_height or 52 }}px; max-height: {{ active_company.logo_height or 80 }}px; width: auto; max-width: 100%; object-fit: {{ active_company.logo_fit or 'contain' }};" />
 
       {% if active_company and active_company.show_name_next_to_logo %}
         <div class="flex flex-col min-w-0">
@@ -114,8 +115,18 @@
     {% endif %}
   </nav>
 
-  <!-- Footer: Logout -->
-  <div class="px-3 pb-3 mt-auto">
+  <!-- Footer: Opsloom AI Copilot & Logout -->
+  <div class="px-3 pb-3 mt-auto space-y-2">
+    <button
+      type="button"
+      onclick="openOpsloomAiModal()"
+      class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-purple-200 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/30 text-left group cursor-pointer"
+    >
+      <span class="material-symbols-outlined text-amber-400 text-xl animate-pulse">auto_awesome</span>
+      <span class="font-bold text-sm text-purple-100 group-hover:text-white">Opsloom AI</span>
+      <span class="ml-auto text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300">COPILOT</span>
+    </button>
+
     <a
       class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-all text-red-300 hover:text-red-200 group border border-red-500/20 hover:border-red-500/40"
       href="{{ url_for('logout') }}"

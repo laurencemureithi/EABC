@@ -205,7 +205,7 @@
       <div class="auth-brand-inner">
         <div>
           <div class="auth-logo-row">
-            <img src="{{ url_for('static', filename='img/ops_black-removebg.png') }}" alt="Opsloom" class="auth-brand-image auth-brand-wordmark">
+            <img src="{{ active_company.logo_dark_url if active_company and active_company.logo_dark_url else (active_company.logo_light_url if active_company and active_company.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png')) }}" alt="{{ active_company.name if active_company else 'Opsloom' }}" class="auth-brand-image auth-brand-wordmark">
           </div>
           <p class="auth-kicker" style="margin-top:48px;">Secure Access Portal</p>
           <h2 class="auth-title">Engineering Asset &amp; Breakdown Core</h2>
