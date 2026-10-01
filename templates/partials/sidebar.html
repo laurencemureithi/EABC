@@ -9,36 +9,127 @@
   {% set logo_align = active_company.logo_alignment if active_company and active_company.logo_alignment else 'left' %}
   {% set logo_fit = active_company.logo_fit if active_company and active_company.logo_fit else 'contain' %}
   {% set logo_obj_pos = 'center center' if logo_align == 'center' else ('right center' if logo_align == 'right' else 'left center') %}
-  {% set brand_box_min_h = [logo_h + 20, 64]|max %}
-  <div class="app-sidebar-brand px-4 py-3 flex items-center justify-between gap-2.5 border-b border-white/10 shrink-0"
-       style="min-height: {{ brand_box_min_h }}px;">
-    <div class="min-w-0 flex-1 flex items-center gap-2.5 {% if logo_align == 'center' %}justify-center{% elif logo_align == 'right' %}justify-end{% else %}justify-start{% endif %}">
+  {% set show_name_beside = true if (active_company and active_company.show_name_next_to_logo and active_company.user_explicit_show_name) else false %}
+  {% set brand_box_min_h = [logo_h + 20, 68]|max %}
+  <div id="sidebarBrandContainer"
+       data-workspace-id="{{ active_company.id if active_company else 'comp-001' }}"
+       data-logo-updated-at="{{ active_company.custom_logo_updated_at if active_company and active_company.custom_logo_updated_at else '' }}"
+       class="app-sidebar-brand px-4 py-3 flex items-center justify-between gap-2.5 border-b border-white/10 shrink-0 overflow-hidden"
+       style="min-height: {{ brand_box_min_h }}px; height: {{ brand_box_min_h }}px;">
+    <div id="sidebarBrandWrap" class="min-w-0 flex-1 flex items-center gap-2.5 {% if logo_align == 'center' %}justify-center{% elif logo_align == 'right' %}justify-end{% else %}justify-start{% endif %}">
       <!-- Light Theme Logo Image (shown on dark sidebar when app is in light mode) -->
       <img id="sidebarLogoLight"
            src="{{ safe_light_logo }}"
            onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_light.png';"
            alt="{{ active_company.name if active_company else 'Opsloom' }}"
-           class="block dark:hidden transition-all duration-200"
-           style="height: {{ logo_h }}px; max-height: {{ logo_h }}px; width: {{ 'auto' if (active_company and active_company.show_name_next_to_logo) else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: {{ logo_fit }}; object-position: {{ logo_obj_pos }};" />
+           class="block dark:hidden shrink-0"
+           style="height: {{ logo_h }}px; max-height: {{ logo_h }}px; width: {{ 'auto' if show_name_beside else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: {{ logo_fit }}; object-position: {{ logo_obj_pos }}; transition: none !important;" />
       <!-- Dark Theme Logo Image (shown on dark sidebar when app is in dark mode) -->
       <img id="sidebarLogoDark"
            src="{{ safe_dark_logo }}"
            onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_light.png';"
            alt="{{ active_company.name if active_company else 'Opsloom' }}"
-           class="hidden dark:block transition-all duration-200"
-           style="height: {{ logo_h }}px; max-height: {{ logo_h }}px; width: {{ 'auto' if (active_company and active_company.show_name_next_to_logo) else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: {{ logo_fit }}; object-position: {{ logo_obj_pos }};" />
+           class="hidden dark:block shrink-0"
+           style="height: {{ logo_h }}px; max-height: {{ logo_h }}px; width: {{ 'auto' if show_name_beside else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: {{ logo_fit }}; object-position: {{ logo_obj_pos }}; transition: none !important;" />
 
-      {% if active_company and active_company.show_name_next_to_logo %}
-        <div class="flex flex-col min-w-0">
-          <span class="font-black text-sm text-white tracking-tight truncate leading-tight">{{ active_company.name }}</span>
-          <span class="text-[10px] font-black uppercase tracking-wider text-ueal-gold">{{ active_company.code or 'WORKSPACE' }}</span>
-        </div>
-      {% endif %}
+      <div id="sidebarBrandNameBox" class="{% if show_name_beside %}flex{% else %}hidden{% endif %} flex-col min-w-0">
+        <span id="sidebarBrandNameText" class="font-black text-sm text-white tracking-tight truncate leading-tight">{{ active_company.name if active_company else '' }}</span>
+        <span id="sidebarBrandCodeText" class="text-[10px] font-black uppercase tracking-wider text-ueal-gold">{{ active_company.code if active_company and active_company.code else 'WORKSPACE' }}</span>
+      </div>
     </div>
     <button type="button" class="app-mobile-only w-9 h-9 rounded-lg border border-white/10 bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition shrink-0" onclick="closeAppSidebar()" aria-label="Close navigation">
       <span class="material-symbols-outlined text-lg">close</span>
     </button>
   </div>
+  <script>
+    (function() {
+      try {
+        var box = document.getElementById('sidebarBrandContainer');
+        if (!box) return;
+        var wsId = box.getAttribute('data-workspace-id') || '';
+        if (!wsId) return;
+        var raw = localStorage.getItem('opsloom_ws_brand_' + wsId);
+        if (!raw) return;
+        var cached = JSON.parse(raw);
+        if (!cached || !cached.logo_light_url) return;
+        var serverUpdated = box.getAttribute('data-logo-updated-at') || '';
+        var serverMs = serverUpdated ? Date.parse(serverUpdated) : 0;
+        var cachedMs = Number(cached.updated_at_ms || 0);
+        // Apply cached workspace brand state immediately before paint so logo & size never shift between modules
+        if (cachedMs >= serverMs - 5000) {
+          var sLight = document.getElementById('sidebarLogoLight');
+          var sDark = document.getElementById('sidebarLogoDark');
+          var wrap = document.getElementById('sidebarBrandWrap');
+          var nameBox = document.getElementById('sidebarBrandNameBox');
+          var h = parseInt(cached.logo_height, 10) || 48;
+          var w = parseInt(cached.logo_width_pct, 10) || 100;
+          var align = cached.logo_alignment || 'left';
+          var fit = cached.logo_fit || 'contain';
+          var showName = Boolean(cached.show_name_next_to_logo);
+          var objPos = align === 'center' ? 'center center' : (align === 'right' ? 'right center' : 'left center');
+          var minH = Math.max(h + 20, 68);
+          box.style.minHeight = minH + 'px';
+          box.style.height = minH + 'px';
+          if (sLight) {
+            sLight.src = cached.logo_light_url;
+            sLight.style.height = h + 'px';
+            sLight.style.maxHeight = h + 'px';
+            sLight.style.width = showName ? 'auto' : (w + '%');
+            sLight.style.maxWidth = w + '%';
+            sLight.style.objectFit = fit;
+            sLight.style.objectPosition = objPos;
+          }
+          if (sDark) {
+            sDark.src = cached.logo_dark_url || cached.logo_light_url;
+            sDark.style.height = h + 'px';
+            sDark.style.maxHeight = h + 'px';
+            sDark.style.width = showName ? 'auto' : (w + '%');
+            sDark.style.maxWidth = w + '%';
+            sDark.style.objectFit = fit;
+            sDark.style.objectPosition = objPos;
+          }
+          if (wrap) {
+            wrap.className = 'min-w-0 flex-1 flex items-center gap-2.5 ' + (align === 'center' ? 'justify-center' : (align === 'right' ? 'justify-end' : 'justify-start'));
+          }
+          if (nameBox) {
+            if (showName) {
+              nameBox.classList.remove('hidden');
+              nameBox.classList.add('flex');
+            } else {
+              nameBox.classList.add('hidden');
+              nameBox.classList.remove('flex');
+            }
+          }
+          // If the user navigated between modules while the upload POST was still in flight, finish syncing to server
+          if (cached.pending_sync || (cachedMs > serverMs + 1500)) {
+            fetch('/api/companies/save-logo', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+              credentials: 'same-origin',
+              keepalive: true,
+              body: JSON.stringify({
+                id: wsId,
+                mode: 'both',
+                logo_data_url: cached.logo_light_url,
+                logo_light_data_url: cached.logo_light_url,
+                logo_dark_data_url: cached.logo_dark_url || cached.logo_light_url,
+                logo_height: h,
+                logo_width_pct: w,
+                logo_alignment: align,
+                logo_fit: fit,
+                show_name_next_to_logo: showName ? '1' : '0'
+              })
+            }).then(function(r) { return r.json(); }).then(function(d) {
+              if (d && d.ok) {
+                cached.pending_sync = false;
+                localStorage.setItem('opsloom_ws_brand_' + wsId, JSON.stringify(cached));
+              }
+            }).catch(function() {});
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
 
   <!-- Nav -->
   <nav class="app-sidebar-nav flex-1 min-h-0 overflow-y-auto px-3.5 py-3 space-y-1">

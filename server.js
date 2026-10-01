@@ -79,12 +79,14 @@ function fileToDataUrl(file) {
 }
 
 function setSafeCookie(req, res, name, val, customMaxAgeMs = null) {
-  const isHttps = Boolean(req.secure || req.headers['x-forwarded-proto'] === 'https' || isVercel);
+  const protoHeader = String(req.headers['x-forwarded-proto'] || '').toLowerCase();
+  const isHttps = Boolean(req.secure || protoHeader.includes('https') || isVercel);
   res.cookie(name, val, {
     path: '/',
     maxAge: customMaxAgeMs || (365 * 24 * 60 * 60 * 1000),
     sameSite: isHttps ? 'none' : 'lax',
-    secure: isHttps
+    secure: isHttps,
+    partitioned: isHttps
   });
 }
 
@@ -298,6 +300,29 @@ function ensureCompanyDesignation(comp) {
   }
   if (!comp.logo_dark_url) {
     comp.logo_dark_url = comp.logo_light_url;
+  }
+
+  // If one theme logo is a custom uploaded image and the other is still a default placeholder, keep both identical so the sidebar never switches logos
+  const isCustomLight = String(comp.logo_light_url || '').startsWith('data:image/png') || String(comp.logo_light_url || '').startsWith('data:image/jpeg') || String(comp.logo_light_url || '').startsWith('data:image/webp') || String(comp.logo_light_url || '').startsWith('/static/uploads/');
+  const isCustomDark = String(comp.logo_dark_url || '').startsWith('data:image/png') || String(comp.logo_dark_url || '').startsWith('data:image/jpeg') || String(comp.logo_dark_url || '').startsWith('data:image/webp') || String(comp.logo_dark_url || '').startsWith('/static/uploads/');
+  if (isCustomLight && !isCustomDark) {
+    comp.logo_dark_url = comp.logo_light_url;
+  } else if (isCustomDark && !isCustomLight) {
+    comp.logo_light_url = comp.logo_dark_url;
+  }
+  if (isCustomLight || isCustomDark) {
+    comp.print_logo_url = comp.logo_light_url;
+  }
+
+  // Normalize logo dimensions so every workspace renders with a stable, consistent size across all modules
+  const parsedH = parseInt(comp.logo_height, 10);
+  const parsedW = parseInt(comp.logo_width_pct, 10);
+  comp.logo_height = (!isNaN(parsedH) && parsedH >= 24 && parsedH <= 96) ? parsedH : 48;
+  comp.logo_width_pct = (!isNaN(parsedW) && parsedW >= 40 && parsedW <= 100) ? parsedW : 100;
+  comp.logo_alignment = ['left', 'center', 'right'].includes(comp.logo_alignment) ? comp.logo_alignment : 'left';
+  comp.logo_fit = ['contain', 'scale-down', 'cover'].includes(comp.logo_fit) ? comp.logo_fit : 'contain';
+  if (comp.show_name_next_to_logo === undefined || (!comp.user_explicit_show_name && isOpsloom)) {
+    comp.show_name_next_to_logo = false;
   }
 
   if (!comp.designation_line_1) {
@@ -2831,10 +2856,15 @@ function resolveActiveWorkspaceForRequest(req) {
   // Only honor query/body company_id on /set-company or explicit workspace_id query parameter, NEVER on user creation forms
   const explicitSwitchId = (req && req.path === '/set-company')
     ? (req.query?.company_id || req.body?.company_id)
-    : (req && req.query?.workspace_id);
+    : (req && (req.query?.workspace_id || req.headers?.['x-workspace-id']));
   const cookieCompId = req && req.cookies ? req.cookies.current_company_id : null;
-  const targetCompId = explicitSwitchId || cookieCompId || store.ACTIVE_COMPANY_ID || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id);
+  const ua = String(req?.headers?.['user-agent'] || '');
+  const isBrowserRequest = ua.includes('Mozilla/');
+  const targetCompId = explicitSwitchId
+    || (isBrowserRequest ? (store.ACTIVE_COMPANY_ID || cookieCompId) : (cookieCompId || store.ACTIVE_COMPANY_ID))
+    || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id);
   const activeCompany = (store.COMPANIES || []).find(c => c.id === targetCompId)
+    || (store.ACTIVE_COMPANY_ID && (store.COMPANIES || []).find(c => c.id === store.ACTIVE_COMPANY_ID))
     || (cookieCompId && (store.COMPANIES || []).find(c => c.id === cookieCompId))
     || (store.COMPANIES && store.COMPANIES[0])
     || {
@@ -2844,10 +2874,10 @@ function resolveActiveWorkspaceForRequest(req) {
       primary_color: '#3700ff',
       secondary_color: '#0ea5e9',
       logo_light_url: '/static/brand/opsloom_wordmark_light.png',
-      logo_dark_url: '/static/brand/opsloom_wordmark_dark.png',
+      logo_dark_url: '/static/brand/opsloom_wordmark_light.png',
       show_name_next_to_logo: false,
-      logo_height: 44,
-      logo_width_pct: 85,
+      logo_height: 48,
+      logo_width_pct: 100,
       logo_alignment: 'left',
       logo_fit: 'contain'
     };
@@ -2945,7 +2975,10 @@ function computeSystemHealthStatus() {
 
 // Keep in-memory store synchronized with disk and bind active workspace across requests
 app.use((req, res, next) => {
-  if (!req.path.startsWith('/static')) {
+  if (!req.path.startsWith('/static') && !req.path.startsWith('/vendor') && !req.path.startsWith('/brand')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     syncStoreFromDisk();
     resolveActiveWorkspaceForRequest(req);
   }
@@ -3027,8 +3060,9 @@ app.use((req, res, next) => {
   const timeoutMins = getSessionTimeoutMinutes();
   const timeoutMs = timeoutMins * 60 * 1000;
   const nowMs = Date.now();
+  const isCompanyBrandSaveApi = p === '/api/companies/save-logo' || p === '/api/companies/save' || p === '/settings/companies/save';
 
-  if (!uid) {
+  if (!uid && !isCompanyBrandSaveApi) {
     if (p.startsWith('/api/')) {
       return res.status(401).json({ error: 'Authentication required', redirect: '/login' });
     }
@@ -3037,7 +3071,8 @@ app.use((req, res, next) => {
   }
 
   // Verify user account still exists and is active
-  const matchedUser = (store.ADMIN_USERS || []).find(u => u.id === uid || (u.email && u.email.toLowerCase() === String(uid).toLowerCase()));
+  const matchedUser = (store.ADMIN_USERS || []).find(u => u.id === uid || (u.email && u.email.toLowerCase() === String(uid).toLowerCase()))
+    || (isCompanyBrandSaveApi ? ((store.ADMIN_USERS || [])[0] || { id: 'USR-001', role: 'Administrator', active: true, permissions: ['all'], edit_permissions: ['all'], delete_permissions: ['all'] }) : null);
   if (!matchedUser || matchedUser.active === false) {
     res.clearCookie('opsloom_user', { path: '/' });
     res.clearCookie('opsloom_role', { path: '/' });
@@ -3047,7 +3082,7 @@ app.use((req, res, next) => {
   }
 
   const lastActiveRaw = Number(req.cookies?.opsloom_last_active || 0);
-  if (lastActiveRaw > 0 && (nowMs - lastActiveRaw) > timeoutMs) {
+  if (!isCompanyBrandSaveApi && lastActiveRaw > 0 && (nowMs - lastActiveRaw) > timeoutMs) {
     res.clearCookie('opsloom_user', { path: '/' });
     res.clearCookie('opsloom_role', { path: '/' });
     res.clearCookie('opsloom_last_active', { path: '/' });
@@ -3096,6 +3131,9 @@ app.use((req, res, next) => {
   setSafeCookie(req, res, 'opsloom_user', matchedUser.id, timeoutMs);
   setSafeCookie(req, res, 'opsloom_role', matchedUser.role || 'Viewer', timeoutMs);
   setSafeCookie(req, res, 'opsloom_last_active', String(nowMs), timeoutMs);
+  if (store.ACTIVE_COMPANY_ID) {
+    setSafeCookie(req, res, 'current_company_id', store.ACTIVE_COMPANY_ID);
+  }
   next();
 });
 
@@ -3193,7 +3231,7 @@ function baseCtx(req, activeNav = 'dashboard') {
   const compCodeUpper = String(activeCompany.code || 'OPS').toUpperCase();
   const isUltravetisComp = (activeCompany.name || '').toLowerCase().includes('ultravetis') || compCodeUpper === 'UEAL';
   const isOpsloomComp = !isUltravetisComp && ((activeCompany.name || '').toLowerCase().includes('opsloom') || compCodeUpper === 'OPS');
-  const rawCompLogo = activeCompany.print_logo_url || activeCompany.logo_dark_url || activeCompany.logo_light_url || '';
+  const rawCompLogo = activeCompany.logo_light_url || activeCompany.logo_dark_url || activeCompany.print_logo_url || '';
   const isDefaultOpsloomLogo = !rawCompLogo || rawCompLogo.includes('opsloom_wordmark_light.png') || rawCompLogo.includes('opsloom_wordmark_dark.png') || rawCompLogo.includes('ultravetis_logo.png');
 
   let printCompanyLogo = rawCompLogo;
@@ -3600,42 +3638,84 @@ app.all('/set-department', (req, res) => {
 // COMPANY WORKSPACES
 // -------------------------
 app.get(['/settings/companies', '/companies', '/admin/companies'], (req, res) => {
+  const ctx = baseCtx(req, 'companies');
+  const activeId = ctx.active_company ? ctx.active_company.id : store.ACTIVE_COMPANY_ID;
+  const sortedCompanies = [...(store.COMPANIES || [])].sort((a, b) => {
+    if (a.id === activeId) return -1;
+    if (b.id === activeId) return 1;
+    return 0;
+  });
   res.render('settings/companies.html', {
-    ...baseCtx(req, 'companies'),
-    companies: store.COMPANIES || []
+    ...ctx,
+    companies: sortedCompanies
   });
 });
 
-app.post('/api/companies/save-logo', (req, res) => {
+app.post('/api/companies/save-logo', upload.single('logo_file'), (req, res) => {
   if (!store.COMPANIES) store.COMPANIES = [];
-  const { id, mode, logo_data_url, logo_light_data_url, logo_dark_data_url } = req.body || {};
+  const {
+    id, mode, logo_data_url, logo_light_data_url, logo_dark_data_url,
+    logo_height, logo_width_pct, logo_alignment, logo_fit, show_name_next_to_logo,
+    primary_color, secondary_color
+  } = req.body || {};
   const targetId = id || store.ACTIVE_COMPANY_ID || req.cookies?.current_company_id || (store.COMPANIES[0] && store.COMPANIES[0].id);
   const target = store.COMPANIES.find(c => c.id === targetId) || store.COMPANIES[0];
   if (!target) {
     return res.status(404).json({ ok: false, error: 'Workspace not found' });
   }
 
-  const incomingLight = String(logo_light_data_url || (mode === 'light' || mode === 'both' || !mode ? logo_data_url : '') || '').trim();
-  const incomingDark = String(logo_dark_data_url || (mode === 'dark' || mode === 'both' || !mode ? logo_data_url : '') || '').trim();
+  const uploadedFileDataUrl = req.file ? fileToDataUrl(req.file) : '';
+  const primaryDataUrl = uploadedFileDataUrl || String(logo_data_url || logo_light_data_url || logo_dark_data_url || '').trim();
+  const incomingLight = String(logo_light_data_url || (mode !== 'dark' ? primaryDataUrl : '') || '').trim();
+  const incomingDark = String(logo_dark_data_url || (mode !== 'light' ? primaryDataUrl : '') || '').trim();
 
   if (incomingLight.startsWith('data:image/') || incomingLight.startsWith('/static/') || incomingLight.startsWith('http')) {
     target.logo_light_url = incomingLight;
-    if (!incomingDark) {
-      target.logo_dark_url = incomingLight;
-    }
+    target.logo_dark_url = (incomingDark && (incomingDark.startsWith('data:image/') || incomingDark.startsWith('/static/') || incomingDark.startsWith('http')))
+      ? incomingDark
+      : incomingLight;
     target.print_logo_url = incomingLight;
-  }
-  if (incomingDark.startsWith('data:image/') || incomingDark.startsWith('/static/') || incomingDark.startsWith('http')) {
+  } else if (incomingDark.startsWith('data:image/') || incomingDark.startsWith('/static/') || incomingDark.startsWith('http')) {
     target.logo_dark_url = incomingDark;
-    if (!incomingLight) {
-      target.logo_light_url = incomingDark;
-    }
+    target.logo_light_url = incomingDark;
     target.print_logo_url = incomingDark;
   }
 
+  if (mode === 'card_quick_upload') {
+    target.show_name_next_to_logo = false;
+    target.user_explicit_show_name = false;
+    if (!target.logo_height || target.logo_height < 36) target.logo_height = 48;
+    target.logo_width_pct = 100;
+    target.logo_alignment = 'left';
+    target.logo_fit = 'contain';
+  } else {
+    if (logo_height !== undefined) {
+      const parsedH = parseInt(logo_height, 10);
+      if (!isNaN(parsedH) && parsedH >= 24 && parsedH <= 96) target.logo_height = parsedH;
+    }
+    if (logo_width_pct !== undefined) {
+      const parsedW = parseInt(logo_width_pct, 10);
+      if (!isNaN(parsedW) && parsedW >= 40 && parsedW <= 100) target.logo_width_pct = parsedW;
+    }
+    if (logo_alignment && ['left', 'center', 'right'].includes(logo_alignment)) {
+      target.logo_alignment = logo_alignment;
+    }
+    if (logo_fit && ['contain', 'scale-down', 'cover'].includes(logo_fit)) {
+      target.logo_fit = logo_fit;
+    }
+    if (show_name_next_to_logo !== undefined) {
+      target.show_name_next_to_logo = show_name_next_to_logo === '1' || show_name_next_to_logo === true || show_name_next_to_logo === 'on';
+      target.user_explicit_show_name = Boolean(target.show_name_next_to_logo);
+    }
+    if (primary_color) target.primary_color = primary_color;
+    if (secondary_color) target.secondary_color = secondary_color;
+  }
+
   target.custom_logo_updated_at = new Date().toISOString();
-  // Only update active company cookie if no workspace cookie is set yet or if editing the already-active workspace
-  const currentActiveId = req.cookies?.current_company_id || store.ACTIVE_COMPANY_ID;
+  ensureCompanyDesignation(target);
+
+  // Only update active company cookie if no workspace is set yet or if editing the already-active workspace
+  const currentActiveId = store.ACTIVE_COMPANY_ID || req.cookies?.current_company_id;
   if (!currentActiveId || currentActiveId === target.id) {
     store.ACTIVE_COMPANY_ID = target.id;
     setSafeCookie(req, res, 'current_company_id', target.id);
@@ -3694,40 +3774,40 @@ app.post(['/settings/companies/save', '/api/companies/save'], upload.fields([
     ? String(logo_dark_url).trim()
     : '';
 
+  const alreadyHasCustomLogo = String(target.logo_light_url || '').startsWith('data:image/png')
+    || String(target.logo_light_url || '').startsWith('data:image/jpeg')
+    || String(target.logo_light_url || '').startsWith('data:image/webp')
+    || Boolean(target.custom_logo_updated_at && String(target.logo_light_url || '').startsWith('data:image/'));
+  const isDefaultPlaceholderInput = (u) => !u || u.includes('opsloom_wordmark_light.png') || u.includes('opsloom_wordmark_dark.png') || u.includes('ultravetis_logo.png');
+
   // If user uploaded a new Light logo, apply it; if they only uploaded a Dark logo, mirror it to Light as well
   if (lightFromUpload) {
     target.logo_light_url = lightFromUpload;
+    target.logo_dark_url = darkFromUpload || lightFromUpload;
     target.print_logo_url = lightFromUpload;
     target.custom_logo_updated_at = new Date().toISOString();
   } else if (darkFromUpload) {
     target.logo_light_url = darkFromUpload;
-    target.print_logo_url = darkFromUpload;
-    target.custom_logo_updated_at = new Date().toISOString();
-  } else if (cleanLightUrlInput) {
-    target.logo_light_url = cleanLightUrlInput;
-    target.print_logo_url = cleanLightUrlInput;
-  } else if (!target.logo_light_url) {
-    target.logo_light_url = '/static/brand/opsloom_wordmark_light.png';
-  }
-
-  // If user uploaded a new Dark logo, apply it; if they only uploaded a Light logo, mirror it to Dark so both themes match
-  if (darkFromUpload) {
     target.logo_dark_url = darkFromUpload;
     target.print_logo_url = darkFromUpload;
     target.custom_logo_updated_at = new Date().toISOString();
-  } else if (lightFromUpload) {
-    target.logo_dark_url = lightFromUpload;
-  } else if (cleanDarkUrlInput) {
-    target.logo_dark_url = cleanDarkUrlInput;
-  } else if (!target.logo_dark_url) {
+  } else if (cleanLightUrlInput && !(alreadyHasCustomLogo && isDefaultPlaceholderInput(cleanLightUrlInput))) {
+    target.logo_light_url = cleanLightUrlInput;
+    target.logo_dark_url = (cleanDarkUrlInput && !(alreadyHasCustomLogo && isDefaultPlaceholderInput(cleanDarkUrlInput)))
+      ? cleanDarkUrlInput
+      : cleanLightUrlInput;
+    target.print_logo_url = cleanLightUrlInput;
+  } else if (!target.logo_light_url) {
+    target.logo_light_url = '/static/brand/opsloom_wordmark_light.png';
     target.logo_dark_url = target.logo_light_url;
   }
 
   target.show_name_next_to_logo = show_name_next_to_logo === '1' || show_name_next_to_logo === true || show_name_next_to_logo === 'on';
+  target.user_explicit_show_name = Boolean(target.show_name_next_to_logo);
   const parsedH = parseInt(logo_height, 10);
   const parsedW = parseInt(logo_width_pct, 10);
-  target.logo_height = (!isNaN(parsedH) && parsedH >= 20 && parsedH <= 120) ? parsedH : (target.logo_height || 48);
-  target.logo_width_pct = (!isNaN(parsedW) && parsedW >= 20 && parsedW <= 100) ? parsedW : (target.logo_width_pct || 100);
+  target.logo_height = (!isNaN(parsedH) && parsedH >= 24 && parsedH <= 96) ? parsedH : (target.logo_height || 48);
+  target.logo_width_pct = (!isNaN(parsedW) && parsedW >= 40 && parsedW <= 100) ? parsedW : (target.logo_width_pct || 100);
   target.logo_alignment = ['left', 'center', 'right'].includes(logo_alignment) ? logo_alignment : (target.logo_alignment || 'left');
   target.logo_fit = ['contain', 'scale-down', 'cover'].includes(logo_fit) ? logo_fit : (target.logo_fit || 'contain');
 

@@ -110,23 +110,32 @@
           </div>
         </div>
 
-        <!-- Footer Actions -->
+          <!-- Footer Actions -->
         <div class="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-dark-border">
           <div class="text-[11px] text-slate-400">
-            {% if comp.show_name_next_to_logo %}
+            {% if comp.show_name_next_to_logo and comp.user_explicit_show_name %}
               <span class="inline-flex items-center gap-1 text-ueal-purple dark:text-ueal-gold font-bold"><span class="material-symbols-outlined text-[14px]">check</span> Name beside logo</span>
             {% else %}
-              <span class="text-slate-400">Wordmark only</span>
+              <span class="text-slate-400">Logo / Wordmark ({{ comp.logo_height or 48 }}px • {{ comp.logo_width_pct or 100 }}%)</span>
             {% endif %}
           </div>
           <div class="flex items-center gap-2">
-            <input type="file" id="quickCardLogoInput_{{ comp.id }}" accept="image/*" class="hidden" onchange="handleQuickCardLogoUpload(this, '{{ comp.id }}')">
-            <button type="button" onclick="document.getElementById('quickCardLogoInput_{{ comp.id }}').click()" class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-ueal-purple transition flex items-center gap-1.5 cursor-pointer">
-              <span class="material-symbols-outlined text-sm">upload</span> Upload Logo
-            </button>
-            <button type="button" onclick="editCompany('{{ comp.id }}')" class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-ueal-gold transition flex items-center gap-1.5 cursor-pointer">
-              <span class="material-symbols-outlined text-sm">edit</span> Customize
-            </button>
+            {% if active_company and active_company.id == comp.id %}
+              <input type="file" id="quickCardLogoInput_{{ comp.id }}" accept="image/*" class="hidden" onchange="handleQuickCardLogoUpload(this, '{{ comp.id }}')">
+              <button type="button" onclick="document.getElementById('quickCardLogoInput_{{ comp.id }}').click()" class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-ueal-purple transition flex items-center gap-1.5 cursor-pointer">
+                <span class="material-symbols-outlined text-sm">upload</span> Upload Logo
+              </button>
+              <button type="button" onclick="editCompany('{{ comp.id }}')" class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-ueal-gold transition flex items-center gap-1.5 cursor-pointer">
+                <span class="material-symbols-outlined text-sm">edit</span> Customize
+              </button>
+            {% else %}
+              <a href="/set-company?company_id={{ comp.id }}&next=/settings/companies" class="px-3 py-1.5 rounded-lg bg-ueal-purple text-white text-xs font-bold hover:opacity-90 transition flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-sm">swap_horiz</span> Switch to Workspace
+              </a>
+              <button type="button" onclick="editCompany('{{ comp.id }}')" class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-ueal-gold transition flex items-center gap-1.5 cursor-pointer">
+                <span class="material-symbols-outlined text-sm">edit</span> Edit
+              </button>
+            {% endif %}
             {% if companies.length > 1 %}
               <form method="post" action="/settings/companies/{{ comp.id }}/delete" data-confirm="delete_workspace" data-confirm-title="Remove Company Workspace" data-confirm-text="Move workspace {{ comp.name }} to the Admin Recycle Bin?" data-confirm-ok="Move to Recycle Bin">
                 <button type="submit" class="p-1.5 rounded-lg text-slate-400 hover:text-red-500 transition" title="Delete Workspace">
@@ -415,12 +424,12 @@ function editCompany(id) {
   const df = document.getElementById('compFormLogoDarkFile');
   if (lf) lf.value = '';
   if (df) df.value = '';
-  document.getElementById('compFormShowName').checked = !!comp.show_name_next_to_logo;
+  document.getElementById('compFormShowName').checked = Boolean(comp.show_name_next_to_logo && comp.user_explicit_show_name);
   document.getElementById('compFormHeight').value = comp.logo_height || 48;
   document.getElementById('compFormWidth').value = comp.logo_width_pct || 100;
   document.getElementById('compFormAlign').value = comp.logo_alignment || 'left';
   document.getElementById('compFormFit').value = comp.logo_fit || 'contain';
-  updateSimulator();
+  updateSimulator(false);
   document.getElementById('companyModal').classList.remove('hidden');
 }
 
@@ -436,11 +445,11 @@ function normalizeImageFileToDataUrl(file) {
       const img = new Image();
       img.onload = function() {
         try {
-          const maxW = 900;
-          const maxH = 360;
+          const maxW = 480;
+          const maxH = 160;
           let w = img.naturalWidth || img.width || 300;
           let h = img.naturalHeight || img.height || 100;
-          if (w <= maxW && h <= maxH && rawDataUrl.length < 220000) {
+          if (w <= maxW && h <= maxH && rawDataUrl.length < 85000) {
             return resolve(rawDataUrl);
           }
           const scale = Math.min(maxW / w, maxH / h, 1);
@@ -452,7 +461,19 @@ function normalizeImageFileToDataUrl(file) {
           const ctx = canvas.getContext('2d');
           ctx.clearRect(0, 0, w, h);
           ctx.drawImage(img, 0, 0, w, h);
-          resolve(canvas.toDataURL('image/png'));
+          let out = canvas.toDataURL('image/png');
+          if (out.length > 120000) {
+            const w2 = Math.max(1, Math.round(w * 0.72));
+            const h2 = Math.max(1, Math.round(h * 0.72));
+            const c2 = document.createElement('canvas');
+            c2.width = w2;
+            c2.height = h2;
+            const ctx2 = c2.getContext('2d');
+            ctx2.clearRect(0, 0, w2, h2);
+            ctx2.drawImage(img, 0, 0, w2, h2);
+            out = c2.toDataURL('image/png');
+          }
+          resolve(out);
         } catch (err) {
           resolve(rawDataUrl);
         }
@@ -471,36 +492,142 @@ function normalizeImageFileToDataUrl(file) {
 
 const activeWorkspaceId = "{{ active_company.id if active_company else '' }}";
 
-function applyLogoToLiveDom(compId, lightDataUrl, darkDataUrl) {
+function saveBrandCacheToLocalStorage(compId, stateObj, pendingSync = false) {
+  if (!compId) return;
+  try {
+    const existingComp = rawCompanies.find(c => c.id === compId) || {};
+    const record = {
+      id: compId,
+      logo_light_url: stateObj.logo_light_url || existingComp.logo_light_url || '/static/brand/opsloom_wordmark_light.png',
+      logo_dark_url: stateObj.logo_dark_url || stateObj.logo_light_url || existingComp.logo_dark_url || existingComp.logo_light_url || '/static/brand/opsloom_wordmark_light.png',
+      logo_height: parseInt(stateObj.logo_height !== undefined ? stateObj.logo_height : (existingComp.logo_height || 48), 10) || 48,
+      logo_width_pct: parseInt(stateObj.logo_width_pct !== undefined ? stateObj.logo_width_pct : (existingComp.logo_width_pct || 100), 10) || 100,
+      logo_alignment: stateObj.logo_alignment || existingComp.logo_alignment || 'left',
+      logo_fit: stateObj.logo_fit || existingComp.logo_fit || 'contain',
+      show_name_next_to_logo: Boolean(stateObj.show_name_next_to_logo !== undefined ? stateObj.show_name_next_to_logo : (existingComp.show_name_next_to_logo && existingComp.user_explicit_show_name)),
+      updated_at_ms: Date.now(),
+      pending_sync: Boolean(pendingSync)
+    };
+    localStorage.setItem('opsloom_ws_brand_' + compId, JSON.stringify(record));
+  } catch (e) {}
+}
+
+function applyLogoToLiveDom(compId, lightDataUrl, darkDataUrl, sizingOpts = null) {
+  const existingComp = rawCompanies.find(c => c.id === compId) || {};
+  const h = parseInt((sizingOpts && sizingOpts.logo_height !== undefined) ? sizingOpts.logo_height : (existingComp.logo_height || 48), 10) || 48;
+  const w = parseInt((sizingOpts && sizingOpts.logo_width_pct !== undefined) ? sizingOpts.logo_width_pct : (existingComp.logo_width_pct || 100), 10) || 100;
+  const align = (sizingOpts && sizingOpts.logo_alignment) || existingComp.logo_alignment || 'left';
+  const fit = (sizingOpts && sizingOpts.logo_fit) || existingComp.logo_fit || 'contain';
+  const showName = (sizingOpts && sizingOpts.show_name_next_to_logo !== undefined)
+    ? Boolean(sizingOpts.show_name_next_to_logo)
+    : Boolean(existingComp.show_name_next_to_logo && existingComp.user_explicit_show_name);
+  const objPos = align === 'center' ? 'center center' : (align === 'right' ? 'right center' : 'left center');
+  const effLight = lightDataUrl || existingComp.logo_light_url || '/static/brand/opsloom_wordmark_light.png';
+  const effDark = darkDataUrl || lightDataUrl || existingComp.logo_dark_url || effLight;
+
   if (!compId || compId === activeWorkspaceId) {
+    const box = document.getElementById('sidebarBrandContainer');
+    const wrap = document.getElementById('sidebarBrandWrap');
+    const nameBox = document.getElementById('sidebarBrandNameBox');
     const sLight = document.getElementById('sidebarLogoLight');
     const sDark = document.getElementById('sidebarLogoDark');
-    if (sLight && lightDataUrl) sLight.src = lightDataUrl;
-    if (sDark && (darkDataUrl || lightDataUrl)) sDark.src = darkDataUrl || lightDataUrl;
+    const minH = Math.max(h + 20, 68);
+    if (box) {
+      box.style.minHeight = minH + 'px';
+      box.style.height = minH + 'px';
+    }
+    if (wrap) {
+      wrap.className = 'min-w-0 flex-1 flex items-center gap-2.5 ' + (align === 'center' ? 'justify-center' : (align === 'right' ? 'justify-end' : 'justify-start'));
+    }
+    if (sLight) {
+      if (effLight) sLight.src = effLight;
+      sLight.style.height = h + 'px';
+      sLight.style.maxHeight = h + 'px';
+      sLight.style.width = showName ? 'auto' : (w + '%');
+      sLight.style.maxWidth = w + '%';
+      sLight.style.objectFit = fit;
+      sLight.style.objectPosition = objPos;
+    }
+    if (sDark) {
+      if (effDark) sDark.src = effDark;
+      sDark.style.height = h + 'px';
+      sDark.style.maxHeight = h + 'px';
+      sDark.style.width = showName ? 'auto' : (w + '%');
+      sDark.style.maxWidth = w + '%';
+      sDark.style.objectFit = fit;
+      sDark.style.objectPosition = objPos;
+    }
+    if (nameBox) {
+      if (showName) {
+        nameBox.classList.remove('hidden');
+        nameBox.classList.add('flex');
+      } else {
+        nameBox.classList.add('hidden');
+        nameBox.classList.remove('flex');
+      }
+    }
   }
   if (compId) {
     const cLight = document.getElementById('cardLogoLight_' + compId);
     const cDark = document.getElementById('cardLogoDark_' + compId);
-    if (cLight && lightDataUrl) cLight.src = lightDataUrl;
-    if (cDark && (darkDataUrl || lightDataUrl)) cDark.src = darkDataUrl || lightDataUrl;
+    if (cLight && effLight) cLight.src = effLight;
+    if (cDark && effDark) cDark.src = effDark;
   }
 }
 
-async function persistLogoImmediately(compId, mode, dataUrl) {
-  if (!compId || !dataUrl) return;
+async function persistLogoImmediately(compId, mode, dataUrl, sizingOpts = null) {
+  if (!compId) return;
+  const existingComp = rawCompanies.find(c => c.id === compId) || {};
+  const effDataUrl = dataUrl || existingComp.logo_light_url || '';
+  const effSizing = sizingOpts || {
+    logo_height: mode === 'card_quick_upload' ? 48 : (existingComp.logo_height || 48),
+    logo_width_pct: mode === 'card_quick_upload' ? 100 : (existingComp.logo_width_pct || 100),
+    logo_alignment: mode === 'card_quick_upload' ? 'left' : (existingComp.logo_alignment || 'left'),
+    logo_fit: mode === 'card_quick_upload' ? 'contain' : (existingComp.logo_fit || 'contain'),
+    show_name_next_to_logo: mode === 'card_quick_upload' ? false : Boolean(existingComp.show_name_next_to_logo && existingComp.user_explicit_show_name)
+  };
+
+  // Immediately update local rawCompanies and localStorage so navigating away never loses the upload
+  if (existingComp) {
+    if (effDataUrl) {
+      existingComp.logo_light_url = effDataUrl;
+      existingComp.logo_dark_url = effDataUrl;
+      existingComp.print_logo_url = effDataUrl;
+    }
+    existingComp.logo_height = effSizing.logo_height;
+    existingComp.logo_width_pct = effSizing.logo_width_pct;
+    existingComp.logo_alignment = effSizing.logo_alignment;
+    existingComp.logo_fit = effSizing.logo_fit;
+    existingComp.show_name_next_to_logo = effSizing.show_name_next_to_logo;
+    existingComp.user_explicit_show_name = effSizing.show_name_next_to_logo;
+  }
+  if (currentEditingComp && currentEditingComp.id === compId) {
+    currentEditingComp = existingComp;
+  }
+  saveBrandCacheToLocalStorage(compId, {
+    logo_light_url: effDataUrl,
+    logo_dark_url: effDataUrl,
+    ...effSizing
+  }, true);
+
   try {
     const payload = {
       id: compId,
       mode: mode || 'both',
-      logo_data_url: dataUrl,
-      logo_light_data_url: mode === 'dark' ? '' : dataUrl,
-      logo_dark_data_url: mode === 'light' ? '' : dataUrl
+      logo_data_url: effDataUrl,
+      logo_height: effSizing.logo_height,
+      logo_width_pct: effSizing.logo_width_pct,
+      logo_alignment: effSizing.logo_alignment,
+      logo_fit: effSizing.logo_fit,
+      show_name_next_to_logo: effSizing.show_name_next_to_logo ? '1' : '0'
     };
+    const bodyStr = JSON.stringify(payload);
     const res = await fetch('/api/companies/save-logo', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify(payload)
+      keepalive: bodyStr.length < 60000,
+      body: bodyStr
     });
     const data = await res.json();
     if (data && data.ok && data.company) {
@@ -511,10 +638,11 @@ async function persistLogoImmediately(compId, mode, dataUrl) {
       if (currentEditingComp && currentEditingComp.id === compId) {
         currentEditingComp = data.company;
       }
-      applyLogoToLiveDom(compId, data.company.logo_light_url, data.company.logo_dark_url);
+      saveBrandCacheToLocalStorage(compId, data.company, false);
+      applyLogoToLiveDom(compId, data.company.logo_light_url, data.company.logo_dark_url, data.company);
       const modalBadge = document.getElementById('modalLogoSaveStatus');
       if (modalBadge) {
-        modalBadge.textContent = '✓ Logo uploaded and saved permanently to this workspace.';
+        modalBadge.textContent = '✓ Logo and sizing saved permanently to this workspace.';
         modalBadge.classList.remove('hidden');
       }
       const cardBadge = document.getElementById('cardLogoSavedStatus_' + compId);
@@ -533,8 +661,15 @@ async function handleQuickCardLogoUpload(input, compId) {
   if (!file || !compId) return;
   const dataUrl = await normalizeImageFileToDataUrl(file);
   if (!dataUrl) return;
-  applyLogoToLiveDom(compId, dataUrl, dataUrl);
-  await persistLogoImmediately(compId, 'both', dataUrl);
+  const quickSizing = {
+    logo_height: 48,
+    logo_width_pct: 100,
+    logo_alignment: 'left',
+    logo_fit: 'contain',
+    show_name_next_to_logo: false
+  };
+  applyLogoToLiveDom(compId, dataUrl, dataUrl, quickSizing);
+  await persistLogoImmediately(compId, 'card_quick_upload', dataUrl, quickSizing);
 }
 
 async function handleLogoFileSelect(input, mode) {
@@ -542,46 +677,64 @@ async function handleLogoFileSelect(input, mode) {
   if (!file) return;
   const dataUrl = await normalizeImageFileToDataUrl(file);
   if (!dataUrl) return;
-  let effectiveMode = mode;
-  if (mode === 'light') {
-    document.getElementById('compFormLogoLightBase64').value = dataUrl;
-    document.getElementById('compFormLogoLight').value = '[Uploaded: ' + file.name + ']';
-    const df = document.getElementById('compFormLogoDarkFile');
-    if (!df || !df.files || !df.files.length) {
-      document.getElementById('compFormLogoDarkBase64').value = dataUrl;
-      document.getElementById('compFormLogoDark').value = '[Uploaded: ' + file.name + ']';
-      effectiveMode = 'both';
-    }
-    setSimTheme('light');
-  } else {
-    document.getElementById('compFormLogoDarkBase64').value = dataUrl;
-    document.getElementById('compFormLogoDark').value = '[Uploaded: ' + file.name + ']';
-    const lf = document.getElementById('compFormLogoLightFile');
-    if (!lf || !lf.files || !lf.files.length) {
-      document.getElementById('compFormLogoLightBase64').value = dataUrl;
-      document.getElementById('compFormLogoLight').value = '[Uploaded: ' + file.name + ']';
-      effectiveMode = 'both';
-    }
-    setSimTheme('dark');
-  }
-  updateSimulator();
+  let effectiveMode = 'both';
+  document.getElementById('compFormLogoLightBase64').value = dataUrl;
+  document.getElementById('compFormLogoLight').value = '[Uploaded: ' + file.name + ']';
+  document.getElementById('compFormLogoDarkBase64').value = dataUrl;
+  document.getElementById('compFormLogoDark').value = '[Uploaded: ' + file.name + ']';
+  setSimTheme(mode === 'light' ? 'light' : 'dark');
+  updateSimulator(false);
 
   const compId = document.getElementById('compFormId').value;
   if (compId) {
-    const lightNow = document.getElementById('compFormLogoLightBase64').value || (currentEditingComp && currentEditingComp.logo_light_url) || dataUrl;
-    const darkNow = document.getElementById('compFormLogoDarkBase64').value || (currentEditingComp && currentEditingComp.logo_dark_url) || dataUrl;
-    applyLogoToLiveDom(compId, lightNow, darkNow);
-    await persistLogoImmediately(compId, effectiveMode, dataUrl);
+    const modalSizing = {
+      logo_height: parseInt(document.getElementById('compFormHeight').value, 10) || 48,
+      logo_width_pct: parseInt(document.getElementById('compFormWidth').value, 10) || 100,
+      logo_alignment: document.getElementById('compFormAlign').value || 'left',
+      logo_fit: document.getElementById('compFormFit').value || 'contain',
+      show_name_next_to_logo: document.getElementById('compFormShowName').checked
+    };
+    applyLogoToLiveDom(compId, dataUrl, dataUrl, modalSizing);
+    await persistLogoImmediately(compId, effectiveMode, dataUrl, modalSizing);
   }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+  try {
+    (rawCompanies || []).forEach(function(comp) {
+      if (!comp || !comp.id) return;
+      const raw = localStorage.getItem('opsloom_ws_brand_' + comp.id);
+      if (!raw) return;
+      const cached = JSON.parse(raw);
+      if (!cached || !cached.logo_light_url) return;
+      const serverMs = comp.custom_logo_updated_at ? Date.parse(comp.custom_logo_updated_at) : 0;
+      const cachedMs = Number(cached.updated_at_ms || 0);
+      if (cachedMs >= serverMs - 5000) {
+        comp.logo_light_url = cached.logo_light_url;
+        comp.logo_dark_url = cached.logo_dark_url || cached.logo_light_url;
+        comp.logo_height = cached.logo_height || comp.logo_height || 48;
+        comp.logo_width_pct = cached.logo_width_pct || comp.logo_width_pct || 100;
+        comp.logo_alignment = cached.logo_alignment || comp.logo_alignment || 'left';
+        comp.logo_fit = cached.logo_fit || comp.logo_fit || 'contain';
+        comp.show_name_next_to_logo = Boolean(cached.show_name_next_to_logo);
+        comp.user_explicit_show_name = Boolean(cached.show_name_next_to_logo);
+        const cLight = document.getElementById('cardLogoLight_' + comp.id);
+        const cDark = document.getElementById('cardLogoDark_' + comp.id);
+        if (cLight) cLight.src = comp.logo_light_url;
+        if (cDark) cDark.src = comp.logo_dark_url;
+      }
+    });
+  } catch (e) {}
+
   const form = document.getElementById('companyForm');
   if (!form) return;
   form.addEventListener('submit', async function(e) {
     e.preventDefault();
+    const compId = document.getElementById('compFormId').value;
+    const lightB64 = document.getElementById('compFormLogoLightBase64').value;
+    const darkB64 = document.getElementById('compFormLogoDarkBase64').value || lightB64;
     const payload = {
-      id: document.getElementById('compFormId').value,
+      id: compId,
       name: document.getElementById('compFormName').value,
       code: document.getElementById('compFormCode').value,
       designation_line_1: document.getElementById('compFormDesig1') ? document.getElementById('compFormDesig1').value : '',
@@ -591,14 +744,27 @@ document.addEventListener('DOMContentLoaded', function() {
       secondary_color: document.getElementById('compFormSecondary').value,
       logo_light_url: document.getElementById('compFormLogoLight').value,
       logo_dark_url: document.getElementById('compFormLogoDark').value,
-      logo_light_base64: document.getElementById('compFormLogoLightBase64').value,
-      logo_dark_base64: document.getElementById('compFormLogoDarkBase64').value,
+      logo_light_base64: lightB64,
+      logo_dark_base64: darkB64,
       show_name_next_to_logo: document.getElementById('compFormShowName').checked ? '1' : '0',
       logo_height: document.getElementById('compFormHeight').value,
       logo_width_pct: document.getElementById('compFormWidth').value,
       logo_alignment: document.getElementById('compFormAlign').value,
       logo_fit: document.getElementById('compFormFit').value
     };
+    if (compId) {
+      const existingComp = rawCompanies.find(c => c.id === compId) || {};
+      const effLogo = lightB64 || ((!payload.logo_light_url.startsWith('[Uploaded') && payload.logo_light_url) ? payload.logo_light_url : existingComp.logo_light_url);
+      saveBrandCacheToLocalStorage(compId, {
+        logo_light_url: effLogo,
+        logo_dark_url: effLogo,
+        logo_height: payload.logo_height,
+        logo_width_pct: payload.logo_width_pct,
+        logo_alignment: payload.logo_alignment,
+        logo_fit: payload.logo_fit,
+        show_name_next_to_logo: payload.show_name_next_to_logo === '1'
+      }, false);
+    }
     try {
       const res = await fetch('/api/companies/save', {
         method: 'POST',
@@ -608,6 +774,9 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       const data = await res.json();
       if (data && data.ok) {
+        if (data.company && data.company.id) {
+          saveBrandCacheToLocalStorage(data.company.id, data.company, false);
+        }
         window.location.href = '/settings/companies';
         return;
       }
@@ -626,11 +795,12 @@ function closeCompanyModal() {
   document.getElementById('companyModal').classList.add('hidden');
 }
 
+let sizingAutoSaveTimer = null;
 function setAreaPreset(h, w, fit = 'contain') {
   document.getElementById('compFormHeight').value = h;
   document.getElementById('compFormWidth').value = w;
   document.getElementById('compFormFit').value = fit;
-  updateSimulator();
+  updateSimulator(true);
 }
 
 function setSimTheme(theme) {
@@ -649,10 +819,10 @@ function setSimTheme(theme) {
     dBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-ueal-purple text-white';
     lBtn.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-300';
   }
-  updateSimulator();
+  updateSimulator(false);
 }
 
-function updateSimulator() {
+function updateSimulator(syncLive = true) {
   const h = document.getElementById('compFormHeight').value;
   const w = document.getElementById('compFormWidth').value;
   const align = document.getElementById('compFormAlign').value;
@@ -684,8 +854,9 @@ function updateSimulator() {
   const simBox = document.getElementById('sidebarSimBox');
 
   if (simBox) {
-    const minH = Math.max(56, parseInt(h, 10) + 16);
+    const minH = Math.max(68, parseInt(h, 10) + 20);
     simBox.style.minHeight = minH + 'px';
+    simBox.style.height = minH + 'px';
   }
 
   const objPos = align === 'center' ? 'center center' : (align === 'right' ? 'right center' : 'left center');
@@ -705,6 +876,22 @@ function updateSimulator() {
     document.getElementById('simCodeText').textContent = code;
   } else {
     nameBox.classList.add('hidden');
+  }
+
+  const compId = document.getElementById('compFormId').value;
+  if (syncLive && compId) {
+    const modalSizing = {
+      logo_height: parseInt(h, 10) || 48,
+      logo_width_pct: parseInt(w, 10) || 100,
+      logo_alignment: align || 'left',
+      logo_fit: fit || 'contain',
+      show_name_next_to_logo: Boolean(showName)
+    };
+    applyLogoToLiveDom(compId, safeLight, safeDark, modalSizing);
+    clearTimeout(sizingAutoSaveTimer);
+    sizingAutoSaveTimer = setTimeout(function() {
+      persistLogoImmediately(compId, 'both', safeLight, modalSizing);
+    }, 220);
   }
 }
 </script>

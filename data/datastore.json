@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "saved_at": "2026-10-01T12:36:50.479Z",
+  "saved_at": "2026-10-01T14:02:11.537Z",
   "COMPANIES": [
     {
       "id": "comp-001",
@@ -10,9 +10,9 @@
       "secondary_color": "#0ea5e9",
       "logo_light_url": "/static/brand/opsloom_wordmark_light.png",
       "logo_dark_url": "/static/brand/opsloom_wordmark_light.png",
-      "show_name_next_to_logo": true,
+      "show_name_next_to_logo": false,
       "logo_height": 48,
-      "logo_width_pct": 88,
+      "logo_width_pct": 100,
       "logo_alignment": "left",
       "logo_fit": "contain",
       "departments": [
@@ -37,7 +37,7 @@
       "logo_dark_url": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22340%22%20height%3D%2284%22%20viewBox%3D%220%200%20340%2084%22%3E%3Crect%20x%3D%222%22%20y%3D%228%22%20width%3D%2268%22%20height%3D%2268%22%20rx%3D%2214%22%20fill%3D%22%23680075%22%2F%3E%3Crect%20x%3D%2250%22%20y%3D%2256%22%20width%3D%2220%22%20height%3D%2220%22%20rx%3D%226%22%20fill%3D%22%23f5b400%22%2F%3E%3Ctext%20x%3D%2236%22%20y%3D%2249%22%20text-anchor%3D%22middle%22%20font-family%3D%22Inter%2CArial%2Csans-serif%22%20font-size%3D%2220%22%20font-weight%3D%22900%22%20fill%3D%22%23ffffff%22%3EUEAL%3C%2Ftext%3E%3Ctext%20x%3D%2284%22%20y%3D%2240%22%20font-family%3D%22Inter%2CArial%2Csans-serif%22%20font-size%3D%2218.5%22%20font-weight%3D%22900%22%20fill%3D%22%230F172A%22%3EUltravetis%20East%20Afri%E2%80%A6%3C%2Ftext%3E%3Ctext%20x%3D%2284%22%20y%3D%2261%22%20font-family%3D%22Inter%2CArial%2Csans-serif%22%20font-size%3D%2210.5%22%20font-weight%3D%22800%22%20letter-spacing%3D%221.6%22%20fill%3D%22%23680075%22%3EUEAL%20%E2%80%A2%20WORKSPACE%3C%2Ftext%3E%3C%2Fsvg%3E",
       "show_name_next_to_logo": false,
       "logo_height": 48,
-      "logo_width_pct": 88,
+      "logo_width_pct": 100,
       "logo_alignment": "left",
       "logo_fit": "contain",
       "departments": [
