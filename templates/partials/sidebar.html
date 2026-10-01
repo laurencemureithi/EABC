@@ -2,15 +2,16 @@
   <!-- Brand & Configurable Workspace Logo -->
   {% set raw_light_logo = active_company.logo_light_url if active_company and active_company.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png') %}
   {% set raw_dark_logo = active_company.logo_dark_url if active_company and active_company.logo_dark_url else raw_light_logo %}
-  {% set safe_light_logo = url_for('static', filename='brand/opsloom_wordmark_light.png') if ('opsloom_wordmark_dark.png' in raw_light_logo) else raw_light_logo %}
-  {% set safe_dark_logo = url_for('static', filename='brand/opsloom_wordmark_light.png') if ('opsloom_wordmark_dark.png' in raw_dark_logo) else raw_dark_logo %}
-  {% set logo_h = active_company.logo_height if active_company and active_company.logo_height else 42 %}
-  {% set effective_logo_h = [logo_h, 44]|min %}
-  {% set logo_w = active_company.logo_width_pct if active_company and active_company.logo_width_pct else 100 %}
+  {% set safe_light_logo = raw_light_logo %}
+  {% set safe_dark_logo = raw_dark_logo %}
+  {% set logo_h = (active_company.logo_height | int(48)) if active_company and active_company.logo_height else 48 %}
+  {% set logo_w = (active_company.logo_width_pct | int(100)) if active_company and active_company.logo_width_pct else 100 %}
   {% set logo_align = active_company.logo_alignment if active_company and active_company.logo_alignment else 'left' %}
+  {% set logo_fit = active_company.logo_fit if active_company and active_company.logo_fit else 'contain' %}
   {% set logo_obj_pos = 'center center' if logo_align == 'center' else ('right center' if logo_align == 'right' else 'left center') %}
+  {% set brand_box_min_h = [logo_h + 16, 56]|max %}
   <div class="app-sidebar-brand px-3 py-2 flex items-center justify-between gap-2 border-b border-white/10 shrink-0"
-       style="min-height: 54px;">
+       style="min-height: {{ brand_box_min_h }}px;">
     <div class="min-w-0 flex-1 flex items-center gap-2.5 {% if logo_align == 'center' %}justify-center{% elif logo_align == 'right' %}justify-end{% else %}justify-start{% endif %}">
       <!-- Light Theme Logo Image (shown on dark sidebar when app is in light mode) -->
       <img id="sidebarLogoLight"
@@ -18,14 +19,14 @@
            onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_light.png';"
            alt="{{ active_company.name if active_company else 'Opsloom' }}"
            class="block dark:hidden transition-all duration-200"
-           style="height: {{ effective_logo_h }}px; max-height: {{ effective_logo_h }}px; width: {{ 'auto' if (active_company and active_company.show_name_next_to_logo) else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: contain; object-position: {{ logo_obj_pos }};" />
+           style="height: {{ logo_h }}px; max-height: {{ logo_h }}px; width: {{ 'auto' if (active_company and active_company.show_name_next_to_logo) else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: {{ logo_fit }}; object-position: {{ logo_obj_pos }};" />
       <!-- Dark Theme Logo Image (shown on dark sidebar when app is in dark mode) -->
       <img id="sidebarLogoDark"
            src="{{ safe_dark_logo }}"
            onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_light.png';"
            alt="{{ active_company.name if active_company else 'Opsloom' }}"
            class="hidden dark:block transition-all duration-200"
-           style="height: {{ effective_logo_h }}px; max-height: {{ effective_logo_h }}px; width: {{ 'auto' if (active_company and active_company.show_name_next_to_logo) else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: contain; object-position: {{ logo_obj_pos }};" />
+           style="height: {{ logo_h }}px; max-height: {{ logo_h }}px; width: {{ 'auto' if (active_company and active_company.show_name_next_to_logo) else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: {{ logo_fit }}; object-position: {{ logo_obj_pos }};" />
 
       {% if active_company and active_company.show_name_next_to_logo %}
         <div class="flex flex-col min-w-0">

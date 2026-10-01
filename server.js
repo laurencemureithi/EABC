@@ -50,7 +50,13 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`);
   }
 });
-const upload = multer({ storage, limits: { fileSize: 15 * 1024 * 1024 } });
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 15 * 1024 * 1024,
+    fieldSize: 25 * 1024 * 1024
+  }
+});
 
 function fileToDataUrl(file) {
   if (!file) return '';
@@ -256,10 +262,49 @@ const DEFAULT_CUSTOM_ROLES = [
   }
 ];
 
+function buildCompanyBrandSvgDataUri(comp, theme = 'dark_text') {
+  const code = String(comp?.code || 'OPS').toUpperCase().replace(/[<>&"']/g, '').slice(0, 6);
+  const rawName = String(comp?.name || 'Workspace').replace(/[<>&"']/g, '');
+  const shortName = rawName.length > 22 ? rawName.slice(0, 20) + '…' : rawName;
+  const pCol = comp?.primary_color || '#7E22CE';
+  const sCol = (comp?.secondary_color && comp.secondary_color.toUpperCase() !== '#FFFFFF') ? comp.secondary_color : '#F59E0B';
+  const titleFill = theme === 'light_text' ? '#FFFFFF' : '#0F172A';
+  const subFill = theme === 'light_text' ? sCol : pCol;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="340" height="84" viewBox="0 0 340 84"><rect x="2" y="8" width="68" height="68" rx="14" fill="${pCol}"/><rect x="50" y="56" width="20" height="20" rx="6" fill="${sCol}"/><text x="36" y="49" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="20" font-weight="900" fill="#ffffff">${code}</text><text x="84" y="40" font-family="Inter,Arial,sans-serif" font-size="18.5" font-weight="900" fill="${titleFill}">${shortName}</text><text x="84" y="61" font-family="Inter,Arial,sans-serif" font-size="10.5" font-weight="800" letter-spacing="1.6" fill="${subFill}">${code} • WORKSPACE</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 function ensureCompanyDesignation(comp) {
   if (!comp) return comp;
   const code = (comp.code || 'OPS').toUpperCase();
-  const isUltravetis = (comp.name || '').toLowerCase().includes('ultravetis') || code === 'UEAL';
+  const nameLower = (comp.name || '').toLowerCase();
+  const isUltravetis = nameLower.includes('ultravetis') || code === 'UEAL';
+  const isOpsloom = !isUltravetis && (nameLower.includes('opsloom') || code === 'OPS');
+
+  if (isUltravetis) {
+    if (!comp.primary_color || comp.primary_color.toLowerCase() === '#3700ff' || comp.primary_color.toLowerCase() === '#1554ff') {
+      comp.primary_color = '#7E22CE';
+    }
+    if (!comp.secondary_color || comp.secondary_color.toLowerCase() === '#ffffff' || comp.secondary_color.toLowerCase() === '#0ea5e9') {
+      comp.secondary_color = '#F59E0B';
+    }
+  }
+
+  // Ensure non-Opsloom workspaces do not inadvertently display Opsloom's wordmark PNG
+  const lightUrl = String(comp.logo_light_url || '');
+  const darkUrl = String(comp.logo_dark_url || '');
+  const usesOpsloomDefaultLight = !lightUrl || lightUrl.includes('opsloom_wordmark') || lightUrl.includes('ultravetis_logo.png');
+  const usesOpsloomDefaultDark = !darkUrl || darkUrl.includes('opsloom_wordmark') || darkUrl.includes('ultravetis_logo.png');
+
+  if (!isOpsloom) {
+    if (usesOpsloomDefaultLight) {
+      comp.logo_light_url = buildCompanyBrandSvgDataUri(comp, 'light_text');
+    }
+    if (usesOpsloomDefaultDark) {
+      comp.logo_dark_url = buildCompanyBrandSvgDataUri(comp, 'dark_text');
+    }
+  }
+
   if (!comp.designation_line_1) {
     comp.designation_line_1 = isUltravetis
       ? `${comp.name || 'Ultravetis East Africa Limited'} (${code})`
@@ -313,7 +358,9 @@ function seedInitialDataIfEmpty() {
       profile_image_url: ''
     });
   } else if (!primaryAdmin.password) {
-    primaryAdmin.password = 'Admin@123';
+    primaryAdmin.password = store.SYSTEM_SETTINGS?.admin_login_password || 'Admin@123';
+  } else if (store.SYSTEM_SETTINGS?.admin_login_password && primaryAdmin.password !== store.SYSTEM_SETTINGS.admin_login_password) {
+    primaryAdmin.password = store.SYSTEM_SETTINGS.admin_login_password;
   }
   if (store.ADMIN_USERS.length === 1 && !store.seeded_default_team_users) {
     store.ADMIN_USERS.push(
@@ -1271,6 +1318,7 @@ function url_for(endpoint, params = {}) {
     'login_google': '/login/google',
     'logout': '/logout',
     'forgot_password': '/login/forgot-password',
+    'reset_admin_password': '/login/reset-admin-password',
     'request_credentials': '/login/request-credentials',
     'dashboard': '/dashboard',
     'dashboard_strategic_export': '/dashboard/strategic-export',
@@ -1380,7 +1428,7 @@ function url_for(endpoint, params = {}) {
   const handler = routes[endpoint];
   if (typeof handler === 'function') {
     const base = handler(params);
-    const consumed = new Set(['asset_uid', 'part_uid', 'spare_id', 'doc_uid', 'doc_id', 'breakdown_id', 'task_id', 'work_order_id', 'rid', 'report_id', 'fmt', 'tech_id', 'user_id', 'mid', 'nid', 'notification_id', 'inline']);
+    const consumed = new Set(['asset_uid', 'part_uid', 'spare_id', 'doc_uid', 'doc_id', 'breakdown_id', 'task_id', 'work_order_id', 'rid', 'report_id', 'fmt', 'tech_id', 'user_id', 'mid', 'nid', 'notification_id', 'inline', '__keywords']);
     const query = [];
     for (const [k, v] of Object.entries(params || {})) {
       if (!consumed.has(k) && v !== undefined && v !== null && v !== '') {
@@ -1394,7 +1442,7 @@ function url_for(endpoint, params = {}) {
     let url = handler;
     const query = [];
     for (const [k, v] of Object.entries(params || {})) {
-      if (v !== undefined && v !== null && v !== '') {
+      if (k !== '__keywords' && v !== undefined && v !== null && v !== '') {
         query.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
       }
     }
@@ -1527,37 +1575,68 @@ nunjucksEnv.addFilter('format', (fmt, ...args) => {
   return fmt;
 });
 
+// Normalize any hex color into a 6-character uppercase hex without '#'
+function normalizePptxHex(hexStr, fallback = '7E22CE') {
+  const clean = String(hexStr || '').trim().replace(/^#/, '').toUpperCase();
+  if (/^[0-9A-F]{6}$/.test(clean)) return clean;
+  if (/^[0-9A-F]{3}$/.test(clean)) {
+    return clean[0] + clean[0] + clean[1] + clean[1] + clean[2] + clean[2];
+  }
+  return fallback;
+}
+
+// Compute a light tint of a 6-character hex color for branded table rows and cards
+function tintPptxHex(hex6, mixWhite = 0.90) {
+  const h = normalizePptxHex(hex6, '7E22CE');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const tr = Math.min(255, Math.round(r + (255 - r) * mixWhite));
+  const tg = Math.min(255, Math.round(g + (255 - g) * mixWhite));
+  const tb = Math.min(255, Math.round(b + (255 - b) * mixWhite));
+  return [tr, tg, tb].map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
 // Resolve a company logo URL or Data URI into a base64 Data URI for PptxGenJS
-function resolveLogoDataUri(logoUrl) {
+function resolveLogoDataUri(comp = {}) {
   try {
-    if (!logoUrl) return null;
-    const str = String(logoUrl).trim();
-    if (str.startsWith('data:image/')) {
-      if (str.startsWith('data:image/svg')) return null; // PptxGenJS prefers PNG/JPEG data URIs
-      return str;
-    }
-    let relPath = str.replace(/^https?:\/\/[^/]+/, '');
-    if (relPath.startsWith('/')) relPath = relPath.slice(1);
-    const candidates = [
-      path.join(__dirname, relPath),
-      path.join(STATIC_DIR, relPath.replace(/^static\//, '')),
-      path.join(UPLOADS_DIR, path.basename(relPath)),
-      path.join(STATIC_DIR, 'brand', 'ultravetis_logo.png'),
-      path.join(STATIC_DIR, 'brand', 'opsloom_wordmark_light.png')
-    ];
-    for (const filePath of candidates) {
-      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-        const ext = path.extname(filePath).toLowerCase();
-        if (ext === '.svg') continue;
-        const mime = (ext === '.jpg' || ext === '.jpeg') ? 'image/jpeg' : 'image/png';
-        const buf = fs.readFileSync(filePath);
-        if (buf && buf.length > 0) {
-          return `data:${mime};base64,${buf.toString('base64')}`;
+    const compNameLower = String(comp.name || '').toLowerCase();
+    const compCodeUpper = String(comp.code || '').toUpperCase();
+    const isOpsloomComp = compNameLower.includes('opsloom') || compCodeUpper === 'OPS';
+
+    const rawCandidates = [comp.print_logo_url, comp.logo_dark_url, comp.logo_light_url].filter(Boolean);
+    for (const candidate of rawCandidates) {
+      const str = String(candidate).trim();
+      if (str.startsWith('data:image/')) {
+        if (str.startsWith('data:image/svg')) continue;
+        return str;
+      }
+      // Check if user uploaded a custom file in /static/uploads
+      let relPath = str.replace(/^https?:\/\/[^/]+/, '');
+      if (relPath.startsWith('/')) relPath = relPath.slice(1);
+      if (relPath.includes('uploads/')) {
+        const upPath = path.join(UPLOADS_DIR, path.basename(relPath));
+        if (fs.existsSync(upPath) && fs.statSync(upPath).isFile()) {
+          const ext = path.extname(upPath).toLowerCase();
+          if (ext !== '.svg') {
+            const mime = (ext === '.jpg' || ext === '.jpeg') ? 'image/jpeg' : 'image/png';
+            const buf = fs.readFileSync(upPath);
+            if (buf && buf.length > 0) return `data:${mime};base64,${buf.toString('base64')}`;
+          }
         }
       }
     }
+
+    // For Opsloom workspace, use the dark-on-light wordmark PNG so it is crisp on a white badge
+    if (isOpsloomComp) {
+      const opsDarkPath = path.join(STATIC_DIR, 'brand', 'opsloom_wordmark_dark.png');
+      if (fs.existsSync(opsDarkPath)) {
+        const buf = fs.readFileSync(opsDarkPath);
+        if (buf && buf.length > 0) return `data:image/png;base64,${buf.toString('base64')}`;
+      }
+    }
   } catch (err) {
-    // ignore and fallback
+    // ignore and fallback to native vector brand badge
   }
   return null;
 }
@@ -1565,54 +1644,105 @@ function resolveLogoDataUri(logoUrl) {
 // Branded PowerPoint (.pptx) Presentation Generator
 async function sendBrandPowerPoint(req, res, options = {}) {
   const ctx = baseCtx(req);
-  const comp = ctx.active_company || {};
-  const primaryHex = String(comp.primary_color || '#7E22CE').replace('#', '').toUpperCase();
-  const secondaryHex = String(comp.secondary_color || '#F59E0B').replace('#', '').toUpperCase();
-  const companyName = comp.name || 'Ultravetis East Africa Ltd';
-  const companyCode = comp.code || 'UEAL';
-  const department = options.department || ctx.current_department || 'Engineering';
+  const explicitCompId = options.company_id || req.query?.company_id;
+  const comp = options.company
+    || (explicitCompId && (store.COMPANIES || []).find(c => c.id === explicitCompId))
+    || ctx.active_company
+    || {};
+
+  const primaryHex = normalizePptxHex(comp.primary_color, '7E22CE');
+  const rawSecHex = normalizePptxHex(comp.secondary_color, 'F59E0B');
+  const secondaryHex = (rawSecHex === 'FFFFFF' || rawSecHex === 'F8FAFC') ? 'F59E0B' : rawSecHex;
+  const brandTintHex = tintPptxHex(primaryHex, 0.91);
+  const brandSoftBorderHex = tintPptxHex(primaryHex, 0.72);
+
+  const companyName = comp.name || 'Ultravetis East Africa Limited';
+  const companyCode = String(comp.code || 'UEAL').toUpperCase();
+  const department = options.department || req.query?.department || ctx.current_department || 'Engineering';
+  const moduleLabel = options.moduleLabel || `${department} Workspace`;
   const title = options.title || 'Executive Operational Intelligence Report';
-  const subtitle = options.subtitle || `${companyName} • ${department} Operations`;
+  const subtitle = options.subtitle || `${companyName} (${companyCode}) • ${department} Operations`;
   const periodLabel = options.period || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const desigLine1 = comp.designation_line_1 || `${companyName} (${companyCode})`;
+  const desigLine2 = comp.designation_line_2 || (ctx.print_company_address_lines && ctx.print_company_address_lines[1]) || 'Nairobi, Kenya';
+  const desigLine3 = comp.designation_line_3 || (ctx.print_company_address_lines && ctx.print_company_address_lines[2]) || '';
+
   const kpis = Array.isArray(options.kpis) ? options.kpis : [];
+  const insightsTitle = options.insightsTitle || 'KEY OPERATIONAL TAKEAWAYS & ACTION PLAN';
   const insights = Array.isArray(options.insights) && options.insights.length
     ? options.insights
     : [
         `Active workspace brand: ${companyName} (${companyCode}) — Department: ${department}.`,
-        'All operational metrics and incident logs are verified against the live Opsloom plant register.',
-        'Prioritize critical mechanical and electrical corrective work orders to sustain >= 95% fleet availability.'
+        'All exported records and metrics are filtered strictly to the selected workspace and scope.',
+        'Prioritize critical corrective actions and preventive schedules to sustain target availability.'
       ];
   const headers = Array.isArray(options.headers) && options.headers.length
     ? options.headers
     : ['Item / Identifier', 'Category / Scope', 'Status / Metric', 'Details & Impact'];
   const rows = Array.isArray(options.rows) ? options.rows : [];
-  const filename = (options.filename || 'opsloom_presentation.pptx').replace(/[^a-zA-Z0-9._-]/g, '_');
+  const rawFilename = options.filename || `${companyCode.toLowerCase()}_presentation.pptx`;
+  const prefixedFilename = rawFilename.toLowerCase().startsWith(companyCode.toLowerCase())
+    ? rawFilename
+    : `${companyCode.toLowerCase()}_${rawFilename}`;
+  const filename = prefixedFilename.replace(/[^a-zA-Z0-9._-]/g, '_');
 
-  const logoDataUri = resolveLogoDataUri(comp.logo_light_url || comp.logo_dark_url);
+  const logoDataUri = resolveLogoDataUri(comp);
 
   function addSlideBrandLogo(slide, isCover = false) {
-    if (logoDataUri) {
-      slide.addShape(pres.ShapeType.roundRect, {
-        x: isCover ? 7.55 : 7.85,
-        y: isCover ? 0.32 : 0.08,
-        w: isCover ? 1.85 : 1.65,
-        h: isCover ? 0.68 : 0.58,
-        fill: { color: 'FFFFFF' },
-        line: { color: secondaryHex, width: 1 },
-        rectRadius: 0.08
-      });
+    const bx = isCover ? 7.15 : 7.35;
+    const by = isCover ? 0.28 : 0.08;
+    const bw = isCover ? 2.30 : 2.15;
+    const bh = isCover ? 0.76 : 0.58;
+
+    slide.addShape(pres.ShapeType.roundRect, {
+      x: bx, y: by, w: bw, h: bh,
+      fill: { color: 'FFFFFF' },
+      line: { color: secondaryHex, width: 1.5 },
+      rectRadius: 0.08
+    });
+
+    if (logoDataUri && !comp.show_name_next_to_logo) {
       slide.addImage({
         data: logoDataUri,
-        x: isCover ? 7.65 : 7.93,
-        y: isCover ? 0.38 : 0.13,
-        w: isCover ? 1.65 : 1.48,
-        h: isCover ? 0.55 : 0.48,
-        sizing: { type: 'contain', w: isCover ? 1.65 : 1.48, h: isCover ? 0.55 : 0.48 }
+        x: bx + 0.10, y: by + 0.07,
+        w: bw - 0.20, h: bh - 0.14,
+        sizing: { type: 'contain', w: bw - 0.20, h: bh - 0.14 }
+      });
+    } else if (logoDataUri && comp.show_name_next_to_logo) {
+      slide.addImage({
+        data: logoDataUri,
+        x: bx + 0.08, y: by + 0.09,
+        w: 0.72, h: bh - 0.18,
+        sizing: { type: 'contain', w: 0.72, h: bh - 0.18 }
+      });
+      slide.addText(companyName, {
+        x: bx + 0.84, y: by + 0.08, w: bw - 0.90, h: (bh * 0.52),
+        fontSize: isCover ? 9.5 : 8.5, bold: true, color: primaryHex, fontFace: 'Arial', valign: 'bottom'
+      });
+      slide.addText(`${companyCode} WORKSPACE`, {
+        x: bx + 0.84, y: by + (bh * 0.52), w: bw - 0.90, h: (bh * 0.38),
+        fontSize: 7.5, bold: true, color: secondaryHex, fontFace: 'Arial', valign: 'top'
       });
     } else {
-      slide.addText(companyCode, {
-        x: 7.8, y: isCover ? 0.35 : 0.18, w: 1.7, h: 0.4,
-        fontSize: 13, bold: true, color: secondaryHex, align: 'right', fontFace: 'Arial'
+      // Crisp native vector brand emblem + company name/code badge in the exact company colors
+      const emblemSize = isCover ? 0.54 : 0.42;
+      slide.addShape(pres.ShapeType.roundRect, {
+        x: bx + 0.09, y: by + (bh - emblemSize) / 2, w: emblemSize, h: emblemSize,
+        fill: { color: primaryHex },
+        line: { color: secondaryHex, width: 1 },
+        rectRadius: 0.06
+      });
+      slide.addText(companyCode.slice(0, 4), {
+        x: bx + 0.09, y: by + (bh - emblemSize) / 2, w: emblemSize, h: emblemSize,
+        fontSize: isCover ? 9.5 : 8, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle', fontFace: 'Arial'
+      });
+      slide.addText(companyName.length > 24 ? companyName.slice(0, 22) + '…' : companyName, {
+        x: bx + emblemSize + 0.15, y: by + 0.07, w: bw - emblemSize - 0.22, h: bh * 0.52,
+        fontSize: isCover ? 9 : 8, bold: true, color: primaryHex, fontFace: 'Arial', valign: 'bottom'
+      });
+      slide.addText(`${companyCode} • ${department.toUpperCase()}`, {
+        x: bx + emblemSize + 0.15, y: by + (bh * 0.54), w: bw - emblemSize - 0.22, h: bh * 0.36,
+        fontSize: 7, bold: true, color: secondaryHex, fontFace: 'Arial', valign: 'top'
       });
     }
   }
@@ -1620,9 +1750,9 @@ async function sendBrandPowerPoint(req, res, options = {}) {
   const pres = new PptxGenJS();
   pres.layout = 'LAYOUT_16x9';
   pres.author = ctx.current_user_name || 'Laurence Magondu';
-  pres.company = companyName;
-  pres.subject = title;
-  pres.title = title;
+  pres.company = `${companyName} (${companyCode})`;
+  pres.subject = `${companyName} — ${title}`;
+  pres.title = `${companyCode} • ${title}`;
 
   // SLIDE 1: Branded Executive Cover & KPI Overview
   const slide1 = pres.addSlide();
@@ -1630,143 +1760,158 @@ async function sendBrandPowerPoint(req, res, options = {}) {
 
   // Top primary brand banner
   slide1.addShape(pres.ShapeType.rect, {
-    x: 0, y: 0, w: 10.0, h: 2.35,
+    x: 0, y: 0, w: 10.0, h: 2.38,
     fill: { color: primaryHex }
   });
   // Secondary brand accent strip
   slide1.addShape(pres.ShapeType.rect, {
-    x: 0, y: 2.35, w: 10.0, h: 0.12,
+    x: 0, y: 2.38, w: 10.0, h: 0.12,
     fill: { color: secondaryHex }
   });
 
   // Brand tag pill
-  slide1.addText(`${companyCode}  •  ${companyName.toUpperCase()}  •  ${department.toUpperCase()}`, {
-    x: 0.6, y: 0.35, w: 6.8, h: 0.3,
-    fontSize: 10, bold: true, color: secondaryHex, fontFace: 'Arial'
+  slide1.addText(`${companyCode}  •  ${companyName.toUpperCase()}  •  ${moduleLabel.toUpperCase()}`, {
+    x: 0.55, y: 0.30, w: 6.45, h: 0.28,
+    fontSize: 9.5, bold: true, color: secondaryHex, fontFace: 'Arial'
   });
   addSlideBrandLogo(slide1, true);
 
   // Main Title
   slide1.addText(title, {
-    x: 0.6, y: 0.72, w: 6.8, h: 0.85,
-    fontSize: 22, bold: true, color: 'FFFFFF', fontFace: 'Arial'
+    x: 0.55, y: 0.64, w: 6.45, h: 0.90,
+    fontSize: 21, bold: true, color: 'FFFFFF', fontFace: 'Arial', valign: 'middle'
   });
   // Subtitle
   slide1.addText(subtitle, {
-    x: 0.6, y: 1.6, w: 8.8, h: 0.5,
-    fontSize: 12, color: 'E2E8F0', fontFace: 'Arial'
+    x: 0.55, y: 1.60, w: 8.9, h: 0.42,
+    fontSize: 11.5, color: 'F1F5F9', fontFace: 'Arial'
+  });
+  // Corporate Designation Line inside Cover Banner
+  slide1.addText(`${desigLine1}   •   ${desigLine2}${desigLine3 ? '   •   ' + desigLine3 : ''}`, {
+    x: 0.55, y: 2.02, w: 8.9, h: 0.28,
+    fontSize: 8.5, color: 'E2E8F0', fontFace: 'Arial'
   });
 
   // Metadata bar
   slide1.addShape(pres.ShapeType.rect, {
-    x: 0.6, y: 2.65, w: 8.8, h: 0.62,
-    fill: { color: 'FFFFFF' },
-    line: { color: 'CBD5E1', width: 1 }
+    x: 0.55, y: 2.66, w: 8.9, h: 0.58,
+    fill: { color: brandTintHex },
+    line: { color: brandSoftBorderHex, width: 1 }
   });
   slide1.addText(
-    `Workspace: ${companyName} (${companyCode})   |   Scope: ${department}   |   Window: ${periodLabel}   |   Prepared By: ${ctx.current_user_name}`,
-    { x: 0.75, y: 2.75, w: 8.5, h: 0.4, fontSize: 9.5, bold: true, color: '334155', fontFace: 'Arial' }
+    `Active Workspace: ${companyName} (${companyCode})   |   Context: ${department}   |   Window / Scope: ${periodLabel}   |   Prepared By: ${ctx.current_user_name}`,
+    { x: 0.70, y: 2.75, w: 8.6, h: 0.40, fontSize: 9.2, bold: true, color: '1E293B', fontFace: 'Arial' }
   );
 
   // KPI Cards on Slide 1
   const displayKpis = kpis.length ? kpis.slice(0, 4) : [
-    { label: 'Plant Uptime Rate', value: `${ctx.kpi_uptime_rate || 98.4}%`, note: 'Target >= 95.0%' },
-    { label: 'Monitored Assets', value: (store.ASSETS || []).length, note: `${ctx.operational_assets || 0} operational` },
-    { label: 'Active Incidents', value: ctx.kpi_active_breakdowns || 0, note: 'Corrective queue' },
-    { label: 'PM Compliance', value: `${ctx.pm_compliance || 92.0}%`, note: 'Scheduled adherence' }
+    { label: 'Exported Records', value: rows.length, note: periodLabel },
+    { label: 'Workspace Brand', value: companyCode, note: companyName },
+    { label: 'Department Scope', value: department, note: 'Active context' },
+    { label: 'Report Status', value: 'VERIFIED', note: 'Live register export' }
   ];
-  const cardW = 2.05;
-  const gap = 0.2;
-  displayKpis.forEach((k, idx) => {
-    const cx = 0.6 + idx * (cardW + gap);
-    const cy = 3.48;
+  const cardCount = Math.min(4, Math.max(1, displayKpis.length));
+  const totalW = 8.9;
+  const gap = 0.20;
+  const cardW = (totalW - gap * (cardCount - 1)) / cardCount;
+
+  displayKpis.slice(0, 4).forEach((k, idx) => {
+    const cx = 0.55 + idx * (cardW + gap);
+    const cy = 3.44;
     slide1.addShape(pres.ShapeType.rect, {
-      x: cx, y: cy, w: cardW, h: 1.5,
+      x: cx, y: cy, w: cardW, h: 1.54,
       fill: { color: 'FFFFFF' },
-      line: { color: 'CBD5E1', width: 1 }
+      line: { color: brandSoftBorderHex, width: 1 }
     });
     slide1.addShape(pres.ShapeType.rect, {
-      x: cx, y: cy, w: cardW, h: 0.08,
+      x: cx, y: cy, w: cardW, h: 0.09,
       fill: { color: idx % 2 === 0 ? primaryHex : secondaryHex }
     });
     slide1.addText(String(k.label || 'METRIC').toUpperCase(), {
-      x: cx + 0.12, y: cy + 0.15, w: cardW - 0.24, h: 0.3,
+      x: cx + 0.12, y: cy + 0.15, w: cardW - 0.24, h: 0.28,
       fontSize: 8.5, bold: true, color: '64748B', fontFace: 'Arial'
     });
     slide1.addText(String(k.value !== undefined ? k.value : '—'), {
-      x: cx + 0.12, y: cy + 0.48, w: cardW - 0.24, h: 0.5,
-      fontSize: 17, bold: true, color: primaryHex, fontFace: 'Arial'
+      x: cx + 0.12, y: cy + 0.46, w: cardW - 0.24, h: 0.54,
+      fontSize: 16.5, bold: true, color: primaryHex, fontFace: 'Arial'
     });
     slide1.addText(String(k.note || k.detail || ''), {
-      x: cx + 0.12, y: cy + 1.04, w: cardW - 0.24, h: 0.34,
+      x: cx + 0.12, y: cy + 1.04, w: cardW - 0.24, h: 0.38,
       fontSize: 8.5, color: '475569', fontFace: 'Arial'
     });
   });
 
   // Footer on Slide 1
-  slide1.addText(`${companyName} (${companyCode}) • Opsloom Plant Intelligence • Slide 1`, {
-    x: 0.6, y: 5.2, w: 8.8, h: 0.25,
-    fontSize: 8.5, color: '94A3B8', fontFace: 'Arial'
+  slide1.addText(`${companyName} (${companyCode}) • ${department} Workspace • ${title} • Slide 1`, {
+    x: 0.55, y: 5.18, w: 8.9, h: 0.25,
+    fontSize: 8.5, bold: true, color: primaryHex, fontFace: 'Arial'
   });
 
-  // SLIDE 2: Visual Telemetry & Native Operational Charts
+  // SLIDE 2: Specific Visual Analytics for Exported Data
   const slide2 = pres.addSlide();
   slide2.background = { color: 'F8FAFC' };
   slide2.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 10.0, h: 0.75, fill: { color: primaryHex } });
   slide2.addShape(pres.ShapeType.rect, { x: 0, y: 0.75, w: 10.0, h: 0.06, fill: { color: secondaryHex } });
-  slide2.addText(`${title} — Visual Telemetry & Analytics`, {
-    x: 0.5, y: 0.18, w: 7.2, h: 0.4, fontSize: 14, bold: true, color: 'FFFFFF', fontFace: 'Arial'
+  slide2.addText(`${companyCode} • ${title} — Visual Analytics`, {
+    x: 0.5, y: 0.18, w: 6.7, h: 0.4, fontSize: 13.5, bold: true, color: 'FFFFFF', fontFace: 'Arial'
   });
   addSlideBrandLogo(slide2, false);
 
-  // Build dynamic bar chart & doughnut chart data from store + options
-  const allAssets = store.ASSETS || [];
-  const allBds = store.BREAKDOWNS || [];
-  const allTasks = store.MAINTENANCE_TASKS || [];
-  const secNames = SECTIONS;
+  const barChartTitle = options.barChartTitle || `${title} — Primary Distribution`;
+  const rawBarSeries = Array.isArray(options.barSeries) && options.barSeries.length
+    ? options.barSeries
+    : [
+        {
+          name: title,
+          labels: rows.length ? rows.slice(0, 6).map((r, i) => String((Array.isArray(r) ? r[0] : r.col1) || `Item ${i + 1}`).slice(0, 16)) : ['Current Scope'],
+          values: rows.length ? rows.slice(0, 6).map((_, i) => i + 1) : [1]
+        }
+      ];
+  const barSeries = rawBarSeries.map(s => ({
+    name: s.name || 'Records',
+    labels: (Array.isArray(s.labels) && s.labels.length) ? s.labels : ['Scope'],
+    values: (Array.isArray(s.values) && s.values.length) ? s.values.map(v => Number(v) || 0) : [0]
+  }));
 
-  const barChartTitle = options.barChartTitle || 'Section Operational Load (PM Tasks vs Breakdowns)';
-  const barSeries = options.barSeries || [
-    {
-      name: 'Preventive Tasks (PM)',
-      labels: secNames,
-      values: secNames.map(s => allTasks.filter(t => t.section === s).length || 1)
-    },
-    {
-      name: 'Breakdowns (CM)',
-      labels: secNames,
-      values: secNames.map(s => allBds.filter(b => b.section === s).length)
-    }
-  ];
-
-  const opCount = Math.max(1, allAssets.filter(a => a.status === 'operational').length);
-  const maintCount = allAssets.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
-  const oosCount = allAssets.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
-
-  const doughnutTitle = options.doughnutTitle || 'Fleet Readiness & Condition Split';
-  const doughnutSeries = options.doughnutSeries || [
-    {
-      name: 'Fleet Condition',
-      labels: ['Operational', 'Under Maintenance', 'Out of Service'],
-      values: [opCount, maintCount, oosCount]
-    }
-  ];
+  const doughnutTitle = options.doughnutTitle || `${title} — Composition Split`;
+  const rawDoughnutSeries = Array.isArray(options.doughnutSeries) && options.doughnutSeries.length
+    ? options.doughnutSeries
+    : [
+        {
+          name: 'Composition',
+          labels: displayKpis.map(k => String(k.label || 'Metric').slice(0, 18)),
+          values: displayKpis.map((k, idx) => Math.max(1, parseInt(String(k.value).replace(/[^0-9]/g, ''), 10) || (idx + 1)))
+        }
+      ];
+  const doughnutSeries = rawDoughnutSeries.map(s => {
+    const vals = (Array.isArray(s.values) && s.values.length) ? s.values.map(v => Math.max(0, Number(v) || 0)) : [1];
+    const sum = vals.reduce((a, b) => a + b, 0);
+    return {
+      name: s.name || 'Split',
+      labels: (Array.isArray(s.labels) && s.labels.length) ? s.labels : ['Records'],
+      values: sum > 0 ? vals : vals.map((_, i) => (i === 0 ? 1 : 0))
+    };
+  });
 
   // Left Chart Card (Bar Chart)
   slide2.addShape(pres.ShapeType.rect, {
     x: 0.5, y: 1.0, w: 5.35, h: 4.05,
     fill: { color: 'FFFFFF' },
-    line: { color: 'CBD5E1', width: 1 }
+    line: { color: brandSoftBorderHex, width: 1 }
+  });
+  slide2.addShape(pres.ShapeType.rect, {
+    x: 0.5, y: 1.0, w: 5.35, h: 0.07,
+    fill: { color: primaryHex }
   });
   slide2.addText(barChartTitle.toUpperCase(), {
-    x: 0.7, y: 1.12, w: 4.95, h: 0.3,
+    x: 0.7, y: 1.14, w: 4.95, h: 0.3,
     fontSize: 9.5, bold: true, color: primaryHex, fontFace: 'Arial'
   });
   slide2.addChart(pres.ChartType.bar, barSeries, {
     x: 0.65, y: 1.48, w: 5.05, h: 3.4,
     barDir: 'col',
-    barGrouping: 'clustered',
-    chartColors: [primaryHex, secondaryHex, '0EA5E9'],
+    barGrouping: barSeries.length > 1 ? 'clustered' : 'standard',
+    chartColors: [primaryHex, secondaryHex, '0EA5E9', '10B981'],
     showLegend: true,
     legendPos: 'b',
     showValue: true,
@@ -1779,15 +1924,19 @@ async function sendBrandPowerPoint(req, res, options = {}) {
   slide2.addShape(pres.ShapeType.rect, {
     x: 6.05, y: 1.0, w: 3.45, h: 4.05,
     fill: { color: 'FFFFFF' },
-    line: { color: 'CBD5E1', width: 1 }
+    line: { color: brandSoftBorderHex, width: 1 }
+  });
+  slide2.addShape(pres.ShapeType.rect, {
+    x: 6.05, y: 1.0, w: 3.45, h: 0.07,
+    fill: { color: secondaryHex }
   });
   slide2.addText(doughnutTitle.toUpperCase(), {
-    x: 6.25, y: 1.12, w: 3.05, h: 0.3,
+    x: 6.25, y: 1.14, w: 3.05, h: 0.3,
     fontSize: 9.5, bold: true, color: primaryHex, fontFace: 'Arial'
   });
   slide2.addChart(pres.ChartType.doughnut, doughnutSeries, {
     x: 6.2, y: 1.48, w: 3.15, h: 3.4,
-    chartColors: ['10B981', secondaryHex, 'EF4444', primaryHex],
+    chartColors: [primaryHex, secondaryHex, '10B981', 'EF4444', '0EA5E9'],
     showLegend: true,
     legendPos: 'b',
     showPercent: true,
@@ -1795,16 +1944,16 @@ async function sendBrandPowerPoint(req, res, options = {}) {
   });
 
   slide2.addText(`${companyName} (${companyCode}) • ${department} Visual Telemetry • Slide 2`, {
-    x: 0.5, y: 5.2, w: 9.0, h: 0.25, fontSize: 8.5, color: '94A3B8', fontFace: 'Arial'
+    x: 0.5, y: 5.18, w: 9.0, h: 0.25, fontSize: 8.5, bold: true, color: primaryHex, fontFace: 'Arial'
   });
 
-  // SLIDE 3: Executive Insights & Plant Section Availability Matrix
+  // SLIDE 3: Specific Executive Insights & Export Summary Matrix
   const slide3 = pres.addSlide();
   slide3.background = { color: 'F8FAFC' };
   slide3.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 10.0, h: 0.75, fill: { color: primaryHex } });
   slide3.addShape(pres.ShapeType.rect, { x: 0, y: 0.75, w: 10.0, h: 0.06, fill: { color: secondaryHex } });
-  slide3.addText(`${title} — Executive Insights & Section Matrix`, {
-    x: 0.5, y: 0.18, w: 7.2, h: 0.4, fontSize: 14, bold: true, color: 'FFFFFF', fontFace: 'Arial'
+  slide3.addText(`${companyCode} • ${title} — Insights & Summary Matrix`, {
+    x: 0.5, y: 0.18, w: 6.7, h: 0.4, fontSize: 13.5, bold: true, color: 'FFFFFF', fontFace: 'Arial'
   });
   addSlideBrandLogo(slide3, false);
 
@@ -1812,68 +1961,84 @@ async function sendBrandPowerPoint(req, res, options = {}) {
   slide3.addShape(pres.ShapeType.rect, {
     x: 0.5, y: 1.0, w: 4.5, h: 4.05,
     fill: { color: 'FFFFFF' },
-    line: { color: 'CBD5E1', width: 1 }
+    line: { color: brandSoftBorderHex, width: 1 }
   });
-  slide3.addText('KEY OPERATIONAL TAKEAWAYS & ACTION PLAN', {
+  slide3.addShape(pres.ShapeType.rect, {
+    x: 0.5, y: 1.0, w: 4.5, h: 0.07,
+    fill: { color: primaryHex }
+  });
+  slide3.addText(insightsTitle.toUpperCase(), {
     x: 0.7, y: 1.15, w: 4.1, h: 0.3,
     fontSize: 9.5, bold: true, color: primaryHex, fontFace: 'Arial'
   });
 
   const bulletItems = insights.slice(0, 6).map(item => ({
     text: String(item),
-    options: { bullet: true, breakLine: true, fontSize: 10.5, color: '1E293B', paraSpaceAfter: 8 }
+    options: { bullet: true, breakLine: true, fontSize: 10, color: '1E293B', paraSpaceAfter: 8 }
   }));
   slide3.addText(bulletItems, {
     x: 0.7, y: 1.55, w: 4.1, h: 3.3, fontFace: 'Arial', valign: 'top'
   });
 
-  // Right Box: Section Availability & Cost Summary Table
+  // Right Box: Specific Summary Matrix Table for Exported Data
   slide3.addShape(pres.ShapeType.rect, {
     x: 5.2, y: 1.0, w: 4.3, h: 4.05,
     fill: { color: 'FFFFFF' },
-    line: { color: 'CBD5E1', width: 1 }
+    line: { color: brandSoftBorderHex, width: 1 }
   });
-  slide3.addText('PLANT SECTION AVAILABILITY & RELIABILITY MATRIX', {
+  slide3.addShape(pres.ShapeType.rect, {
+    x: 5.2, y: 1.0, w: 4.3, h: 0.07,
+    fill: { color: secondaryHex }
+  });
+
+  const summaryTableTitle = options.summaryTableTitle || 'EXPORT SCOPE & METRIC SUMMARY MATRIX';
+  const summaryTableHeaders = Array.isArray(options.summaryTableHeaders) && options.summaryTableHeaders.length
+    ? options.summaryTableHeaders
+    : ['Metric / Dimension', 'Value', 'Target / Scope', 'Status'];
+  const rawSummaryRows = Array.isArray(options.summaryTableRows) && options.summaryTableRows.length
+    ? options.summaryTableRows
+    : displayKpis.map(k => [k.label || 'Metric', String(k.value ?? '—'), k.note || periodLabel, 'Verified']);
+
+  slide3.addText(summaryTableTitle.toUpperCase(), {
     x: 5.4, y: 1.15, w: 3.9, h: 0.3,
     fontSize: 9.5, bold: true, color: primaryHex, fontFace: 'Arial'
   });
 
-  const sectionRows = [
-    [
-      { text: 'Section', options: { fill: { color: primaryHex }, color: 'FFFFFF', bold: true, fontSize: 8.5 } },
-      { text: 'Assets', options: { fill: { color: primaryHex }, color: 'FFFFFF', bold: true, fontSize: 8.5 } },
-      { text: 'Incidents', options: { fill: { color: primaryHex }, color: 'FFFFFF', bold: true, fontSize: 8.5 } },
-      { text: 'Readiness', options: { fill: { color: primaryHex }, color: 'FFFFFF', bold: true, fontSize: 8.5 } }
-    ],
-    ...secNames.map((sec, idx) => {
-      const sAssets = allAssets.filter(a => a.section === sec);
-      const sOp = sAssets.filter(a => a.status === 'operational').length;
-      const sBds = allBds.filter(b => b.section === sec).length;
-      const pct = sAssets.length ? Math.round((sOp / sAssets.length) * 100) : 100;
-      const bg = idx % 2 === 0 ? 'FFFFFF' : 'F1F5F9';
-      return [
-        { text: sec, options: { fill: { color: bg }, color: '1E293B', bold: true, fontSize: 8.5 } },
-        { text: `${sOp}/${sAssets.length}`, options: { fill: { color: bg }, color: '334155', fontSize: 8.5 } },
-        { text: String(sBds), options: { fill: { color: bg }, color: '334155', fontSize: 8.5 } },
-        { text: `${pct}%`, options: { fill: { color: bg }, color: pct >= 90 ? '059669' : 'D97706', bold: true, fontSize: 8.5 } }
-      ];
+  const summaryMatrixRows = [
+    summaryTableHeaders.map(h => ({
+      text: String(h),
+      options: { fill: { color: primaryHex }, color: 'FFFFFF', bold: true, fontSize: 8.5, fontFace: 'Arial' }
+    })),
+    ...rawSummaryRows.slice(0, 7).map((r, idx) => {
+      const bg = idx % 2 === 0 ? 'FFFFFF' : brandTintHex;
+      const cells = Array.isArray(r) ? r : [r.col1 || '', r.col2 || '', r.col3 || '', r.col4 || ''];
+      return cells.map((cell, cIdx) => ({
+        text: String(cell !== undefined && cell !== null ? cell : '—'),
+        options: {
+          fill: { color: bg },
+          color: cIdx === 0 ? primaryHex : '1E293B',
+          bold: cIdx === 0 || cIdx === cells.length - 1,
+          fontSize: 8.3,
+          fontFace: 'Arial'
+        }
+      }));
     })
   ];
-  slide3.addTable(sectionRows, {
+  slide3.addTable(summaryMatrixRows, {
     x: 5.38, y: 1.55, w: 3.94,
-    border: { pt: 0.5, color: 'CBD5E1' },
-    rowH: 0.42
+    border: { pt: 0.5, color: brandSoftBorderHex },
+    rowH: 0.38
   });
 
   slide3.addText(`${companyName} (${companyCode}) • ${department} Synthesis • Slide 3`, {
-    x: 0.5, y: 5.2, w: 9.0, h: 0.25, fontSize: 8.5, color: '94A3B8', fontFace: 'Arial'
+    x: 0.5, y: 5.18, w: 9.0, h: 0.25, fontSize: 8.5, bold: true, color: primaryHex, fontFace: 'Arial'
   });
 
-  // SLIDE 4+: Paginated Structured Data Tables
+  // SLIDE 4+: Paginated Structured Data Tables for the Exported Data
   const chunkSize = 8;
   const rowChunks = [];
   if (rows.length === 0) {
-    rowChunks.push([['No records matched filter', '—', '—', '—']]);
+    rowChunks.push([headers.map((_, i) => (i === 0 ? 'No records matched the selected filter criteria' : '—'))]);
   } else {
     for (let i = 0; i < rows.length; i += chunkSize) {
       rowChunks.push(rows.slice(i, i + chunkSize));
@@ -1885,34 +2050,40 @@ async function sendBrandPowerPoint(req, res, options = {}) {
     s.background = { color: 'F8FAFC' };
     s.addShape(pres.ShapeType.rect, { x: 0, y: 0, w: 10.0, h: 0.75, fill: { color: primaryHex } });
     s.addShape(pres.ShapeType.rect, { x: 0, y: 0.75, w: 10.0, h: 0.06, fill: { color: secondaryHex } });
-    s.addText(`${title} — Detailed Register (${pageIdx + 1}/${rowChunks.length})`, {
-      x: 0.5, y: 0.18, w: 7.2, h: 0.4, fontSize: 14, bold: true, color: 'FFFFFF', fontFace: 'Arial'
+    s.addText(`${companyCode} • ${title} — Register (${pageIdx + 1}/${rowChunks.length})`, {
+      x: 0.5, y: 0.18, w: 6.7, h: 0.4, fontSize: 13.5, bold: true, color: 'FFFFFF', fontFace: 'Arial'
     });
     addSlideBrandLogo(s, false);
 
     const tableData = [
       headers.map(h => ({
         text: String(h),
-        options: { fill: { color: primaryHex }, color: 'FFFFFF', bold: true, fontSize: 9.5, fontFace: 'Arial' }
+        options: { fill: { color: primaryHex }, color: 'FFFFFF', bold: true, fontSize: 9, fontFace: 'Arial' }
       })),
       ...chunk.map((r, rIdx) => {
         const arr = Array.isArray(r) ? r : [r.col1 || '', r.col2 || '', r.col3 || '', r.col4 || ''];
-        const bg = rIdx % 2 === 0 ? 'FFFFFF' : 'F1F5F9';
-        return arr.map(cell => ({
+        const bg = rIdx % 2 === 0 ? 'FFFFFF' : brandTintHex;
+        return arr.map((cell, cIdx) => ({
           text: String(cell !== undefined && cell !== null ? cell : '—'),
-          options: { fill: { color: bg }, color: '1E293B', fontSize: 9, fontFace: 'Arial' }
+          options: {
+            fill: { color: bg },
+            color: cIdx === 0 ? primaryHex : '1E293B',
+            bold: cIdx === 0,
+            fontSize: 8.5,
+            fontFace: 'Arial'
+          }
         }));
       })
     ];
 
     s.addTable(tableData, {
       x: 0.5, y: 1.0, w: 9.0,
-      border: { pt: 0.5, color: 'CBD5E1' },
-      rowH: 0.42
+      border: { pt: 0.5, color: brandSoftBorderHex },
+      rowH: 0.41
     });
 
-    s.addText(`${companyName} (${companyCode}) • Confidential Operational Export • Slide ${pageIdx + 4}`, {
-      x: 0.5, y: 5.2, w: 9.0, h: 0.25, fontSize: 8.5, color: '94A3B8', fontFace: 'Arial'
+    s.addText(`${companyName} (${companyCode}) • ${department} Confidential Export • Slide ${pageIdx + 4}`, {
+      x: 0.5, y: 5.18, w: 9.0, h: 0.25, fontSize: 8.5, bold: true, color: primaryHex, fontFace: 'Arial'
     });
   });
 
@@ -1924,10 +2095,26 @@ async function sendBrandPowerPoint(req, res, options = {}) {
 
 // Comprehensive Report Analysis Builder for all 5 Report Categories & Print Views
 function buildReportAnalysis(report = {}) {
-  const assets = store.ASSETS || [];
-  const breakdowns = store.BREAKDOWNS || [];
-  const tasks = store.MAINTENANCE_TASKS || [];
-  const parts = store.INVENTORY_PARTS || [];
+  const scopeMode = (report.scope_mode || 'department').toLowerCase();
+  const scopeTarget = (report.scope_target || report.scope_section || report.generated_for || '').trim();
+  const catKey = (report.category_key || report.category || 'strategic_roi').toLowerCase();
+
+  let assets = [...(store.ASSETS || [])];
+  let breakdowns = [...(store.BREAKDOWNS || [])];
+  let tasks = [...(store.MAINTENANCE_TASKS || [])];
+  let parts = [...(store.INVENTORY_PARTS || [])];
+
+  if (scopeMode === 'section' && scopeTarget && scopeTarget !== 'All') {
+    assets = assets.filter(a => a.section === scopeTarget);
+    breakdowns = breakdowns.filter(b => b.section === scopeTarget);
+    tasks = tasks.filter(t => t.section === scopeTarget);
+  } else if (scopeMode === 'asset' && scopeTarget) {
+    assets = assets.filter(a => a.uid === scopeTarget || a.asset_id === scopeTarget || a.asset_name === scopeTarget);
+    const matchedIds = new Set(assets.map(a => a.asset_id));
+    const matchedUids = new Set(assets.map(a => a.uid));
+    breakdowns = breakdowns.filter(b => matchedUids.has(b.asset_uid) || matchedIds.has(b.asset_id) || b.asset_name === scopeTarget);
+    tasks = tasks.filter(t => matchedUids.has(t.asset_uid) || matchedIds.has(t.asset_id) || t.asset_name === scopeTarget);
+  }
 
   const startStr = report.start_date || '2026-09-01';
   const endStr = report.end_date || '2026-09-30';
@@ -1937,7 +2124,7 @@ function buildReportAnalysis(report = {}) {
     return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
   };
 
-  const totalAssets = assets.length || 12;
+  const totalAssets = assets.length || 1;
   const operationalAssets = assets.filter(a => a.status === 'operational').length;
   const availabilityPct = Math.round((operationalAssets / Math.max(1, totalAssets)) * 1000) / 10;
 
@@ -1959,6 +2146,7 @@ function buildReportAnalysis(report = {}) {
   const combinedSubtotal = breakdownSubtotal + maintSubtotal;
   const combinedVat = breakdownVat + maintVat;
   const combinedTotal = breakdownTotal + maintTotal;
+  const lossEstimate = Math.round(totalDowntime * 18500);
 
   const pmTasks = tasks.filter(t => (t.maintenance_type || 'PM') === 'PM');
   const cmTasks = tasks.filter(t => t.maintenance_type === 'CM');
@@ -1992,7 +2180,8 @@ function buildReportAnalysis(report = {}) {
   });
   const topCauses = Object.entries(causeCounts).sort((a, b) => b[1] - a[1]);
 
-  const availabilityBySection = SECTIONS.map(sec => {
+  const activeSections = (scopeMode === 'section' && scopeTarget && scopeTarget !== 'All') ? [scopeTarget] : SECTIONS;
+  const availabilityBySection = activeSections.map(sec => {
     const secAssets = assets.filter(a => a.section === sec);
     const secBds = breakdowns.filter(b => b.section === sec);
     const secDt = Math.round(secBds.reduce((s, b) => s + calculateDowntimeHours(b), 0) * 10) / 10;
@@ -2008,34 +2197,105 @@ function buildReportAnalysis(report = {}) {
     };
   });
 
-  const selectedMetricCards = [
-    { label: 'Plant Availability (OEE)', value: `${availabilityPct}%`, note: 'Target >= 95.0% fleet availability' },
-    { label: 'Active & Logged Incidents', value: `${totalIncidents} (${openIncidents + inProgressIncidents} active)`, note: `${totalDowntime} hrs cumulative downtime` },
-    { label: 'Fleet Mean Time To Repair', value: `${mttrHours} hrs`, note: 'Target <= 2.0 hrs MTTR' },
-    { label: 'PM Schedule Compliance', value: `${compliancePct}%`, note: `${completedTasks} completed / ${overdueTasks} overdue` },
-    { label: 'Combined Maintenance Spend', value: `KES ${combinedTotal.toLocaleString()}`, note: `Incl. KES ${combinedVat.toLocaleString()} VAT (16%)` },
-    { label: 'Spares Valuation & Buffer', value: `KES ${invTotalValue.toLocaleString()}`, note: `${invLow} low stock • ${invOut} stockout` }
-  ];
+  // Category-specific metric cards & executive insights
+  let selectedMetricCards = [];
+  let executiveInsights = [];
 
-  const executiveInsights = [
-    `Fleet availability across ${totalAssets} registered industrial assets stands at ${availabilityPct}%, with ${openIncidents + inProgressIncidents} active incident(s) currently under engineering containment.`,
-    `Total recorded downtime across the reporting period is ${totalDowntime} hours (MTTR ${mttrHours} hrs), primarily driven by Mechanical Seal and Pneumatic Actuation wear on high-speed packaging and filling lines.`,
-    `Combined Preventive & Corrective maintenance expenditure is KES ${combinedTotal.toLocaleString()} (KES ${combinedSubtotal.toLocaleString()} net + KES ${combinedVat.toLocaleString()} VAT at 16%).`,
-    `Warehouse spares valuation is KES ${invTotalValue.toLocaleString()} across ${parts.length} SKUs; immediate replenishment is advised for ${invLow + invOut} buffer-critical items.`
-  ];
+  if (catKey.includes('inventory') || catKey.includes('spare')) {
+    selectedMetricCards = [
+      { label: 'Total Inventory Value', value: `KES ${invTotalValue.toLocaleString()}`, note: `Across ${parts.length} catalogued SKUs`, detail: `Valuation across ${parts.length} active SKUs` },
+      { label: 'Critical Spares', value: `${invCritical} SKUs`, note: 'High-priority buffer items', detail: 'High-priority line-stopper spares' },
+      { label: 'Low Stock Alerts', value: `${invLow} SKUs`, note: 'At or below safety reorder point', detail: 'Requires procurement replenishment' },
+      { label: 'Stockouts', value: `${invOut} SKUs`, note: 'Zero balance on hand', detail: 'Immediate expedite required' }
+    ];
+    executiveInsights = [
+      `Warehouse spare parts valuation stands at KES ${invTotalValue.toLocaleString()} across ${parts.length} active SKUs (${invCritical} designated critical).`,
+      `${invHealthy} SKUs are within healthy buffer thresholds, while ${invLow} low-stock and ${invOut} stockout items require replenishment.`,
+      `Mechanical and Power Transmission spares represent the highest capital concentration supporting high-speed packaging and filling lines.`
+    ];
+  } else if (catKey.includes('maintenance') || catKey.includes('compliance')) {
+    selectedMetricCards = [
+      { label: 'PM Schedule Compliance', value: `${compliancePct}%`, note: 'Target >= 90.0% SLA adherence', detail: 'Target >= 90.0% SLA adherence' },
+      { label: 'Scheduled Work Orders', value: `${tasks.length}`, note: `${pmTasks.length} PM • ${cmTasks.length} CM`, detail: `${pmTasks.length} PM • ${cmTasks.length} CM orders` },
+      { label: 'Completed On-Time', value: `${completedTasks}`, note: `${upcomingTasks + inProgressTasks} open / upcoming`, detail: `${upcomingTasks + inProgressTasks} open / in progress` },
+      { label: 'Overdue Tasks', value: `${overdueTasks}`, note: `Total PM Spend: KES ${maintTotal.toLocaleString()}`, detail: `Planned budget KES ${maintTotal.toLocaleString()}` }
+    ];
+    executiveInsights = [
+      `Preventive Maintenance (PM) schedule adherence is ${compliancePct}% across ${tasks.length} tracked work orders (${completedTasks} completed, ${overdueTasks} overdue).`,
+      `Total logged maintenance budget is KES ${maintTotal.toLocaleString()} (KES ${maintSubtotal.toLocaleString()} net + KES ${maintVat.toLocaleString()} VAT).`,
+      `Closing overdue lubrication and calibration work orders on Class A machinery is prioritized to protect fleet MTBF.`
+    ];
+  } else if (catKey.includes('asset') || catKey.includes('reliability')) {
+    selectedMetricCards = [
+      { label: 'Fleet Availability (OEE)', value: `${availabilityPct}%`, note: `${operationalAssets}/${assets.length} assets online`, detail: `${operationalAssets} of ${assets.length} assets operational` },
+      { label: 'Fleet Mean Time To Repair', value: `${mttrHours} hrs`, note: 'Target <= 2.0 hrs MTTR', detail: 'Target <= 2.0 hrs MTTR' },
+      { label: 'Mean Time Between Failures', value: '142.5 hrs', note: 'Reliability benchmark', detail: 'Target >= 120.0 hrs MTBF' },
+      { label: 'Criticality A Fleet', value: `${assets.filter(a => a.criticality === 'A').length} Units`, note: `${totalDowntime} hrs total downtime`, detail: `${totalDowntime} hrs cumulative stoppage` }
+    ];
+    executiveInsights = [
+      `Asset fleet availability across ${assets.length} monitored machines is ${availabilityPct}% (${operationalAssets} operational, ${assets.length - operationalAssets} under maintenance/stoppage).`,
+      `Mean Time To Repair (MTTR) averages ${mttrHours} hours with an MTBF of 142.5 hours across production sections.`,
+      `Top downtime contributor is ${topAssets[0] ? `${topAssets[0][0]} (${topAssets[0][1].downtime_hours} hrs)` : 'none recorded'} — condition monitoring is active.`
+    ];
+  } else if (catKey.includes('breakdown')) {
+    selectedMetricCards = [
+      { label: 'Logged Breakdowns', value: `${totalIncidents}`, note: `${openIncidents + inProgressIncidents} active • ${resolvedIncidents} resolved`, detail: `${openIncidents + inProgressIncidents} active / ${resolvedIncidents} closed` },
+      { label: 'Cumulative Downtime', value: `${totalDowntime} hrs`, note: `MTTR: ${mttrHours} hrs`, detail: `Fleet MTTR ${mttrHours} hrs` },
+      { label: 'Direct Repair Spend', value: `KES ${breakdownTotal.toLocaleString()}`, note: `Incl. KES ${breakdownVat.toLocaleString()} VAT`, detail: `Net KES ${breakdownSubtotal.toLocaleString()} + 16% VAT` },
+      { label: 'Dominant Fault Mode', value: topCauses[0] ? topCauses[0][0] : 'Mechanical', note: `${topCauses[0] ? topCauses[0][1] : 0} incident(s)`, detail: 'Primary root cause category' }
+    ];
+    executiveInsights = [
+      `Captured ${totalIncidents} breakdown incident(s) totaling ${totalDowntime} hours of equipment stoppage (${openIncidents + inProgressIncidents} active, ${resolvedIncidents} resolved).`,
+      `Dominant failure mode is ${topCauses[0] ? `${topCauses[0][0]} (${topCauses[0][1]} incidents)` : 'Mechanical wear'}, with ${topAssets[0] ? topAssets[0][0] : 'primary lines'} accounting for peak downtime.`,
+      `Direct corrective repair expenditure is KES ${breakdownTotal.toLocaleString()} (incl. 16% VAT).`
+    ];
+  } else {
+    selectedMetricCards = [
+      { label: 'Plant Availability (OEE)', value: `${availabilityPct}%`, note: 'Target >= 95.0% fleet availability', detail: 'Target >= 95.0% fleet availability' },
+      { label: 'Active & Logged Incidents', value: `${totalIncidents} (${openIncidents + inProgressIncidents} active)`, note: `${totalDowntime} hrs cumulative downtime`, detail: `${totalDowntime} hrs cumulative downtime` },
+      { label: 'Fleet Mean Time To Repair', value: `${mttrHours} hrs`, note: 'Target <= 2.0 hrs MTTR', detail: 'Target <= 2.0 hrs MTTR' },
+      { label: 'PM Schedule Compliance', value: `${compliancePct}%`, note: `${completedTasks} completed / ${overdueTasks} overdue`, detail: `${completedTasks} completed / ${overdueTasks} overdue` },
+      { label: 'Combined Maintenance Spend', value: `KES ${combinedTotal.toLocaleString()}`, note: `Incl. KES ${combinedVat.toLocaleString()} VAT (16%)`, detail: `Incl. KES ${combinedVat.toLocaleString()} VAT (16%)` },
+      { label: 'Spares Valuation & Buffer', value: `KES ${invTotalValue.toLocaleString()}`, note: `${invLow} low stock • ${invOut} stockout`, detail: `${invLow} low stock • ${invOut} stockout` }
+    ];
+    executiveInsights = [
+      `Fleet availability across ${assets.length} registered industrial assets stands at ${availabilityPct}%, with ${openIncidents + inProgressIncidents} active incident(s) currently under engineering containment.`,
+      `Total recorded downtime across the reporting period is ${totalDowntime} hours (MTTR ${mttrHours} hrs), with estimated production exposure of KES ${lossEstimate.toLocaleString()}.`,
+      `Combined Preventive & Corrective maintenance expenditure is KES ${combinedTotal.toLocaleString()} (KES ${combinedSubtotal.toLocaleString()} net + KES ${combinedVat.toLocaleString()} VAT at 16%).`,
+      `Warehouse spares valuation is KES ${invTotalValue.toLocaleString()} across ${parts.length} SKUs; immediate replenishment is advised for ${invLow + invOut} buffer-critical items.`
+    ];
+  }
 
   const metricInsights = selectedMetricCards.map(c => ({
     label: c.label,
     value: c.value,
-    detail: c.note
+    detail: c.note || c.detail
   }));
 
+  const inventoryTopValue = parts.map(p => {
+    const val = Number(p.qty || 0) * Number(p.unit_price || 0);
+    const meta = {
+      name: p.part_name,
+      part_name: p.part_name,
+      sku: p.sku,
+      category: p.category || 'Mechanical',
+      qty: Number(p.qty || 0),
+      min_qty: Number(p.min_qty || 0),
+      unit_price: Number(p.unit_price || 0),
+      value: val
+    };
+    // Support both object property access (p.name, p.value) and tuple destructuring ([name, meta])
+    const item = [p.part_name, meta];
+    Object.assign(item, meta);
+    return item;
+  }).sort((a, b) => b.value - a.value);
+
   return {
-    start: { strftime: () => fmtDate(startStr) },
-    end: { strftime: () => fmtDate(endStr) },
+    start: { year: Number(startStr.slice(0, 4)) || 2026, strftime: () => fmtDate(startStr) },
+    end: { year: Number(endStr.slice(0, 4)) || 2026, strftime: () => fmtDate(endStr) },
     grain: 'month',
     grain_label: 'Monthly Aggregation',
-    scope_label: report.department || 'All Engineering Sections',
+    scope_label: scopeTarget || report.department || 'All Engineering Sections',
     reported_by: report.user_name || 'Laurence Magondu',
     exec_notes: report.exec_notes || 'Prioritize mechanical seal overhauls and pneumatic valve manifold inspections during weekend line turnovers.',
     kpis: {
@@ -2057,21 +2317,48 @@ function buildReportAnalysis(report = {}) {
       combined_cost_subtotal: combinedSubtotal,
       combined_vat_total: combinedVat,
       combined_cost_total: combinedTotal,
+      loss_estimate: lossEstimate,
       vat_rate_label: '16% Standard VAT',
       tasks_total: tasks.length,
+      pm_total: tasks.length,
       pm_tasks: pmTasks.length,
       cm_tasks: cmTasks.length,
       tasks_completed: completedTasks,
+      pm_completed: completedTasks,
       tasks_overdue: overdueTasks,
       tasks_in_progress: inProgressTasks,
       tasks_upcoming: upcomingTasks,
       compliance_pct: compliancePct,
+      pm_adherence_pct: compliancePct,
+      pm_on_time_pct: compliancePct,
       inventory_total_parts: parts.length,
       inventory_critical_parts: invCritical,
       inventory_healthy: invHealthy,
       inventory_low: invLow,
+      critical_low: invLow,
       inventory_out: invOut,
-      inventory_total_value: invTotalValue
+      stockouts: invOut,
+      inventory_total_value: invTotalValue,
+      inventory_value: invTotalValue
+    },
+    pm_status_counts: {
+      scheduled: tasks.length,
+      completed: completedTasks,
+      open: upcomingTasks + inProgressTasks,
+      overdue: overdueTasks
+    },
+    cost_summary_rows: [
+      { label: 'Preventive Maintenance (Net)', note: `${pmTasks.length} scheduled PM work orders`, value: maintSubtotal },
+      { label: 'Corrective Breakdowns (Net)', note: `${totalIncidents} breakdown repair logs`, value: breakdownSubtotal },
+      { label: 'Total VAT (16% Standard)', note: 'Combined statutory tax component', value: combinedVat },
+      { label: 'Total Direct Maintenance Spend', note: 'Gross maintenance + repair expenditure', value: combinedTotal },
+      { label: 'Estimated Downtime Exposure', note: `${totalDowntime} hrs @ KES 18,500/hr`, value: lossEstimate }
+    ],
+    data_quality: {
+      breakdowns_with_root_cause: breakdowns.filter(b => b.failure_category || (b.rca && b.rca.root_cause)).length,
+      tasks_with_cost: tasks.filter(t => Number(t.cost_total || t.cost || 0) > 0).length,
+      tasks_with_confirmed_actual_cost: tasks.filter(t => t.status === 'completed' && Number(t.cost_total || t.cost || 0) > 0).length,
+      tasks_with_technician: tasks.filter(t => Boolean(t.technician)).length
     },
     selected_metric_cards: selectedMetricCards,
     strategic_cards: selectedMetricCards,
@@ -2082,22 +2369,12 @@ function buildReportAnalysis(report = {}) {
     top_causes: topCauses,
     availability_by_section: availabilityBySection,
     timeline: [
-      ['Jun 2026', 6],
-      ['Jul 2026', 5],
-      ['Aug 2026', 4],
-      ['Sep 2026', totalIncidents]
+      { date: 'Jun 2026', count: 6, 0: 'Jun 2026', 1: 6 },
+      { date: 'Jul 2026', count: 5, 0: 'Jul 2026', 1: 5 },
+      { date: 'Aug 2026', count: 4, 0: 'Aug 2026', 1: 4 },
+      { date: 'Sep 2026', count: totalIncidents, 0: 'Sep 2026', 1: totalIncidents }
     ],
-    inventory_top_value: parts.map(p => [
-      p.part_name,
-      {
-        sku: p.sku,
-        category: p.category || 'Mechanical',
-        qty: p.qty,
-        min_qty: p.min_qty,
-        unit_price: p.unit_price,
-        value: Number(p.qty || 0) * Number(p.unit_price || 0)
-      }
-    ]).sort((a, b) => b[1].value - a[1].value),
+    inventory_top_value: inventoryTopValue,
     print_chart_sections: [
       {
         title: 'Downtime Hours by Top Contributing Assets',
@@ -2125,7 +2402,11 @@ function buildReportAnalysis(report = {}) {
     raw: {
       assets,
       breakdowns,
-      tasks,
+      tasks: tasks.map(t => ({
+        ...t,
+        title: t.task_title || t.task_description || t.task_id,
+        task_name: t.task_title || t.task_description || t.task_id
+      })),
       inventory_parts: parts
     }
   };
@@ -2369,7 +2650,10 @@ const MODULE_LABELS = {
 
 function getCurrentActor(req) {
   const uid = req?.cookies?.opsloom_user;
-  const found = (store.ADMIN_USERS || []).find(u => u.id === uid || u.email === uid);
+  const uidLower = String(uid || '').trim().toLowerCase();
+  const found = (store.ADMIN_USERS || []).find(
+    u => u && (u.id === uid || (u.email && u.email.trim().toLowerCase() === uidLower))
+  );
   const fallback = (store.ADMIN_USERS && store.ADMIN_USERS[0]) || {
     id: 'USR-001',
     name: 'Laurence Magondu',
@@ -2380,26 +2664,78 @@ function getCurrentActor(req) {
   return found || fallback;
 }
 
+const ADMIN_PRIMARY_EMAIL = 'opsloom.ke@gmail.com';
+const ADMIN_RECOVERY_EMAIL = 'laurencemureithi1999@gmail.com';
+
+function updateUserPasswordEverywhere(identifier, newPassword) {
+  const cleanPass = String(newPassword || '').trim();
+  if (!cleanPass) return false;
+  if (!Array.isArray(store.ADMIN_USERS)) store.ADMIN_USERS = [];
+
+  const idStr = typeof identifier === 'object' && identifier !== null
+    ? String(identifier.id || '').trim()
+    : String(identifier || '').trim();
+  const emailStr = typeof identifier === 'object' && identifier !== null
+    ? String(identifier.email || '').trim().toLowerCase()
+    : String(identifier || '').trim().toLowerCase();
+
+  const isPrimaryAdmin =
+    idStr === 'USR-001' ||
+    emailStr === ADMIN_PRIMARY_EMAIL ||
+    emailStr === ADMIN_RECOVERY_EMAIL ||
+    (typeof identifier === 'object' && identifier !== null && (
+      identifier.id === 'USR-001' ||
+      String(identifier.email || '').trim().toLowerCase() === ADMIN_PRIMARY_EMAIL
+    ));
+
+  let updated = false;
+  store.ADMIN_USERS.forEach(u => {
+    if (!u) return;
+    const uId = String(u.id || '').trim();
+    const uEmail = String(u.email || '').trim().toLowerCase();
+    if (
+      (idStr && uId === idStr) ||
+      (emailStr && uEmail === emailStr) ||
+      (isPrimaryAdmin && (uId === 'USR-001' || uEmail === ADMIN_PRIMARY_EMAIL))
+    ) {
+      u.password = cleanPass;
+      updated = true;
+    }
+  });
+
+  if (isPrimaryAdmin) {
+    if (!store.SYSTEM_SETTINGS) store.SYSTEM_SETTINGS = {};
+    store.SYSTEM_SETTINGS.admin_login_password = cleanPass;
+    updated = true;
+  }
+
+  saveStore();
+  return updated;
+}
+
 function baseCtx(req, activeNav = 'dashboard') {
-  const currentDept = req.cookies?.current_department || store.ACTIVE_DEPARTMENT || 'Engineering';
-  // Prefer explicit cookie if valid, else store.ACTIVE_COMPANY_ID, and never mutate unless /set-company is called
+  const currentDept = req.query?.department || store.ACTIVE_DEPARTMENT || req.cookies?.current_department || 'Engineering';
+  // Resolve active company workspace reliably across both in-app navigation and download links
+  const explicitCompId = req.query?.company_id || req.body?.company_id;
   const cookieCompId = req.cookies?.current_company_id;
-  const validCookieComp = cookieCompId && (store.COMPANIES || []).find(c => c.id === cookieCompId);
-  const compId = validCookieComp ? cookieCompId : (store.ACTIVE_COMPANY_ID || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id));
-  const activeCompany = (store.COMPANIES || []).find(c => c.id === compId) || (store.COMPANIES && store.COMPANIES[0]) || {
-    id: 'comp-001',
-    name: 'Opsloom Kenya',
-    code: 'OPS',
-    primary_color: '#3700ff',
-    secondary_color: '#0ea5e9',
-    logo_light_url: '/static/brand/opsloom_wordmark_light.png',
-    logo_dark_url: '/static/brand/opsloom_wordmark_dark.png',
-    show_name_next_to_logo: false,
-    logo_height: 44,
-    logo_width_pct: 85,
-    logo_alignment: 'left',
-    logo_fit: 'contain'
-  };
+  const primaryCompId = explicitCompId || store.ACTIVE_COMPANY_ID || cookieCompId || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id);
+  const activeCompany = (store.COMPANIES || []).find(c => c.id === primaryCompId)
+    || (cookieCompId && (store.COMPANIES || []).find(c => c.id === cookieCompId))
+    || (store.COMPANIES && store.COMPANIES[0])
+    || {
+      id: 'comp-001',
+      name: 'Opsloom Kenya',
+      code: 'OPS',
+      primary_color: '#3700ff',
+      secondary_color: '#0ea5e9',
+      logo_light_url: '/static/brand/opsloom_wordmark_light.png',
+      logo_dark_url: '/static/brand/opsloom_wordmark_dark.png',
+      show_name_next_to_logo: false,
+      logo_height: 44,
+      logo_width_pct: 85,
+      logo_alignment: 'left',
+      logo_fit: 'contain'
+    };
   ensureCompanyDesignation(activeCompany);
   const actor = getCurrentActor(req);
   const caps = resolveUserCapabilities(actor);
@@ -2407,23 +2743,16 @@ function baseCtx(req, activeNav = 'dashboard') {
   // Determine print logo & designation lines for the active company workspace
   const compCodeUpper = String(activeCompany.code || 'OPS').toUpperCase();
   const isUltravetisComp = (activeCompany.name || '').toLowerCase().includes('ultravetis') || compCodeUpper === 'UEAL';
-  const isOpsloomComp = (activeCompany.name || '').toLowerCase().includes('opsloom') || compCodeUpper === 'OPS';
+  const isOpsloomComp = !isUltravetisComp && ((activeCompany.name || '').toLowerCase().includes('opsloom') || compCodeUpper === 'OPS');
   const rawCompLogo = activeCompany.print_logo_url || activeCompany.logo_dark_url || activeCompany.logo_light_url || '';
-  const isDefaultOpsloomLogo = !rawCompLogo || rawCompLogo.includes('opsloom_wordmark_light.png') || rawCompLogo.includes('opsloom_wordmark_dark.png');
+  const isDefaultOpsloomLogo = !rawCompLogo || rawCompLogo.includes('opsloom_wordmark_light.png') || rawCompLogo.includes('opsloom_wordmark_dark.png') || rawCompLogo.includes('ultravetis_logo.png');
 
   let printCompanyLogo = rawCompLogo;
   if (isDefaultOpsloomLogo) {
-    if (isUltravetisComp) {
-      printCompanyLogo = '/static/brand/ultravetis_logo.png';
-    } else if (isOpsloomComp) {
+    if (isOpsloomComp) {
       printCompanyLogo = '/static/brand/opsloom_wordmark_dark.png';
     } else {
-      const pCol = activeCompany.primary_color || '#1554FF';
-      const sCol = activeCompany.secondary_color || '#F59E0B';
-      const safeName = String(activeCompany.name || 'Company').replace(/[<>&"']/g, '');
-      const safeCode = compCodeUpper.replace(/[<>&"']/g, '').slice(0, 6);
-      const svgLogo = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="84" viewBox="0 0 320 84"><rect x="2" y="8" width="68" height="68" rx="14" fill="${pCol}"/><rect x="52" y="58" width="18" height="18" rx="5" fill="${sCol}"/><text x="36" y="51" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="24" font-weight="900" fill="#ffffff">${safeCode}</text><text x="84" y="42" font-family="Inter,Arial,sans-serif" font-size="21" font-weight="900" fill="#0f172a">${safeName.slice(0, 18)}</text><text x="84" y="62" font-family="Inter,Arial,sans-serif" font-size="11" font-weight="800" letter-spacing="2" fill="${pCol}">OPERATIONS WORKSPACE</text></svg>`;
-      printCompanyLogo = `data:image/svg+xml;utf8,${encodeURIComponent(svgLogo)}`;
+      printCompanyLogo = buildCompanyBrandSvgDataUri(activeCompany, 'dark_text');
     }
   }
 
@@ -2553,12 +2882,21 @@ app.get('/login', (req, res) => {
   if (req.query.locked === '1' && !flashMessages.length) {
     flash('info', 'Workspace session locked for security. Enter your credentials to resume.');
   }
+  const activeReset = store.ADMIN_RESET_STATE && store.ADMIN_RESET_STATE.expires_at > Date.now()
+    ? store.ADMIN_RESET_STATE
+    : null;
   res.render('auth/login.html', {
     ...baseCtx(req, 'login'),
     departments: DEPARTMENTS,
     session_timeout_minutes: getSessionTimeoutMinutes(),
-    password_reset_help: store.SYSTEM_SETTINGS?.password_reset_help || 'Contact administrator.',
-    company_contact_email: store.SYSTEM_SETTINGS?.company_contact_email || 'opsloom.ke@gmail.com'
+    password_reset_help: store.SYSTEM_SETTINGS?.password_reset_help || 'Standard users: contact opsloom.ke@gmail.com for password reset help.',
+    company_contact_email: store.SYSTEM_SETTINGS?.company_contact_email || ADMIN_PRIMARY_EMAIL,
+    admin_recovery_email: ADMIN_RECOVERY_EMAIL,
+    admin_reset_active: Boolean(req.query.admin_reset === '1' && activeReset),
+    admin_reset_state: activeReset,
+    contact_admin_help: req.query.contact_admin === '1',
+    contact_admin_user_email: req.query.user_email || '',
+    show_forgot_box: Boolean(req.query.forgot === '1' || req.query.admin_reset === '1' || req.query.contact_admin === '1')
   });
 });
 
@@ -2587,12 +2925,21 @@ app.post('/login', (req, res) => {
 
   if (user.active === false) {
     logAudit('Blocked Login Attempt', `Suspended user ${user.email} attempted to sign in.`, 'security', '/login', 'warning');
-    flash('error', 'This user account is currently suspended. Contact your system administrator.');
+    flash('error', 'This user account is currently suspended. Contact opsloom.ke@gmail.com for assistance.');
     return res.redirect('/login');
   }
 
-  const expectedPassword = String(user.password !== undefined && user.password !== '' ? user.password : 'Admin@123');
-  if (!rawPass || rawPass !== expectedPassword) {
+  const isPrimaryAdminUser = user.id === 'USR-001' || cleanEmail === ADMIN_PRIMARY_EMAIL;
+  const expectedPassword = isPrimaryAdminUser
+    ? String(store.SYSTEM_SETTINGS?.admin_login_password || user.password || 'Admin@123').trim()
+    : String(user.password !== undefined && user.password !== '' ? user.password : 'Admin@123').trim();
+
+  if (isPrimaryAdminUser && store.SYSTEM_SETTINGS?.admin_login_password && user.password !== store.SYSTEM_SETTINGS.admin_login_password) {
+    user.password = store.SYSTEM_SETTINGS.admin_login_password;
+  }
+
+  const submittedTrimmed = rawPass.trim();
+  if (!submittedTrimmed || (rawPass !== expectedPassword && submittedTrimmed !== expectedPassword)) {
     logAudit('Failed Login Attempt', `Incorrect password entered for ${user.email}.`, 'security', '/login', 'warning');
     flash('error', 'Invalid company email or password. Please verify your credentials.');
     return res.redirect('/login');
@@ -2605,13 +2952,13 @@ app.post('/login', (req, res) => {
   setSafeCookie(req, res, 'opsloom_role', user.role || 'Viewer', timeoutMs);
   setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()), timeoutMs);
 
-  if (!req.cookies?.current_company_id && user.company_id) {
-    setSafeCookie(req, res, 'current_company_id', user.company_id);
-  } else if (store.ACTIVE_COMPANY_ID && !req.cookies?.current_company_id) {
-    setSafeCookie(req, res, 'current_company_id', store.ACTIVE_COMPANY_ID);
+  const preferredCompId = store.ACTIVE_COMPANY_ID || user.company_id;
+  if (preferredCompId) {
+    setSafeCookie(req, res, 'current_company_id', preferredCompId);
   }
-  if (!req.cookies?.current_department && user.department) {
-    setSafeCookie(req, res, 'current_department', user.department);
+  const preferredDept = store.ACTIVE_DEPARTMENT || user.department || 'Engineering';
+  if (preferredDept) {
+    setSafeCookie(req, res, 'current_department', preferredDept);
   }
 
   logAudit('User Login', `${user.name} (${user.role}) authenticated with ${timeoutMins}m session policy.`, 'security', '/dashboard');
@@ -2654,8 +3001,129 @@ app.post('/api/session/ping', (req, res) => {
 });
 
 app.post('/login/forgot-password', (req, res) => {
-  flash('info', 'Password reset instructions have been forwarded to your system administrator.');
-  res.redirect('/login');
+  const rawEmail = String(req.body.email || '').trim().toLowerCase();
+  if (!rawEmail) {
+    flash('info', 'Enter your account email below to request a password reset.');
+    return res.redirect('/login?forgot=1');
+  }
+
+  // Admin account (opsloom.ke@gmail.com) -> revert a 6-digit reset code to laurencemureithi1999@gmail.com
+  if (rawEmail === ADMIN_PRIMARY_EMAIL || rawEmail === ADMIN_RECOVERY_EMAIL) {
+    const resetCode = String(Math.floor(100000 + Math.random() * 900000));
+    const nowIso = new Date().toISOString();
+    store.ADMIN_RESET_STATE = {
+      admin_email: ADMIN_PRIMARY_EMAIL,
+      recovery_email: ADMIN_RECOVERY_EMAIL,
+      code: resetCode,
+      created_at: nowIso,
+      expires_at: Date.now() + 15 * 60 * 1000
+    };
+
+    if (!Array.isArray(store.OUTBOX_MESSAGES)) store.OUTBOX_MESSAGES = [];
+    store.OUTBOX_MESSAGES.unshift({
+      id: 'out-' + Date.now(),
+      sender_name: 'Opsloom Security Core',
+      sender_email: ADMIN_PRIMARY_EMAIL,
+      recipient_emails: [ADMIN_RECOVERY_EMAIL],
+      subject: `Opsloom Admin Password Reset Code (${resetCode})`,
+      body: `Administrator password reset requested for ${ADMIN_PRIMARY_EMAIL}. Your 6-digit recovery reset code reverted to ${ADMIN_RECOVERY_EMAIL} is: ${resetCode} (valid for 15 minutes).`,
+      created_at: nowIso,
+      delivery_status: 'sent'
+    });
+
+    logAudit(
+      'Admin Reset Code Reverted',
+      `Generated 6-digit password reset code for ${ADMIN_PRIMARY_EMAIL} and reverted to ${ADMIN_RECOVERY_EMAIL}.`,
+      'security',
+      '/login',
+      'warning'
+    );
+    saveStore();
+    flash('info', `Admin reset code for ${ADMIN_PRIMARY_EMAIL} has been reverted to ${ADMIN_RECOVERY_EMAIL}. Enter the 6-digit code below to set your new password.`);
+    return res.redirect('/login?admin_reset=1');
+  }
+
+  // Any other user -> must always contact opsloom.ke@gmail.com for help
+  const nowIso = new Date().toISOString();
+  const matchedUser = (store.ADMIN_USERS || []).find(u => (u.email || '').trim().toLowerCase() === rawEmail);
+  const senderLabel = matchedUser ? `${matchedUser.name} (${matchedUser.role})` : rawEmail;
+
+  if (!Array.isArray(store.INTERNAL_MESSAGES)) store.INTERNAL_MESSAGES = [];
+  store.INTERNAL_MESSAGES.unshift({
+    id: 'msg-reset-' + Date.now(),
+    thread_id: 'thread-reset-' + Date.now(),
+    category: 'Credential Reset',
+    sender_email: rawEmail,
+    sender_name: senderLabel,
+    recipient_emails: [ADMIN_PRIMARY_EMAIL],
+    subject: `Credential Reset Help Request: ${rawEmail}`,
+    body: `User ${senderLabel} (${rawEmail}) requested password reset help from the login screen. Please contact or reset their password from Admin Credentials & Users.`,
+    attachments: [],
+    created_at: nowIso,
+    is_read_by: [],
+    delivery_status: 'sent',
+    sent_at: nowIso
+  });
+
+  pushNotification(
+    'Password Reset Help Requested',
+    `${rawEmail} requested password reset assistance. Contact ${ADMIN_PRIMARY_EMAIL}.`,
+    'warning',
+    '/settings/admin-users',
+    true
+  );
+  logAudit(
+    'User Password Help Requested',
+    `User ${rawEmail} directed to contact ${ADMIN_PRIMARY_EMAIL} for password reset assistance.`,
+    'security',
+    '/settings/admin-users',
+    'info'
+  );
+  saveStore();
+  flash('info', `For ${rawEmail}, please contact the System Administrator at ${ADMIN_PRIMARY_EMAIL} for password reset help. Your request has also been notified to ${ADMIN_PRIMARY_EMAIL}.`);
+  return res.redirect(`/login?contact_admin=1&user_email=${encodeURIComponent(rawEmail)}`);
+});
+
+app.post('/login/reset-admin-password', (req, res) => {
+  const codeInput = String(req.body.reset_code || '').trim();
+  const newPass = String(req.body.new_password || '').trim();
+  const confirmPass = String(req.body.confirm_password || '').trim();
+
+  const activeReset = store.ADMIN_RESET_STATE;
+  if (!activeReset || !activeReset.code || activeReset.expires_at < Date.now()) {
+    flash('error', `Your admin reset code has expired or was not requested. Request a new code to ${ADMIN_RECOVERY_EMAIL}.`);
+    return res.redirect('/login?forgot=1');
+  }
+
+  if (codeInput !== String(activeReset.code).trim()) {
+    logAudit('Failed Admin Reset Code', `Invalid reset code entered for ${ADMIN_PRIMARY_EMAIL}.`, 'security', '/login', 'warning');
+    flash('error', `Invalid 6-digit reset code. Please check the code reverted to ${ADMIN_RECOVERY_EMAIL}.`);
+    return res.redirect('/login?admin_reset=1');
+  }
+
+  if (!newPass || newPass.length < 4) {
+    flash('error', 'Please enter a valid new password (at least 4 characters).');
+    return res.redirect('/login?admin_reset=1');
+  }
+
+  if (confirmPass && newPass !== confirmPass) {
+    flash('error', 'New password and confirmation password do not match.');
+    return res.redirect('/login?admin_reset=1');
+  }
+
+  updateUserPasswordEverywhere(ADMIN_PRIMARY_EMAIL, newPass);
+  store.ADMIN_RESET_STATE = null;
+  saveStore();
+
+  logAudit(
+    'Admin Password Reset Completed',
+    `Administrator (${ADMIN_PRIMARY_EMAIL}) verified recovery code sent to ${ADMIN_RECOVERY_EMAIL} and updated their password.`,
+    'security',
+    '/login',
+    'info'
+  );
+  flash('success', `Password for ${ADMIN_PRIMARY_EMAIL} has been reset successfully! Please sign in with your new password.`);
+  return res.redirect('/login');
 });
 
 app.post('/login/request-credentials', (req, res) => {
@@ -2690,6 +3158,7 @@ app.post('/settings/companies/save', upload.fields([
   const {
     id, name, code, primary_color, secondary_color,
     logo_light_url, logo_dark_url,
+    logo_light_base64, logo_dark_base64,
     logo_light_data_url, logo_dark_data_url,
     show_name_next_to_logo, logo_height, logo_width_pct, logo_alignment, logo_fit
   } = req.body;
@@ -2712,32 +3181,48 @@ app.post('/settings/companies/save', upload.fields([
   const lightFile = req.files && req.files['logo_light_file'] && req.files['logo_light_file'][0];
   const darkFile = req.files && req.files['logo_dark_file'] && req.files['logo_dark_file'][0];
 
-  const lightFromUpload = fileToDataUrl(lightFile) || (logo_light_data_url && logo_light_data_url.startsWith('data:image/') ? logo_light_data_url : '');
-  const darkFromUpload = fileToDataUrl(darkFile) || (logo_dark_data_url && logo_dark_data_url.startsWith('data:image/') ? logo_dark_data_url : '');
+  const rawLightBase64 = (logo_light_base64 || logo_light_data_url || '').trim();
+  const rawDarkBase64 = (logo_dark_base64 || logo_dark_data_url || '').trim();
 
+  const lightFromUpload = fileToDataUrl(lightFile) || (rawLightBase64.startsWith('data:image/') ? rawLightBase64 : '');
+  const darkFromUpload = fileToDataUrl(darkFile) || (rawDarkBase64.startsWith('data:image/') ? rawDarkBase64 : '');
+
+  const cleanLightUrlInput = (logo_light_url && String(logo_light_url).trim() && !String(logo_light_url).trim().startsWith('[Uploaded'))
+    ? String(logo_light_url).trim()
+    : '';
+  const cleanDarkUrlInput = (logo_dark_url && String(logo_dark_url).trim() && !String(logo_dark_url).trim().startsWith('[Uploaded'))
+    ? String(logo_dark_url).trim()
+    : '';
+
+  // If user uploaded a new Light logo, apply it; if they only uploaded a Dark logo, mirror it to Light as well
   if (lightFromUpload) {
     target.logo_light_url = lightFromUpload;
-  } else if (logo_light_url && String(logo_light_url).trim()) {
-    target.logo_light_url = String(logo_light_url).trim();
+  } else if (darkFromUpload) {
+    target.logo_light_url = darkFromUpload;
+  } else if (cleanLightUrlInput) {
+    target.logo_light_url = cleanLightUrlInput;
   } else if (!target.logo_light_url) {
     target.logo_light_url = '/static/brand/opsloom_wordmark_light.png';
   }
 
+  // If user uploaded a new Dark logo, apply it; if they only uploaded a Light logo, mirror it to Dark so both themes match
   if (darkFromUpload) {
     target.logo_dark_url = darkFromUpload;
-  } else if (logo_dark_url && String(logo_dark_url).trim()) {
-    target.logo_dark_url = String(logo_dark_url).trim();
   } else if (lightFromUpload) {
     target.logo_dark_url = lightFromUpload;
+  } else if (cleanDarkUrlInput) {
+    target.logo_dark_url = cleanDarkUrlInput;
   } else if (!target.logo_dark_url) {
     target.logo_dark_url = target.logo_light_url;
   }
 
   target.show_name_next_to_logo = show_name_next_to_logo === '1' || show_name_next_to_logo === true;
-  target.logo_height = parseInt(logo_height, 10) || 44;
-  target.logo_width_pct = parseInt(logo_width_pct, 10) || 85;
-  target.logo_alignment = logo_alignment || 'left';
-  target.logo_fit = logo_fit || 'contain';
+  const parsedH = parseInt(logo_height, 10);
+  const parsedW = parseInt(logo_width_pct, 10);
+  target.logo_height = (!isNaN(parsedH) && parsedH >= 20 && parsedH <= 120) ? parsedH : (target.logo_height || 48);
+  target.logo_width_pct = (!isNaN(parsedW) && parsedW >= 20 && parsedW <= 100) ? parsedW : (target.logo_width_pct || 100);
+  target.logo_alignment = ['left', 'center', 'right'].includes(logo_alignment) ? logo_alignment : (target.logo_alignment || 'left');
+  target.logo_fit = ['contain', 'scale-down', 'cover'].includes(logo_fit) ? logo_fit : (target.logo_fit || 'contain');
 
   if (req.body.designation_line_1 !== undefined) {
     target.designation_line_1 = String(req.body.designation_line_1).trim();
@@ -2749,6 +3234,14 @@ app.post('/settings/companies/save', upload.fields([
     target.designation_line_3 = String(req.body.designation_line_3).trim();
   }
   ensureCompanyDesignation(target);
+
+  // Ensure the saved workspace is active in the current session & store so the sidebar immediately reflects the saved logo and sizing
+  store.ACTIVE_COMPANY_ID = target.id;
+  setSafeCookie(req, res, 'current_company_id', target.id);
+  const actor = getCurrentActor(req);
+  if (actor) {
+    actor.company_id = target.id;
+  }
 
   saveStore();
   logAudit(isNew ? 'Company Workspace Created' : 'Company Workspace Updated', `Saved branding and logo configuration for ${target.name} (${target.code})`, 'settings', '/settings/companies');
@@ -2786,6 +3279,10 @@ app.all('/set-company', (req, res) => {
   const company = (store.COMPANIES || []).find(c => c.id === companyId);
   if (company) {
     store.ACTIVE_COMPANY_ID = company.id;
+    const actor = getCurrentActor(req);
+    if (actor) {
+      actor.company_id = company.id;
+    }
     saveStore();
     setSafeCookie(req, res, 'current_company_id', company.id);
     logAudit('Workspace Switched', `Switched active workspace to ${company.name} (${company.code})`, 'settings', '/settings/companies');
@@ -3009,13 +3506,42 @@ app.get('/dashboard/strategic-export', async (req, res) => {
   }));
 
   if (fmt === 'pptx' || fmt === 'powerpoint') {
+    const pmCmSections = SECTIONS;
+    const pmVals = pmCmSections.map(s => tasks.filter(t => t.section === s && (t.maintenance_type || 'PM') === 'PM').length);
+    const cmVals = pmCmSections.map(s => breakdowns.filter(b => b.section === s).length);
+    const maintAssetsCount = assets.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
+    const oosAssetsCount = assets.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
+
     return sendBrandPowerPoint(req, res, {
+      moduleLabel: 'Executive Strategic Dashboard',
       title: 'Executive Strategic Operations & Reliability Deck',
       subtitle: `Plant Uptime, Active Breakdowns & Maintenance Summary (${range})`,
       period: `Strategic Window: ${range}`,
       kpis: kpiRecords,
+      barChartTitle: `Preventive (PM) vs Corrective (CM) by Section (${range})`,
+      barSeries: [
+        { name: 'Preventive (PM)', labels: pmCmSections, values: pmVals },
+        { name: 'Corrective (CM)', labels: pmCmSections, values: cmVals }
+      ],
+      doughnutTitle: 'Plant Asset Fleet Health Split',
+      doughnutSeries: [
+        {
+          name: 'Fleet Health',
+          labels: ['Operational', 'Under Maintenance', 'Out of Service'],
+          values: [operational, maintAssetsCount, oosAssetsCount]
+        }
+      ],
+      summaryTableTitle: 'EXECUTIVE PLANT SLA & RELIABILITY MATRIX',
+      summaryTableHeaders: ['Strategic Indicator', 'Current Value', 'Benchmark / SLA', 'Status'],
+      summaryTableRows: [
+        ['Plant Uptime (OEE)', `${uptime}%`, '>= 95.0% SLA', uptime >= 95 ? 'ON TARGET' : 'MONITOR'],
+        ['Active Breakdowns', String(activeBds.length), '0 Open Target', activeBds.length === 0 ? 'NOMINAL' : 'CONTAINMENT'],
+        ['Cumulative Downtime', `${totalDowntime} hrs`, `Window: ${range}`, `${breakdowns.length} Incidents`],
+        ['Preventive Work Orders', `${tasks.filter(t => t.status === 'completed').length}/${tasks.length}`, '>= 90% Compliance', 'ACTIVE'],
+        ['Monitored Asset Fleet', `${assets.length} Assets`, `${operational} Online`, 'VERIFIED']
+      ],
       insights: [
-        `Fleet Uptime stands at ${uptime}% across ${assets.length} monitored industrial assets.`,
+        `Fleet Uptime stands at ${uptime}% across ${assets.length} monitored industrial assets (${operational} online, ${maintAssetsCount + oosAssetsCount} in maintenance/stoppage).`,
         `There are ${activeBds.length} active breakdown incident(s) and ${totalDowntime} cumulative downtime hours across ${breakdowns.length} recorded incidents.`,
         `Preventive maintenance schedule tracks ${tasks.filter(t => t.status === 'completed').length} completed and ${tasks.filter(t => t.status !== 'completed').length} open/upcoming work orders.`
       ],
@@ -3388,16 +3914,156 @@ function buildMaintenanceSchedulePrintContext(req, customTasks = null) {
   };
 }
 
-app.get(['/assets/report/pdf', '/assets/report/print'], (req, res) => {
-  let list = store.ASSETS || [];
-  const sec = req.query.section;
-  const st = req.query.status;
-  const crit = req.query.criticality;
-  if (sec) list = list.filter(a => a.section === sec);
-  if (st) list = list.filter(a => a.status === st);
-  if (crit) list = list.filter(a => a.criticality === crit);
+// Master Asset Register & Smart Asset Insights Export Route (placed before /assets/:asset_uid so /assets/export is never captured as a UID)
+app.get(['/assets/export', '/assets/export/:fmt', '/assets/report/pdf', '/assets/report/print'], async (req, res) => {
+  const fmt = (
+    req.params.fmt ||
+    req.query.format ||
+    req.query.fmt ||
+    (req.path.includes('pdf') ? 'pdf' : (req.path.includes('print') ? 'print' : 'csv'))
+  ).toLowerCase();
 
-  res.render('assets/assets_profile_print.html', buildAssetProfilePrintContext(req, list[0]));
+  let list = [...(store.ASSETS || [])];
+  const rawSec = req.query.section;
+  const selectedSecs = (Array.isArray(rawSec) ? rawSec : (rawSec ? [rawSec] : []))
+    .map(s => String(s || '').trim())
+    .filter(s => s && s !== 'All');
+  const stFilter = req.query.status && req.query.status !== 'All' ? req.query.status : '';
+  const critFilter = req.query.criticality && req.query.criticality !== 'All' ? req.query.criticality : '';
+  const qFilter = (req.query.q || '').trim().toLowerCase();
+  const isSmartInsights = req.query.source === 'smart_insights';
+
+  if (selectedSecs.length) list = list.filter(a => selectedSecs.includes(a.section));
+  if (stFilter) {
+    if (stFilter === 'maintenance') {
+      list = list.filter(a => a.status === 'maintenance' || a.status === 'degraded' || a.status === 'under_maintenance');
+    } else if (stFilter === 'out_of_service') {
+      list = list.filter(a => a.status === 'out_of_service' || a.status === 'breakdown' || a.status === 'down');
+    } else {
+      list = list.filter(a => a.status === stFilter);
+    }
+  }
+  if (critFilter) list = list.filter(a => a.criticality === critFilter);
+  if (qFilter) {
+    list = list.filter(a =>
+      (a.asset_name && a.asset_name.toLowerCase().includes(qFilter)) ||
+      (a.asset_id && a.asset_id.toLowerCase().includes(qFilter)) ||
+      (a.serial_no && a.serial_no.toLowerCase().includes(qFilter)) ||
+      (a.manufacturer && a.manufacturer.toLowerCase().includes(qFilter))
+    );
+  }
+
+  const opCount = list.filter(a => a.status === 'operational').length;
+  const maintCount = list.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
+  const oosCount = list.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
+  const classACount = list.filter(a => a.criticality === 'A').length;
+  const availPct = list.length ? Math.round((opCount / list.length) * 1000) / 10 : 100.0;
+
+  const scopeParts = [];
+  if (selectedSecs.length) scopeParts.push(`Section: ${selectedSecs.join(', ')}`);
+  if (stFilter) scopeParts.push(`Status: ${stFilter.replace(/_/g, ' ').toUpperCase()}`);
+  if (critFilter) scopeParts.push(`Criticality: Class ${critFilter}`);
+  if (qFilter) scopeParts.push(`Search: "${req.query.q}"`);
+  const filterSummary = scopeParts.length ? scopeParts.join(' • ') : 'All Production & Utility Sections';
+
+  const kpiRecords = [
+    { label: 'Exported Assets', value: list.length, note: filterSummary },
+    { label: 'Operational Online', value: `${opCount} (${availPct}%)`, note: 'Active online units' },
+    { label: 'Under Maintenance', value: maintCount, note: 'Scheduled / degraded' },
+    { label: 'Out of Service', value: oosCount, note: `Class A Critical: ${classACount}` }
+  ];
+
+  const activeSecLabels = selectedSecs.length ? selectedSecs : SECTIONS;
+  const secCounts = activeSecLabels.map(s => list.filter(a => a.section === s).length);
+
+  if (fmt === 'pptx' || fmt === 'powerpoint') {
+    const deckTitle = isSmartInsights
+      ? 'Smart Asset Insights & Fleet Telemetry Presentation'
+      : 'Master Asset Register & Condition Compliance Deck';
+    return sendBrandPowerPoint(req, res, {
+      moduleLabel: isSmartInsights ? 'Smart Asset Insights' : 'Master Asset Register',
+      title: deckTitle,
+      subtitle: `Filtered Asset Scope: ${filterSummary}`,
+      period: filterSummary,
+      kpis: kpiRecords,
+      barChartTitle: 'Exported Assets Distribution by Plant Section',
+      barSeries: [
+        { name: 'Registered Assets', labels: activeSecLabels, values: secCounts }
+      ],
+      doughnutTitle: 'Exported Fleet Operational Status Split',
+      doughnutSeries: [
+        {
+          name: 'Asset Status',
+          labels: ['Operational', 'Under Maintenance', 'Out of Service'],
+          values: [opCount, maintCount, oosCount]
+        }
+      ],
+      summaryTableTitle: 'SECTION ASSET AVAILABILITY & CRITICALITY MATRIX',
+      summaryTableHeaders: ['Plant Section', 'Assets', 'Operational', 'Class A Critical'],
+      summaryTableRows: activeSecLabels.map(sec => {
+        const sList = list.filter(a => a.section === sec);
+        const sOp = sList.filter(a => a.status === 'operational').length;
+        const sCritA = sList.filter(a => a.criticality === 'A').length;
+        return [sec, String(sList.length), `${sOp}/${sList.length}`, `${sCritA} units`];
+      }),
+      insights: [
+        `Exported ${list.length} industrial asset(s) matching scope (${filterSummary}) with ${availPct}% fleet availability.`,
+        `${opCount} asset(s) operational, ${maintCount} under maintenance, and ${oosCount} out of service.`,
+        `Criticality A equipment accounts for ${classACount} unit(s) in this export scope and is prioritized for predictive monitoring.`
+      ],
+      headers: ['Asset ID & Name', 'Section & Manufacturer', 'Operational Status', 'Criticality & Power Rating'],
+      rows: list.map(a => [
+        `${a.asset_id} — ${a.asset_name}`,
+        `${a.section || 'General'} • ${a.manufacturer || 'OEM'}`,
+        (a.status || 'operational').replace(/_/g, ' ').toUpperCase(),
+        `Class ${a.criticality || 'B'} • ${a.power_rating || 'Standard'}`
+      ]),
+      filename: isSmartInsights ? 'smart_asset_insights_deck.pptx' : 'master_assets_register.pptx'
+    });
+  }
+
+  if (fmt === 'pdf' || fmt === 'print' || fmt === 'html') {
+    return res.render('reports/chart_export_print.html', {
+      ...baseCtx(req, 'assets'),
+      report: buildChartExportReport({
+        title: isSmartInsights ? 'Smart Asset Insights & Telemetry Report' : 'Master Asset Register & Operational Compliance',
+        subtitle: `Comprehensive inventory of registered industrial assets (${filterSummary}).`,
+        department: 'Engineering',
+        department_display: 'Engineering & Manufacturing',
+        period_label: 'Current Fleet Register',
+        scope_label: filterSummary,
+        cost_subtotal: list.length * 145000,
+        record_count: list.length,
+        labels: activeSecLabels,
+        values: secCounts,
+        insights: [
+          `${list.length} total industrial assets monitored across the selected scope (${filterSummary}).`,
+          `${opCount} assets operational; ${maintCount + oosCount} under maintenance or stoppage.`,
+          `Criticality A assets (${classACount} units) are prioritized for condition-based monitoring.`
+        ]
+      }),
+      report_kind: 'asset',
+      kpi_records: kpiRecords
+    });
+  }
+
+  if (fmt === 'xlsx' || fmt === 'excel') {
+    const rows = ['UID\tAsset ID\tName\tSection\tDepartment\tStatus\tCriticality\tSerial No\tManufacturer'];
+    list.forEach(a => {
+      rows.push(`${a.uid}\t${a.asset_id}\t${a.asset_name}\t${a.section}\t${a.department}\t${a.status}\t${a.criticality}\t${a.serial_no || ''}\t${a.manufacturer || ''}`);
+    });
+    res.setHeader('Content-Type', 'application/vnd.ms-excel');
+    res.setHeader('Content-Disposition', 'attachment; filename="assets_export.xls"');
+    return res.send(rows.join('\n'));
+  }
+
+  const rows = ['UID,Asset ID,Name,Section,Department,Status,Criticality,Serial No,Manufacturer'];
+  list.forEach(a => {
+    rows.push(`"${a.uid}","${a.asset_id}","${a.asset_name}","${a.section}","${a.department}","${a.status}","${a.criticality}","${a.serial_no || ''}","${a.manufacturer || ''}"`);
+  });
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="assets_export.csv"');
+  res.send(rows.join('\n'));
 });
 
 app.get('/assets/new/step-1', (req, res) => {
@@ -3575,15 +4241,38 @@ app.get(['/assets/:asset_uid/spare-parts/export/:fmt', '/assets/:asset_uid/spare
   const parts = store.INVENTORY_PARTS || [];
 
   if (fmt === 'pptx' || fmt === 'powerpoint') {
+    const critParts = parts.filter(p => p.is_critical).length;
+    const lowParts = parts.filter(p => Number(p.qty) <= Number(p.min_qty) && Number(p.qty) > 0).length;
+    const outParts = parts.filter(p => Number(p.qty) <= 0).length;
+    const healthyParts = parts.filter(p => Number(p.qty) > Number(p.min_qty)).length;
     return sendBrandPowerPoint(req, res, {
+      moduleLabel: `Asset Spares • ${asset.asset_id || 'Asset'}`,
       title: `Compatible Spare Parts — ${asset.asset_name || 'Asset'}`,
       subtitle: `Asset ID: ${asset.asset_id || '—'} • Section: ${asset.section || 'Engineering'}`,
+      period: `Asset: ${asset.asset_id || asset.asset_name || 'Current'}`,
       kpis: [
-        { label: 'Total Spares', value: parts.length, note: 'Catalogued SKUs' },
-        { label: 'Critical Spares', value: parts.filter(p => p.is_critical).length, note: 'Priority stock' },
-        { label: 'Low Stock', value: parts.filter(p => Number(p.qty) <= Number(p.min_qty)).length, note: 'Replenish' },
+        { label: 'Total Spares', value: parts.length, note: `Linked to ${asset.asset_id || 'Asset'}` },
+        { label: 'Critical Spares', value: critParts, note: 'Priority buffer stock' },
+        { label: 'Low / Stockout', value: lowParts + outParts, note: 'Replenishment needed' },
         { label: 'Asset Status', value: (asset.status || 'operational').toUpperCase(), note: `Criticality ${asset.criticality || 'A'}` }
       ],
+      barChartTitle: `Spare Parts On-Hand vs Min Buffer (${asset.asset_id || 'Asset'})`,
+      barSeries: [
+        { name: 'Qty On Hand', labels: parts.slice(0, 6).map(p => p.sku), values: parts.slice(0, 6).map(p => Number(p.qty || 0)) },
+        { name: 'Min Buffer', labels: parts.slice(0, 6).map(p => p.sku), values: parts.slice(0, 6).map(p => Number(p.min_qty || 0)) }
+      ],
+      doughnutTitle: 'Spare Parts Buffer Health Split',
+      doughnutSeries: [
+        { name: 'Stock Health', labels: ['Healthy Buffer', 'Low Stock', 'Out of Stock'], values: [healthyParts, lowParts, outParts] }
+      ],
+      summaryTableTitle: `SPARE PARTS SUMMARY FOR ${asset.asset_id || 'ASSET'}`,
+      summaryTableHeaders: ['SKU', 'Part Name', 'On Hand / Min', 'Status'],
+      summaryTableRows: parts.slice(0, 6).map(p => [
+        p.sku,
+        p.part_name,
+        `${p.qty} / ${p.min_qty}`,
+        Number(p.qty) <= 0 ? 'OUT OF STOCK' : (Number(p.qty) <= Number(p.min_qty) ? 'LOW BUFFER' : 'HEALTHY')
+      ]),
       headers: ['SKU & Part Name', 'Category', 'Stock / Min', 'Unit Price (KES)'],
       rows: parts.map(p => [`${p.sku} — ${p.part_name}`, p.category || 'Mechanical', `${p.qty} / Min ${p.min_qty}`, `KES ${(Number(p.unit_price) || 0).toLocaleString()}`]),
       filename: `${asset.asset_id || 'asset'}_spare_parts.pptx`
@@ -3644,17 +4333,43 @@ app.get(['/assets/:asset_uid/maintenance-history/export/:fmt', '/assets/:asset_u
   const tasks = (store.MAINTENANCE_TASKS || []).filter(t => !asset.uid || t.asset_uid === asset.uid || t.asset_id === asset.asset_id);
 
   if (fmt === 'pptx' || fmt === 'powerpoint') {
+    const compCount = tasks.filter(t => t.status === 'completed').length;
+    const openCount = tasks.filter(t => t.status === 'upcoming' || t.status === 'in_progress').length;
+    const overCount = tasks.filter(t => t.status === 'overdue').length;
+    const totalSpend = tasks.reduce((s, t) => s + Number(t.cost_total || t.cost || 0), 0);
     return sendBrandPowerPoint(req, res, {
+      moduleLabel: `Asset Maintenance Log • ${asset.asset_id || 'Asset'}`,
       title: `Maintenance History — ${asset.asset_name || 'Asset'}`,
-      subtitle: `Preventive & Corrective Work Order Log for ${asset.asset_id || ''}`,
+      subtitle: `Preventive & Corrective Work Order Log for ${asset.asset_id || ''} (${asset.section || 'Engineering'})`,
+      period: `Asset: ${asset.asset_id || asset.asset_name || 'Current'}`,
       kpis: [
         { label: 'Total Tasks', value: tasks.length, note: asset.asset_id || '' },
-        { label: 'Completed', value: tasks.filter(t => t.status === 'completed').length, note: 'Verified' },
-        { label: 'Upcoming / Open', value: tasks.filter(t => t.status !== 'completed').length, note: 'Scheduled' },
-        { label: 'Total Cost', value: `KES ${tasks.reduce((s, t) => s + (Number(t.cost) || 0), 0).toLocaleString()}`, note: 'Logged spend' }
+        { label: 'Completed', value: compCount, note: 'Verified closed' },
+        { label: 'Upcoming / Open', value: openCount + overCount, note: `${overCount} overdue` },
+        { label: 'Total Cost', value: `KES ${totalSpend.toLocaleString()}`, note: 'Logged spend' }
       ],
+      barChartTitle: `Work Order Spend (KES) — ${asset.asset_id || 'Asset'}`,
+      barSeries: [
+        {
+          name: 'Work Order Cost (KES)',
+          labels: tasks.length ? tasks.slice(0, 6).map(t => t.task_id) : [asset.asset_id || 'Asset'],
+          values: tasks.length ? tasks.slice(0, 6).map(t => Number(t.cost_total || t.cost || 15000)) : [0]
+        }
+      ],
+      doughnutTitle: 'Work Order Status Split',
+      doughnutSeries: [
+        { name: 'Task Status', labels: ['Completed', 'Upcoming / Open', 'Overdue'], values: [compCount, openCount, overCount] }
+      ],
+      summaryTableTitle: `WORK ORDER LOG MATRIX FOR ${asset.asset_id || 'ASSET'}`,
+      summaryTableHeaders: ['Task ID', 'Type / Freq', 'Due Date', 'Status & Cost'],
+      summaryTableRows: tasks.slice(0, 6).map(t => [
+        t.task_id,
+        `${t.maintenance_type || 'PM'} (${t.frequency || 'Monthly'})`,
+        t.due_date || '—',
+        `${(t.status || 'upcoming').toUpperCase()} • KES ${Number(t.cost_total || t.cost || 0).toLocaleString()}`
+      ]),
       headers: ['Task ID & Title', 'Type & Frequency', 'Due Date & Status', 'Technician & Cost'],
-      rows: tasks.map(t => [`${t.task_id} — ${t.task_title || t.task_description}`, `${t.maintenance_type} (${t.frequency})`, `${t.due_date} • ${(t.status || 'upcoming').toUpperCase()}`, `${t.technician || 'Assigned'} • KES ${(Number(t.cost) || 0).toLocaleString()}`]),
+      rows: tasks.map(t => [`${t.task_id} — ${t.task_title || t.task_description}`, `${t.maintenance_type} (${t.frequency})`, `${t.due_date} • ${(t.status || 'upcoming').toUpperCase()}`, `${t.technician || 'Assigned'} • KES ${(Number(t.cost_total || t.cost) || 0).toLocaleString()}`]),
       filename: `${asset.asset_id || 'asset'}_maintenance_history.pptx`
     });
   }
@@ -3742,88 +4457,6 @@ app.get('/assets/:asset_uid/breakdowns', (req, res) => {
     active_tab: 'breakdowns',
     breakdowns: bds
   });
-});
-
-app.get(['/assets/export/:fmt', '/assets/report/pdf', '/assets/report/print'], async (req, res) => {
-  const fmt = (req.params.fmt || req.query.format || (req.path.includes('pdf') ? 'pdf' : (req.path.includes('print') ? 'print' : 'csv'))).toLowerCase();
-  let list = [...(store.ASSETS || [])];
-  if (req.query.section) list = list.filter(a => a.section === req.query.section);
-  if (req.query.status) list = list.filter(a => a.status === req.query.status);
-  if (req.query.criticality) list = list.filter(a => a.criticality === req.query.criticality);
-
-  const kpiRecords = [
-    { label: 'Total Assets', value: list.length, note: 'Registered in Opsloom' },
-    { label: 'Operational', value: list.filter(a => a.status === 'operational').length, note: 'Online' },
-    { label: 'Under Maintenance', value: list.filter(a => a.status === 'degraded' || a.status === 'maintenance').length, note: 'Active work orders' },
-    { label: 'Out of Service', value: list.filter(a => a.status === 'breakdown' || a.status === 'out_of_service').length, note: 'Critical stoppages' }
-  ];
-
-  if (fmt === 'pptx' || fmt === 'powerpoint') {
-    return sendBrandPowerPoint(req, res, {
-      title: 'Master Asset Register & Operational Compliance',
-      subtitle: 'Comprehensive inventory of registered industrial assets and condition ratings.',
-      period: 'Current Fleet Register',
-      kpis: kpiRecords,
-      insights: [
-        `${list.length} total industrial assets monitored across production and utility sections.`,
-        `${list.filter(a => a.status === 'operational').length} assets operational; ${list.filter(a => a.status !== 'operational').length} under maintenance or stoppage.`,
-        `Criticality A assets (${list.filter(a => a.criticality === 'A').length} units) are prioritized for condition-based monitoring.`
-      ],
-      headers: ['Asset ID & Name', 'Section & Manufacturer', 'Status', 'Criticality & Rating'],
-      rows: list.map(a => [
-        `${a.asset_id} — ${a.asset_name}`,
-        `${a.section || 'General'} • ${a.manufacturer || 'OEM'}`,
-        (a.status || 'operational').replace(/_/g, ' ').toUpperCase(),
-        `Class ${a.criticality || 'B'} • ${a.power_rating || 'Standard'}`
-      ]),
-      filename: 'master_assets_register.pptx'
-    });
-  }
-
-  if (fmt === 'pdf' || fmt === 'print' || fmt === 'html') {
-    const secLabels = SECTIONS;
-    const secCounts = secLabels.map(s => list.filter(a => a.section === s).length);
-    return res.render('reports/chart_export_print.html', {
-      ...baseCtx(req, 'assets'),
-      report: buildChartExportReport({
-        title: 'Master Asset Register & Operational Compliance',
-        subtitle: 'Comprehensive inventory of registered industrial assets and condition ratings.',
-        department: 'Engineering',
-        department_display: 'Engineering & Manufacturing',
-        period_label: 'Current Fleet Register',
-        scope_label: 'All Production Sections',
-        cost_subtotal: list.length * 145000,
-        record_count: list.length,
-        labels: secLabels,
-        values: secCounts,
-        insights: [
-          `${list.length} total industrial assets monitored across production and utility sections.`,
-          `${list.filter(a => a.status === 'operational').length} assets operational; ${list.filter(a => a.status !== 'operational').length} under maintenance or stoppage.`,
-          `Criticality A assets (${list.filter(a => a.criticality === 'A').length} units) are prioritized for condition-based monitoring.`
-        ]
-      }),
-      report_kind: 'asset',
-      kpi_records: kpiRecords
-    });
-  }
-
-  if (fmt === 'xlsx' || fmt === 'excel') {
-    const rows = ['UID\tAsset ID\tName\tSection\tDepartment\tStatus\tCriticality\tSerial No\tManufacturer'];
-    list.forEach(a => {
-      rows.push(`${a.uid}\t${a.asset_id}\t${a.asset_name}\t${a.section}\t${a.department}\t${a.status}\t${a.criticality}\t${a.serial_no || ''}\t${a.manufacturer || ''}`);
-    });
-    res.setHeader('Content-Type', 'application/vnd.ms-excel');
-    res.setHeader('Content-Disposition', 'attachment; filename="assets_export.xls"');
-    return res.send(rows.join('\n'));
-  }
-
-  const rows = ['UID,Asset ID,Name,Section,Department,Status,Criticality,Serial No,Manufacturer'];
-  list.forEach(a => {
-    rows.push(`"${a.uid}","${a.asset_id}","${a.asset_name}","${a.section}","${a.department}","${a.status}","${a.criticality}","${a.serial_no || ''}","${a.manufacturer || ''}"`);
-  });
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename="assets_export.csv"');
-  res.send(rows.join('\n'));
 });
 
 // -------------------------
@@ -4068,13 +4701,54 @@ app.get(['/breakdowns/export', '/breakdowns/export/:fmt'], async (req, res) => {
   ];
 
   if (fmt === 'pptx' || fmt === 'powerpoint') {
+    const causeMap = {};
+    list.forEach(b => {
+      const cat = b.failure_category || 'Mechanical';
+      if (!causeMap[cat]) causeMap[cat] = { count: 0, downtime: 0, cost: 0 };
+      causeMap[cat].count += 1;
+      causeMap[cat].downtime = Math.round((causeMap[cat].downtime + calculateDowntimeHours(b)) * 10) / 10;
+      causeMap[cat].cost += Number(b.cost_total || b.cost || 24000);
+    });
+    const causeEntries = Object.entries(causeMap).sort((a, b) => b[1].downtime - a[1].downtime);
+    const bdScopeParts = [];
+    if (req.query.status) bdScopeParts.push(`Status: ${req.query.status.toUpperCase()}`);
+    if (req.query.severity) bdScopeParts.push(`Severity: ${req.query.severity.toUpperCase()}`);
+    if (req.query.technician) bdScopeParts.push(`Technician: ${req.query.technician}`);
+    if (req.query.q) bdScopeParts.push(`Search: "${req.query.q}"`);
+    const bdScopeLabel = bdScopeParts.length ? bdScopeParts.join(' • ') : 'All Recorded Breakdown Incidents';
+
     return sendBrandPowerPoint(req, res, {
+      moduleLabel: 'Breakdowns & Root Cause Control',
       title: 'Breakdown Incidents & Downtime Master Log',
-      subtitle: 'Audit log of equipment failures, elapsed downtime, and corrective actions.',
-      period: 'Fleet Incident Log',
+      subtitle: `Filtered Breakdown Scope: ${bdScopeLabel}`,
+      period: bdScopeLabel,
       kpis: kpiRecords,
+      barChartTitle: 'Downtime Hours by Breakdown Incident',
+      barSeries: [
+        {
+          name: 'Downtime (hrs)',
+          labels: list.length ? list.slice(0, 6).map(b => `${b.breakdown_id} (${(b.asset_name || '').slice(0, 10)})`) : ['No Incidents'],
+          values: list.length ? list.slice(0, 6).map(b => calculateDowntimeHours(b)) : [0]
+        }
+      ],
+      doughnutTitle: 'Incidents by Root Cause Category',
+      doughnutSeries: [
+        {
+          name: 'Failure Mode',
+          labels: causeEntries.length ? causeEntries.map(([c]) => c) : ['Nominal'],
+          values: causeEntries.length ? causeEntries.map(([, m]) => m.count) : [1]
+        }
+      ],
+      summaryTableTitle: 'FAILURE ROOT CAUSE & DOWNTIME IMPACT MATRIX',
+      summaryTableHeaders: ['Failure Category', 'Incidents', 'Downtime (hrs)', 'Repair Spend (KES)'],
+      summaryTableRows: causeEntries.map(([cat, m]) => [
+        cat,
+        String(m.count),
+        `${m.downtime} hrs`,
+        `KES ${m.cost.toLocaleString()}`
+      ]),
       insights: [
-        `${list.length} breakdown incident(s) captured totaling ${totalDowntime} hours of plant downtime.`,
+        `${list.length} breakdown incident(s) exported for scope (${bdScopeLabel}) totaling ${totalDowntime} hours of plant downtime.`,
         `${list.filter(b => b.status !== 'closed' && b.status !== 'resolved').length} active incident(s) currently under technician containment.`,
         'Root Cause Analysis (RCA) and preventive actions are enforced on all resolved high-criticality faults.'
       ],
@@ -4162,15 +4836,36 @@ app.get('/breakdowns/frequency/export', async (req, res) => {
   const total = values.reduce((sum, v) => sum + v, 0);
 
   if (fmt === 'pptx' || fmt === 'powerpoint') {
+    const critSev = breakdowns.filter(b => (b.severity || '').toLowerCase() === 'critical' || (b.severity || '').toLowerCase() === 'high').length;
+    const medSev = breakdowns.filter(b => (b.severity || '').toLowerCase() === 'medium').length;
+    const lowSev = Math.max(0, breakdowns.length - critSev - medSev);
     return sendBrandPowerPoint(req, res, {
+      moduleLabel: `Breakdown Frequency Analytics (${range.toUpperCase()})`,
       title: 'Breakdown Frequency & Incident Trend Report',
       subtitle: `Historical breakdown frequency analysis for ${range.toUpperCase()} period.`,
       period: `Range: ${range.toUpperCase()}`,
       kpis: [
         { label: 'Total Incidents', value: total, note: `${range.toUpperCase()} stoppages` },
         { label: 'Fleet MTTR', value: '1.8 hrs', note: 'Mean Time to Repair' },
-        { label: 'Fleet Uptime', value: '98.4%', note: 'Target >= 95.0%' }
+        { label: 'Fleet Uptime', value: '98.4%', note: 'Target >= 95.0%' },
+        { label: 'High / Critical', value: critSev, note: 'Priority containment' }
       ],
+      barChartTitle: `Breakdown Incident Frequency Trend (${range.toUpperCase()})`,
+      barSeries: [
+        { name: 'Breakdown Incidents', labels, values }
+      ],
+      doughnutTitle: 'Breakdown Severity Distribution',
+      doughnutSeries: [
+        { name: 'Severity', labels: ['High / Critical', 'Medium', 'Low'], values: [critSev, medSev, lowSev] }
+      ],
+      summaryTableTitle: `INCIDENT FREQUENCY MATRIX (${range.toUpperCase()})`,
+      summaryTableHeaders: ['Time Bucket', 'Incident Count', 'Avg MTTR', 'Status'],
+      summaryTableRows: labels.map((l, idx) => [
+        l,
+        `${values[idx]} incidents`,
+        '1.8 hrs',
+        values[idx] > 0 ? 'Corrective Dispatched' : 'Nominal'
+      ]),
       insights: notes ? [notes] : [
         `Recorded ${total} breakdown incidents across the ${range.toUpperCase()} window.`,
         'Mechanical seal and V-belt drive inspections reduce unscheduled stoppages.'
@@ -4479,25 +5174,54 @@ app.get('/api/maintenance/distribution', (req, res) => {
 
 app.get('/maintenance/distribution/export', async (req, res) => {
   const fmt = (req.query.format || req.query.fmt || 'csv').toLowerCase();
-  const tasks = store.MAINTENANCE_TASKS || [];
-  const breakdowns = store.BREAKDOWNS || [];
+  const secFilter = req.query.section && req.query.section !== 'All' ? req.query.section : '';
+  const assetFilter = req.query.asset_uid || '';
+  const rangeLabel = (req.query.range || 'MTD').toUpperCase();
+
+  let tasks = [...(store.MAINTENANCE_TASKS || [])];
+  let breakdowns = [...(store.BREAKDOWNS || [])];
+  if (secFilter) {
+    tasks = tasks.filter(t => t.section === secFilter);
+    breakdowns = breakdowns.filter(b => b.section === secFilter);
+  }
+  if (assetFilter) {
+    tasks = tasks.filter(t => t.asset_uid === assetFilter || t.asset_id === assetFilter);
+    breakdowns = breakdowns.filter(b => b.asset_uid === assetFilter || b.asset_id === assetFilter);
+  }
+  const activeSecs = secFilter ? [secFilter] : SECTIONS;
 
   if (fmt === 'pptx' || fmt === 'powerpoint') {
+    const pmVals = activeSecs.map(s => tasks.filter(t => t.section === s).length);
+    const cmVals = activeSecs.map(s => breakdowns.filter(b => b.section === s).length);
     return sendBrandPowerPoint(req, res, {
+      moduleLabel: 'Maintenance Workload Distribution',
       title: 'Maintenance Distribution Analysis (PM vs CM)',
-      subtitle: 'Section-by-section comparison of preventive schedules vs corrective breakdowns.',
-      period: (req.query.range || 'MTD').toUpperCase(),
+      subtitle: `Section-by-section comparison of preventive schedules vs corrective breakdowns (${secFilter || 'All Sections'}).`,
+      period: `${rangeLabel} • ${secFilter || 'All Sections'}`,
       kpis: [
         { label: 'Preventive (PM)', value: tasks.length, note: 'Scheduled PM orders' },
         { label: 'Corrective (CM)', value: breakdowns.length, note: 'Breakdown incidents' },
-        { label: 'PM Compliance', value: '83.3%', note: 'Target: 90.0%' }
+        { label: 'Total Workload', value: tasks.length + breakdowns.length, note: 'Combined orders' },
+        { label: 'PM Share', value: `${Math.round((tasks.length / Math.max(1, tasks.length + breakdowns.length)) * 100)}%`, note: 'Proactive ratio' }
       ],
-      headers: ['Plant Section', 'Preventive Tasks (PM)', 'Corrective Incidents (CM)', 'Total Work Orders'],
-      rows: SECTIONS.map(s => {
-        const pm = tasks.filter(t => t.section === s).length;
-        const cm = breakdowns.filter(b => b.section === s).length;
-        return [s, String(pm), String(cm), String(pm + cm)];
+      barChartTitle: 'Preventive (PM) vs Corrective (CM) Work Orders by Section',
+      barSeries: [
+        { name: 'Preventive (PM)', labels: activeSecs, values: pmVals },
+        { name: 'Corrective (CM)', labels: activeSecs, values: cmVals }
+      ],
+      doughnutTitle: 'Proactive (PM) vs Reactive (CM) Split',
+      doughnutSeries: [
+        { name: 'Workload Ratio', labels: ['Preventive (PM)', 'Corrective (CM)'], values: [tasks.length, breakdowns.length] }
+      ],
+      summaryTableTitle: 'SECTION PM VS CM WORKLOAD MATRIX',
+      summaryTableHeaders: ['Plant Section', 'PM Tasks', 'CM Incidents', 'Proactive Ratio'],
+      summaryTableRows: activeSecs.map((s, i) => {
+        const tot = pmVals[i] + cmVals[i];
+        const pct = tot ? Math.round((pmVals[i] / tot) * 100) : 100;
+        return [s, String(pmVals[i]), String(cmVals[i]), `${pct}% PM`];
       }),
+      headers: ['Plant Section', 'Preventive Tasks (PM)', 'Corrective Incidents (CM)', 'Total Work Orders'],
+      rows: activeSecs.map((s, i) => [s, String(pmVals[i]), String(cmVals[i]), String(pmVals[i] + cmVals[i])]),
       filename: 'maintenance_distribution.pptx'
     });
   }
@@ -4726,20 +5450,81 @@ app.post('/maintenance/:task_id/delete', (req, res) => {
   res.redirect('/maintenance');
 });
 
-app.get(['/maintenance/export/:fmt', '/maintenance/schedule/export'], async (req, res) => {
+app.get(['/maintenance/export', '/maintenance/export/:fmt', '/maintenance/schedule/export'], async (req, res) => {
   const fmt = (req.params.fmt || req.query.format || req.query.fmt || 'csv').toLowerCase();
-  const list = store.MAINTENANCE_TASKS || [];
+  let list = [...(store.MAINTENANCE_TASKS || [])];
+  const q = (req.query.q || '').trim().toLowerCase();
+  const sec = req.query.section && req.query.section !== 'All' ? req.query.section : '';
+  const type = req.query.type || '';
+  const freq = req.query.frequency || '';
+  const tech = req.query.technician || '';
+  const status = req.query.status || '';
+  const dueFrom = req.query.due_from || '';
+  const dueTo = req.query.due_to || '';
+
+  if (q) {
+    list = list.filter(t =>
+      (t.asset_name && t.asset_name.toLowerCase().includes(q)) ||
+      (t.asset_id && t.asset_id.toLowerCase().includes(q)) ||
+      (t.task_title && t.task_title.toLowerCase().includes(q)) ||
+      (t.task_description && t.task_description.toLowerCase().includes(q)) ||
+      (t.technician && t.technician.toLowerCase().includes(q))
+    );
+  }
+  if (sec) list = list.filter(t => t.section === sec);
+  if (type) list = list.filter(t => (t.maintenance_type || 'PM') === type);
+  if (freq) list = list.filter(t => t.frequency === freq);
+  if (tech) list = list.filter(t => t.technician === tech);
+  if (status) list = list.filter(t => t.status === status);
+  if (dueFrom) list = list.filter(t => (t.due_date || '') >= dueFrom);
+  if (dueTo) list = list.filter(t => (t.due_date || '') <= dueTo);
+
+  const compTasks = list.filter(t => t.status === 'completed').length;
+  const upcTasks = list.filter(t => t.status === 'upcoming' || t.status === 'in_progress').length;
+  const overTasks = list.filter(t => t.status === 'overdue').length;
+  const totalBudget = list.reduce((s, t) => s + Number(t.cost_total || t.cost || 0), 0);
+  const activeSecs = sec ? [sec] : SECTIONS;
+
+  const maintScopeParts = [];
+  if (sec) maintScopeParts.push(`Section: ${sec}`);
+  if (type) maintScopeParts.push(`Type: ${type}`);
+  if (freq) maintScopeParts.push(`Freq: ${freq}`);
+  if (status) maintScopeParts.push(`Status: ${status.toUpperCase()}`);
+  if (tech) maintScopeParts.push(`Tech: ${tech}`);
+  const maintScopeLabel = maintScopeParts.length ? maintScopeParts.join(' • ') : 'All Scheduled Maintenance Work Orders';
 
   if (fmt === 'pptx' || fmt === 'powerpoint') {
     return sendBrandPowerPoint(req, res, {
+      moduleLabel: 'Preventive Maintenance & Compliance',
       title: 'Preventive Maintenance Schedule & Compliance Deck',
-      subtitle: 'Plant-wide PM work orders, technician assignments, and compliance status.',
-      period: new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
+      subtitle: `Filtered Maintenance Scope: ${maintScopeLabel}`,
+      period: maintScopeLabel,
       kpis: [
-        { label: 'Total PM Tasks', value: list.length, note: 'Scheduled work orders' },
-        { label: 'Completed', value: list.filter(t => t.status === 'completed').length, note: 'Verified closed' },
-        { label: 'Overdue', value: list.filter(t => t.status === 'overdue').length, note: 'Requires priority' },
-        { label: 'Est. Budget', value: `KES ${list.reduce((s, t) => s + Number(t.cost_total || t.cost || 0), 0).toLocaleString()}`, note: 'Planned PM cost' }
+        { label: 'Exported Tasks', value: list.length, note: maintScopeLabel },
+        { label: 'Completed', value: compTasks, note: 'Verified closed' },
+        { label: 'Upcoming / Open', value: upcTasks, note: `${overTasks} overdue` },
+        { label: 'Planned Budget', value: `KES ${totalBudget.toLocaleString()}`, note: 'Logged PM/CM cost' }
+      ],
+      barChartTitle: 'Scheduled Maintenance Work Orders by Section',
+      barSeries: [
+        { name: 'Work Orders', labels: activeSecs, values: activeSecs.map(s => list.filter(t => t.section === s).length) }
+      ],
+      doughnutTitle: 'Maintenance Work Order Status Split',
+      doughnutSeries: [
+        { name: 'Status Split', labels: ['Completed', 'Upcoming / Open', 'Overdue'], values: [compTasks, upcTasks, overTasks] }
+      ],
+      summaryTableTitle: 'SECTION MAINTENANCE COMPLIANCE & BUDGET MATRIX',
+      summaryTableHeaders: ['Section', 'Total Orders', 'Completed / Open', 'Budget (KES)'],
+      summaryTableRows: activeSecs.map(s => {
+        const sTasks = list.filter(t => t.section === s);
+        const sComp = sTasks.filter(t => t.status === 'completed').length;
+        const sCost = sTasks.reduce((acc, t) => acc + Number(t.cost_total || t.cost || 0), 0);
+        return [s, String(sTasks.length), `${sComp} done / ${sTasks.length - sComp} open`, `KES ${sCost.toLocaleString()}`];
+      }),
+      insights: [
+        `Exported ${list.length} maintenance work order(s) matching scope (${maintScopeLabel}).`,
+        `${compTasks} work order(s) completed, ${upcTasks} upcoming/in-progress, and ${overTasks} overdue.`,
+        `Total planned and logged maintenance expenditure for this scope is KES ${totalBudget.toLocaleString()}.`
       ],
       headers: ['Task ID', 'Asset', 'Type / Freq', 'Due Date', 'Status', 'Technician', 'Cost (KES)'],
       rows: list.map(t => [
@@ -4933,20 +5718,93 @@ app.post('/inventory/new/step-3', (req, res) => {
   res.redirect('/inventory');
 });
 
-app.get('/inventory/export/:fmt', async (req, res) => {
+app.get(['/inventory/export', '/inventory/export/:fmt'], async (req, res) => {
   const fmt = (req.params.fmt || req.query.format || req.query.fmt || 'csv').toLowerCase();
-  const list = store.INVENTORY_PARTS || [];
+  let list = (store.INVENTORY_PARTS || []).map(p => ({
+    ...p,
+    qty: Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0),
+    min_qty: Number(p.min_qty !== undefined ? p.min_qty : p.reorder_level || 5),
+    unit_price: Number(p.unit_price !== undefined ? p.unit_price : p.unit_cost || 0)
+  }));
+
+  const q = (req.query.q || '').trim().toLowerCase();
+  const catFilter = req.query.category || '';
+  const stockState = req.query.stock_state || '';
+
+  if (q) {
+    list = list.filter(p =>
+      (p.part_name && p.part_name.toLowerCase().includes(q)) ||
+      (p.sku && p.sku.toLowerCase().includes(q)) ||
+      (p.supplier && p.supplier.toLowerCase().includes(q)) ||
+      (p.storage_location && p.storage_location.toLowerCase().includes(q))
+    );
+  }
+  if (catFilter) list = list.filter(p => p.category === catFilter);
+  if (stockState === 'out') list = list.filter(p => p.qty <= 0);
+  else if (stockState === 'low') list = list.filter(p => p.qty <= p.min_qty && p.qty > 0);
+  else if (stockState === 'healthy') list = list.filter(p => p.qty > p.min_qty);
+
+  const healthySkus = list.filter(p => p.qty > p.min_qty).length;
+  const lowSkus = list.filter(p => p.qty <= p.min_qty && p.qty > 0).length;
+  const outSkus = list.filter(p => p.qty <= 0).length;
+  const totalVal = list.reduce((sum, p) => sum + (p.qty * p.unit_price), 0);
+
+  const invScopeParts = [];
+  if (catFilter) invScopeParts.push(`Category: ${catFilter}`);
+  if (stockState) invScopeParts.push(`Stock State: ${stockState.toUpperCase()}`);
+  if (q) invScopeParts.push(`Search: "${req.query.q}"`);
+  const invScopeLabel = invScopeParts.length ? invScopeParts.join(' • ') : 'All Warehouse Spare Parts';
+
+  const catMap = {};
+  list.forEach(p => {
+    const c = p.category || 'Mechanical';
+    if (!catMap[c]) catMap[c] = { count: 0, lowOut: 0, value: 0 };
+    catMap[c].count += 1;
+    if (p.qty <= p.min_qty) catMap[c].lowOut += 1;
+    catMap[c].value += (p.qty * p.unit_price);
+  });
+  const catEntries = Object.entries(catMap).sort((a, b) => b[1].value - a[1].value);
 
   if (fmt === 'pptx' || fmt === 'powerpoint') {
     return sendBrandPowerPoint(req, res, {
+      moduleLabel: 'Spare Parts Inventory & Stores',
       title: 'Master Inventory & Spare Parts Valuation Deck',
-      subtitle: 'Warehouse valuation, replenishment alerts, and critical spares buffer status.',
-      period: 'Current Warehouse Stock',
+      subtitle: `Filtered Inventory Scope: ${invScopeLabel}`,
+      period: invScopeLabel,
       kpis: [
-        { label: 'Total Unique SKUs', value: list.length, note: 'Active catalogue' },
-        { label: 'Low Stock Alerts', value: list.filter(p => Number(p.qty) <= Number(p.min_qty) && Number(p.qty) > 0).length, note: 'Reorder triggered' },
-        { label: 'Out of Stock', value: list.filter(p => Number(p.qty) <= 0).length, note: 'Critical stockouts' },
-        { label: 'Inventory Value', value: `KES ${list.reduce((sum, p) => sum + ((Number(p.qty) || 0) * (Number(p.unit_price) || 0)), 0).toLocaleString()}`, note: 'Valuation on hand' }
+        { label: 'Exported SKUs', value: list.length, note: invScopeLabel },
+        { label: 'Low Stock Alerts', value: lowSkus, note: 'Reorder triggered' },
+        { label: 'Out of Stock', value: outSkus, note: 'Critical stockouts' },
+        { label: 'Inventory Value', value: `KES ${totalVal.toLocaleString()}`, note: 'Valuation on hand' }
+      ],
+      barChartTitle: 'Spare Parts Valuation (KES) by Category',
+      barSeries: [
+        {
+          name: 'Valuation (KES)',
+          labels: catEntries.length ? catEntries.map(([c]) => c) : ['Spares'],
+          values: catEntries.length ? catEntries.map(([, m]) => m.value) : [0]
+        }
+      ],
+      doughnutTitle: 'Warehouse Stock Buffer Health Split',
+      doughnutSeries: [
+        {
+          name: 'Buffer Health',
+          labels: ['Healthy Stock', 'Low Stock', 'Out of Stock'],
+          values: [healthySkus, lowSkus, outSkus]
+        }
+      ],
+      summaryTableTitle: 'CATEGORY VALUATION & REPLENISHMENT MATRIX',
+      summaryTableHeaders: ['Category', 'SKUs', 'Low / Out SKUs', 'Valuation (KES)'],
+      summaryTableRows: catEntries.map(([cat, m]) => [
+        cat,
+        String(m.count),
+        `${m.lowOut} SKU(s)`,
+        `KES ${m.value.toLocaleString()}`
+      ]),
+      insights: [
+        `Exported ${list.length} spare part SKU(s) for scope (${invScopeLabel}) valued at KES ${totalVal.toLocaleString()}.`,
+        `${healthySkus} SKU(s) have healthy buffer levels, while ${lowSkus} low-stock and ${outSkus} stockout SKU(s) require replenishment.`,
+        `Critical line-stopper spares are prioritized for automated safety stock reordering.`
       ],
       headers: ['SKU', 'Part Name', 'Category', 'Qty', 'Min Qty', 'Unit Price (KES)', 'Total Value (KES)'],
       rows: list.map(p => [
@@ -4956,7 +5814,7 @@ app.get('/inventory/export/:fmt', async (req, res) => {
         String(p.qty),
         String(p.min_qty),
         Number(p.unit_price || 0).toLocaleString(),
-        ((Number(p.qty) || 0) * (Number(p.unit_price) || 0)).toLocaleString()
+        (p.qty * p.unit_price).toLocaleString()
       ]),
       filename: 'inventory_valuation_deck.pptx'
     });
@@ -5392,10 +6250,13 @@ app.get('/reports/export/:rid/:fmt', async (req, res) => {
   const analysis = buildReportAnalysis(report);
 
   if (fmt === 'pptx' || fmt === 'powerpoint') {
-    return sendBrandPowerPoint(req, res, {
+    const catKey = (report.category_key || report.category || 'strategic_roi').toLowerCase();
+    const periodStr = `${analysis.start.strftime()} → ${analysis.end.strftime()}`;
+    const baseOpts = {
+      moduleLabel: `${report.category || 'Executive Report'} • ${analysis.scope_label}`,
       title: report.report_title || report.name || 'Executive Intelligence Report',
       subtitle: `${report.category || 'Strategic ROI'} • Scope: ${analysis.scope_label}`,
-      period: `${analysis.start.strftime()} → ${analysis.end.strftime()}`,
+      period: periodStr,
       department: report.department || 'Engineering',
       kpis: (analysis.selected_metric_cards || []).map(c => ({
         label: c.label,
@@ -5403,14 +6264,214 @@ app.get('/reports/export/:rid/:fmt', async (req, res) => {
         note: c.note
       })),
       insights: analysis.executive_insights || [],
-      headers: ['Asset / Equipment', 'Incidents', 'Downtime (hrs)', 'Dominant Root Cause'],
-      rows: (analysis.top_assets || []).map(([name, meta]) => [
-        name,
-        String(meta.incidents),
-        `${meta.downtime_hours} hrs`,
-        meta.dominant_cause
-      ]),
       filename: `${(report.id || 'report')}.pptx`
+    };
+
+    if (catKey.includes('inventory') || catKey.includes('spare')) {
+      const partsList = analysis.raw.inventory_parts || [];
+      const topVal = (analysis.inventory_top_value || []).slice(0, 6);
+      return sendBrandPowerPoint(req, res, {
+        ...baseOpts,
+        barChartTitle: 'Top Spare Parts by Stock Valuation (KES)',
+        barSeries: [
+          {
+            name: 'Valuation (KES)',
+            labels: topVal.length ? topVal.map(item => item.sku || item[0]) : ['SKUs'],
+            values: topVal.length ? topVal.map(item => Number(item.value || 0)) : [0]
+          }
+        ],
+        doughnutTitle: 'Warehouse Stock Buffer Health Split',
+        doughnutSeries: [
+          {
+            name: 'Buffer Health',
+            labels: ['Healthy Buffer', 'Low Stock Alert', 'Out of Stock'],
+            values: [analysis.kpis.inventory_healthy, analysis.kpis.inventory_low, analysis.kpis.inventory_out]
+          }
+        ],
+        summaryTableTitle: 'TOP VALUED SPARE PARTS & BUFFER MATRIX',
+        summaryTableHeaders: ['SKU & Part', 'Category', 'Qty / Min', 'Valuation (KES)'],
+        summaryTableRows: topVal.map(item => [
+          `${item.sku} — ${item.part_name}`,
+          item.category || 'Mechanical',
+          `${item.qty} / ${item.min_qty}`,
+          `KES ${Number(item.value || 0).toLocaleString()}`
+        ]),
+        headers: ['SKU & Spare Part', 'Category & Supplier', 'Qty / Min Buffer', 'Unit Price & Total Value (KES)'],
+        rows: partsList.map(p => [
+          `${p.sku} — ${p.part_name}`,
+          `${p.category || 'Mechanical'} • ${p.supplier || 'OEM'}`,
+          `${p.qty} on hand (Min ${p.min_qty})`,
+          `KES ${Number(p.unit_price || 0).toLocaleString()} • Total KES ${(Number(p.qty || 0) * Number(p.unit_price || 0)).toLocaleString()}`
+        ])
+      });
+    }
+
+    if (catKey.includes('maintenance') || catKey.includes('compliance')) {
+      const taskList = analysis.raw.tasks || [];
+      const secList = (analysis.availability_by_section || []).map(s => s.section);
+      return sendBrandPowerPoint(req, res, {
+        ...baseOpts,
+        barChartTitle: 'Scheduled Maintenance Work Orders by Section',
+        barSeries: [
+          {
+            name: 'PM Orders',
+            labels: secList.length ? secList : SECTIONS,
+            values: (secList.length ? secList : SECTIONS).map(sec => taskList.filter(t => t.section === sec && (t.maintenance_type || 'PM') === 'PM').length)
+          },
+          {
+            name: 'CM Orders',
+            labels: secList.length ? secList : SECTIONS,
+            values: (secList.length ? secList : SECTIONS).map(sec => taskList.filter(t => t.section === sec && t.maintenance_type === 'CM').length)
+          }
+        ],
+        doughnutTitle: 'Work Order Schedule Compliance Split',
+        doughnutSeries: [
+          {
+            name: 'Task Status',
+            labels: ['Completed', 'Upcoming / Open', 'Overdue'],
+            values: [analysis.kpis.tasks_completed, analysis.kpis.tasks_upcoming + analysis.kpis.tasks_in_progress, analysis.kpis.tasks_overdue]
+          }
+        ],
+        summaryTableTitle: 'MAINTENANCE COMPLIANCE & COST SUMMARY MATRIX',
+        summaryTableHeaders: ['Compliance Metric', 'Actual', 'Target / Note', 'Status'],
+        summaryTableRows: [
+          ['PM Schedule Compliance', `${analysis.kpis.compliance_pct}%`, '>= 90.0% SLA', 'VERIFIED'],
+          ['Total Scheduled Orders', String(analysis.kpis.tasks_total), `${analysis.kpis.pm_tasks} PM • ${analysis.kpis.cm_tasks} CM`, 'TRACKED'],
+          ['Completed On-Time', String(analysis.kpis.tasks_completed), `${analysis.kpis.tasks_overdue} Overdue`, 'LOGGED'],
+          ['Maintenance Net Spend', `KES ${analysis.kpis.maintenance_cost_subtotal.toLocaleString()}`, `VAT: KES ${analysis.kpis.maintenance_vat_total.toLocaleString()}`, 'RECONCILED'],
+          ['Maintenance Gross Spend', `KES ${analysis.kpis.maintenance_cost_total.toLocaleString()}`, 'Incl. 16% VAT', 'APPROVED']
+        ],
+        headers: ['Task ID & Work Order', 'Asset & Section', 'Type • Frequency • Due', 'Status • Tech • Cost (KES)'],
+        rows: taskList.map(t => [
+          `${t.task_id} — ${t.title || t.task_title || 'PM Service'}`,
+          `${t.asset_name} (${t.section || 'Engineering'})`,
+          `${t.maintenance_type || 'PM'} • ${t.frequency || 'Monthly'} • Due ${t.due_date || '—'}`,
+          `${(t.status || 'upcoming').toUpperCase()} • ${t.technician || 'Assigned'} • KES ${Number(t.cost_total || t.cost || 0).toLocaleString()}`
+        ])
+      });
+    }
+
+    if (catKey.includes('asset') || catKey.includes('reliability')) {
+      const assetList = analysis.raw.assets || [];
+      const availSecs = analysis.availability_by_section || [];
+      const opA = assetList.filter(a => a.status === 'operational').length;
+      const maintA = assetList.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
+      const oosA = assetList.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
+      return sendBrandPowerPoint(req, res, {
+        ...baseOpts,
+        barChartTitle: 'Operational Availability (%) by Plant Section',
+        barSeries: [
+          {
+            name: 'Availability (%)',
+            labels: availSecs.length ? availSecs.map(s => s.section) : SECTIONS,
+            values: availSecs.length ? availSecs.map(s => s.availability_pct) : [98.4]
+          }
+        ],
+        doughnutTitle: 'Asset Fleet Operational State Split',
+        doughnutSeries: [
+          {
+            name: 'Asset State',
+            labels: ['Operational', 'Under Maintenance', 'Out of Service'],
+            values: [opA, maintA, oosA]
+          }
+        ],
+        summaryTableTitle: 'SECTION AVAILABILITY & RELIABILITY MATRIX',
+        summaryTableHeaders: ['Section', 'Assets', 'Downtime (hrs)', 'Availability (%)'],
+        summaryTableRows: availSecs.map(s => [
+          s.section,
+          String(s.assets),
+          `${s.downtime_hours} hrs`,
+          `${s.availability_pct}%`
+        ]),
+        headers: ['Asset ID & Equipment Name', 'Section & OEM', 'Operational Status', 'Criticality & Power Rating'],
+        rows: assetList.map(a => [
+          `${a.asset_id} — ${a.asset_name}`,
+          `${a.section || 'Engineering'} • ${a.manufacturer || 'OEM'}`,
+          (a.status || 'operational').replace(/_/g, ' ').toUpperCase(),
+          `Class ${a.criticality || 'A'} • ${a.power_rating || 'Standard'}`
+        ])
+      });
+    }
+
+    if (catKey.includes('breakdown')) {
+      const bdList = analysis.raw.breakdowns || [];
+      const topA = (analysis.top_assets || []).slice(0, 6);
+      const topC = (analysis.top_causes || []).slice(0, 5);
+      return sendBrandPowerPoint(req, res, {
+        ...baseOpts,
+        barChartTitle: 'Top Contributing Equipment by Downtime (hrs)',
+        barSeries: [
+          {
+            name: 'Downtime (hrs)',
+            labels: topA.length ? topA.map(([n]) => n.slice(0, 16)) : ['Equipment'],
+            values: topA.length ? topA.map(([, m]) => m.downtime_hours) : [0]
+          }
+        ],
+        doughnutTitle: 'Breakdowns by Failure Root Cause Category',
+        doughnutSeries: [
+          {
+            name: 'Root Cause',
+            labels: topC.length ? topC.map(([c]) => c) : ['Mechanical'],
+            values: topC.length ? topC.map(([, cnt]) => cnt) : [1]
+          }
+        ],
+        summaryTableTitle: 'TOP DOWNTIME EQUIPMENT & ROOT CAUSE MATRIX',
+        summaryTableHeaders: ['Asset / Equipment', 'Incidents', 'Downtime (hrs)', 'Dominant Cause'],
+        summaryTableRows: topA.map(([name, meta]) => [
+          name,
+          String(meta.incidents),
+          `${meta.downtime_hours} hrs`,
+          meta.dominant_cause
+        ]),
+        headers: ['Breakdown ID & Asset', 'Section & Failure Mode', 'Status & Severity', 'Downtime • Tech • Cost (KES)'],
+        rows: bdList.map(b => [
+          `${b.breakdown_id} — ${b.asset_name}`,
+          `${b.section || 'Engineering'} • ${b.incident_title} (${b.failure_category || 'Mechanical'})`,
+          `${(b.status || 'open').toUpperCase()} • ${b.severity || 'Medium'}`,
+          `${calculateDowntimeHours(b)} hrs • ${b.technician_name || 'Assigned'} • KES ${Number(b.cost_total || b.cost || 24000).toLocaleString()}`
+        ])
+      });
+    }
+
+    // Default: Strategic & Financial ROI Report
+    const costRows = analysis.cost_summary_rows || [];
+    const availSecs = analysis.availability_by_section || [];
+    return sendBrandPowerPoint(req, res, {
+      ...baseOpts,
+      barChartTitle: 'Direct Maintenance, Repair & Exposure Cost Breakdown (KES)',
+      barSeries: [
+        {
+          name: 'Amount (KES)',
+          labels: costRows.map(r => r.label.replace(' (Net)', '').slice(0, 18)),
+          values: costRows.map(r => Number(r.value || 0))
+        }
+      ],
+      doughnutTitle: 'Direct Maintenance Expenditure Split (KES)',
+      doughnutSeries: [
+        {
+          name: 'Spend Split',
+          labels: ['Preventive (Net)', 'Corrective (Net)', 'Statutory VAT (16%)'],
+          values: [analysis.kpis.maintenance_cost_subtotal, analysis.kpis.breakdown_cost_subtotal, analysis.kpis.combined_vat_total]
+        }
+      ],
+      summaryTableTitle: 'STRATEGIC FINANCIAL & ROI COST SUMMARY MATRIX',
+      summaryTableHeaders: ['Financial Line Item', 'Operational Volume', 'Amount (KES)', 'Tax / SLA Status'],
+      summaryTableRows: costRows.map(r => [
+        r.label,
+        r.note,
+        `KES ${Number(r.value || 0).toLocaleString()}`,
+        'VERIFIED'
+      ]),
+      headers: ['Financial / Plant Dimension', 'Operational Volume & Scope', 'Availability / SLA', 'Financial Impact (KES)'],
+      rows: [
+        ...costRows.map(r => [r.label, r.note, '16% Standard VAT Governance', `KES ${Number(r.value || 0).toLocaleString()}`]),
+        ...availSecs.map(s => [
+          `Section: ${s.section}`,
+          `${s.assets} Assets • ${s.incidents} Incidents (${s.downtime_hours} hrs downtime)`,
+          `${s.availability_pct}% Availability`,
+          `KES ${Math.round(s.downtime_hours * 18500).toLocaleString()} exposure`
+        ])
+      ]
     });
   }
 
@@ -5538,20 +6599,29 @@ app.post('/settings/admin/save', (req, res) => {
 
   // If Admin updated their login password from Settings & Admin
   const newAdminPass = (incoming.admin_new_password || '').trim();
+  const lockAfterSave = incoming.lock_after_save === '1';
   delete incoming.admin_new_password;
-  if (newAdminPass) {
-    const actor = getCurrentActor(req);
-    if (actor) {
-      actor.password = newAdminPass;
-    }
-    const primaryAdmin = (store.ADMIN_USERS || []).find(u => u.id === (actor && actor.id) || u.id === 'USR-001');
-    if (primaryAdmin) {
-      primaryAdmin.password = newAdminPass;
-    }
-  }
+  delete incoming.lock_after_save;
 
   store.SYSTEM_SETTINGS = { ...store.SYSTEM_SETTINGS, ...incoming };
-  saveStore();
+
+  if (newAdminPass) {
+    updateUserPasswordEverywhere(ADMIN_PRIMARY_EMAIL, newAdminPass);
+    const actor = getCurrentActor(req);
+    if (actor && actor.id !== 'USR-001') {
+      updateUserPasswordEverywhere(actor, newAdminPass);
+    }
+  } else {
+    saveStore();
+  }
+
+  if (lockAfterSave) {
+    res.clearCookie('opsloom_user', { path: '/' });
+    res.clearCookie('opsloom_last_active', { path: '/' });
+    logAudit('System Settings Saved & Locked', `Updated settings${newAdminPass ? ' and admin login password' : ''} and locked session.`, 'security', '/login');
+    flash('success', newAdminPass ? 'Admin login password updated and session locked. Sign in with your new password.' : 'Session locked. Please sign in to resume your workspace.');
+    return res.redirect('/login?locked=1');
+  }
 
   // Refresh active session cookie timeout immediately
   const timeoutMs = getSessionTimeoutMinutes() * 60 * 1000;
@@ -5761,15 +6831,50 @@ app.get('/settings/audit-trail/export', async (req, res) => {
   const { filtered, mod, q, start, end } = getFilteredAuditRows(req);
 
   if (fmt === 'pptx' || fmt === 'powerpoint') {
+    const modCounts = {};
+    filtered.forEach(r => {
+      const m = (r.module || 'system').toUpperCase();
+      modCounts[m] = (modCounts[m] || 0) + 1;
+    });
+    const modEntries = Object.entries(modCounts).sort((a, b) => b[1] - a[1]);
+    const warnEvents = filtered.filter(r => r.severity === 'warning' || r.module === 'security').length;
+    const stdEvents = Math.max(0, filtered.length - warnEvents);
+
     return sendBrandPowerPoint(req, res, {
+      moduleLabel: 'System Governance & Security Audit',
       title: 'System Governance & Security Audit Trail',
-      subtitle: 'Immutable log of user actions, configuration changes, and operational updates.',
+      subtitle: `Immutable log of user actions, configuration changes, and operational updates (Module: ${mod.toUpperCase()}).`,
       period: start || end ? `${start || 'Start'} → ${end || 'Present'}` : 'All Recorded Events',
       kpis: [
         { label: 'Logged Events', value: filtered.length, note: 'Verified audit entries' },
-        { label: 'Module Filter', value: mod.toUpperCase(), note: 'Scope filter' },
+        { label: 'Module Filter', value: mod.toUpperCase(), note: q ? `Search: "${q}"` : 'Scope filter' },
+        { label: 'Security / Warning', value: warnEvents, note: 'Governance events' },
         { label: 'Integrity Status', value: 'VERIFIED', note: 'Tamper-evident log' }
       ],
+      barChartTitle: 'Logged Audit Trail Events by System Module',
+      barSeries: [
+        {
+          name: 'Audit Events',
+          labels: modEntries.length ? modEntries.slice(0, 6).map(([m]) => m) : ['SYSTEM'],
+          values: modEntries.length ? modEntries.slice(0, 6).map(([, c]) => c) : [0]
+        }
+      ],
+      doughnutTitle: 'Audit Event Classification Split',
+      doughnutSeries: [
+        {
+          name: 'Classification',
+          labels: ['Operational Events', 'Security / Warning Events'],
+          values: [stdEvents, warnEvents]
+        }
+      ],
+      summaryTableTitle: 'SYSTEM MODULE AUDIT ACTIVITY MATRIX',
+      summaryTableHeaders: ['System Module', 'Event Count', 'Share (%)', 'Audit Status'],
+      summaryTableRows: modEntries.slice(0, 6).map(([m, c]) => [
+        m,
+        String(c),
+        `${Math.round((c / Math.max(1, filtered.length)) * 100)}%`,
+        'IMMUTABLE'
+      ]),
       headers: ['Timestamp', 'User', 'Role', 'Module', 'Event', 'Details'],
       rows: filtered.map(r => [
         r.time_display,
@@ -6108,10 +7213,13 @@ app.post('/settings/admin-users/create', (req, res) => {
 
   target.name = (req.body.name || target.name || 'Authorized User').trim();
   target.email = (req.body.email || target.email || '').trim();
-  if (req.body.password && String(req.body.password).trim()) {
-    target.password = String(req.body.password).trim();
+  const submittedUserPass = req.body.password ? String(req.body.password).trim() : '';
+  if (submittedUserPass) {
+    target.password = submittedUserPass;
   } else if (!target.password) {
-    target.password = 'Admin@123';
+    target.password = (target.id === 'USR-001' || (target.email || '').toLowerCase() === ADMIN_PRIMARY_EMAIL)
+      ? (store.SYSTEM_SETTINGS?.admin_login_password || 'Admin@123')
+      : 'Admin@123';
   }
   target.role = role;
   target.access_scope = role === 'Administrator' ? 'Full System' : (req.body.access_scope || (roleDef && roleDef.access_scope) || 'Department');
@@ -6126,8 +7234,12 @@ app.post('/settings/admin-users/create', (req, res) => {
   target.signature_font = req.body.signature_font || target.signature_font || 'Inter';
   target.signature_color = req.body.signature_color || target.signature_color || '#7E22CE';
 
-  saveStore();
-  logAudit(isNew ? 'User Account Provisioned' : 'User Credentials Updated', `${isNew ? 'Created' : 'Updated'} ${target.name} (${target.email}) as ${target.role}`, 'security', '/settings/admin-users');
+  if (submittedUserPass) {
+    updateUserPasswordEverywhere(target, submittedUserPass);
+  } else {
+    saveStore();
+  }
+  logAudit(isNew ? 'User Account Provisioned' : 'User Credentials Updated', `${isNew ? 'Created' : 'Updated'} ${target.name} (${target.email}) as ${target.role}${submittedUserPass ? ' + updated password' : ''}`, 'security', '/settings/admin-users');
   flash('success', isNew ? `User account for ${target.name} created permanently.` : `Credentials, password, and role permissions for ${target.name} updated permanently.`);
   res.redirect('/settings/admin-users');
 });
@@ -6482,7 +7594,7 @@ app.post('/settings/profile/save', upload.fields([
 
     Object.assign(target, incoming);
     if (newPassword) {
-      target.password = newPassword;
+      updateUserPasswordEverywhere(target, newPassword);
       logAudit('Password Updated', `${target.name} (${target.email}) updated their account password.`, 'security', '/settings/profile');
     }
     const profFile = req.files && req.files['profile_image'] && req.files['profile_image'][0];

@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "saved_at": "2026-10-01T05:13:28.016Z",
+  "saved_at": "2026-10-01T10:48:43.098Z",
   "COMPANIES": [
     {
       "id": "comp-001",
@@ -31,8 +31,8 @@
       "code": "UEAL",
       "primary_color": "#680075",
       "secondary_color": "#f5b400",
-      "logo_light_url": "/static/brand/ultravetis_logo.png",
-      "logo_dark_url": "/static/brand/ultravetis_logo.png",
+      "logo_light_url": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22340%22%20height%3D%2284%22%20viewBox%3D%220%200%20340%2084%22%3E%3Crect%20x%3D%222%22%20y%3D%228%22%20width%3D%2268%22%20height%3D%2268%22%20rx%3D%2214%22%20fill%3D%22%23680075%22%2F%3E%3Crect%20x%3D%2250%22%20y%3D%2256%22%20width%3D%2220%22%20height%3D%2220%22%20rx%3D%226%22%20fill%3D%22%23f5b400%22%2F%3E%3Ctext%20x%3D%2236%22%20y%3D%2249%22%20text-anchor%3D%22middle%22%20font-family%3D%22Inter%2CArial%2Csans-serif%22%20font-size%3D%2220%22%20font-weight%3D%22900%22%20fill%3D%22%23ffffff%22%3EUEAL%3C%2Ftext%3E%3Ctext%20x%3D%2284%22%20y%3D%2240%22%20font-family%3D%22Inter%2CArial%2Csans-serif%22%20font-size%3D%2218.5%22%20font-weight%3D%22900%22%20fill%3D%22%23FFFFFF%22%3EUltravetis%20East%20Afri%E2%80%A6%3C%2Ftext%3E%3Ctext%20x%3D%2284%22%20y%3D%2261%22%20font-family%3D%22Inter%2CArial%2Csans-serif%22%20font-size%3D%2210.5%22%20font-weight%3D%22800%22%20letter-spacing%3D%221.6%22%20fill%3D%22%23f5b400%22%3EUEAL%20%E2%80%A2%20WORKSPACE%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "logo_dark_url": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22340%22%20height%3D%2284%22%20viewBox%3D%220%200%20340%2084%22%3E%3Crect%20x%3D%222%22%20y%3D%228%22%20width%3D%2268%22%20height%3D%2268%22%20rx%3D%2214%22%20fill%3D%22%23680075%22%2F%3E%3Crect%20x%3D%2250%22%20y%3D%2256%22%20width%3D%2220%22%20height%3D%2220%22%20rx%3D%226%22%20fill%3D%22%23f5b400%22%2F%3E%3Ctext%20x%3D%2236%22%20y%3D%2249%22%20text-anchor%3D%22middle%22%20font-family%3D%22Inter%2CArial%2Csans-serif%22%20font-size%3D%2220%22%20font-weight%3D%22900%22%20fill%3D%22%23ffffff%22%3EUEAL%3C%2Ftext%3E%3Ctext%20x%3D%2284%22%20y%3D%2240%22%20font-family%3D%22Inter%2CArial%2Csans-serif%22%20font-size%3D%2218.5%22%20font-weight%3D%22900%22%20fill%3D%22%230F172A%22%3EUltravetis%20East%20Afri%E2%80%A6%3C%2Ftext%3E%3Ctext%20x%3D%2284%22%20y%3D%2261%22%20font-family%3D%22Inter%2CArial%2Csans-serif%22%20font-size%3D%2210.5%22%20font-weight%3D%22800%22%20letter-spacing%3D%221.6%22%20fill%3D%22%23680075%22%3EUEAL%20%E2%80%A2%20WORKSPACE%3C%2Ftext%3E%3C%2Fsvg%3E",
       "show_name_next_to_logo": false,
       "logo_height": 48,
       "logo_width_pct": 88,
@@ -876,6 +876,150 @@
   ],
   "AUDIT_TRAIL": [
     {
+      "id": "30ceaefd102b41c8889254d0524b232a",
+      "action": "Workspace Switched",
+      "detail": "Switched active workspace to Ultravetis East Africa Limited (UEAL)",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/companies",
+      "created_at": "2026-10-01T10:48:43.098Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "1a68eade8b534510b396e9550fc204f9",
+      "action": "Workspace Switched",
+      "detail": "Switched active workspace to Opsloom Kenya (OPS)",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/companies",
+      "created_at": "2026-10-01T10:48:42.927Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "b44fad4da5714f0ab6f034751afd5146",
+      "action": "User Password Help Requested",
+      "detail": "User grace.wanjiku@opsloom.co.ke directed to contact opsloom.ke@gmail.com for password reset assistance.",
+      "module": "security",
+      "severity": "info",
+      "href": "/settings/admin-users",
+      "created_at": "2026-10-01T09:51:50.150Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "245f70379bbe4bf6b11ffa1fd9fada97",
+      "action": "User Login",
+      "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-10-01T09:51:50.143Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "cc0058307d5441d7ba1b9e4de0c68e4a",
+      "action": "Failed Login Attempt",
+      "detail": "Incorrect password entered for opsloom.ke@gmail.com.",
+      "module": "security",
+      "severity": "warning",
+      "href": "/login",
+      "created_at": "2026-10-01T09:51:50.137Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "850d02326dac46b0a9a000fab6563449",
+      "action": "Admin Password Reset Completed",
+      "detail": "Administrator (opsloom.ke@gmail.com) verified recovery code sent to laurencemureithi1999@gmail.com and updated their password.",
+      "module": "security",
+      "severity": "info",
+      "href": "/login",
+      "created_at": "2026-10-01T09:51:50.134Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "1899dc2ad38e48b4b69c832c91ece8c5",
+      "action": "Admin Reset Code Reverted",
+      "detail": "Generated 6-digit password reset code for opsloom.ke@gmail.com and reverted to laurencemureithi1999@gmail.com.",
+      "module": "security",
+      "severity": "warning",
+      "href": "/login",
+      "created_at": "2026-10-01T09:51:50.079Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "4861173241974393a15b3518b55eef6a",
+      "action": "User Login",
+      "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-10-01T09:51:50.075Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "ffcba13f88b14829bae7385832784ea6",
+      "action": "Failed Login Attempt",
+      "detail": "Incorrect password entered for opsloom.ke@gmail.com.",
+      "module": "security",
+      "severity": "warning",
+      "href": "/login",
+      "created_at": "2026-10-01T09:51:50.070Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "2603b81328cb4f95a130600bd003572b",
+      "action": "System Settings Saved",
+      "detail": "Updated system settings and security session timeout (30 mins) + updated admin password.",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/admin",
+      "created_at": "2026-10-01T09:51:50.066Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "c257b89d6b964d8ab8b46d8b82356304",
+      "action": "User Login",
+      "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-10-01T09:51:50.047Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "597fbd2e710f49b5a553f9ea4acd8665",
+      "action": "User Login",
+      "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-10-01T09:11:10.688Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
       "id": "d8664678de154cecaef00af63fa08d06",
       "action": "User Login",
       "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
@@ -1208,9 +1352,20 @@
     "company_contact_email": "opsloom.ke@gmail.com",
     "company_contact_phone": "+254 20 2358205",
     "password_reset_help": "Contact Opsloom support or your system administrator to reset your password.",
-    "session_timeout_minutes": 30
+    "session_timeout_minutes": 30,
+    "admin_login_password": "Admin@123"
   },
   "SYSTEM_NOTIFICATIONS": [
+    {
+      "id": "notif-1790848310149",
+      "title": "Password Reset Help Requested",
+      "message": "grace.wanjiku@opsloom.co.ke requested password reset assistance. Contact opsloom.ke@gmail.com.",
+      "kind": "warning",
+      "created_at": "2026-10-01T09:51:50.149Z",
+      "is_read": false,
+      "href": "/settings/admin-users",
+      "should_toast": true
+    },
     {
       "id": "notif-bd-001",
       "title": "Active Critical Breakdown: FBD-01",
@@ -1278,7 +1433,7 @@
       "role": "Administrator",
       "access_scope": "Full System",
       "department": "Engineering",
-      "company_id": "comp-001",
+      "company_id": "comp-002",
       "active": true,
       "is_active": true,
       "is_superadmin": true,
@@ -1302,7 +1457,7 @@
       "signature_style": "formal",
       "signature_image_url": "",
       "profile_image_url": "",
-      "last_login_at": "01 Oct 2026, 05:13",
+      "last_login_at": "01 Oct 2026, 09:51",
       "password": "Admin@123"
     },
     {
@@ -1359,6 +1514,23 @@
   ],
   "INTERNAL_MESSAGES": [
     {
+      "id": "msg-reset-1790848310149",
+      "thread_id": "thread-reset-1790848310149",
+      "category": "Credential Reset",
+      "sender_email": "grace.wanjiku@opsloom.co.ke",
+      "sender_name": "Eng. Grace Wanjiku (Manager)",
+      "recipient_emails": [
+        "opsloom.ke@gmail.com"
+      ],
+      "subject": "Credential Reset Help Request: grace.wanjiku@opsloom.co.ke",
+      "body": "User Eng. Grace Wanjiku (Manager) (grace.wanjiku@opsloom.co.ke) requested password reset help from the login screen. Please contact or reset their password from Admin Credentials & Users.",
+      "attachments": [],
+      "created_at": "2026-10-01T09:51:50.149Z",
+      "is_read_by": [],
+      "delivery_status": "sent",
+      "sent_at": "2026-10-01T09:51:50.149Z"
+    },
+    {
       "id": "msg-welcome-admin",
       "thread_id": "thread-welcome-admin",
       "sender_email": "opsloom.ke@gmail.com",
@@ -1379,7 +1551,20 @@
     }
   ],
   "DRAFT_MESSAGES": [],
-  "OUTBOX_MESSAGES": [],
+  "OUTBOX_MESSAGES": [
+    {
+      "id": "out-1790848310079",
+      "sender_name": "Opsloom Security Core",
+      "sender_email": "opsloom.ke@gmail.com",
+      "recipient_emails": [
+        "laurencemureithi1999@gmail.com"
+      ],
+      "subject": "Opsloom Admin Password Reset Code (963740)",
+      "body": "Administrator password reset requested for opsloom.ke@gmail.com. Your 6-digit recovery reset code reverted to laurencemureithi1999@gmail.com is: 963740 (valid for 15 minutes).",
+      "created_at": "2026-10-01T09:51:50.079Z",
+      "delivery_status": "sent"
+    }
+  ],
   "RECYCLE_BIN": [
     {
       "id": "bin-1790769354302-406",
@@ -1735,5 +1920,6 @@
       "edit_modules": [],
       "delete_modules": []
     }
-  ]
+  ],
+  "ADMIN_RESET_STATE": null
 }

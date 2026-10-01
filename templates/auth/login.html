@@ -290,15 +290,102 @@
 
           <div class="auth-secondary-grid">
             <a href="{{ url_for('login_google') }}" class="auth-secondary"><span class="material-symbols-outlined">google</span>Sign In with Google</a>
-            <form method="post" action="{{ url_for('forgot_password') }}">
-              <button class="auth-secondary-btn" type="submit"><span class="material-symbols-outlined">lock_reset</span>Forgot Password</button>
+            <form id="quickForgotForm" method="post" action="{{ url_for('forgot_password') }}" onsubmit="return handleQuickForgotSubmit(event);">
+              <input type="hidden" name="email" id="quickForgotEmailInput" value="">
+              <button class="auth-secondary-btn cursor-pointer" type="submit"><span class="material-symbols-outlined">lock_reset</span>Forgot Password</button>
             </form>
           </div>
 
+          <!-- Password Recovery & Reset Panel -->
+          <div id="forgotPasswordPanel" class="mt-5 rounded-2xl border border-blue-200 dark:border-blue-900/50 bg-blue-50/50 dark:bg-slate-900/90 p-5 {% if not show_forgot_box %}hidden{% endif %}">
+            <div class="flex items-center justify-between gap-2 mb-3">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-blue-600 dark:text-blue-400">lock_reset</span>
+                <h3 class="text-xs font-black uppercase tracking-[0.16em] text-slate-800 dark:text-slate-100">Password Recovery &amp; Reset</h3>
+              </div>
+              <button type="button" onclick="document.getElementById('forgotPasswordPanel').classList.add('hidden');" class="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer">Close</button>
+            </div>
+
+            {% if admin_reset_active and admin_reset_state %}
+              <div class="rounded-xl border border-emerald-300 dark:border-emerald-800/70 bg-emerald-50 dark:bg-emerald-950/30 p-3.5 mb-4 text-xs text-emerald-900 dark:text-emerald-200 space-y-1.5">
+                <div class="font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                  <span class="material-symbols-outlined text-sm">mark_email_read</span>
+                  Admin Recovery Code Reverted
+                </div>
+                <p>Account: <strong>{{ admin_reset_state.admin_email }}</strong></p>
+                <p>Recovery destination: <strong>{{ admin_reset_state.recovery_email }}</strong></p>
+                <div class="pt-1.5 flex flex-wrap items-center justify-between gap-2 border-t border-emerald-200/80 dark:border-emerald-800/50">
+                  <span>Dispatched 6-Digit Reset Code: <strong class="px-2 py-0.5 rounded bg-white dark:bg-slate-900 font-mono text-sm tracking-widest text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">{{ admin_reset_state.code }}</strong></span>
+                  <button type="button" onclick="document.getElementById('adminResetCodeInput').value='{{ admin_reset_state.code }}';" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-wider text-[10px] cursor-pointer">Use Code</button>
+                </div>
+              </div>
+
+              <form method="post" action="{{ url_for('reset_admin_password') }}" class="space-y-3.5">
+                <div>
+                  <label class="auth-label">6-Digit Recovery Code (sent to {{ admin_recovery_email }})</label>
+                  <input id="adminResetCodeInput" name="reset_code" type="text" required maxlength="6" placeholder="Enter 6-digit code" value="{{ admin_reset_state.code }}" class="auth-input font-mono tracking-widest font-bold">
+                </div>
+                <div>
+                  <label class="auth-label">New Admin Password (opsloom.ke@gmail.com)</label>
+                  <input name="new_password" type="password" required minlength="4" autocomplete="new-password" placeholder="Enter new admin password" class="auth-input">
+                </div>
+                <div>
+                  <label class="auth-label">Confirm New Password</label>
+                  <input name="confirm_password" type="password" required minlength="4" autocomplete="new-password" placeholder="Confirm new admin password" class="auth-input">
+                </div>
+                <button type="submit" class="auth-primary cursor-pointer">Verify Code &amp; Update Admin Password</button>
+              </form>
+            {% else %}
+              {% if contact_admin_help %}
+              <div class="rounded-xl border border-amber-300 dark:border-amber-800/70 bg-amber-50 dark:bg-amber-950/30 p-4 mb-4 text-xs text-amber-900 dark:text-amber-200 space-y-2">
+                <div class="font-black uppercase tracking-wider text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                  <span class="material-symbols-outlined text-sm">support_agent</span>
+                  Contact Administrator for Password Reset Help
+                </div>
+                <p>For <strong>{{ contact_admin_user_email or 'your account' }}</strong>, self-service reset codes are restricted to the System Administrator.</p>
+                <p>Please contact <strong><a href="mailto:opsloom.ke@gmail.com?subject=Password%20Reset%20Help%20Request%20({{ contact_admin_user_email }})" class="underline text-blue-600 dark:text-blue-400">opsloom.ke@gmail.com</a></strong> for help. Your request has also been logged to the administrator's inbox.</p>
+              </div>
+              {% endif %}
+
+              <p class="text-xs text-slate-600 dark:text-slate-300 mb-3 leading-relaxed">
+                • If you are the <strong>Admin (opsloom.ke@gmail.com)</strong>, entering your email below reverts a 6-digit reset code to <strong>laurencemureithi1999@gmail.com</strong>.<br>
+                • Any other user will be directed to contact <strong>opsloom.ke@gmail.com</strong> for assistance.
+              </p>
+              <form method="post" action="{{ url_for('forgot_password') }}" class="space-y-3">
+                <div>
+                  <label class="auth-label">Account Email</label>
+                  <input id="forgotEmailField" name="email" type="email" required value="{{ contact_admin_user_email or '' }}" placeholder="opsloom.ke@gmail.com or your company email" class="auth-input">
+                </div>
+                <button type="submit" class="auth-primary cursor-pointer">Submit Password Recovery Request</button>
+              </form>
+            {% endif %}
+          </div>
+
+          <script>
+            function handleQuickForgotSubmit(e) {
+              var loginEmail = document.getElementById('loginEmailInput');
+              var hiddenEmail = document.getElementById('quickForgotEmailInput');
+              var panel = document.getElementById('forgotPasswordPanel');
+              var forgotField = document.getElementById('forgotEmailField');
+              var typed = loginEmail && loginEmail.value ? loginEmail.value.trim() : '';
+              if (typed) {
+                hiddenEmail.value = typed;
+                return true;
+              }
+              if (panel && panel.classList.contains('hidden')) {
+                e.preventDefault();
+                panel.classList.remove('hidden');
+                if (forgotField) forgotField.focus();
+                return false;
+              }
+              return true;
+            }
+          </script>
+
           <div class="auth-help-box" style="margin-top:18px;">
-            <div style="margin-bottom:12px;padding:12px 14px;border-radius:16px;background:rgba(21,84,255,.06);border:1px solid rgba(21,84,255,.12);font-size:13px;color:#475569;">
-              <strong>System Access Help:</strong> {{ password_reset_help }}
-              <div style="margin-top:4px;">Technical support: {{ company_contact_email }}</div>
+            <div style="margin-bottom:12px;padding:12px 14px;border-radius:16px;background:rgba(21,84,255,.06);border:1px solid rgba(21,84,255,.12);font-size:13px;color:#475569;" class="dark:text-slate-300">
+              <strong>Password Recovery Policy:</strong> Admin (<strong>opsloom.ke@gmail.com</strong>) reverts reset codes to <strong>{{ admin_recovery_email or 'laurencemureithi1999@gmail.com' }}</strong>. All other users must contact <strong>opsloom.ke@gmail.com</strong> for help.
+              <div style="margin-top:4px;">Technical support: <a href="mailto:opsloom.ke@gmail.com" class="font-bold text-blue-600 dark:text-blue-400 underline">{{ company_contact_email }}</a></div>
             </div>
             <h3 style="font-size:13px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:#334155;" class="dark:text-slate-100">Need Access?</h3>
             <p style="margin-top:10px;font-size:14px;color:#64748b;" class="dark:text-slate-300">Request an account under your official corporate domain and your system administrator will provision your access.</p>

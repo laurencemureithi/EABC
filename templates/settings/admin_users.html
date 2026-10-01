@@ -227,12 +227,18 @@
                 </div>
               </td>
               <td class="px-4 sm:px-6 py-4 text-right align-top">
-                {% set action_items = [
-                  {'href': url_for('admin_users_page', edit=row.id) ~ '#provisionUserForm', 'label': 'Edit User & Privileges', 'icon': 'edit'},
-                  {'type':'form','href': url_for('admin_users_toggle', user_id=row.id), 'label': 'Set ' ~ ('Inactive' if row.active else 'Active'), 'icon': 'toggle_on'},
-                  {'type':'form','href': url_for('admin_users_delete', user_id=row.id), 'label': 'Delete User', 'icon': 'delete', 'variant': 'danger', 'confirm_key': 'delete_admin_user', 'confirm_title': 'Delete System User', 'confirm': 'Move this user account to the Admin Recycle Bin?', 'confirm_ok': 'Move to Recycle Bin'}
-                ] %}
-                {% include 'partials/table_actions_menu.html' %}
+                <div class="inline-flex items-center justify-end gap-1.5">
+                  <a href="{{ url_for('admin_users_page', edit=row.id) }}#provisionUserForm" class="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-ueal-purple text-[11px] font-extrabold text-slate-700 dark:text-slate-200 inline-flex items-center gap-1">
+                    <span class="material-symbols-outlined text-xs">key</span>
+                    Edit / Password
+                  </a>
+                  {% set action_items = [
+                    {'href': url_for('admin_users_page', edit=row.id) ~ '#provisionUserForm', 'label': 'Edit User & Privileges', 'icon': 'edit'},
+                    {'type':'form','href': url_for('admin_users_toggle', user_id=row.id), 'label': 'Set ' ~ ('Inactive' if row.active else 'Active'), 'icon': 'toggle_on'},
+                    {'type':'form','href': url_for('admin_users_delete', user_id=row.id), 'label': 'Delete User', 'icon': 'delete', 'variant': 'danger', 'confirm_key': 'delete_admin_user', 'confirm_title': 'Delete System User', 'confirm': 'Move this user account to the Admin Recycle Bin?', 'confirm_ok': 'Move to Recycle Bin'}
+                  ] %}
+                  {% include 'partials/table_actions_menu.html' %}
+                </div>
               </td>
             </tr>
             {% else %}
@@ -246,9 +252,11 @@
     <div id="provisionUserForm" class="xl:col-span-2 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-sm p-5 sm:p-6">
       {% set form_user = edit_user or {} %}
       <div class="flex items-center justify-between gap-2 flex-wrap">
-        <h2 class="text-sm font-black uppercase tracking-[0.18em]">{{ 'Edit Access User' if edit_user else 'Provision New User' }}</h2>
+        <h2 class="text-sm font-black uppercase tracking-[0.18em]">{{ 'Edit Access User' if edit_user else 'Provision / Update User' }}</h2>
         {% if edit_user %}
         <span class="px-2.5 py-1 rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] font-black uppercase">Editing {{ form_user.name }}</span>
+        {% else %}
+        <a href="{{ url_for('admin_users_page', edit='USR-001') }}#provisionUserForm" class="px-2.5 py-1 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[10px] font-black uppercase hover:underline">Edit Admin (opsloom.ke@gmail.com)</a>
         {% endif %}
       </div>
       <form method="post" action="{{ url_for('admin_users_create') }}" class="mt-4 space-y-4">

@@ -121,25 +121,31 @@
               <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">Pick a preset or enter any custom duration (1–1440 min). Enforced on login &amp; active sessions.</p>
             </div>
             <div>
-              <label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Update Admin Login Password ({{ current_user_email }})</label>
-              <input type="password" name="admin_new_password" autocomplete="new-password" placeholder="Enter new password to change (leave blank to keep current)" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm font-semibold">
+              <div class="flex items-center justify-between mb-2">
+                <label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Update Admin Login Password ({{ current_user_email }})</label>
+                <button type="button" onclick="var el=document.getElementById('adminNewPasswordInput'); el.type = el.type === 'password' ? 'text' : 'password';" class="text-[10px] font-extrabold uppercase text-ueal-purple dark:text-ueal-gold hover:underline cursor-pointer">Show / Hide</button>
+              </div>
+              <div class="flex flex-col sm:flex-row gap-2">
+                <input id="adminNewPasswordInput" type="password" name="admin_new_password" autocomplete="new-password" placeholder="Enter new password to change (leave blank to keep current)" class="flex-1 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm font-semibold">
+                <button type="submit" class="px-4 py-3 rounded-lg bg-ueal-purple hover:opacity-95 text-white text-xs font-black uppercase tracking-wider shrink-0 cursor-pointer">Update Password</button>
+              </div>
               <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">Immediately updates your sign-in password and invalidates the previous password.</p>
             </div>
           </div>
           <div class="mt-4 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-900/60 p-3.5 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p class="text-xs font-extrabold text-slate-800 dark:text-slate-100">Immediate Session Lock &amp; Role Governance</p>
-              <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Lock this device immediately or manage custom user roles and module permissions.</p>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Lock this device immediately (saving any password/timeout changes) or manage custom user roles.</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
               <a href="{{ url_for('admin_users_page') }}" class="px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-black uppercase tracking-wider shrink-0 flex items-center gap-1.5">
                 <span class="material-symbols-outlined text-sm">admin_panel_settings</span>
                 Define Roles &amp; Permissions
               </a>
-              <a href="/lock?next={{ request.path }}" class="px-3.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-black uppercase tracking-wider shrink-0 flex items-center gap-1.5">
+              <button type="submit" name="lock_after_save" value="1" class="px-3.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-black uppercase tracking-wider shrink-0 flex items-center gap-1.5 cursor-pointer">
                 <span class="material-symbols-outlined text-sm">lock</span>
-                Lock Now
-              </a>
+                Save &amp; Lock Now
+              </button>
             </div>
           </div>
         </div>

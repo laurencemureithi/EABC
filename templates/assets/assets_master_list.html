@@ -352,16 +352,17 @@
 
         <div class="flex flex-wrap items-center gap-2">
           <a id="btnDownloadPptx"
-             href="/assets/export?fmt=pptx"
+             href="/assets/export/pptx?source=smart_insights"
              class="px-4 py-2 rounded-lg text-sm font-bold bg-ueal-gold text-white hover:opacity-95 transition">
             PowerPoint
           </a>
           <a id="btnDownloadPdf"
-             href="{{ url_for('assets_master_list') }}"
+             href="/assets/export/pdf?source=smart_insights"
              class="px-4 py-2 rounded-lg text-sm font-bold bg-ueal-purple text-white hover:opacity-95 transition">
             Download PDF
           </a>
           <button id="btnPrint"
+            type="button"
             class="px-4 py-2 rounded-lg text-sm font-bold border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
             Print
           </button>
@@ -741,91 +742,17 @@
 
         if (btnDownloadPdf) {
           const qs = buildQueryForReport();
-          btnDownloadPdf.href = "/assets/report/pdf" + (qs ? ("?" + qs) : "");
+          btnDownloadPdf.href = "/assets/export/pdf?source=smart_insights" + (qs ? ("&" + qs) : "");
         }
         if (btnDownloadPptx) {
           const qs = buildQueryForReport();
-          btnDownloadPptx.href = "/assets/export?fmt=pptx" + (qs ? ("&" + qs) : "");
+          btnDownloadPptx.href = "/assets/export/pptx?source=smart_insights" + (qs ? ("&" + qs) : "");
         }
       }
 
       function printSelection(){
-        const items = filterAssets();
-        const title = "Asset Register Report";
-        const sub = (selMeta && selMeta.textContent) ? selMeta.textContent : "";
-        const headerSrc = new URL("{{ url_for('static', filename='brand/opsloom_header.png') }}", window.location.origin).href;
-        const generatedAt = new Date().toLocaleString();
-
-        const html = `
-          <html>
-            <head>
-              <title>${title}</title>
-              <style>
-                :root { color-scheme: light; }
-                body { font-family: Arial, sans-serif; padding: 22px; color: #0f172a; }
-                .doc-header { margin-bottom: 14px; }
-                .doc-header img { display:block; width:100%; max-width:100%; height:auto; }
-                .doc-meta { display:flex; justify-content:space-between; align-items:flex-end; gap:16px; border-bottom:1px solid #cbd5e1; padding:8px 0 12px; margin-bottom:16px; }
-                .doc-meta-left small, .doc-meta-right small { display:block; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.12em; font-weight:700; }
-                .doc-meta-left strong, .doc-meta-right strong { display:block; margin-top:4px; font-size:12px; color:#0f172a; }
-                h1 { margin: 0 0 6px; font-size: 20px; }
-                .sub { margin: 0 0 14px; color: #475569; font-size: 12px; }
-                table { width: 100%; border-collapse: collapse; font-size: 12px; }
-                th, td { border: 1px solid #dbe2ea; padding: 8px; text-align: left; }
-                th { background: #f5f3ff; color:#312e81; }
-                @media print { body { padding: 0; } }
-              </style>
-            </head>
-            <body>
-              <div class="doc-header"><img src="${headerSrc}" alt="Opsloom corporate header"></div>
-              <div class="doc-meta">
-                <div class="doc-meta-left"><small>{{ current_department_display|upper }}</small><strong>${title}</strong></div>
-                <div class="doc-meta-right"><small>Generated</small><strong>${generatedAt}</strong></div>
-              </div>
-              <h1>${title}</h1>
-              <p class="sub">${sub}</p>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Asset ID</th>
-                    <th>Asset Name</th>
-                    <th>Section</th>
-                    <th>Status</th>
-                    <th>Criticality</th>
-                    <th>Serial</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${items.map(a => `
-                    <tr>
-                      <td>${norm(a.asset_id)}</td>
-                      <td>${norm(a.asset_name)}</td>
-                      <td>${norm(a.section)}</td>
-                      <td>${statusLabel(a.status)}</td>
-                      <td>${norm(a.criticality) || "—"}</td>
-                      <td>${norm(a.serial_no) || "—"}</td>
-                    </tr>
-                  `).join("")}
-                </tbody>
-              </table>
-            </body>
-          </html>
-        `;
-
-        const w = window.open("", "_blank");
-        if (!w) {
-          alert("Popup blocked. Please allow popups to print.");
-          return;
-        }
-        w.document.open();
-        w.document.write(html);
-        w.document.close();
-
-        // Print AFTER the new document finishes loading
-        w.onload = () => {
-          w.focus();
-          w.print();
-        };
+        const qs = buildQueryForReport();
+        window.location.href = "/assets/export/print?source=smart_insights" + (qs ? ("&" + qs) : "");
       }
 
       async function init(){

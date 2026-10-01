@@ -48,6 +48,14 @@
           </label>
           {% endif %}
         </div>
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Change Account Password ({{ profile.email }})</label>
+            <button type="button" onclick="var p=document.getElementById('profileNewPasswordInput'); p.type = p.type === 'password' ? 'text' : 'password';" class="text-[10px] font-extrabold uppercase text-ueal-purple dark:text-ueal-gold hover:underline cursor-pointer">Show / Hide</button>
+          </div>
+          <input id="profileNewPasswordInput" type="password" name="new_password" autocomplete="new-password" placeholder="Enter new password (leave blank to keep current)" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm font-semibold">
+          <p class="mt-2 text-[11px] text-slate-500">Immediately updates your login password and invalidates the old password.</p>
+        </div>
       </div>
       <div class="mt-5 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-900 p-4">
         <p class="text-xs text-slate-500 uppercase font-black tracking-[0.18em]">Preview</p>

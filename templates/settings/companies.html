@@ -351,9 +351,11 @@
 
 <script>
 let currentSimTheme = 'dark';
+let currentEditingComp = null;
 const rawCompanies = {{ companies|tojson|safe }};
 
 function openCreateCompanyModal() {
+  currentEditingComp = null;
   document.getElementById('modalHeading').textContent = 'Add Company Workspace';
   document.getElementById('compFormId').value = '';
   document.getElementById('compFormName').value = '';
@@ -385,6 +387,7 @@ function openCreateCompanyModal() {
 function editCompany(id) {
   const comp = rawCompanies.find(c => c.id === id);
   if (!comp) return;
+  currentEditingComp = comp;
   document.getElementById('modalHeading').textContent = 'Customize Workspace: ' + comp.name;
   document.getElementById('compFormId').value = comp.id;
   document.getElementById('compFormName').value = comp.name || '';
@@ -396,8 +399,10 @@ function editCompany(id) {
   document.getElementById('compFormPrimaryHex').value = comp.primary_color || '#1554FF';
   document.getElementById('compFormSecondary').value = comp.secondary_color || '#F59E0B';
   document.getElementById('compFormSecondaryHex').value = comp.secondary_color || '#F59E0B';
-  document.getElementById('compFormLogoLight').value = comp.logo_light_url || '';
-  document.getElementById('compFormLogoDark').value = comp.logo_dark_url || '';
+  const isLightDataUri = (comp.logo_light_url || '').startsWith('data:image/');
+  const isDarkDataUri = (comp.logo_dark_url || '').startsWith('data:image/');
+  document.getElementById('compFormLogoLight').value = isLightDataUri ? '[Uploaded Custom Logo Active]' : (comp.logo_light_url || '');
+  document.getElementById('compFormLogoDark').value = isDarkDataUri ? '[Uploaded Custom Logo Active]' : (comp.logo_dark_url || '');
   document.getElementById('compFormLogoLightBase64').value = '';
   document.getElementById('compFormLogoDarkBase64').value = '';
   const lf = document.getElementById('compFormLogoLightFile');
@@ -405,7 +410,7 @@ function editCompany(id) {
   if (lf) lf.value = '';
   if (df) df.value = '';
   document.getElementById('compFormShowName').checked = !!comp.show_name_next_to_logo;
-  document.getElementById('compFormHeight').value = comp.logo_height || 52;
+  document.getElementById('compFormHeight').value = comp.logo_height || 48;
   document.getElementById('compFormWidth').value = comp.logo_width_pct || 100;
   document.getElementById('compFormAlign').value = comp.logo_alignment || 'left';
   document.getElementById('compFormFit').value = comp.logo_fit || 'contain';
@@ -422,21 +427,21 @@ function handleLogoFileSelect(input, mode) {
     if (!dataUrl) return;
     if (mode === 'light') {
       document.getElementById('compFormLogoLightBase64').value = dataUrl;
-      document.getElementById('compFormLogoLight').value = dataUrl;
+      document.getElementById('compFormLogoLight').value = '[Uploaded: ' + file.name + ']';
       // Also mirror to dark mode if no separate dark file was chosen yet
       const df = document.getElementById('compFormLogoDarkFile');
       if (!df || !df.files || !df.files.length) {
         document.getElementById('compFormLogoDarkBase64').value = dataUrl;
-        document.getElementById('compFormLogoDark').value = dataUrl;
+        document.getElementById('compFormLogoDark').value = '[Uploaded: ' + file.name + ']';
       }
       setSimTheme('light');
     } else {
       document.getElementById('compFormLogoDarkBase64').value = dataUrl;
-      document.getElementById('compFormLogoDark').value = dataUrl;
+      document.getElementById('compFormLogoDark').value = '[Uploaded: ' + file.name + ']';
       const lf = document.getElementById('compFormLogoLightFile');
       if (!lf || !lf.files || !lf.files.length) {
         document.getElementById('compFormLogoLightBase64').value = dataUrl;
-        document.getElementById('compFormLogoLight').value = dataUrl;
+        document.getElementById('compFormLogoLight').value = '[Uploaded: ' + file.name + ']';
       }
       setSimTheme('dark');
     }
@@ -479,13 +484,24 @@ function updateSimulator() {
   const h = document.getElementById('compFormHeight').value;
   const w = document.getElementById('compFormWidth').value;
   const align = document.getElementById('compFormAlign').value;
+  const fit = document.getElementById('compFormFit').value || 'contain';
   const showName = document.getElementById('compFormShowName').checked;
   const name = document.getElementById('compFormName').value || 'Company Name';
   const code = document.getElementById('compFormCode').value || 'CODE';
-  const rawLight = document.getElementById('compFormLogoLightBase64').value || document.getElementById('compFormLogoLight').value || '/static/brand/opsloom_wordmark_light.png';
-  const rawDark = document.getElementById('compFormLogoDarkBase64').value || document.getElementById('compFormLogoDark').value || rawLight;
-  const safeLight = rawLight.includes('opsloom_wordmark_dark.png') ? '/static/brand/opsloom_wordmark_light.png' : rawLight;
-  const safeDark = rawDark.includes('opsloom_wordmark_dark.png') ? '/static/brand/opsloom_wordmark_light.png' : rawDark;
+  const lightTxt = document.getElementById('compFormLogoLight').value || '';
+  const darkTxt = document.getElementById('compFormLogoDark').value || '';
+  const existingLight = currentEditingComp && currentEditingComp.logo_light_url ? currentEditingComp.logo_light_url : '';
+  const existingDark = currentEditingComp && currentEditingComp.logo_dark_url ? currentEditingComp.logo_dark_url : '';
+  const rawLight = document.getElementById('compFormLogoLightBase64').value
+    || ((!lightTxt.startsWith('[Uploaded') && lightTxt.trim()) ? lightTxt.trim() : '')
+    || existingLight
+    || '/static/brand/opsloom_wordmark_light.png';
+  const rawDark = document.getElementById('compFormLogoDarkBase64').value
+    || ((!darkTxt.startsWith('[Uploaded') && darkTxt.trim()) ? darkTxt.trim() : '')
+    || existingDark
+    || rawLight;
+  const safeLight = rawLight;
+  const safeDark = rawDark;
 
   document.getElementById('heightValBadge').textContent = h + 'px';
   document.getElementById('widthValBadge').textContent = w + '%';
@@ -496,7 +512,7 @@ function updateSimulator() {
   const simBox = document.getElementById('sidebarSimBox');
 
   if (simBox) {
-    const minH = Math.max(64, parseInt(h, 10) + 20);
+    const minH = Math.max(56, parseInt(h, 10) + 16);
     simBox.style.minHeight = minH + 'px';
   }
 
@@ -505,7 +521,7 @@ function updateSimulator() {
   img.style.maxHeight = h + 'px';
   img.style.width = showName ? 'auto' : (w + '%');
   img.style.maxWidth = w + '%';
-  img.style.objectFit = 'contain';
+  img.style.objectFit = fit;
   img.style.objectPosition = objPos;
   img.src = currentSimTheme === 'light' ? safeLight : safeDark;
 
