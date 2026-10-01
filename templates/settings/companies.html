@@ -469,11 +469,15 @@ function normalizeImageFileToDataUrl(file) {
   });
 }
 
+const activeWorkspaceId = "{{ active_company.id if active_company else '' }}";
+
 function applyLogoToLiveDom(compId, lightDataUrl, darkDataUrl) {
-  const sLight = document.getElementById('sidebarLogoLight');
-  const sDark = document.getElementById('sidebarLogoDark');
-  if (sLight && lightDataUrl) sLight.src = lightDataUrl;
-  if (sDark && (darkDataUrl || lightDataUrl)) sDark.src = darkDataUrl || lightDataUrl;
+  if (!compId || compId === activeWorkspaceId) {
+    const sLight = document.getElementById('sidebarLogoLight');
+    const sDark = document.getElementById('sidebarLogoDark');
+    if (sLight && lightDataUrl) sLight.src = lightDataUrl;
+    if (sDark && (darkDataUrl || lightDataUrl)) sDark.src = darkDataUrl || lightDataUrl;
+  }
   if (compId) {
     const cLight = document.getElementById('cardLogoLight_' + compId);
     const cDark = document.getElementById('cardLogoDark_' + compId);

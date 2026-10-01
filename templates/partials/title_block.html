@@ -1,8 +1,9 @@
 {% set title_icon = title_icon|default('') %}
 {% set page_subtitle = page_subtitle|default('') %}
 {% set show_system_badge = show_system_badge|default(false) %}
-{% set system_badge_text = system_badge_text|default('SYSTEM STABLE') %}
-{% set system_badge_state = system_badge_state|default('stable') %}
+{% set sh = system_health if system_health else {} %}
+{% set system_badge_text = sh.badge or system_badge_text|default('SYSTEM STABLE') %}
+{% set system_badge_state = sh.state or system_badge_state|default('stable') %}
 {% set badge_dot_class = 'bg-green-500' if system_badge_state == 'stable' else ('bg-amber-500' if system_badge_state == 'warning' else 'bg-red-500') %}
 
 <div class="{{ title_mb or 'mb-8' }}">
@@ -55,7 +56,7 @@
             <span class="text-[11px] font-black text-slate-800 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 uppercase tracking-wider transition">{{ system_badge_text }}</span>
           </div>
           <p class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
-            {{ operational_assets or 10 }}/{{ total_assets or 12 }} Online • {{ kpi_uptime_rate or 98.4 }}% Uptime
+            {{ sh.driver_short or ((operational_assets if operational_assets is defined else 10) ~ '/' ~ (total_assets if total_assets is defined else 12) ~ ' Online • ' ~ (kpi_uptime_rate if kpi_uptime_rate is defined else 98.4) ~ '% Uptime') }}
           </p>
         </div>
         <span class="material-symbols-outlined text-[16px] text-slate-400 group-hover:text-emerald-500 transition ml-1">open_in_new</span>

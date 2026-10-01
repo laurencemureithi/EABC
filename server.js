@@ -1159,6 +1159,338 @@ function seedInitialDataIfEmpty() {
   }
 }
 
+const WORKSPACE_COLLECTION_KEYS = [
+  'ASSETS',
+  'BREAKDOWNS',
+  'MAINTENANCE_TASKS',
+  'INVENTORY_PARTS',
+  'REPORT_EXPORTS',
+  'TECHNICIAN_DIRECTORY',
+  'AUDIT_TRAIL',
+  'RECYCLE_BIN',
+  'AI_CHATS',
+  'ASSET_DOCUMENTS'
+];
+
+function buildOpsloomWorkspaceSeed(comp = {}) {
+  const code = (comp.code || 'OPS').toUpperCase();
+  const name = comp.name || 'Opsloom Kenya';
+  return {
+    ASSETS: [
+      { uid: `${code.toLowerCase()}-ast-001`, asset_id: `${code}-AST-001`, asset_name: 'Automated Bottling & Capping Line B1', section: 'Packaging', department: 'Engineering', category: 'Packaging Machinery', model_no: 'Krones-BL400', serial_no: 'SN-OPS-88101', manufacturer: 'Krones AG', year_of_manufacture: 2023, installation_date: '2023-05-12', status: 'operational', criticality: 'A', power_rating: '32 kW', operating_pressure: '6.5 Bar', capacity: '18,000 BPH', last_service_date: '2026-09-14', next_service_date: '2026-10-14' },
+      { uid: `${code.toLowerCase()}-ast-002`, asset_id: `${code}-AST-002`, asset_name: 'Industrial Steam Boiler 4-Ton', section: 'Liquid', department: 'Engineering', category: 'Thermal Utilities', model_no: 'Bosch-UL-S4000', serial_no: 'SN-OPS-88102', manufacturer: 'Bosch Industrial', year_of_manufacture: 2022, installation_date: '2022-08-20', status: 'operational', criticality: 'A', power_rating: '45 kW', operating_pressure: '10.0 Bar', capacity: '4,000 kg/hr', last_service_date: '2026-09-02', next_service_date: '2026-10-02' },
+      { uid: `${code.toLowerCase()}-ast-003`, asset_id: `${code}-AST-003`, asset_name: 'High-Speed Shrink Tunnel Wrapper', section: 'Packaging', department: 'Engineering', category: 'Secondary Packaging', model_no: 'SMI-SK450', serial_no: 'SN-OPS-88103', manufacturer: 'SMI Pack', year_of_manufacture: 2023, installation_date: '2023-07-10', status: 'maintenance', criticality: 'B', power_rating: '22 kW', operating_pressure: '6.0 Bar', capacity: '45 packs/min', last_service_date: '2026-08-28', next_service_date: '2026-09-28' },
+      { uid: `${code.toLowerCase()}-ast-004`, asset_id: `${code}-AST-004`, asset_name: 'Rotary Screw Air Compressor 75kW', section: 'Pharma', department: 'Engineering', category: 'Pneumatic Utilities', model_no: 'GA-75VSD+', serial_no: 'SN-OPS-88104', manufacturer: 'Atlas Copco', year_of_manufacture: 2022, installation_date: '2022-04-15', status: 'operational', criticality: 'A', power_rating: '75 kW', operating_pressure: '8.5 Bar', capacity: '14.2 m³/min', last_service_date: '2026-09-10', next_service_date: '2026-10-10' },
+      { uid: `${code.toLowerCase()}-ast-005`, asset_id: `${code}-AST-005`, asset_name: 'Reverse Osmosis Water Purification Skid', section: 'Liquid', department: 'Engineering', category: 'Water Treatment', model_no: 'Veolia-RO-5000', serial_no: 'SN-OPS-88105', manufacturer: 'Veolia Water Tech', year_of_manufacture: 2024, installation_date: '2024-01-18', status: 'operational', criticality: 'A', power_rating: '18.5 kW', operating_pressure: '12.0 Bar', capacity: '5,000 L/hr', last_service_date: '2026-09-18', next_service_date: '2026-10-18' },
+      { uid: `${code.toLowerCase()}-ast-006`, asset_id: `${code}-AST-006`, asset_name: 'Robotic Pallet Stretch Wrapper', section: 'Packaging', department: 'Engineering', category: 'End-of-Line Automation', model_no: 'Robopac-Helix-3', serial_no: 'SN-OPS-88106', manufacturer: 'Robopac', year_of_manufacture: 2023, installation_date: '2023-11-05', status: 'operational', criticality: 'B', power_rating: '7.5 kW', operating_pressure: '5.5 Bar', capacity: '65 pallets/hr', last_service_date: '2026-09-12', next_service_date: '2026-10-12' },
+      { uid: `${code.toLowerCase()}-ast-007`, asset_id: `${code}-AST-007`, asset_name: 'Precision Powder Auger Filler PF-02', section: 'Powder', department: 'Engineering', category: 'Powder Dosing', model_no: 'AllFill-SHA-200', serial_no: 'SN-OPS-88107', manufacturer: 'All-Fill Inc.', year_of_manufacture: 2022, installation_date: '2022-09-22', status: 'operational', criticality: 'A', power_rating: '11 kW', operating_pressure: '6.0 Bar', capacity: '90 containers/min', last_service_date: '2026-09-08', next_service_date: '2026-10-08' },
+      { uid: `${code.toLowerCase()}-ast-008`, asset_id: `${code}-AST-008`, asset_name: 'Continuous Inkjet Batch Laser Coder', section: 'Packaging', department: 'Engineering', category: 'Coding & Marking', model_no: 'Videojet-1880', serial_no: 'SN-OPS-88108', manufacturer: 'Videojet', year_of_manufacture: 2024, installation_date: '2024-03-01', status: 'operational', criticality: 'B', power_rating: '1.2 kW', operating_pressure: '4.0 Bar', capacity: '300 m/min', last_service_date: '2026-09-20', next_service_date: '2026-10-20' }
+    ],
+    BREAKDOWNS: [
+      {
+        breakdown_id: `${code}-BD-2026-001`,
+        incident_title: 'Shrink Tunnel Heating Bank Contactor Trip',
+        asset_uid: `${code.toLowerCase()}-ast-003`,
+        asset_id: `${code}-AST-003`,
+        asset_name: 'High-Speed Shrink Tunnel Wrapper',
+        section: 'Packaging',
+        department: 'Engineering',
+        severity: 'Medium',
+        status: 'in_progress',
+        failure_category: 'Electrical',
+        reported_by: 'Laurence Magondu',
+        technician_name: 'Kelvin Mwangi',
+        reported_date: '2026-09-28',
+        reported_time: '10:15',
+        reported_dt: '2026-09-28 10:15',
+        downtime_hours: 2.2,
+        cost_subtotal: 18000,
+        cost_vat_pct: 16,
+        cost_vat_amount: 2880,
+        cost_total: 20880,
+        cost: 20880,
+        description: `Thermal overload relay tripped on Zone 2 heater bank inside ${name} packaging bay.`,
+        corrective_action: 'Replacing 40A solid state contactor and verifying thermocouple calibration.'
+      },
+      {
+        breakdown_id: `${code}-BD-2026-002`,
+        incident_title: 'Capping Head Torque Clutch Slip',
+        asset_uid: `${code.toLowerCase()}-ast-001`,
+        asset_id: `${code}-AST-001`,
+        asset_name: 'Automated Bottling & Capping Line B1',
+        section: 'Packaging',
+        department: 'Engineering',
+        severity: 'Low',
+        status: 'resolved',
+        failure_category: 'Mechanical',
+        reported_by: 'Grace Wanjiku',
+        technician_name: 'Brian Ochieng',
+        reported_date: '2026-09-22',
+        reported_time: '14:20',
+        reported_dt: '2026-09-22 14:20',
+        resolved_at: '2026-09-22T15:50:00Z',
+        downtime_hours: 1.5,
+        cost_subtotal: 12500,
+        cost_vat_pct: 16,
+        cost_vat_amount: 2000,
+        cost_total: 14500,
+        cost: 14500,
+        description: 'Magnetic capping head #3 exhibited inconsistent closure torque during 500ml bottle run.',
+        corrective_action: 'Recalibrated magnetic clutch ring and replaced worn drive collet.'
+      }
+    ],
+    MAINTENANCE_TASKS: [
+      {
+        task_id: `${code}-TASK-2026-101`,
+        task_title: 'Monthly Capping Turret & Starwheel Alignment',
+        task_description: 'Inspect starwheel pockets, lubricate cam followers, and verify cap torque across all 8 heads.',
+        asset_uid: `${code.toLowerCase()}-ast-001`,
+        asset_id: `${code}-AST-001`,
+        asset_name: 'Automated Bottling & Capping Line B1',
+        section: 'Packaging',
+        department: 'Engineering',
+        maintenance_type: 'PM',
+        frequency: 'Monthly',
+        due_date: '2026-10-05',
+        scheduled_date: '2026-10-05',
+        status: 'upcoming',
+        priority: 'high',
+        technician: 'Kelvin Mwangi',
+        cost_subtotal: 15000,
+        cost_vat_pct: 16,
+        cost_vat_amount: 2400,
+        cost_total: 17400,
+        cost: 17400
+      },
+      {
+        task_id: `${code}-TASK-2026-102`,
+        task_title: 'Steam Boiler Safety Valve & Blowdown Test',
+        task_description: 'Verify boiler water TDS, test dual safety relief valves, and inspect burner flame eye sensor.',
+        asset_uid: `${code.toLowerCase()}-ast-002`,
+        asset_id: `${code}-AST-002`,
+        asset_name: 'Industrial Steam Boiler 4-Ton',
+        section: 'Liquid',
+        department: 'Engineering',
+        maintenance_type: 'PM',
+        frequency: 'Monthly',
+        due_date: '2026-09-25',
+        scheduled_date: '2026-09-25',
+        completed_at: '2026-09-25 16:00',
+        status: 'completed',
+        priority: 'high',
+        technician: 'Brian Ochieng',
+        cost_subtotal: 22000,
+        cost_vat_pct: 16,
+        cost_vat_amount: 3520,
+        cost_total: 25520,
+        cost: 25520
+      },
+      {
+        task_id: `${code}-TASK-2026-103`,
+        task_title: 'RO Membrane CIP & High-Pressure Pump Seal Check',
+        task_description: 'Perform clean-in-place sanitization on RO stages 1 & 2 and inspect cartridge pre-filters.',
+        asset_uid: `${code.toLowerCase()}-ast-005`,
+        asset_id: `${code}-AST-005`,
+        asset_name: 'Reverse Osmosis Water Purification Skid',
+        section: 'Liquid',
+        department: 'Engineering',
+        maintenance_type: 'PM',
+        frequency: 'Quarterly',
+        due_date: '2026-09-18',
+        scheduled_date: '2026-09-18',
+        completed_at: '2026-09-18 14:30',
+        status: 'completed',
+        priority: 'medium',
+        technician: 'Kelvin Mwangi',
+        cost_subtotal: 19500,
+        cost_vat_pct: 16,
+        cost_vat_amount: 3120,
+        cost_total: 22620,
+        cost: 22620
+      },
+      {
+        task_id: `${code}-TASK-2026-104`,
+        task_title: 'Air Compressor Oil Separator & Intake Filter Service',
+        task_description: 'Replace air intake element, check VSD inverter heatsink fans, and sample synthetic rotary oil.',
+        asset_uid: `${code.toLowerCase()}-ast-004`,
+        asset_id: `${code}-AST-004`,
+        asset_name: 'Rotary Screw Air Compressor 75kW',
+        section: 'Pharma',
+        department: 'Engineering',
+        maintenance_type: 'PM',
+        frequency: 'Quarterly',
+        due_date: '2026-10-10',
+        scheduled_date: '2026-10-10',
+        status: 'upcoming',
+        priority: 'medium',
+        technician: 'Brian Ochieng',
+        cost_subtotal: 28000,
+        cost_vat_pct: 16,
+        cost_vat_amount: 4480,
+        cost_total: 32480,
+        cost: 32480
+      }
+    ],
+    INVENTORY_PARTS: [
+      { uid: `${code.toLowerCase()}-part-001`, sku: `${code}-SKU-CAP-01`, part_name: 'Magnetic Capping Clutch Head Assembly', category: 'Mechanical', qty: 6, min_qty: 2, unit_price: 24500, storage_location: 'Rack OPS-A1', supplier: 'Krones East Africa', is_critical: true, lead_time_days: 7 },
+      { uid: `${code.toLowerCase()}-part-002`, sku: `${code}-SKU-HTR-40`, part_name: 'Shrink Tunnel Quartz Fin Heater 2.5kW', category: 'Electrical', qty: 8, min_qty: 4, unit_price: 8500, storage_location: 'Rack OPS-B2', supplier: 'Schneider Electric Kenya', is_critical: true, lead_time_days: 5 },
+      { uid: `${code.toLowerCase()}-part-003`, sku: `${code}-SKU-RO-4040`, part_name: 'Brackish Water RO Membrane 4040', category: 'Filtration & Process', qty: 4, min_qty: 2, unit_price: 38000, storage_location: 'Rack OPS-C1', supplier: 'Davis & Shirtliff Industrial', is_critical: true, lead_time_days: 10 },
+      { uid: `${code.toLowerCase()}-part-004`, sku: `${code}-SKU-CMP-SEP`, part_name: 'Atlas Copco GA75 Air-Oil Separator Kit', category: 'Pneumatics', qty: 3, min_qty: 2, unit_price: 42000, storage_location: 'Rack OPS-A3', supplier: 'Atlas Copco Eastern Africa', is_critical: true, lead_time_days: 7 },
+      { uid: `${code.toLowerCase()}-part-005`, sku: `${code}-SKU-SNS-opt`, part_name: 'SICK Retro-Reflective Photoelectric Sensor', category: 'Automation & PLC', qty: 2, min_qty: 3, unit_price: 11200, storage_location: 'Rack OPS-D1', supplier: 'Automation Supplies Ltd', is_critical: false, lead_time_days: 4 }
+    ],
+    REPORT_EXPORTS: [
+      {
+        id: `${code.toLowerCase()}-rep-001`,
+        name: `${code} Q3 2026 Strategic & Financial ROI Executive Brief`,
+        report_title: `${name} (${code}) Strategic & Financial ROI Intelligence`,
+        category: 'Strategic & Financial ROI',
+        category_key: 'strategic_roi',
+        department: 'Engineering',
+        scope_mode: 'department',
+        scope_target: 'Engineering',
+        start_date: '2026-09-01',
+        end_date: '2026-09-30',
+        period: '01 Sep 2026 → 30 Sep 2026',
+        format: 'PDF',
+        status: 'READY',
+        created_at: '2026-09-30T08:30:00Z',
+        created_at_fmt: '30 Sep 2026',
+        generated_label: '30 Sep 2026',
+        user_name: 'Laurence Magondu'
+      },
+      {
+        id: `${code.toLowerCase()}-rep-002`,
+        name: `${code} Packaging & Utilities Breakdown Analytics`,
+        report_title: `${name} (${code}) Breakdown & Root Cause Analytics`,
+        category: 'Breakdown Analytics',
+        category_key: 'breakdown_analytics',
+        department: 'Engineering',
+        scope_mode: 'department',
+        scope_target: 'Engineering',
+        start_date: '2026-09-01',
+        end_date: '2026-09-30',
+        period: '01 Sep 2026 → 30 Sep 2026',
+        format: 'PPTX',
+        status: 'READY',
+        created_at: '2026-09-29T14:15:00Z',
+        created_at_fmt: '29 Sep 2026',
+        generated_label: '29 Sep 2026',
+        user_name: 'Laurence Magondu'
+      },
+      {
+        id: `${code.toLowerCase()}-rep-003`,
+        name: `${code} Fleet Availability & OEE Reliability Report`,
+        report_title: `${name} (${code}) Asset Fleet Reliability Report`,
+        category: 'Asset Reliability',
+        category_key: 'asset_reliability',
+        department: 'Engineering',
+        scope_mode: 'department',
+        scope_target: 'Engineering',
+        start_date: '2026-09-01',
+        end_date: '2026-09-30',
+        period: '01 Sep 2026 → 30 Sep 2026',
+        format: 'PDF',
+        status: 'READY',
+        created_at: '2026-09-28T11:00:00Z',
+        created_at_fmt: '28 Sep 2026',
+        generated_label: '28 Sep 2026',
+        user_name: 'Laurence Magondu'
+      }
+    ],
+    TECHNICIAN_DIRECTORY: [
+      { id: `${code.toLowerCase()}-tech-001`, name: 'Kelvin Mwangi', role: 'Lead Packaging & Automation Engineer', discipline: 'Automation & PLC', section: 'Packaging', email: 'kelvin.mwangi@opsloom.co.ke', phone: '+254 722 410 890', shift: 'Day Shift (07:00 - 16:00)', active: true, certifications: 'Siemens TIA Portal, Krones Bottling Systems' },
+      { id: `${code.toLowerCase()}-tech-002`, name: 'Brian Ochieng', role: 'Utilities & Mechanical Reliability Technician', discipline: 'Mechanical & Utilities', section: 'Liquid', email: 'brian.ochieng@opsloom.co.ke', phone: '+254 733 512 304', shift: 'Day Shift (07:00 - 16:00)', active: true, certifications: 'Bosch Steam Boilers, Atlas Copco Pneumatics' },
+      { id: `${code.toLowerCase()}-tech-003`, name: 'Sylvia Chebet', role: 'Electrical & Instrumentation Specialist', discipline: 'Electrical', section: 'Pharma', email: 'sylvia.chebet@opsloom.co.ke', phone: '+254 711 890 221', shift: 'Rotating Shift', active: true, certifications: 'EPRA Class B1, VFD & Servo Drives' }
+    ],
+    AUDIT_TRAIL: [
+      {
+        id: `${code.toLowerCase()}-aud-001`,
+        action: 'Workspace Initialized',
+        detail: `Dedicated organization workspace initialized for ${name} (${code}).`,
+        module: 'settings',
+        href: '/dashboard',
+        severity: 'info',
+        user_name: 'Laurence Magondu',
+        user_email: 'opsloom.ke@gmail.com',
+        user_role: 'Administrator',
+        created_at: '2026-09-30T08:00:00Z',
+        time_display: '30/09/2026, 08:00:00'
+      }
+    ],
+    RECYCLE_BIN: [],
+    AI_CHATS: [],
+    ASSET_DOCUMENTS: []
+  };
+}
+
+function ensureWorkspaceBuckets() {
+  if (!store.WORKSPACE_DATA || typeof store.WORKSPACE_DATA !== 'object') {
+    store.WORKSPACE_DATA = {};
+  }
+  const companies = Array.isArray(store.COMPANIES) ? store.COMPANIES : [];
+  const hasExplicitUeal = companies.some(
+    c => c && ((c.code || '').toUpperCase() === 'UEAL' || String(c.name || '').toLowerCase().includes('ultravetis'))
+  );
+  companies.forEach((comp, idx) => {
+    if (!comp || !comp.id) return;
+    const isPrimaryUeal = ((comp.code || '').toUpperCase() === 'UEAL' || String(comp.name || '').toLowerCase().includes('ultravetis'))
+      || (!hasExplicitUeal && idx === 0);
+
+    const existingBucket = store.WORKSPACE_DATA[comp.id];
+    const mistakenlyHasUealSeed = !isPrimaryUeal
+      && existingBucket
+      && Array.isArray(existingBucket.ASSETS)
+      && existingBucket.ASSETS.some(a => a && a.asset_id === 'ENG-AST-0101');
+
+    if (!existingBucket || mistakenlyHasUealSeed) {
+      if (isPrimaryUeal) {
+        // Bind primary Ultravetis plant dataset to Ultravetis workspace
+        store.WORKSPACE_DATA[comp.id] = {
+          ASSETS: Array.isArray(store.ASSETS) ? JSON.parse(JSON.stringify(store.ASSETS)) : [],
+          BREAKDOWNS: Array.isArray(store.BREAKDOWNS) ? JSON.parse(JSON.stringify(store.BREAKDOWNS)) : [],
+          MAINTENANCE_TASKS: Array.isArray(store.MAINTENANCE_TASKS) ? JSON.parse(JSON.stringify(store.MAINTENANCE_TASKS)) : [],
+          INVENTORY_PARTS: Array.isArray(store.INVENTORY_PARTS) ? JSON.parse(JSON.stringify(store.INVENTORY_PARTS)) : [],
+          REPORT_EXPORTS: Array.isArray(store.REPORT_EXPORTS) ? JSON.parse(JSON.stringify(store.REPORT_EXPORTS)) : [],
+          TECHNICIAN_DIRECTORY: Array.isArray(store.TECHNICIAN_DIRECTORY) ? JSON.parse(JSON.stringify(store.TECHNICIAN_DIRECTORY)) : [],
+          AUDIT_TRAIL: Array.isArray(store.AUDIT_TRAIL) ? JSON.parse(JSON.stringify(store.AUDIT_TRAIL)) : [],
+          RECYCLE_BIN: Array.isArray(store.RECYCLE_BIN) ? JSON.parse(JSON.stringify(store.RECYCLE_BIN)) : [],
+          AI_CHATS: Array.isArray(store.AI_CHATS) ? JSON.parse(JSON.stringify(store.AI_CHATS)) : [],
+          ASSET_DOCUMENTS: Array.isArray(store.ASSET_DOCUMENTS) ? JSON.parse(JSON.stringify(store.ASSET_DOCUMENTS)) : []
+        };
+      } else {
+        // Seed dedicated independent organization dataset for Opsloom Kenya or any other company workspace
+        store.WORKSPACE_DATA[comp.id] = buildOpsloomWorkspaceSeed(comp);
+      }
+    } else {
+      // Ensure all collection arrays exist inside the bucket
+      const bucket = store.WORKSPACE_DATA[comp.id];
+      const fallbackSeed = !isPrimaryUeal ? buildOpsloomWorkspaceSeed(comp) : null;
+      WORKSPACE_COLLECTION_KEYS.forEach(k => {
+        if (!Array.isArray(bucket[k])) {
+          bucket[k] = fallbackSeed && Array.isArray(fallbackSeed[k]) ? fallbackSeed[k] : [];
+        }
+      });
+    }
+  });
+}
+
+function activateWorkspaceBucket(companyId) {
+  ensureWorkspaceBuckets();
+  const targetId = companyId || store.ACTIVE_COMPANY_ID || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
+  const comp = (store.COMPANIES || []).find(c => c.id === targetId) || (store.COMPANIES && store.COMPANIES[0]);
+  const effectiveId = comp ? comp.id : targetId;
+  if (!store.WORKSPACE_DATA[effectiveId]) {
+    store.WORKSPACE_DATA[effectiveId] = buildOpsloomWorkspaceSeed(comp || { id: effectiveId, name: 'Workspace', code: 'WKS' });
+  }
+  const bucket = store.WORKSPACE_DATA[effectiveId];
+  WORKSPACE_COLLECTION_KEYS.forEach(k => {
+    if (!Array.isArray(bucket[k])) bucket[k] = [];
+    store[k] = bucket[k];
+  });
+  store._BOUND_COMPANY_ID = effectiveId;
+  return bucket;
+}
+
 // Load store from disk (with seed fallback) and keep in sync across requests
 let lastDiskMtimeMs = 0;
 function syncStoreFromDisk() {
@@ -1175,6 +1507,8 @@ function syncStoreFromDisk() {
         if (!Array.isArray(store.ADMIN_USERS) || store.ADMIN_USERS.length === 0) {
           seedInitialDataIfEmpty();
         }
+        ensureWorkspaceBuckets();
+        activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
         lastDiskMtimeMs = stat.mtimeMs;
       }
     }
@@ -1185,6 +1519,8 @@ function syncStoreFromDisk() {
 
 syncStoreFromDisk();
 seedInitialDataIfEmpty();
+ensureWorkspaceBuckets();
+activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
 // Clear any stuck/forced toast flags on startup so refreshes never force stale popups
 if (Array.isArray(store.SYSTEM_NOTIFICATIONS)) {
   store.SYSTEM_NOTIFICATIONS = store.SYSTEM_NOTIFICATIONS.filter(
@@ -1198,6 +1534,15 @@ saveStore();
 
 function saveStore() {
   try {
+    ensureWorkspaceBuckets();
+    const boundId = store._BOUND_COMPANY_ID || store.ACTIVE_COMPANY_ID;
+    if (boundId && store.WORKSPACE_DATA && store.WORKSPACE_DATA[boundId]) {
+      WORKSPACE_COLLECTION_KEYS.forEach(k => {
+        if (Array.isArray(store[k])) {
+          store.WORKSPACE_DATA[boundId][k] = store[k];
+        }
+      });
+    }
     store.initialized = true;
     store.saved_at = new Date().toISOString();
     const payload = JSON.stringify(store, null, 2);
@@ -2479,10 +2824,130 @@ app.use(cookieParser('opsloom-secret-key'));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(express.json({ limit: '25mb' }));
 
-// Keep in-memory store synchronized with disk across requests
+function resolveActiveWorkspaceForRequest(req) {
+  if (!store.COMPANIES || !store.COMPANIES.length) {
+    seedInitialDataIfEmpty();
+  }
+  // Only honor query/body company_id on /set-company or explicit workspace_id query parameter, NEVER on user creation forms
+  const explicitSwitchId = (req && req.path === '/set-company')
+    ? (req.query?.company_id || req.body?.company_id)
+    : (req && req.query?.workspace_id);
+  const cookieCompId = req && req.cookies ? req.cookies.current_company_id : null;
+  const targetCompId = explicitSwitchId || cookieCompId || store.ACTIVE_COMPANY_ID || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id);
+  const activeCompany = (store.COMPANIES || []).find(c => c.id === targetCompId)
+    || (cookieCompId && (store.COMPANIES || []).find(c => c.id === cookieCompId))
+    || (store.COMPANIES && store.COMPANIES[0])
+    || {
+      id: 'comp-001',
+      name: 'Opsloom Kenya',
+      code: 'OPS',
+      primary_color: '#3700ff',
+      secondary_color: '#0ea5e9',
+      logo_light_url: '/static/brand/opsloom_wordmark_light.png',
+      logo_dark_url: '/static/brand/opsloom_wordmark_dark.png',
+      show_name_next_to_logo: false,
+      logo_height: 44,
+      logo_width_pct: 85,
+      logo_alignment: 'left',
+      logo_fit: 'contain'
+    };
+  store.ACTIVE_COMPANY_ID = activeCompany.id;
+  ensureCompanyDesignation(activeCompany);
+  activateWorkspaceBucket(activeCompany.id);
+  return activeCompany;
+}
+
+function computeSystemHealthStatus() {
+  const assets = store.ASSETS || [];
+  const breakdowns = store.BREAKDOWNS || [];
+  const tasks = store.MAINTENANCE_TASKS || [];
+  const parts = store.INVENTORY_PARTS || [];
+
+  const totalAssets = assets.length || 1;
+  const operationalAssets = assets.filter(a => a.status === 'operational').length;
+  const maintenanceAssets = assets.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
+  const oosAssets = assets.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
+  const uptimeRate = Math.round((operationalAssets / totalAssets) * 1000) / 10;
+  const uptimeTarget = 80.0;
+
+  const activeBds = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved');
+  const criticalOpenBds = activeBds.filter(b => String(b.severity || '').toLowerCase() === 'critical');
+  const overduePm = tasks.filter(t => t.status === 'overdue').length;
+  const completedTasks = tasks.filter(t => t.status === 'completed').length;
+  const upcomingTasks = tasks.filter(t => t.status === 'upcoming').length;
+  const pmCompliance = tasks.length ? Math.round(((completedTasks + upcomingTasks) / tasks.length) * 1000) / 10 : 92.0;
+
+  const outOfStockCount = parts.filter(p => Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) <= 0).length;
+
+  const ruleUptimePass = uptimeRate >= uptimeTarget;
+  const ruleCritBdPass = criticalOpenBds.length <= 1 && activeBds.length <= 3;
+  const ruleOosPass = oosAssets <= 2;
+  const rulePmPass = overduePm <= 2;
+
+  const isRisk = !ruleUptimePass || !ruleCritBdPass || !ruleOosPass;
+  const state = isRisk ? 'risk' : 'stable';
+  const badge = isRisk ? 'SYSTEM AT RISK' : 'SYSTEM STABLE';
+
+  const rules = [
+    {
+      label: 'Fleet Availability (OEE Uptime)',
+      threshold_label: `Minimum SLA ≥ ${uptimeTarget.toFixed(1)}%`,
+      actual: `${uptimeRate.toFixed(1)}% (${operationalAssets}/${assets.length} Online)`,
+      passed: ruleUptimePass
+    },
+    {
+      label: 'Active Breakdown Containment',
+      threshold_label: '≤ 1 Critical / ≤ 3 Active Stoppages',
+      actual: `${activeBds.length} Active (${criticalOpenBds.length} Critical)`,
+      passed: ruleCritBdPass
+    },
+    {
+      label: 'Out-of-Service (OOS) Fleet Cap',
+      threshold_label: '≤ 2 OOS Machines Simultaneously',
+      actual: `${oosAssets} Out of Service`,
+      passed: ruleOosPass
+    },
+    {
+      label: 'Preventive Maintenance (PM) Cadence',
+      threshold_label: '≤ 2 Overdue PM Work Orders',
+      actual: `${overduePm} Overdue (${pmCompliance}% SLA)`,
+      passed: rulePmPass
+    }
+  ];
+
+  const triggeredReasons = rules.filter(r => !r.passed).map(r => `${r.label}: ${r.actual}`);
+  const driverShort = isRisk
+    ? `Triggered by: ${triggeredReasons[0] || 'SLA Threshold Breach'}`
+    : `${operationalAssets}/${assets.length} Online (${uptimeRate.toFixed(1)}% ≥ ${uptimeTarget}% SLA) • ${activeBds.length} Active Fault(s)`;
+  const driverSummary = isRisk
+    ? `System flagged AT RISK because ${triggeredReasons.join(' and ')}. Resolve active stoppages to restore nominal status.`
+    : `System is STABLE: Fleet Uptime (${uptimeRate.toFixed(1)}%) exceeds the ${uptimeTarget.toFixed(1)}% minimum SLA threshold and active breakdowns (${activeBds.length}) are within containment limits.`;
+
+  return {
+    state,
+    badge,
+    uptime_rate: uptimeRate,
+    uptime_target: uptimeTarget,
+    operational_assets: operationalAssets,
+    maintenance_assets: maintenanceAssets,
+    oos_assets: oosAssets,
+    total_assets: assets.length,
+    active_breakdowns: activeBds.length,
+    critical_open_breakdowns: criticalOpenBds.length,
+    overdue_pm: overduePm,
+    pm_compliance: pmCompliance,
+    out_of_stock: outOfStockCount,
+    driver_short: driverShort,
+    driver_summary: driverSummary,
+    rules
+  };
+}
+
+// Keep in-memory store synchronized with disk and bind active workspace across requests
 app.use((req, res, next) => {
   if (!req.path.startsWith('/static')) {
     syncStoreFromDisk();
+    resolveActiveWorkspaceForRequest(req);
   }
   next();
 });
@@ -2719,28 +3184,8 @@ function updateUserPasswordEverywhere(identifier, newPassword) {
 
 function baseCtx(req, activeNav = 'dashboard') {
   const currentDept = req.query?.department || store.ACTIVE_DEPARTMENT || req.cookies?.current_department || 'Engineering';
-  // Resolve active company workspace reliably across both in-app navigation and download links
-  const explicitCompId = req.query?.company_id || req.body?.company_id;
-  const cookieCompId = req.cookies?.current_company_id;
-  const primaryCompId = explicitCompId || store.ACTIVE_COMPANY_ID || cookieCompId || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id);
-  const activeCompany = (store.COMPANIES || []).find(c => c.id === primaryCompId)
-    || (cookieCompId && (store.COMPANIES || []).find(c => c.id === cookieCompId))
-    || (store.COMPANIES && store.COMPANIES[0])
-    || {
-      id: 'comp-001',
-      name: 'Opsloom Kenya',
-      code: 'OPS',
-      primary_color: '#3700ff',
-      secondary_color: '#0ea5e9',
-      logo_light_url: '/static/brand/opsloom_wordmark_light.png',
-      logo_dark_url: '/static/brand/opsloom_wordmark_dark.png',
-      show_name_next_to_logo: false,
-      logo_height: 44,
-      logo_width_pct: 85,
-      logo_alignment: 'left',
-      logo_fit: 'contain'
-    };
-  ensureCompanyDesignation(activeCompany);
+  // Resolve active company workspace strictly from session cookie / active workspace without being hijacked by form fields
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
   const actor = getCurrentActor(req);
   const caps = resolveUserCapabilities(actor);
 
@@ -2785,25 +3230,12 @@ function baseCtx(req, activeNav = 'dashboard') {
     saveStore();
   }
 
-  const allAssets = store.ASSETS || [];
-  const allBreakdowns = store.BREAKDOWNS || [];
-  const allTasks = store.MAINTENANCE_TASKS || [];
+  const sysHealth = computeSystemHealthStatus();
   const allParts = store.INVENTORY_PARTS || [];
-
-  const totalAssetsCount = allAssets.length;
-  const operationalAssetsCount = allAssets.filter(a => a.status === 'operational').length;
-  const maintenanceAssetsCount = allAssets.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
-  const oosAssetsCount = allAssets.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
-  const globalUptime = totalAssetsCount ? Math.round((operationalAssetsCount / totalAssetsCount) * 1000) / 10 : 98.4;
-
-  const activeBreakdownsCount = allBreakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved').length;
-  const completedTasksCount = allTasks.filter(t => t.status === 'completed').length;
-  const upcomingTasksCount = allTasks.filter(t => t.status === 'upcoming').length;
-  const overdueTasksCount = allTasks.filter(t => t.status === 'overdue').length;
-  const globalPmCompliance = allTasks.length ? Math.round(((completedTasksCount + upcomingTasksCount) / allTasks.length) * 1000) / 10 : 92.0;
-
   const invLowCount = allParts.filter(p => Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) <= Number(p.min_qty !== undefined ? p.min_qty : p.reorder_level || 5) && Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) > 0).length;
-  const invOutCount = allParts.filter(p => Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) <= 0).length;
+  const invOutCount = sysHealth.out_of_stock;
+  const invCritCount = allParts.filter(p => Boolean(p.is_critical)).length;
+  const invTotalVal = allParts.reduce((s, p) => s + (Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) * Number(p.unit_price !== undefined ? p.unit_price : p.unit_cost || 0)), 0);
 
   return {
     active_nav: activeNav,
@@ -2842,17 +3274,26 @@ function baseCtx(req, activeNav = 'dashboard') {
     print_company_code: activeCompany.code || 'OPS',
     print_company_address_lines: printCompanyAddressLines,
     ultravetis_address_lines: printCompanyAddressLines,
-    kpi_uptime_rate: globalUptime,
-    kpi_uptime_target: 80.0,
-    total_assets: totalAssetsCount,
-    operational_assets: operationalAssetsCount,
-    maintenance_assets: maintenanceAssetsCount,
-    oos_assets: oosAssetsCount,
-    kpi_active_breakdowns: activeBreakdownsCount,
-    pm_compliance: globalPmCompliance,
-    overdue_pm: overdueTasksCount,
+    system_health: sysHealth,
+    system_badge: sysHealth.badge,
+    system_badge_text: sysHealth.badge,
+    system_badge_state: sysHealth.state,
+    kpi_uptime_rate: sysHealth.uptime_rate,
+    kpi_uptime_target: sysHealth.uptime_target,
+    total_assets: sysHealth.total_assets,
+    operational_assets: sysHealth.operational_assets,
+    maintenance_assets: sysHealth.maintenance_assets,
+    oos_assets: sysHealth.oos_assets,
+    kpi_active_breakdowns: sysHealth.active_breakdowns,
+    total_breakdowns: (store.BREAKDOWNS || []).length,
+    pm_compliance: sysHealth.pm_compliance,
+    overdue_pm: sysHealth.overdue_pm,
+    total_tasks: (store.MAINTENANCE_TASKS || []).length,
+    total_parts: allParts.length,
+    inventory_critical_spares: invCritCount,
     inventory_low_stock: invLowCount,
     inventory_out_of_stock: invOutCount,
+    inventory_value: invTotalVal,
     recycle_bin_count: (store.RECYCLE_BIN || []).length,
     session_timeout_minutes: getSessionTimeoutMinutes(),
     custom_roles: customRoles,
@@ -2961,11 +3402,13 @@ app.post('/login', (req, res) => {
   setSafeCookie(req, res, 'opsloom_role', user.role || 'Viewer', timeoutMs);
   setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()), timeoutMs);
 
-  const preferredCompId = store.ACTIVE_COMPANY_ID || user.company_id;
+  const preferredCompId = req.cookies?.current_company_id || store.ACTIVE_COMPANY_ID || user.company_id;
   if (preferredCompId) {
+    store.ACTIVE_COMPANY_ID = preferredCompId;
+    activateWorkspaceBucket(preferredCompId);
     setSafeCookie(req, res, 'current_company_id', preferredCompId);
   }
-  const preferredDept = store.ACTIVE_DEPARTMENT || user.department || 'Engineering';
+  const preferredDept = req.cookies?.current_department || store.ACTIVE_DEPARTMENT || user.department || 'Engineering';
   if (preferredDept) {
     setSafeCookie(req, res, 'current_department', preferredDept);
   }
@@ -2979,6 +3422,10 @@ app.get('/login/google', (req, res) => {
   setSafeCookie(req, res, 'opsloom_user', 'USR-001');
   setSafeCookie(req, res, 'opsloom_role', 'Administrator');
   setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()));
+  const preferredCompId = req.cookies?.current_company_id || store.ACTIVE_COMPANY_ID || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id);
+  if (preferredCompId) {
+    setSafeCookie(req, res, 'current_company_id', preferredCompId);
+  }
   logAudit('Google sign-in', 'Laurence Magondu signed in via Google SSO.', 'security', '/dashboard');
   res.redirect('/dashboard');
 });
@@ -3187,11 +3634,11 @@ app.post('/api/companies/save-logo', (req, res) => {
   }
 
   target.custom_logo_updated_at = new Date().toISOString();
-  store.ACTIVE_COMPANY_ID = target.id;
-  setSafeCookie(req, res, 'current_company_id', target.id);
-  const actor = getCurrentActor(req);
-  if (actor) {
-    actor.company_id = target.id;
+  // Only update active company cookie if no workspace cookie is set yet or if editing the already-active workspace
+  const currentActiveId = req.cookies?.current_company_id || store.ACTIVE_COMPANY_ID;
+  if (!currentActiveId || currentActiveId === target.id) {
+    store.ACTIVE_COMPANY_ID = target.id;
+    setSafeCookie(req, res, 'current_company_id', target.id);
   }
 
   saveStore();
@@ -3199,7 +3646,7 @@ app.post('/api/companies/save-logo', (req, res) => {
   return res.json({
     ok: true,
     company: target,
-    active_company_id: target.id
+    active_company_id: store.ACTIVE_COMPANY_ID
   });
 });
 
@@ -3294,19 +3741,20 @@ app.post(['/settings/companies/save', '/api/companies/save'], upload.fields([
     target.designation_line_3 = String(req.body.designation_line_3).trim();
   }
   ensureCompanyDesignation(target);
+  ensureWorkspaceBuckets();
 
-  // Ensure the saved workspace is active in the current session & store so the sidebar immediately reflects the saved logo and sizing
-  store.ACTIVE_COMPANY_ID = target.id;
-  setSafeCookie(req, res, 'current_company_id', target.id);
-  const actor = getCurrentActor(req);
-  if (actor) {
-    actor.company_id = target.id;
+  // Only switch active workspace automatically if creating a brand-new workspace or if editing the currently active workspace
+  const currentCookieCompId = req.cookies?.current_company_id || store.ACTIVE_COMPANY_ID;
+  if (isNew || !currentCookieCompId || currentCookieCompId === target.id || req.body.activate_workspace === '1') {
+    store.ACTIVE_COMPANY_ID = target.id;
+    setSafeCookie(req, res, 'current_company_id', target.id);
+    activateWorkspaceBucket(target.id);
   }
 
   saveStore();
   logAudit(isNew ? 'Company Workspace Created' : 'Company Workspace Updated', `Saved branding and logo configuration for ${target.name} (${target.code})`, 'settings', '/settings/companies');
   if (req.path === '/api/companies/save' || (req.headers.accept && req.headers.accept.includes('application/json'))) {
-    return res.json({ ok: true, company: target, active_company_id: target.id });
+    return res.json({ ok: true, company: target, active_company_id: store.ACTIVE_COMPANY_ID });
   }
   flash('success', `Company workspace ${target.name} saved permanently.`);
   res.redirect('/settings/companies');
@@ -3342,14 +3790,15 @@ app.all('/set-company', (req, res) => {
   const company = (store.COMPANIES || []).find(c => c.id === companyId);
   if (company) {
     store.ACTIVE_COMPANY_ID = company.id;
+    activateWorkspaceBucket(company.id);
     const actor = getCurrentActor(req);
     if (actor) {
       actor.company_id = company.id;
     }
     saveStore();
     setSafeCookie(req, res, 'current_company_id', company.id);
-    logAudit('Workspace Switched', `Switched active workspace to ${company.name} (${company.code})`, 'settings', '/settings/companies');
-    flash('success', `Switched active workspace to ${company.name} (${company.code}).`);
+    logAudit('Workspace Switched', `Switched active organization workspace to ${company.name} (${company.code})`, 'settings', '/settings/companies');
+    flash('success', `Switched active workspace to ${company.name} (${company.code}). All modules, reports, prints, and PowerPoints are now scoped to ${company.name}.`);
   }
   const next = req.query.next || req.body.next || req.header('Referer') || '/dashboard';
   res.redirect(next);
@@ -7138,23 +7587,23 @@ app.get('/settings/admin-users', (req, res) => {
   });
 });
 
-app.post('/settings/admin-users/roles/save', (req, res) => {
+app.post(['/settings/admin-users/roles/save', '/settings/roles/save', '/api/roles/save'], (req, res) => {
   seedInitialDataIfEmpty();
   if (!Array.isArray(store.CUSTOM_ROLES)) {
     store.CUSTOM_ROLES = JSON.parse(JSON.stringify(DEFAULT_CUSTOM_ROLES));
   }
   const roleId = (req.body.role_id || '').trim();
-  const roleName = (req.body.name || '').trim();
+  const roleName = (req.body.name || req.body.role_name || '').trim();
   if (!roleName) {
     flash('error', 'Role name is required.');
     return res.redirect('/settings/admin-users#roleDefinitionsSection');
   }
 
-  let viewMods = req.body.modules || [];
+  let viewMods = req.body.modules || req.body.view_permissions || req.body.permissions || [];
   if (!Array.isArray(viewMods)) viewMods = [viewMods];
-  let editMods = req.body.edit_modules || [];
+  let editMods = req.body.edit_modules || req.body.edit_permissions || [];
   if (!Array.isArray(editMods)) editMods = [editMods];
-  let delMods = req.body.delete_modules || [];
+  let delMods = req.body.delete_modules || req.body.delete_permissions || [];
   if (!Array.isArray(delMods)) delMods = [delMods];
 
   // Ensure any module that can be edited or deleted is also in viewMods
@@ -7206,7 +7655,7 @@ app.post('/settings/admin-users/roles/save', (req, res) => {
   res.redirect('/settings/admin-users#roleDefinitionsSection');
 });
 
-app.post('/settings/admin-users/roles/:role_id/delete', (req, res) => {
+app.post(['/settings/admin-users/roles/:role_id/delete', '/settings/roles/:role_id/delete'], (req, res) => {
   if (!Array.isArray(store.CUSTOM_ROLES)) return res.redirect('/settings/admin-users');
   const idx = store.CUSTOM_ROLES.findIndex(r => r.id === req.params.role_id);
   if (idx !== -1) {
@@ -7864,21 +8313,26 @@ app.post(['/settings/help', '/settings/help/request'], (req, res) => {
 // LIVE APIS (FOR POLLING & CHARTS)
 // -------------------------
 app.get('/api/live/dashboard/kpis', (req, res) => {
-  const activeBds = (store.BREAKDOWNS || []).filter(b => b.status === 'open' || b.status === 'in_progress').length;
-  const assets = store.ASSETS || [];
-  const operational = assets.filter(a => a.status === 'operational').length;
-  const uptimeRate = assets.length ? Math.round((operational / assets.length) * 1000) / 10 : 98.4;
+  const sysHealth = computeSystemHealthStatus();
+  const breakdowns = store.BREAKDOWNS || [];
+  const activeBds = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved');
+  const totalDowntime = Math.round(breakdowns.reduce((sum, b) => sum + calculateDowntimeHours(b), 0) * 10) / 10;
+  const avgMttr = breakdowns.length
+    ? Math.round((totalDowntime / breakdowns.length) * 10) / 10
+    : 1.8;
+  const financialExposure = Math.round(totalDowntime * 18500);
 
   res.json({
-    uptime_rate: uptimeRate,
-    uptime_target: 95.0,
-    active_breakdowns: activeBds,
-    mttr_hours: 1.8,
-    downtime_mtd_hours: 14.2,
-    downtime_financial_mtd: 245000,
-    active_delta: -1,
+    uptime_rate: sysHealth.uptime_rate,
+    uptime_target: sysHealth.uptime_target,
+    active_breakdowns: activeBds.length,
+    mttr_hours: avgMttr,
+    downtime_mtd_hours: totalDowntime,
+    downtime_financial_mtd: financialExposure,
+    active_delta: activeBds.length,
     mttr_trend: -0.4,
-    open_tasks: (store.MAINTENANCE_TASKS || []).filter(t => t.status !== 'completed').length
+    open_tasks: (store.MAINTENANCE_TASKS || []).filter(t => t.status !== 'completed').length,
+    system_health: sysHealth
   });
 });
 
@@ -8209,11 +8663,12 @@ app.post('/api/ai/query', async (req, res) => {
 
   let resultPayload = null;
 
+  const activeCompForAi = resolveActiveWorkspaceForRequest(req);
   const aiClient = getAiClient();
   if (aiClient) {
     try {
       const plantSummary = `
-Plant: ${(store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].name) || 'Opsloom Industrial'}
+Plant: ${(activeCompForAi && activeCompForAi.name) || 'Opsloom Industrial'} (${(activeCompForAi && activeCompForAi.code) || 'OPS'})
 Total Registered Assets: ${totalAssets}
 Active Breakdowns: ${activeBds.length}
 Upcoming Maintenance Tasks: ${openTasks.length} (Overdue: ${overdueTasks.length})

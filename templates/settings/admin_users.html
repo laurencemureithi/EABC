@@ -141,7 +141,7 @@
           </button>
 
           {% if r.name != 'Administrator' %}
-          <form method="post" action="/settings/roles/{{ r.id }}/delete" onsubmit="return confirm('Remove custom role {{ r.name }}?');">
+          <form method="post" action="/settings/admin-users/roles/{{ r.id }}/delete" onsubmit="return confirm('Remove custom role {{ r.name }}?');">
             <button type="submit" class="px-2.5 py-1.5 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs font-bold cursor-pointer inline-flex items-center gap-1">
               <span class="material-symbols-outlined text-sm">delete</span>
               Remove
@@ -195,7 +195,7 @@
                   {% endif %}
                 </div>
                 <div class="text-xs text-slate-500 mt-0.5">{{ row.email }}</div>
-                <div class="text-[11px] text-slate-400 mt-1">{{ row.department or 'Engineering' }} • {{ row.company_name or 'Ultravetis East Africa Ltd' }}</div>
+                <div class="text-[11px] text-slate-400 mt-1">{{ row.department or 'Engineering' }} • {{ row.company_name or (active_company.name if active_company else 'Opsloom') }}</div>
               </td>
               <td class="px-4 sm:px-6 py-4 align-top">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold {% if row.role == 'Administrator' %}bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-200{% elif 'Manager' in row.role %}bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200{% else %}bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200{% endif %}">
@@ -361,13 +361,14 @@
       </button>
     </div>
 
-    <form method="post" action="/settings/roles/save" class="p-5 overflow-y-auto space-y-4">
+    <form method="post" action="/settings/admin-users/roles/save" class="p-5 overflow-y-auto space-y-4">
       <input type="hidden" id="roleFormId" name="role_id" value="">
+      <input type="hidden" name="sync_assigned_users" value="1">
 
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="sm:col-span-2">
           <label class="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 mb-1.5">Role Name</label>
-          <input type="text" id="roleFormName" name="role_name" required placeholder="e.g., Packaging Supervisor, QA Auditor, Storekeeper" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-bold">
+          <input type="text" id="roleFormName" name="name" required placeholder="e.g., Packaging Supervisor, QA Auditor, Storekeeper" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-bold">
         </div>
         <div>
           <label class="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 mb-1.5">Default Scope</label>
