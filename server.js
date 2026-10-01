@@ -290,19 +290,14 @@ function ensureCompanyDesignation(comp) {
     }
   }
 
-  // Ensure non-Opsloom workspaces do not inadvertently display Opsloom's wordmark PNG
-  const lightUrl = String(comp.logo_light_url || '');
-  const darkUrl = String(comp.logo_dark_url || '');
-  const usesOpsloomDefaultLight = !lightUrl || lightUrl.includes('opsloom_wordmark') || lightUrl.includes('ultravetis_logo.png');
-  const usesOpsloomDefaultDark = !darkUrl || darkUrl.includes('opsloom_wordmark') || darkUrl.includes('ultravetis_logo.png');
-
-  if (!isOpsloom) {
-    if (usesOpsloomDefaultLight) {
-      comp.logo_light_url = buildCompanyBrandSvgDataUri(comp, 'light_text');
-    }
-    if (usesOpsloomDefaultDark) {
-      comp.logo_dark_url = buildCompanyBrandSvgDataUri(comp, 'dark_text');
-    }
+  // Only generate a fallback emblem if logo URLs are completely missing
+  if (!comp.logo_light_url) {
+    comp.logo_light_url = isOpsloom
+      ? '/static/brand/opsloom_wordmark_light.png'
+      : buildCompanyBrandSvgDataUri(comp, 'light_text');
+  }
+  if (!comp.logo_dark_url) {
+    comp.logo_dark_url = comp.logo_light_url;
   }
 
   if (!comp.designation_line_1) {
@@ -1190,6 +1185,15 @@ function syncStoreFromDisk() {
 
 syncStoreFromDisk();
 seedInitialDataIfEmpty();
+// Clear any stuck/forced toast flags on startup so refreshes never force stale popups
+if (Array.isArray(store.SYSTEM_NOTIFICATIONS)) {
+  store.SYSTEM_NOTIFICATIONS = store.SYSTEM_NOTIFICATIONS.filter(
+    n => !(n && n.title === 'Password Reset Help Requested' && String(n.message || '').includes('grace.wanjiku@opsloom.co.ke'))
+  );
+  store.SYSTEM_NOTIFICATIONS.forEach(n => {
+    if (n && n.should_toast) n.should_toast = false;
+  });
+}
 saveStore();
 
 function saveStore() {
@@ -2775,6 +2779,11 @@ function baseCtx(req, activeNav = 'dashboard') {
   const unreadNotifs = (store.SYSTEM_NOTIFICATIONS || []).filter(n => !n.is_read).length;
   const unreadMsgs = (store.INTERNAL_MESSAGES || []).filter(m => !m.is_read_by?.includes('opsloom.ke@gmail.com')).length;
   const latestUnread = (store.SYSTEM_NOTIFICATIONS || []).find(n => !n.is_read && n.should_toast);
+  if (latestUnread && req.method === 'GET' && !req.path.startsWith('/api/')) {
+    // Consume the one-time toast flag so it displays once and never forces a popup on subsequent page refreshes
+    latestUnread.should_toast = false;
+    saveStore();
+  }
 
   const allAssets = store.ASSETS || [];
   const allBreakdowns = store.BREAKDOWNS || [];
@@ -3150,7 +3159,51 @@ app.get(['/settings/companies', '/companies', '/admin/companies'], (req, res) =>
   });
 });
 
-app.post('/settings/companies/save', upload.fields([
+app.post('/api/companies/save-logo', (req, res) => {
+  if (!store.COMPANIES) store.COMPANIES = [];
+  const { id, mode, logo_data_url, logo_light_data_url, logo_dark_data_url } = req.body || {};
+  const targetId = id || store.ACTIVE_COMPANY_ID || req.cookies?.current_company_id || (store.COMPANIES[0] && store.COMPANIES[0].id);
+  const target = store.COMPANIES.find(c => c.id === targetId) || store.COMPANIES[0];
+  if (!target) {
+    return res.status(404).json({ ok: false, error: 'Workspace not found' });
+  }
+
+  const incomingLight = String(logo_light_data_url || (mode === 'light' || mode === 'both' || !mode ? logo_data_url : '') || '').trim();
+  const incomingDark = String(logo_dark_data_url || (mode === 'dark' || mode === 'both' || !mode ? logo_data_url : '') || '').trim();
+
+  if (incomingLight.startsWith('data:image/') || incomingLight.startsWith('/static/') || incomingLight.startsWith('http')) {
+    target.logo_light_url = incomingLight;
+    if (!incomingDark) {
+      target.logo_dark_url = incomingLight;
+    }
+    target.print_logo_url = incomingLight;
+  }
+  if (incomingDark.startsWith('data:image/') || incomingDark.startsWith('/static/') || incomingDark.startsWith('http')) {
+    target.logo_dark_url = incomingDark;
+    if (!incomingLight) {
+      target.logo_light_url = incomingDark;
+    }
+    target.print_logo_url = incomingDark;
+  }
+
+  target.custom_logo_updated_at = new Date().toISOString();
+  store.ACTIVE_COMPANY_ID = target.id;
+  setSafeCookie(req, res, 'current_company_id', target.id);
+  const actor = getCurrentActor(req);
+  if (actor) {
+    actor.company_id = target.id;
+  }
+
+  saveStore();
+  logAudit('Workspace Logo Updated', `Updated brand logo for ${target.name} (${target.code})`, 'settings', '/settings/companies');
+  return res.json({
+    ok: true,
+    company: target,
+    active_company_id: target.id
+  });
+});
+
+app.post(['/settings/companies/save', '/api/companies/save'], upload.fields([
   { name: 'logo_light_file', maxCount: 1 },
   { name: 'logo_dark_file', maxCount: 1 }
 ]), (req, res) => {
@@ -3161,7 +3214,7 @@ app.post('/settings/companies/save', upload.fields([
     logo_light_base64, logo_dark_base64,
     logo_light_data_url, logo_dark_data_url,
     show_name_next_to_logo, logo_height, logo_width_pct, logo_alignment, logo_fit
-  } = req.body;
+  } = req.body || {};
 
   let target = id ? store.COMPANIES.find(c => c.id === id) : null;
   const isNew = !target;
@@ -3197,10 +3250,15 @@ app.post('/settings/companies/save', upload.fields([
   // If user uploaded a new Light logo, apply it; if they only uploaded a Dark logo, mirror it to Light as well
   if (lightFromUpload) {
     target.logo_light_url = lightFromUpload;
+    target.print_logo_url = lightFromUpload;
+    target.custom_logo_updated_at = new Date().toISOString();
   } else if (darkFromUpload) {
     target.logo_light_url = darkFromUpload;
+    target.print_logo_url = darkFromUpload;
+    target.custom_logo_updated_at = new Date().toISOString();
   } else if (cleanLightUrlInput) {
     target.logo_light_url = cleanLightUrlInput;
+    target.print_logo_url = cleanLightUrlInput;
   } else if (!target.logo_light_url) {
     target.logo_light_url = '/static/brand/opsloom_wordmark_light.png';
   }
@@ -3208,6 +3266,8 @@ app.post('/settings/companies/save', upload.fields([
   // If user uploaded a new Dark logo, apply it; if they only uploaded a Light logo, mirror it to Dark so both themes match
   if (darkFromUpload) {
     target.logo_dark_url = darkFromUpload;
+    target.print_logo_url = darkFromUpload;
+    target.custom_logo_updated_at = new Date().toISOString();
   } else if (lightFromUpload) {
     target.logo_dark_url = lightFromUpload;
   } else if (cleanDarkUrlInput) {
@@ -3216,7 +3276,7 @@ app.post('/settings/companies/save', upload.fields([
     target.logo_dark_url = target.logo_light_url;
   }
 
-  target.show_name_next_to_logo = show_name_next_to_logo === '1' || show_name_next_to_logo === true;
+  target.show_name_next_to_logo = show_name_next_to_logo === '1' || show_name_next_to_logo === true || show_name_next_to_logo === 'on';
   const parsedH = parseInt(logo_height, 10);
   const parsedW = parseInt(logo_width_pct, 10);
   target.logo_height = (!isNaN(parsedH) && parsedH >= 20 && parsedH <= 120) ? parsedH : (target.logo_height || 48);
@@ -3245,6 +3305,9 @@ app.post('/settings/companies/save', upload.fields([
 
   saveStore();
   logAudit(isNew ? 'Company Workspace Created' : 'Company Workspace Updated', `Saved branding and logo configuration for ${target.name} (${target.code})`, 'settings', '/settings/companies');
+  if (req.path === '/api/companies/save' || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+    return res.json({ ok: true, company: target, active_company_id: target.id });
+  }
   flash('success', `Company workspace ${target.name} saved permanently.`);
   res.redirect('/settings/companies');
 });
@@ -7542,10 +7605,21 @@ app.get('/settings/notifications', (req, res) => {
   });
 });
 
+app.post(['/notifications/:nid/dismiss', '/settings/notifications/:nid/dismiss'], (req, res) => {
+  const n = (store.SYSTEM_NOTIFICATIONS || []).find(item => item.id === req.params.nid);
+  if (n) {
+    n.is_read = true;
+    n.should_toast = false;
+    saveStore();
+  }
+  res.json({ ok: true });
+});
+
 app.post('/settings/notifications/:nid/toggle', (req, res) => {
   const n = (store.SYSTEM_NOTIFICATIONS || []).find(item => item.id === req.params.nid);
   if (n) {
     n.is_read = !n.is_read;
+    n.should_toast = false;
     saveStore();
   }
   res.redirect('/settings/notifications');
@@ -7555,6 +7629,7 @@ app.get('/settings/notifications/:nid/open', (req, res) => {
   const n = (store.SYSTEM_NOTIFICATIONS || []).find(item => item.id === req.params.nid);
   if (n) {
     n.is_read = true;
+    n.should_toast = false;
     saveStore();
     return res.redirect(n.href || '/dashboard');
   }
@@ -7562,7 +7637,10 @@ app.get('/settings/notifications/:nid/open', (req, res) => {
 });
 
 app.post('/settings/notifications/read-all', (req, res) => {
-  (store.SYSTEM_NOTIFICATIONS || []).forEach(n => { n.is_read = true; });
+  (store.SYSTEM_NOTIFICATIONS || []).forEach(n => {
+    n.is_read = true;
+    n.should_toast = false;
+  });
   saveStore();
   flash('success', 'All notifications marked as read.');
   res.redirect('/settings/notifications');

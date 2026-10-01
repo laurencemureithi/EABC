@@ -86,16 +86,17 @@
             <div class="p-3 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-100 dark:bg-slate-900/60 flex flex-col items-center justify-center gap-2">
               <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Light Theme</span>
               <div class="h-12 w-full flex items-center justify-center bg-white rounded-lg p-1.5 shadow-xs">
-                <img src="{{ comp.logo_light_url if comp.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png') }}" onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_light.png';" alt="Light Logo" class="max-h-full max-w-full object-contain" />
+                <img id="cardLogoLight_{{ comp.id }}" src="{{ comp.logo_light_url if comp.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png') }}" onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_light.png';" alt="Light Logo" class="max-h-full max-w-full object-contain" />
               </div>
             </div>
             <div class="p-3 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-800 dark:bg-slate-950 flex flex-col items-center justify-center gap-2 text-white">
               <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Dark Theme</span>
               <div class="h-12 w-full flex items-center justify-center bg-slate-900 rounded-lg p-1.5 shadow-xs">
-                <img src="{{ comp.logo_dark_url if comp.logo_dark_url else (comp.logo_light_url if comp.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png')) }}" onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_light.png';" alt="Dark Logo" class="max-h-full max-w-full object-contain" />
+                <img id="cardLogoDark_{{ comp.id }}" src="{{ comp.logo_dark_url if comp.logo_dark_url else (comp.logo_light_url if comp.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png')) }}" onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_light.png';" alt="Dark Logo" class="max-h-full max-w-full object-contain" />
               </div>
             </div>
           </div>
+          <p id="cardLogoSavedStatus_{{ comp.id }}" class="hidden text-xs font-bold text-emerald-600 dark:text-emerald-400"></p>
 
           <!-- Print Header Designation Preview -->
           <div class="p-3.5 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-slate-900/40 space-y-1">
@@ -119,7 +120,11 @@
             {% endif %}
           </div>
           <div class="flex items-center gap-2">
-            <button type="button" onclick="editCompany('{{ comp.id }}')" class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-ueal-gold transition flex items-center gap-1.5">
+            <input type="file" id="quickCardLogoInput_{{ comp.id }}" accept="image/*" class="hidden" onchange="handleQuickCardLogoUpload(this, '{{ comp.id }}')">
+            <button type="button" onclick="document.getElementById('quickCardLogoInput_{{ comp.id }}').click()" class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-ueal-purple transition flex items-center gap-1.5 cursor-pointer">
+              <span class="material-symbols-outlined text-sm">upload</span> Upload Logo
+            </button>
+            <button type="button" onclick="editCompany('{{ comp.id }}')" class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-ueal-gold transition flex items-center gap-1.5 cursor-pointer">
               <span class="material-symbols-outlined text-sm">edit</span> Customize
             </button>
             {% if companies.length > 1 %}
@@ -246,6 +251,7 @@
                 <input type="file" name="logo_dark_file" id="compFormLogoDarkFile" accept="image/*" onchange="handleLogoFileSelect(this, 'dark')" class="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-slate-100 dark:file:bg-slate-800">
               </div>
             </div>
+            <p id="modalLogoSaveStatus" class="hidden text-xs font-bold text-emerald-600 dark:text-emerald-400 px-1"></p>
 
             <!-- Toggle Name Next to Logo -->
             <label class="flex items-center gap-3 p-3.5 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/30 cursor-pointer">
@@ -418,37 +424,199 @@ function editCompany(id) {
   document.getElementById('companyModal').classList.remove('hidden');
 }
 
-function handleLogoFileSelect(input, mode) {
+function normalizeImageFileToDataUrl(file) {
+  return new Promise((resolve) => {
+    if (!file) return resolve('');
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      const rawDataUrl = evt.target && evt.target.result ? String(evt.target.result) : '';
+      if (!rawDataUrl || file.type === 'image/svg+xml') {
+        return resolve(rawDataUrl);
+      }
+      const img = new Image();
+      img.onload = function() {
+        try {
+          const maxW = 900;
+          const maxH = 360;
+          let w = img.naturalWidth || img.width || 300;
+          let h = img.naturalHeight || img.height || 100;
+          if (w <= maxW && h <= maxH && rawDataUrl.length < 220000) {
+            return resolve(rawDataUrl);
+          }
+          const scale = Math.min(maxW / w, maxH / h, 1);
+          w = Math.max(1, Math.round(w * scale));
+          h = Math.max(1, Math.round(h * scale));
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/png'));
+        } catch (err) {
+          resolve(rawDataUrl);
+        }
+      };
+      img.onerror = function() {
+        resolve(rawDataUrl);
+      };
+      img.src = rawDataUrl;
+    };
+    reader.onerror = function() {
+      resolve('');
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function applyLogoToLiveDom(compId, lightDataUrl, darkDataUrl) {
+  const sLight = document.getElementById('sidebarLogoLight');
+  const sDark = document.getElementById('sidebarLogoDark');
+  if (sLight && lightDataUrl) sLight.src = lightDataUrl;
+  if (sDark && (darkDataUrl || lightDataUrl)) sDark.src = darkDataUrl || lightDataUrl;
+  if (compId) {
+    const cLight = document.getElementById('cardLogoLight_' + compId);
+    const cDark = document.getElementById('cardLogoDark_' + compId);
+    if (cLight && lightDataUrl) cLight.src = lightDataUrl;
+    if (cDark && (darkDataUrl || lightDataUrl)) cDark.src = darkDataUrl || lightDataUrl;
+  }
+}
+
+async function persistLogoImmediately(compId, mode, dataUrl) {
+  if (!compId || !dataUrl) return;
+  try {
+    const payload = {
+      id: compId,
+      mode: mode || 'both',
+      logo_data_url: dataUrl,
+      logo_light_data_url: mode === 'dark' ? '' : dataUrl,
+      logo_dark_data_url: mode === 'light' ? '' : dataUrl
+    };
+    const res = await fetch('/api/companies/save-logo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data && data.ok && data.company) {
+      const idx = rawCompanies.findIndex(c => c.id === compId);
+      if (idx !== -1) {
+        rawCompanies[idx] = data.company;
+      }
+      if (currentEditingComp && currentEditingComp.id === compId) {
+        currentEditingComp = data.company;
+      }
+      applyLogoToLiveDom(compId, data.company.logo_light_url, data.company.logo_dark_url);
+      const modalBadge = document.getElementById('modalLogoSaveStatus');
+      if (modalBadge) {
+        modalBadge.textContent = '✓ Logo uploaded and saved permanently to this workspace.';
+        modalBadge.classList.remove('hidden');
+      }
+      const cardBadge = document.getElementById('cardLogoSavedStatus_' + compId);
+      if (cardBadge) {
+        cardBadge.textContent = '✓ Custom brand logo saved permanently.';
+        cardBadge.classList.remove('hidden');
+      }
+    }
+  } catch (err) {
+    console.warn('Immediate logo save error:', err);
+  }
+}
+
+async function handleQuickCardLogoUpload(input, compId) {
+  const file = input && input.files && input.files[0];
+  if (!file || !compId) return;
+  const dataUrl = await normalizeImageFileToDataUrl(file);
+  if (!dataUrl) return;
+  applyLogoToLiveDom(compId, dataUrl, dataUrl);
+  await persistLogoImmediately(compId, 'both', dataUrl);
+}
+
+async function handleLogoFileSelect(input, mode) {
   const file = input && input.files && input.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(evt) {
-    const dataUrl = evt.target && evt.target.result ? String(evt.target.result) : '';
-    if (!dataUrl) return;
-    if (mode === 'light') {
-      document.getElementById('compFormLogoLightBase64').value = dataUrl;
-      document.getElementById('compFormLogoLight').value = '[Uploaded: ' + file.name + ']';
-      // Also mirror to dark mode if no separate dark file was chosen yet
-      const df = document.getElementById('compFormLogoDarkFile');
-      if (!df || !df.files || !df.files.length) {
-        document.getElementById('compFormLogoDarkBase64').value = dataUrl;
-        document.getElementById('compFormLogoDark').value = '[Uploaded: ' + file.name + ']';
-      }
-      setSimTheme('light');
-    } else {
+  const dataUrl = await normalizeImageFileToDataUrl(file);
+  if (!dataUrl) return;
+  let effectiveMode = mode;
+  if (mode === 'light') {
+    document.getElementById('compFormLogoLightBase64').value = dataUrl;
+    document.getElementById('compFormLogoLight').value = '[Uploaded: ' + file.name + ']';
+    const df = document.getElementById('compFormLogoDarkFile');
+    if (!df || !df.files || !df.files.length) {
       document.getElementById('compFormLogoDarkBase64').value = dataUrl;
       document.getElementById('compFormLogoDark').value = '[Uploaded: ' + file.name + ']';
-      const lf = document.getElementById('compFormLogoLightFile');
-      if (!lf || !lf.files || !lf.files.length) {
-        document.getElementById('compFormLogoLightBase64').value = dataUrl;
-        document.getElementById('compFormLogoLight').value = '[Uploaded: ' + file.name + ']';
-      }
-      setSimTheme('dark');
+      effectiveMode = 'both';
     }
-    updateSimulator();
-  };
-  reader.readAsDataURL(file);
+    setSimTheme('light');
+  } else {
+    document.getElementById('compFormLogoDarkBase64').value = dataUrl;
+    document.getElementById('compFormLogoDark').value = '[Uploaded: ' + file.name + ']';
+    const lf = document.getElementById('compFormLogoLightFile');
+    if (!lf || !lf.files || !lf.files.length) {
+      document.getElementById('compFormLogoLightBase64').value = dataUrl;
+      document.getElementById('compFormLogoLight').value = '[Uploaded: ' + file.name + ']';
+      effectiveMode = 'both';
+    }
+    setSimTheme('dark');
+  }
+  updateSimulator();
+
+  const compId = document.getElementById('compFormId').value;
+  if (compId) {
+    const lightNow = document.getElementById('compFormLogoLightBase64').value || (currentEditingComp && currentEditingComp.logo_light_url) || dataUrl;
+    const darkNow = document.getElementById('compFormLogoDarkBase64').value || (currentEditingComp && currentEditingComp.logo_dark_url) || dataUrl;
+    applyLogoToLiveDom(compId, lightNow, darkNow);
+    await persistLogoImmediately(compId, effectiveMode, dataUrl);
+  }
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('companyForm');
+  if (!form) return;
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const payload = {
+      id: document.getElementById('compFormId').value,
+      name: document.getElementById('compFormName').value,
+      code: document.getElementById('compFormCode').value,
+      designation_line_1: document.getElementById('compFormDesig1') ? document.getElementById('compFormDesig1').value : '',
+      designation_line_2: document.getElementById('compFormDesig2') ? document.getElementById('compFormDesig2').value : '',
+      designation_line_3: document.getElementById('compFormDesig3') ? document.getElementById('compFormDesig3').value : '',
+      primary_color: document.getElementById('compFormPrimary').value,
+      secondary_color: document.getElementById('compFormSecondary').value,
+      logo_light_url: document.getElementById('compFormLogoLight').value,
+      logo_dark_url: document.getElementById('compFormLogoDark').value,
+      logo_light_base64: document.getElementById('compFormLogoLightBase64').value,
+      logo_dark_base64: document.getElementById('compFormLogoDarkBase64').value,
+      show_name_next_to_logo: document.getElementById('compFormShowName').checked ? '1' : '0',
+      logo_height: document.getElementById('compFormHeight').value,
+      logo_width_pct: document.getElementById('compFormWidth').value,
+      logo_alignment: document.getElementById('compFormAlign').value,
+      logo_fit: document.getElementById('compFormFit').value
+    };
+    try {
+      const res = await fetch('/api/companies/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data && data.ok) {
+        window.location.href = '/settings/companies';
+        return;
+      }
+    } catch (err) {
+      // Fallback to standard form submission if needed
+    }
+    const lf = document.getElementById('compFormLogoLightFile');
+    const df = document.getElementById('compFormLogoDarkFile');
+    if (lf && document.getElementById('compFormLogoLightBase64').value) lf.value = '';
+    if (df && document.getElementById('compFormLogoDarkBase64').value) df.value = '';
+    form.submit();
+  });
+});
 
 function closeCompanyModal() {
   document.getElementById('companyModal').classList.add('hidden');

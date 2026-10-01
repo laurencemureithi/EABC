@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "saved_at": "2026-10-01T10:48:43.098Z",
+  "saved_at": "2026-10-01T11:40:54.235Z",
   "COMPANIES": [
     {
       "id": "comp-001",
@@ -23,7 +23,9 @@
       ],
       "designation_line_1": "Opsloom Kenya • Engineering Reliability Core (OPS)",
       "designation_line_2": "Corporate & Plant Operations • Zip Code 00100, Nairobi, Kenya",
-      "designation_line_3": "System Operations & Telemetry • Email: opsloom.ke@gmail.com"
+      "designation_line_3": "System Operations & Telemetry • Email: opsloom.ke@gmail.com",
+      "print_logo_url": "/static/brand/opsloom_wordmark_light.png",
+      "custom_logo_updated_at": "2026-10-01T11:40:54.234Z"
     },
     {
       "id": "comp-002",
@@ -876,6 +878,30 @@
   ],
   "AUDIT_TRAIL": [
     {
+      "id": "8d86409367094a8b89507c93046ed60f",
+      "action": "Workspace Logo Updated",
+      "detail": "Updated brand logo for Opsloom Kenya (OPS)",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/companies",
+      "created_at": "2026-10-01T11:40:54.235Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "fdf78ae5f52443049f8ece87fa028912",
+      "action": "Workspace Logo Updated",
+      "detail": "Updated brand logo for Opsloom Kenya (OPS)",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/companies",
+      "created_at": "2026-10-01T11:40:54.058Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
       "id": "30ceaefd102b41c8889254d0524b232a",
       "action": "Workspace Switched",
       "detail": "Switched active workspace to Ultravetis East Africa Limited (UEAL)",
@@ -1357,16 +1383,6 @@
   },
   "SYSTEM_NOTIFICATIONS": [
     {
-      "id": "notif-1790848310149",
-      "title": "Password Reset Help Requested",
-      "message": "grace.wanjiku@opsloom.co.ke requested password reset assistance. Contact opsloom.ke@gmail.com.",
-      "kind": "warning",
-      "created_at": "2026-10-01T09:51:50.149Z",
-      "is_read": false,
-      "href": "/settings/admin-users",
-      "should_toast": true
-    },
-    {
       "id": "notif-bd-001",
       "title": "Active Critical Breakdown: FBD-01",
       "message": "Granulation Fluid Bed Dryer FBD-01 has an open Critical breakdown (BD-2026-001).",
@@ -1433,7 +1449,7 @@
       "role": "Administrator",
       "access_scope": "Full System",
       "department": "Engineering",
-      "company_id": "comp-002",
+      "company_id": "comp-001",
       "active": true,
       "is_active": true,
       "is_superadmin": true,
@@ -1788,7 +1804,7 @@
       }
     }
   ],
-  "ACTIVE_COMPANY_ID": "comp-002",
+  "ACTIVE_COMPANY_ID": "comp-001",
   "initialized": true,
   "seeded_default_team_users": true,
   "CUSTOM_ROLES": [

@@ -730,7 +730,7 @@ img, svg, canvas, video {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
-/* Zoom-adaptive & viewport-fitting Sidebar */
+/* Balanced, readable & zoom-resilient Sidebar */
 .app-sidebar {
   height: 100dvh;
   max-height: 100dvh;
@@ -749,52 +749,28 @@ img, svg, canvas, video {
   width: 4px;
 }
 .app-sidebar-nav::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.22);
   border-radius: 9999px;
 }
 
-/* Automatically scale sidebar vertical spacing when viewport height is compact or zoomed */
-@media screen and (max-height: 820px) {
-  .app-sidebar-brand {
-    padding-top: 0.375rem !important;
-    padding-bottom: 0.375rem !important;
-  }
+/* Gentle vertical spacing adjustment only on very short viewports while keeping text crisp and readable */
+@media screen and (max-height: 760px) {
   .app-sidebar-nav {
-    padding-top: 0.375rem !important;
-    padding-bottom: 0.375rem !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
   }
   .app-sidebar-link {
-    padding-top: 0.4rem !important;
-    padding-bottom: 0.4rem !important;
-    font-size: 0.8125rem !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+    font-size: 0.875rem !important;
   }
   .app-sidebar-footer {
-    padding-top: 0.25rem !important;
-    padding-bottom: 0.375rem !important;
-  }
-  .app-sidebar-footer button,
-  .app-sidebar-footer a {
     padding-top: 0.375rem !important;
-    padding-bottom: 0.375rem !important;
+    padding-bottom: 0.5rem !important;
   }
   .app-sidebar-context {
-    padding-top: 0.45rem !important;
-    padding-bottom: 0.45rem !important;
-  }
-  .app-sidebar-context #deptToggleBtn {
-    padding-top: 0.375rem !important;
-    padding-bottom: 0.375rem !important;
-  }
-}
-
-@media screen and (max-height: 680px) {
-  .app-sidebar-link {
-    padding-top: 0.28rem !important;
-    padding-bottom: 0.28rem !important;
-    font-size: 0.78rem !important;
-  }
-  .app-sidebar-context label {
-    display: none !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
   }
 }
 
