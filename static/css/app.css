@@ -466,35 +466,46 @@
     margin-top: 0 !important;
     padding-top: 0 !important;
   }
-  .business-print-page + .business-print-page {
-    break-before: page;
-    page-break-before: always;
-  }
   .business-print-page {
     min-height: 0;
+    display: block !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
   }
   .business-print-card,
+  .business-print-grid,
+  .business-print-section-stack,
+  .eabc-table-shell,
+  .overflow-x-auto {
+    display: block !important;
+    overflow: visible !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
   .business-print-kpi,
   .business-print-header,
-  .business-print-grid > *,
-  .business-print-section-stack > *,
   .eabc-doc-header {
     break-inside: avoid-page;
     page-break-inside: avoid;
   }
   thead {
-    display: table-header-group;
+    display: table-header-group !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
   tfoot {
-    display: table-footer-group;
+    display: table-footer-group !important;
+  }
+  tbody {
+    display: table-row-group !important;
   }
   table {
-    break-inside: auto;
-    page-break-inside: auto;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
   }
-  tr, td, th {
-    break-inside: avoid;
-    page-break-inside: avoid;
+  tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 }
 
@@ -719,7 +730,7 @@ img, svg, canvas, video {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
-@media (max-width: 1024px) {
+@media screen and (max-width: 1024px) {
   .app-container {
     min-height: 100dvh;
     height: 100dvh;
@@ -738,15 +749,15 @@ img, svg, canvas, video {
     overflow-x: hidden;
   }
   main.main-content {
-    padding: 1rem !important;
+    padding: 0.875rem !important;
   }
   .app-topbar {
-    padding-left: .875rem !important;
-    padding-right: .875rem !important;
-    gap: .5rem;
+    padding-left: .75rem !important;
+    padding-right: .75rem !important;
+    gap: .375rem;
   }
   .app-topbar-brand-copy {
-    max-width: min(54vw, 17rem);
+    max-width: min(52vw, 16rem);
   }
   .app-topbar-title {
     font-size: 1.125rem !important;
@@ -758,16 +769,12 @@ img, svg, canvas, video {
   }
   .app-topbar-meta {
     margin-left: auto;
-    gap: .5rem !important;
+    gap: .375rem !important;
     flex-shrink: 0;
   }
   .app-topbar-actions {
     gap: .25rem !important;
     margin-right: 0 !important;
-  }
-  .app-topbar-icon {
-    width: 2.35rem;
-    height: 2.35rem;
   }
   .app-topbar .h-8.w-\[1px\] {
     display: none;
@@ -780,6 +787,7 @@ img, svg, canvas, video {
   .grid[class*="lg:grid-cols-"],
   .grid[class*="md:grid-cols-"] {
     grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+    gap: 1rem !important;
   }
   [class*="lg:col-span-"],
   [class*="md:col-span-"],
@@ -794,47 +802,89 @@ img, svg, canvas, video {
     overflow-x: auto !important;
   }
   .overflow-x-auto > table {
-    min-width: 680px;
+    min-width: 640px;
   }
 }
-@media (max-width: 768px) {
+@media screen and (max-width: 768px) {
   .app-sidebar {
     width: min(19rem, 92vw) !important;
     max-width: min(19rem, 92vw);
   }
   .app-topbar-brand-copy {
-    max-width: min(56vw, 15rem);
+    max-width: min(48vw, 13rem);
   }
   .app-topbar-subtitle {
     display: none;
   }
   .app-user-chip {
     padding-left: 0 !important;
-    gap: .5rem !important;
+    gap: .35rem !important;
   }
   .app-user-chip .text-right {
     display: none !important;
   }
+  /* Prevent card internal padding and headers from clashing on mobile */
+  .p-6, .p-8 {
+    padding: 1rem !important;
+  }
+  .px-6, .px-8 {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+  .gap-8, .gap-6 {
+    gap: 1rem !important;
+  }
+  [data-dd-menu] {
+    max-width: calc(100vw - 1.5rem) !important;
+    right: 0 !important;
+  }
 }
-@media (max-width: 480px) {
+@media screen and (max-width: 480px) {
   .app-topbar {
-    min-height: 60px;
+    min-height: 56px;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
   }
   .main-content {
-    height: calc(100dvh - 60px);
-    min-height: calc(100dvh - 60px);
+    height: calc(100dvh - 56px);
+    min-height: calc(100dvh - 56px);
   }
   .app-topbar-title {
     font-size: 1rem !important;
   }
   .app-topbar-brand-copy {
-    max-width: 50vw;
+    max-width: 48vw;
   }
-  .app-topbar-notifications,
-  .app-topbar-messages,
-  .app-topbar-help {
-    width: 2.15rem;
-    height: 2.15rem;
+  .app-topbar-icon {
+    width: 1.85rem !important;
+    height: 1.85rem !important;
+  }
+  .app-topbar-actions {
+    gap: 0.15rem !important;
+  }
+}
+
+/* Prevent dropdowns and filter popovers from being clipped by card overflow-hidden */
+.eabc-table-shell,
+.overflow-hidden:has([data-dd-root]),
+.overflow-hidden:has(#filterPanel) {
+  overflow: visible !important;
+}
+
+@media screen and (max-width: 768px) {
+  /* Ensure headings and action rows never collide on narrow phones */
+  h1.text-3xl {
+    font-size: 1.45rem !important;
+    line-height: 1.25 !important;
+  }
+  h3.text-3xl {
+    font-size: 1.5rem !important;
+  }
+  /* Keep table action dropdowns within viewport */
+  td [data-dd-menu] {
+    right: 0 !important;
+    left: auto !important;
+    width: min(16rem, calc(100vw - 2.5rem)) !important;
   }
 }
 
@@ -846,10 +896,10 @@ img, svg, canvas, video {
   display: none;
 }
 
-@media (max-width: 1024px) {
+@media screen and (max-width: 1024px) {
   .opsloom-fab {
-    bottom: 76px !important;
-    right: 14px !important;
+    bottom: 74px !important;
+    right: 12px !important;
   }
   main.main-content {
     padding-bottom: 5.5rem !important;
@@ -902,15 +952,61 @@ img, svg, canvas, video {
   }
 }
 
+/* Master repeating document header table for Portrait & Landscape print parity */
+.opsloom-repeating-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: none;
+}
+.opsloom-repeating-doc-thead {
+  display: table-header-group;
+}
+.opsloom-repeating-doc-tbody {
+  display: table-row-group;
+}
+.opsloom-repeating-doc-head-cell,
+.opsloom-repeating-doc-body-cell {
+  border: none !important;
+  padding: 0 !important;
+  vertical-align: top;
+}
+.opsloom-repeating-doc-tbody [data-redundant-doc-header="1"] {
+  display: none !important;
+}
 
-/* ChatGPT print layout stabilizers */
+/* Print layout stabilizers for BOTH Portrait and Landscape */
 @media print {
+  .opsloom-repeating-doc-table {
+    display: table !important;
+    width: 100% !important;
+    border-collapse: collapse !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+  .opsloom-repeating-doc-thead {
+    display: table-header-group !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .opsloom-repeating-doc-tbody {
+    display: table-row-group !important;
+  }
+  .opsloom-repeating-doc-head-cell,
+  .opsloom-repeating-doc-body-cell {
+    border: none !important;
+    padding: 0 !important;
+  }
+  .opsloom-repeating-doc-tbody [data-redundant-doc-header="1"] {
+    display: none !important;
+  }
+
   .print-preview-page .business-print-shell,
   .report-screen-print-mode .business-print-shell {
     padding: 0 !important;
     margin: 0 !important;
     border: none !important;
     box-shadow: none !important;
+    overflow: visible !important;
   }
 
   .print-preview-page .business-print-header,
@@ -931,37 +1027,94 @@ img, svg, canvas, video {
   .report-screen-print-mode .business-print-kpis {
     display: grid !important;
     grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-    gap: 12px !important;
+    gap: 10px !important;
     align-items: start !important;
   }
 
+  /* Use block layout for table containers in print so multi-page tables repeat their <thead> in both Portrait and Landscape */
   .print-preview-page .business-print-grid,
-  .report-screen-print-mode .business-print-grid {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 14px !important;
-    align-items: start !important;
+  .report-screen-print-mode .business-print-grid,
+  .print-preview-page .business-print-section-stack,
+  .report-screen-print-mode .business-print-section-stack {
+    display: block !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+
+  .print-preview-page .business-print-grid > *,
+  .report-screen-print-mode .business-print-grid > *,
+  .print-preview-page .business-print-section-stack > *,
+  .report-screen-print-mode .business-print-section-stack > * {
+    margin-bottom: 14px !important;
   }
 
   .print-preview-page .business-print-page,
   .report-screen-print-mode .business-print-page {
     display: block !important;
     width: 100% !important;
-    break-inside: avoid-page;
-    page-break-inside: avoid;
+    overflow: visible !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    margin-bottom: 14px !important;
   }
 
-  .print-preview-page .business-print-page + .business-print-page,
-  .report-screen-print-mode .business-print-page + .business-print-page {
-    break-before: page !important;
-    page-break-before: always !important;
+  .print-preview-page .business-print-card,
+  .report-screen-print-mode .business-print-card {
+    display: block !important;
+    overflow: visible !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    margin-bottom: 14px !important;
+  }
+
+  .print-preview-page .business-print-card > h2,
+  .report-screen-print-mode .business-print-card > h2,
+  .print-preview-page .business-print-card > .head,
+  .report-screen-print-mode .business-print-card > .head {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
   }
 
   .print-preview-page .business-print-kpi,
   .report-screen-print-mode .business-print-kpi,
-  .print-preview-page .business-print-card,
-  .report-screen-print-mode .business-print-card {
-    break-inside: avoid-page;
-    page-break-inside: avoid;
+  .print-preview-page .print-chart-frame,
+  .report-screen-print-mode .print-chart-frame {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .print-preview-page table.business-print-table,
+  .report-screen-print-mode table.business-print-table,
+  .print-preview-page .business-print-card table,
+  .report-screen-print-mode .business-print-card table {
+    display: table !important;
+    width: 100% !important;
+    border-collapse: collapse !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .print-preview-page table.business-print-table thead,
+  .report-screen-print-mode table.business-print-table thead,
+  .print-preview-page .business-print-card table thead,
+  .report-screen-print-mode .business-print-card table thead {
+    display: table-header-group !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .print-preview-page table.business-print-table tbody,
+  .report-screen-print-mode table.business-print-table tbody,
+  .print-preview-page .business-print-card table tbody,
+  .report-screen-print-mode .business-print-card table tbody {
+    display: table-row-group !important;
+  }
+
+  .print-preview-page table.business-print-table tr,
+  .report-screen-print-mode table.business-print-table tr,
+  .print-preview-page .business-print-card table tr,
+  .report-screen-print-mode .business-print-card table tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 }

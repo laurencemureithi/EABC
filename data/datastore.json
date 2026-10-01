@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "saved_at": "2026-09-30T14:13:52.009Z",
+  "saved_at": "2026-10-01T05:13:28.016Z",
   "COMPANIES": [
     {
       "id": "comp-001",
@@ -20,7 +20,10 @@
         "Production",
         "Logistics & Warehousing",
         "Premises"
-      ]
+      ],
+      "designation_line_1": "Opsloom Kenya • Engineering Reliability Core (OPS)",
+      "designation_line_2": "Corporate & Plant Operations • Zip Code 00100, Nairobi, Kenya",
+      "designation_line_3": "System Operations & Telemetry • Email: opsloom.ke@gmail.com"
     },
     {
       "id": "comp-002",
@@ -40,7 +43,10 @@
         "Production",
         "Logistics & Warehousing",
         "Premises"
-      ]
+      ],
+      "designation_line_1": "Ultravetis East Africa Limited (UEAL)",
+      "designation_line_2": "Industrial Area, Shanghai Road • P.O. Box 00100, Nairobi, Kenya",
+      "designation_line_3": "Veterinary, Agro-Inputs & Manufacturing Operations • Email: info@ultravetis.com"
     }
   ],
   "ASSETS": [
@@ -870,6 +876,174 @@
   ],
   "AUDIT_TRAIL": [
     {
+      "id": "d8664678de154cecaef00af63fa08d06",
+      "action": "User Login",
+      "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-10-01T05:13:28.016Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "2cd5e41ac0f34233b66c2d69029afd5b",
+      "action": "Workspace Switched",
+      "detail": "Switched active workspace to Ultravetis East Africa Limited (UEAL)",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/companies",
+      "created_at": "2026-10-01T05:12:51.577Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "1a08ebe6543b41c2b27b66f45ddeb60d",
+      "action": "Workspace Switched",
+      "detail": "Switched active workspace to Opsloom Kenya (OPS)",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/companies",
+      "created_at": "2026-10-01T05:12:51.550Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "d01cdb7164e24de1a21652fe5b1523ff",
+      "action": "User Login",
+      "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-10-01T05:12:51.542Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "8774f89685554259a0214aedf34012a9",
+      "action": "System Settings Saved",
+      "detail": "Updated system settings and security session timeout (30 mins) + updated admin password.",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/admin",
+      "created_at": "2026-10-01T05:12:12.610Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "63f723c2dc1e4f99bcaa96e2e0b290e8",
+      "action": "Workspace Switched",
+      "detail": "Switched active workspace to Ultravetis East Africa Limited (UEAL)",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/companies",
+      "created_at": "2026-10-01T05:12:12.571Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "542d959f268f434da06940308ecd328d",
+      "action": "Workspace Switched",
+      "detail": "Switched active workspace to Opsloom Kenya (OPS)",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/companies",
+      "created_at": "2026-10-01T05:12:12.517Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "d51d7525958648e99a8e0ce4cd0a7850",
+      "action": "User Login",
+      "detail": "Laurence Magondu (Administrator) authenticated with 10m session policy.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-10-01T05:12:12.510Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "34607ade94c0446db17af5bfd45e5a72",
+      "action": "Failed Login Attempt",
+      "detail": "Incorrect password entered for opsloom.ke@gmail.com.",
+      "module": "security",
+      "severity": "warning",
+      "href": "/login",
+      "created_at": "2026-10-01T05:12:12.505Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "fbed04377ddc472cbd7a1ea64c4a2ee2",
+      "action": "System Settings Saved",
+      "detail": "Updated system settings and security session timeout (10 mins) + updated admin password.",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/admin",
+      "created_at": "2026-10-01T05:12:12.490Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "744ee95bf0a342a4ae490c3a9eb0679e",
+      "action": "User Login",
+      "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-10-01T05:12:12.478Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "5656b070f16a4e669df67ceb84c44c04",
+      "action": "Failed Login Attempt",
+      "detail": "Incorrect password entered for opsloom.ke@gmail.com.",
+      "module": "security",
+      "severity": "warning",
+      "href": "/login",
+      "created_at": "2026-10-01T05:11:31.149Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "e35ba29aada34b329f89582fce5d7316",
+      "action": "User Login",
+      "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-10-01T05:11:31.146Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "1ac67e0ad04347f58cec631e9c337df1",
+      "action": "User Login",
+      "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-10-01T05:11:31.118Z",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
       "id": "9c0cd8f7f88d4b34af479c257d3f11ca",
       "action": "User login",
       "detail": "Laurence Magondu signed in as Administrator with full system scope.",
@@ -1033,7 +1207,8 @@
     "report_watermark": "Internal Use",
     "company_contact_email": "opsloom.ke@gmail.com",
     "company_contact_phone": "+254 20 2358205",
-    "password_reset_help": "Contact Opsloom support or your system administrator to reset your password."
+    "password_reset_help": "Contact Opsloom support or your system administrator to reset your password.",
+    "session_timeout_minutes": 30
   },
   "SYSTEM_NOTIFICATIONS": [
     {
@@ -1127,7 +1302,8 @@
       "signature_style": "formal",
       "signature_image_url": "",
       "profile_image_url": "",
-      "last_login_at": "30 Sept 2026, 14:13"
+      "last_login_at": "01 Oct 2026, 05:13",
+      "password": "Admin@123"
     },
     {
       "id": "USR-002",
@@ -1429,5 +1605,135 @@
   ],
   "ACTIVE_COMPANY_ID": "comp-002",
   "initialized": true,
-  "seeded_default_team_users": true
+  "seeded_default_team_users": true,
+  "CUSTOM_ROLES": [
+    {
+      "id": "role-admin",
+      "name": "Administrator",
+      "description": "Full system governance across all plant modules, workspaces, security settings, and user role definitions.",
+      "access_scope": "Full System",
+      "is_system": true,
+      "modules": [
+        "dashboard",
+        "assets",
+        "breakdowns",
+        "maintenance",
+        "inventory",
+        "reports",
+        "companies",
+        "settings_manage",
+        "users_manage",
+        "technicians_manage",
+        "notifications_manage",
+        "recycle_bin"
+      ],
+      "edit_modules": [
+        "dashboard",
+        "assets",
+        "breakdowns",
+        "maintenance",
+        "inventory",
+        "reports",
+        "companies",
+        "settings_manage",
+        "users_manage",
+        "technicians_manage",
+        "notifications_manage",
+        "recycle_bin"
+      ],
+      "delete_modules": [
+        "assets",
+        "breakdowns",
+        "maintenance",
+        "inventory",
+        "reports",
+        "companies",
+        "users_manage",
+        "technicians_manage",
+        "recycle_bin"
+      ]
+    },
+    {
+      "id": "role-manager",
+      "name": "Manager",
+      "description": "Plant & department management with full operational edit rights and report generation, without core system security overrides.",
+      "access_scope": "Department",
+      "is_system": false,
+      "modules": [
+        "dashboard",
+        "assets",
+        "breakdowns",
+        "maintenance",
+        "inventory",
+        "reports",
+        "technicians_manage"
+      ],
+      "edit_modules": [
+        "assets",
+        "breakdowns",
+        "maintenance",
+        "inventory",
+        "reports",
+        "technicians_manage"
+      ],
+      "delete_modules": [
+        "breakdowns",
+        "maintenance",
+        "reports"
+      ]
+    },
+    {
+      "id": "role-technician",
+      "name": "Technician",
+      "description": "Field execution access to view assets and spare parts, log/update breakdowns, and execute preventive maintenance work orders.",
+      "access_scope": "Section",
+      "is_system": false,
+      "modules": [
+        "dashboard",
+        "assets",
+        "breakdowns",
+        "maintenance",
+        "inventory"
+      ],
+      "edit_modules": [
+        "breakdowns",
+        "maintenance"
+      ],
+      "delete_modules": []
+    },
+    {
+      "id": "role-inventory",
+      "name": "Inventory Controller",
+      "description": "MRO spare parts warehouse control, stock buffer updates, and asset spare part linking.",
+      "access_scope": "Department",
+      "is_system": false,
+      "modules": [
+        "dashboard",
+        "assets",
+        "inventory",
+        "reports"
+      ],
+      "edit_modules": [
+        "inventory"
+      ],
+      "delete_modules": []
+    },
+    {
+      "id": "role-viewer",
+      "name": "Viewer",
+      "description": "Read-only audit and executive visibility into dashboards, asset registers, and published reports without edit capability.",
+      "access_scope": "Read Only",
+      "is_system": false,
+      "modules": [
+        "dashboard",
+        "assets",
+        "breakdowns",
+        "maintenance",
+        "inventory",
+        "reports"
+      ],
+      "edit_modules": [],
+      "delete_modules": []
+    }
+  ]
 }

@@ -203,15 +203,93 @@ let store = {
   AI_CHATS: []
 };
 
+const DEFAULT_CUSTOM_ROLES = [
+  {
+    id: 'role-admin',
+    name: 'Administrator',
+    description: 'Full system governance across all plant modules, workspaces, security settings, and user role definitions.',
+    access_scope: 'Full System',
+    is_system: true,
+    modules: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'settings_manage', 'users_manage', 'technicians_manage', 'notifications_manage', 'recycle_bin'],
+    edit_modules: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'settings_manage', 'users_manage', 'technicians_manage', 'notifications_manage', 'recycle_bin'],
+    delete_modules: ['assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'users_manage', 'technicians_manage', 'recycle_bin']
+  },
+  {
+    id: 'role-manager',
+    name: 'Manager',
+    description: 'Plant & department management with full operational edit rights and report generation, without core system security overrides.',
+    access_scope: 'Department',
+    is_system: false,
+    modules: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'technicians_manage'],
+    edit_modules: ['assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'technicians_manage'],
+    delete_modules: ['breakdowns', 'maintenance', 'reports']
+  },
+  {
+    id: 'role-technician',
+    name: 'Technician',
+    description: 'Field execution access to view assets and spare parts, log/update breakdowns, and execute preventive maintenance work orders.',
+    access_scope: 'Section',
+    is_system: false,
+    modules: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory'],
+    edit_modules: ['breakdowns', 'maintenance'],
+    delete_modules: []
+  },
+  {
+    id: 'role-inventory',
+    name: 'Inventory Controller',
+    description: 'MRO spare parts warehouse control, stock buffer updates, and asset spare part linking.',
+    access_scope: 'Department',
+    is_system: false,
+    modules: ['dashboard', 'assets', 'inventory', 'reports'],
+    edit_modules: ['inventory'],
+    delete_modules: []
+  },
+  {
+    id: 'role-viewer',
+    name: 'Viewer',
+    description: 'Read-only audit and executive visibility into dashboards, asset registers, and published reports without edit capability.',
+    access_scope: 'Read Only',
+    is_system: false,
+    modules: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports'],
+    edit_modules: [],
+    delete_modules: []
+  }
+];
+
+function ensureCompanyDesignation(comp) {
+  if (!comp) return comp;
+  const code = (comp.code || 'OPS').toUpperCase();
+  const isUltravetis = (comp.name || '').toLowerCase().includes('ultravetis') || code === 'UEAL';
+  if (!comp.designation_line_1) {
+    comp.designation_line_1 = isUltravetis
+      ? `${comp.name || 'Ultravetis East Africa Limited'} (${code})`
+      : `${comp.name || 'Opsloom Kenya'} • Engineering Reliability Core (${code})`;
+  }
+  if (!comp.designation_line_2) {
+    comp.designation_line_2 = isUltravetis
+      ? 'Industrial Area, Shanghai Road • P.O. Box 00100, Nairobi, Kenya'
+      : 'Corporate & Plant Operations • Zip Code 00100, Nairobi, Kenya';
+  }
+  if (!comp.designation_line_3) {
+    comp.designation_line_3 = isUltravetis
+      ? 'Veterinary, Agro-Inputs & Manufacturing Operations • Email: info@ultravetis.com'
+      : `System Operations & Telemetry • Email: ${comp.contact_email || 'opsloom.ke@gmail.com'}`;
+  }
+  return comp;
+}
+
 // Seed realistic demo assets if store has none
 function seedInitialDataIfEmpty() {
+  if (!store.CUSTOM_ROLES || !Array.isArray(store.CUSTOM_ROLES) || store.CUSTOM_ROLES.length === 0) {
+    store.CUSTOM_ROLES = JSON.parse(JSON.stringify(DEFAULT_CUSTOM_ROLES));
+  }
   if (!store.ADMIN_USERS || !Array.isArray(store.ADMIN_USERS)) {
     store.ADMIN_USERS = [];
   }
-  const hasPrimaryAdmin = store.ADMIN_USERS.some(
+  const primaryAdmin = store.ADMIN_USERS.find(
     u => u && (u.id === 'USR-001' || (u.email && u.email.toLowerCase() === 'opsloom.ke@gmail.com'))
   );
-  if (!hasPrimaryAdmin) {
+  if (!primaryAdmin) {
     store.ADMIN_USERS.unshift({
       id: 'USR-001',
       name: 'Laurence Magondu',
@@ -223,7 +301,9 @@ function seedInitialDataIfEmpty() {
       company_id: 'comp-001',
       active: true,
       last_login_at: 'Active Session',
-      permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'settings', 'admin', 'companies', 'all'],
+      permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'settings', 'admin', 'companies', 'recycle_bin', 'all'],
+      edit_permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'companies', 'recycle_bin', 'all'],
+      delete_permissions: ['assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'users_manage', 'technicians_manage', 'recycle_bin', 'all'],
       signature_name: 'Laurence Magondu',
       signature_title: 'Chief Engineering & System Administrator',
       signature_font: 'Inter',
@@ -232,6 +312,8 @@ function seedInitialDataIfEmpty() {
       signature_image_url: '',
       profile_image_url: ''
     });
+  } else if (!primaryAdmin.password) {
+    primaryAdmin.password = 'Admin@123';
   }
   if (store.ADMIN_USERS.length === 1 && !store.seeded_default_team_users) {
     store.ADMIN_USERS.push(
@@ -247,6 +329,8 @@ function seedInitialDataIfEmpty() {
         active: true,
         last_login_at: '29 Sep 2026, 16:40',
         permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'technicians_manage'],
+        edit_permissions: ['assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'technicians_manage'],
+        delete_permissions: ['breakdowns', 'maintenance', 'reports'],
         signature_name: 'Eng. Grace Wanjiku',
         signature_title: 'Plant Reliability Manager',
         signature_font: 'Inter',
@@ -265,7 +349,9 @@ function seedInitialDataIfEmpty() {
         company_id: 'comp-001',
         active: true,
         last_login_at: '30 Sep 2026, 08:15',
-        permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance'],
+        permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory'],
+        edit_permissions: ['breakdowns', 'maintenance'],
+        delete_permissions: [],
         signature_name: 'David Kimani',
         signature_title: 'Senior Mechanical Technician',
         signature_font: 'Inter',
@@ -292,10 +378,14 @@ function seedInitialDataIfEmpty() {
         logo_width_pct: 85,
         logo_alignment: 'left',
         logo_fit: 'contain',
+        designation_line_1: 'Ultravetis East Africa Limited (UEAL)',
+        designation_line_2: 'Industrial Area, Shanghai Road • P.O. Box 00100, Nairobi, Kenya',
+        designation_line_3: 'Veterinary, Agro-Inputs & Manufacturing Operations • Email: info@ultravetis.com',
         departments: ['Engineering', 'Production', 'Logistics & Warehousing', 'Premises']
       }
     ];
   }
+  (store.COMPANIES || []).forEach(ensureCompanyDesignation);
 
   const defaultAssets = [
     {
@@ -2119,10 +2209,52 @@ app.use(express.static(STATIC_DIR));
 
 function getSessionTimeoutMinutes() {
   const raw = Number(store.SYSTEM_SETTINGS?.session_timeout_minutes);
-  return (!isNaN(raw) && raw >= 5 && raw <= 1440) ? raw : 30;
+  return (!isNaN(raw) && raw >= 1 && raw <= 1440) ? raw : 30;
 }
 
-// Security & Session Timeout Middleware
+function getRoleDefinition(roleName) {
+  const roles = Array.isArray(store.CUSTOM_ROLES) && store.CUSTOM_ROLES.length ? store.CUSTOM_ROLES : DEFAULT_CUSTOM_ROLES;
+  return roles.find(r => (r.name || '').toLowerCase() === String(roleName || '').toLowerCase()) || null;
+}
+
+function resolveUserCapabilities(actor) {
+  if (!actor) {
+    return { view: ['dashboard'], edit: [], delete: [] };
+  }
+  const roleDef = getRoleDefinition(actor.role);
+  const isAdmin = (actor.role || '').toLowerCase() === 'administrator' || (Array.isArray(actor.permissions) && actor.permissions.includes('all'));
+  if (isAdmin) {
+    const allMods = ['all', 'dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'settings_manage', 'users_manage', 'technicians_manage', 'notifications_manage', 'recycle_bin', 'settings', 'admin'];
+    return { view: allMods, edit: allMods, delete: allMods };
+  }
+  const view = Array.isArray(actor.permissions) && actor.permissions.length
+    ? actor.permissions
+    : (roleDef && Array.isArray(roleDef.modules) ? roleDef.modules : ['dashboard']);
+  const edit = Array.isArray(actor.edit_permissions)
+    ? actor.edit_permissions
+    : (roleDef && Array.isArray(roleDef.edit_modules) ? roleDef.edit_modules : []);
+  const del = Array.isArray(actor.delete_permissions)
+    ? actor.delete_permissions
+    : (roleDef && Array.isArray(roleDef.delete_modules) ? roleDef.delete_modules : []);
+  return { view, edit, delete: del };
+}
+
+function resolvePathModule(p) {
+  if (p === '/dashboard' || p.startsWith('/dashboard/')) return 'dashboard';
+  if (p === '/assets' || p.startsWith('/assets/')) return 'assets';
+  if (p === '/breakdowns' || p.startsWith('/breakdowns/')) return 'breakdowns';
+  if (p === '/maintenance' || p.startsWith('/maintenance/')) return 'maintenance';
+  if (p === '/inventory' || p.startsWith('/inventory/')) return 'inventory';
+  if (p === '/reports' || p.startsWith('/reports/')) return 'reports';
+  if (p.startsWith('/settings/companies') || p === '/companies' || p.startsWith('/admin/companies')) return 'companies';
+  if (p.startsWith('/settings/admin-users')) return 'users_manage';
+  if (p.startsWith('/settings/technicians')) return 'technicians_manage';
+  if (p.startsWith('/settings/recycle-bin')) return 'recycle_bin';
+  if (p === '/settings' || p === '/settings/admin' || p.startsWith('/settings/admin/')) return 'settings_manage';
+  return null;
+}
+
+// Security, Session Timeout & Role-Based Access Control Middleware
 app.use((req, res, next) => {
   const p = req.path || '/';
   // Public routes that do not require authentication
@@ -2154,20 +2286,66 @@ app.use((req, res, next) => {
     return res.redirect(`/login${nextUrl}`);
   }
 
+  // Verify user account still exists and is active
+  const matchedUser = (store.ADMIN_USERS || []).find(u => u.id === uid || (u.email && u.email.toLowerCase() === String(uid).toLowerCase()));
+  if (!matchedUser || matchedUser.active === false) {
+    res.clearCookie('opsloom_user', { path: '/' });
+    res.clearCookie('opsloom_role', { path: '/' });
+    res.clearCookie('opsloom_last_active', { path: '/' });
+    flash('error', 'Your account session is no longer active. Please sign in again.');
+    return res.redirect('/login');
+  }
+
   const lastActiveRaw = Number(req.cookies?.opsloom_last_active || 0);
   if (lastActiveRaw > 0 && (nowMs - lastActiveRaw) > timeoutMs) {
     res.clearCookie('opsloom_user', { path: '/' });
+    res.clearCookie('opsloom_role', { path: '/' });
     res.clearCookie('opsloom_last_active', { path: '/' });
     if (p.startsWith('/api/')) {
       return res.status(401).json({ error: 'Session timed out due to inactivity', redirect: '/login?timeout=1' });
     }
-    flash('error', `Your session timed out after ${timeoutMins} minutes of inactivity for security. Please sign in again.`);
+    flash('error', `Your session timed out after ${timeoutMins} minute(s) of inactivity for security. Please sign in again.`);
     const nextUrl = req.originalUrl && req.originalUrl !== '/' ? `&next=${encodeURIComponent(req.originalUrl)}` : '';
     return res.redirect(`/login?timeout=1${nextUrl}`);
   }
 
-  // Refresh sliding session activity timestamp
-  setSafeCookie(req, res, 'opsloom_last_active', String(nowMs), timeoutMs * 2);
+  // Enforce Role-Based Module Access & Edit/Delete Restrictions
+  const targetMod = resolvePathModule(p);
+  if (targetMod) {
+    const caps = resolveUserCapabilities(matchedUser);
+    const hasAll = caps.view.includes('all');
+    const canView = hasAll || caps.view.includes(targetMod) || (targetMod === 'settings_manage' && caps.view.includes('settings'));
+    if (!canView && targetMod !== 'dashboard') {
+      const modTitle = MODULE_LABELS[targetMod] || targetMod.replace('_', ' ');
+      flash('error', `Access Restricted: Your role (${matchedUser.role}) does not have permission to access ${modTitle}.`);
+      return res.redirect('/dashboard');
+    }
+
+    if (req.method === 'POST' && !p.startsWith('/api/session')) {
+      const isDeleteAction = p.includes('/delete') || p.includes('/purge') || p.includes('/empty');
+      const isWriteAction = isDeleteAction || p.includes('/new') || p.includes('/step') || p.includes('/create') || p.includes('/save') || p.includes('/edit') || p.includes('/update') || p.includes('/close') || p.includes('/complete') || p.includes('/toggle') || p.includes('/upload') || p.includes('/restore');
+      if (isDeleteAction) {
+        const canDel = caps.delete.includes('all') || caps.delete.includes(targetMod) || caps.edit.includes('all');
+        if (!canDel) {
+          const modTitle = MODULE_LABELS[targetMod] || targetMod.replace('_', ' ');
+          flash('error', `Permission Denied: Your role (${matchedUser.role}) is not authorized to delete records in ${modTitle}.`);
+          return res.redirect(req.header('Referer') || '/dashboard');
+        }
+      } else if (isWriteAction) {
+        const canEd = caps.edit.includes('all') || caps.edit.includes(targetMod);
+        if (!canEd) {
+          const modTitle = MODULE_LABELS[targetMod] || targetMod.replace('_', ' ');
+          flash('error', `Read-Only Access: Your role (${matchedUser.role}) can view ${modTitle} but is not permitted to create or edit records.`);
+          return res.redirect(req.header('Referer') || '/dashboard');
+        }
+      }
+    }
+  }
+
+  // Refresh sliding session activity timestamp & session cookies with configured timeout duration
+  setSafeCookie(req, res, 'opsloom_user', matchedUser.id, timeoutMs);
+  setSafeCookie(req, res, 'opsloom_role', matchedUser.role || 'Viewer', timeoutMs);
+  setSafeCookie(req, res, 'opsloom_last_active', String(nowMs), timeoutMs);
   next();
 });
 
@@ -2181,8 +2359,12 @@ const MODULE_LABELS = {
   maintenance: 'Preventive Maintenance',
   inventory: 'Spare Parts Inventory',
   reports: 'Reports & Analytics',
+  companies: 'Company Workspaces',
   settings_manage: 'System & Admin Settings',
-  companies: 'Company Workspaces'
+  users_manage: 'Users & Role Definitions',
+  technicians_manage: 'Technicians Roster',
+  notifications_manage: 'Notifications & Alerts',
+  recycle_bin: 'Admin Recycle Bin'
 };
 
 function getCurrentActor(req) {
@@ -2218,7 +2400,48 @@ function baseCtx(req, activeNav = 'dashboard') {
     logo_alignment: 'left',
     logo_fit: 'contain'
   };
+  ensureCompanyDesignation(activeCompany);
   const actor = getCurrentActor(req);
+  const caps = resolveUserCapabilities(actor);
+
+  // Determine print logo & designation lines for the active company workspace
+  const compCodeUpper = String(activeCompany.code || 'OPS').toUpperCase();
+  const isUltravetisComp = (activeCompany.name || '').toLowerCase().includes('ultravetis') || compCodeUpper === 'UEAL';
+  const isOpsloomComp = (activeCompany.name || '').toLowerCase().includes('opsloom') || compCodeUpper === 'OPS';
+  const rawCompLogo = activeCompany.print_logo_url || activeCompany.logo_dark_url || activeCompany.logo_light_url || '';
+  const isDefaultOpsloomLogo = !rawCompLogo || rawCompLogo.includes('opsloom_wordmark_light.png') || rawCompLogo.includes('opsloom_wordmark_dark.png');
+
+  let printCompanyLogo = rawCompLogo;
+  if (isDefaultOpsloomLogo) {
+    if (isUltravetisComp) {
+      printCompanyLogo = '/static/brand/ultravetis_logo.png';
+    } else if (isOpsloomComp) {
+      printCompanyLogo = '/static/brand/opsloom_wordmark_dark.png';
+    } else {
+      const pCol = activeCompany.primary_color || '#1554FF';
+      const sCol = activeCompany.secondary_color || '#F59E0B';
+      const safeName = String(activeCompany.name || 'Company').replace(/[<>&"']/g, '');
+      const safeCode = compCodeUpper.replace(/[<>&"']/g, '').slice(0, 6);
+      const svgLogo = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="84" viewBox="0 0 320 84"><rect x="2" y="8" width="68" height="68" rx="14" fill="${pCol}"/><rect x="52" y="58" width="18" height="18" rx="5" fill="${sCol}"/><text x="36" y="51" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="24" font-weight="900" fill="#ffffff">${safeCode}</text><text x="84" y="42" font-family="Inter,Arial,sans-serif" font-size="21" font-weight="900" fill="#0f172a">${safeName.slice(0, 18)}</text><text x="84" y="62" font-family="Inter,Arial,sans-serif" font-size="11" font-weight="800" letter-spacing="2" fill="${pCol}">OPERATIONS WORKSPACE</text></svg>`;
+      printCompanyLogo = `data:image/svg+xml;utf8,${encodeURIComponent(svgLogo)}`;
+    }
+  }
+
+  const printCompanyAddressLines = [
+    activeCompany.designation_line_1 || `${activeCompany.name || 'Opsloom Kenya'} (${compCodeUpper})`,
+    activeCompany.designation_line_2 || (isUltravetisComp ? 'Industrial Area, Shanghai Road • P.O. Box 00100, Nairobi, Kenya' : 'Shanghai Road, Nairobi, Kenya • Zip Code 00100'),
+    activeCompany.designation_line_3 || (isUltravetisComp ? 'Veterinary, Agro-Inputs & Manufacturing Operations • Email: info@ultravetis.com' : `Email: ${activeCompany.contact_email || store.SYSTEM_SETTINGS?.company_contact_email || 'opsloom.ke@gmail.com'}`)
+  ].filter(Boolean);
+
+  const customRoles = Array.isArray(store.CUSTOM_ROLES) && store.CUSTOM_ROLES.length ? store.CUSTOM_ROLES : DEFAULT_CUSTOM_ROLES;
+  const dynamicPresets = {};
+  const dynamicEditPresets = {};
+  const dynamicDeletePresets = {};
+  customRoles.forEach(r => {
+    dynamicPresets[r.name] = r.modules || ['dashboard'];
+    dynamicEditPresets[r.name] = r.edit_modules || [];
+    dynamicDeletePresets[r.name] = r.delete_modules || [];
+  });
 
   const unreadNotifs = (store.SYSTEM_NOTIFICATIONS || []).filter(n => !n.is_read).length;
   const unreadMsgs = (store.INTERNAL_MESSAGES || []).filter(m => !m.is_read_by?.includes('opsloom.ke@gmail.com')).length;
@@ -2249,9 +2472,12 @@ function baseCtx(req, activeNav = 'dashboard') {
     current_user_name: actor.name || 'Laurence Magondu',
     current_user_role: actor.role || req.cookies?.opsloom_role || 'Administrator',
     current_user_email: actor.email || 'opsloom.ke@gmail.com',
-    current_user_permissions: Array.isArray(actor.permissions) && actor.permissions.length
-      ? actor.permissions
-      : ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'settings', 'admin', 'companies', 'all'],
+    current_user_permissions: caps.view,
+    current_user_edit_permissions: caps.edit,
+    current_user_delete_permissions: caps.delete,
+    can_access: (mod) => caps.view.includes('all') || caps.view.includes(mod),
+    can_edit: (mod) => caps.edit.includes('all') || caps.edit.includes(mod),
+    can_delete: (mod) => caps.delete.includes('all') || caps.delete.includes(mod),
     current_user_signature: {
       name: actor.signature_name || actor.name || 'Laurence Magondu',
       title: actor.signature_title || actor.role || 'Administrator',
@@ -2271,8 +2497,13 @@ function baseCtx(req, activeNav = 'dashboard') {
     current_department_display: currentDept,
     current_user_avatar_url: actor.profile_image_url || null,
     settings: store.SYSTEM_SETTINGS || {},
-    companies: store.COMPANIES || [],
+    companies: (store.COMPANIES || []).map(ensureCompanyDesignation),
     active_company: activeCompany,
+    print_company_logo: printCompanyLogo,
+    print_company_name: activeCompany.name || 'Opsloom Kenya',
+    print_company_code: activeCompany.code || 'OPS',
+    print_company_address_lines: printCompanyAddressLines,
+    ultravetis_address_lines: printCompanyAddressLines,
     kpi_uptime_rate: globalUptime,
     kpi_uptime_target: 80.0,
     total_assets: totalAssetsCount,
@@ -2286,12 +2517,10 @@ function baseCtx(req, activeNav = 'dashboard') {
     inventory_out_of_stock: invOutCount,
     recycle_bin_count: (store.RECYCLE_BIN || []).length,
     session_timeout_minutes: getSessionTimeoutMinutes(),
-    permission_presets: {
-      Administrator: ['all', 'dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'companies'],
-      Manager: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'technicians_manage'],
-      Technician: ['dashboard', 'assets', 'breakdowns', 'maintenance'],
-      Viewer: ['dashboard', 'reports']
-    },
+    custom_roles: customRoles,
+    permission_presets: dynamicPresets,
+    edit_permission_presets: dynamicEditPresets,
+    delete_permission_presets: dynamicDeletePresets,
     request: {
       args: {
         get: (key, def = '') => req.query[key] !== undefined ? req.query[key] : def
@@ -2336,66 +2565,57 @@ app.get('/login', (req, res) => {
 app.post('/login', (req, res) => {
   const { email, password, next: nextTarget } = req.body;
   const cleanEmail = (email || '').trim().toLowerCase();
+  const rawPass = String(password || '');
   const safeNext = (nextTarget && String(nextTarget).startsWith('/') && !String(nextTarget).startsWith('//') && !String(nextTarget).startsWith('/login'))
     ? String(nextTarget)
     : '/dashboard';
   const nowFmt = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-  // Ensure primary admin exists in store.ADMIN_USERS
+  // Ensure store has seeded users without overwriting any modified passwords
   seedInitialDataIfEmpty();
 
-  // Admin login credentials: opsloom.ke@gmail.com / Admin@123
-  if (cleanEmail === 'opsloom.ke@gmail.com' && (password === 'Admin@123' || !password)) {
-    const primaryAdmin = (store.ADMIN_USERS || []).find(u => u.id === 'USR-001' || (u.email || '').toLowerCase() === 'opsloom.ke@gmail.com');
-    if (primaryAdmin) {
-      primaryAdmin.last_login_at = nowFmt;
-      saveStore();
-    }
-    setSafeCookie(req, res, 'opsloom_user', primaryAdmin ? primaryAdmin.id : 'USR-001');
-    setSafeCookie(req, res, 'opsloom_role', 'Administrator');
-    setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()));
-    if (store.ACTIVE_COMPANY_ID) {
-      setSafeCookie(req, res, 'current_company_id', store.ACTIVE_COMPANY_ID);
-    }
-    logAudit('User login', 'Laurence Magondu signed in as Administrator with full system scope.', 'security', '/dashboard');
-    return res.redirect(safeNext);
+  const timeoutMins = getSessionTimeoutMinutes();
+  const timeoutMs = timeoutMins * 60 * 1000;
+
+  // Strictly match registered user in store.ADMIN_USERS
+  const user = (store.ADMIN_USERS || []).find(u => (u.email || '').trim().toLowerCase() === cleanEmail);
+  if (!user) {
+    logAudit('Failed Login Attempt', `Unrecognized email login attempt: ${cleanEmail || 'empty'}`, 'security', '/login', 'warning');
+    flash('error', 'Invalid company email or password. Please verify your credentials.');
+    return res.redirect('/login');
   }
 
-  // Check registered users
-  const user = (store.ADMIN_USERS || []).find(u => (u.email || '').toLowerCase() === cleanEmail);
-  if (user && (user.password === password || !user.password || password === 'Admin@123')) {
-    if (user.active === false) {
-      flash('error', 'This user account is currently suspended. Contact your system administrator.');
-      return res.redirect('/login');
-    }
-    user.last_login_at = nowFmt;
-    saveStore();
-    setSafeCookie(req, res, 'opsloom_user', user.id);
-    setSafeCookie(req, res, 'opsloom_role', user.role || 'Viewer');
-    setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()));
-    // Only initialize workspace if none is currently selected
-    if (!req.cookies?.current_company_id && !store.ACTIVE_COMPANY_ID && user.company_id) {
-      store.ACTIVE_COMPANY_ID = user.company_id;
-      saveStore();
-      setSafeCookie(req, res, 'current_company_id', user.company_id);
-    }
-    if (!req.cookies?.current_department && user.department) {
-      setSafeCookie(req, res, 'current_department', user.department);
-    }
-    logAudit('User login', `${user.name} signed in to workspace.`, 'security', '/dashboard');
-    return res.redirect(safeNext);
+  if (user.active === false) {
+    logAudit('Blocked Login Attempt', `Suspended user ${user.email} attempted to sign in.`, 'security', '/login', 'warning');
+    flash('error', 'This user account is currently suspended. Contact your system administrator.');
+    return res.redirect('/login');
   }
 
-  // Permissive fallback for authorized corporate emails
-  if (password === 'Admin@123' || (cleanEmail && cleanEmail.includes('@') && password && password.length >= 4)) {
-    setSafeCookie(req, res, 'opsloom_user', 'USR-001');
-    setSafeCookie(req, res, 'opsloom_role', 'Administrator');
-    setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()));
-    return res.redirect(safeNext);
+  const expectedPassword = String(user.password !== undefined && user.password !== '' ? user.password : 'Admin@123');
+  if (!rawPass || rawPass !== expectedPassword) {
+    logAudit('Failed Login Attempt', `Incorrect password entered for ${user.email}.`, 'security', '/login', 'warning');
+    flash('error', 'Invalid company email or password. Please verify your credentials.');
+    return res.redirect('/login');
   }
 
-  flash('error', 'Invalid company email or password. Please verify your credentials.');
-  res.redirect('/login');
+  user.last_login_at = nowFmt;
+  saveStore();
+
+  setSafeCookie(req, res, 'opsloom_user', user.id, timeoutMs);
+  setSafeCookie(req, res, 'opsloom_role', user.role || 'Viewer', timeoutMs);
+  setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()), timeoutMs);
+
+  if (!req.cookies?.current_company_id && user.company_id) {
+    setSafeCookie(req, res, 'current_company_id', user.company_id);
+  } else if (store.ACTIVE_COMPANY_ID && !req.cookies?.current_company_id) {
+    setSafeCookie(req, res, 'current_company_id', store.ACTIVE_COMPANY_ID);
+  }
+  if (!req.cookies?.current_department && user.department) {
+    setSafeCookie(req, res, 'current_department', user.department);
+  }
+
+  logAudit('User Login', `${user.name} (${user.role}) authenticated with ${timeoutMins}m session policy.`, 'security', '/dashboard');
+  return res.redirect(safeNext);
 });
 
 app.get('/login/google', (req, res) => {
@@ -2518,6 +2738,17 @@ app.post('/settings/companies/save', upload.fields([
   target.logo_width_pct = parseInt(logo_width_pct, 10) || 85;
   target.logo_alignment = logo_alignment || 'left';
   target.logo_fit = logo_fit || 'contain';
+
+  if (req.body.designation_line_1 !== undefined) {
+    target.designation_line_1 = String(req.body.designation_line_1).trim();
+  }
+  if (req.body.designation_line_2 !== undefined) {
+    target.designation_line_2 = String(req.body.designation_line_2).trim();
+  }
+  if (req.body.designation_line_3 !== undefined) {
+    target.designation_line_3 = String(req.body.designation_line_3).trim();
+  }
+  ensureCompanyDesignation(target);
 
   saveStore();
   logAudit(isNew ? 'Company Workspace Created' : 'Company Workspace Updated', `Saved branding and logo configuration for ${target.name} (${target.code})`, 'settings', '/settings/companies');
@@ -5296,14 +5527,41 @@ app.post('/settings/admin/save', (req, res) => {
   if (typeof incoming.default_report_recipients === 'string') {
     incoming.default_report_recipients = incoming.default_report_recipients.split(',').map(s => s.trim()).filter(Boolean);
   }
-  if (incoming.session_timeout_minutes !== undefined) {
-    const parsedTimeout = parseInt(incoming.session_timeout_minutes, 10);
-    incoming.session_timeout_minutes = (!isNaN(parsedTimeout) && parsedTimeout >= 5 && parsedTimeout <= 1440) ? parsedTimeout : 30;
+  const customTimeoutRaw = incoming.custom_session_timeout_minutes && String(incoming.custom_session_timeout_minutes).trim() !== ''
+    ? incoming.custom_session_timeout_minutes
+    : incoming.session_timeout_minutes;
+  if (customTimeoutRaw !== undefined) {
+    const parsedTimeout = parseInt(customTimeoutRaw, 10);
+    incoming.session_timeout_minutes = (!isNaN(parsedTimeout) && parsedTimeout >= 1 && parsedTimeout <= 1440) ? parsedTimeout : 30;
   }
+  delete incoming.custom_session_timeout_minutes;
+
+  // If Admin updated their login password from Settings & Admin
+  const newAdminPass = (incoming.admin_new_password || '').trim();
+  delete incoming.admin_new_password;
+  if (newAdminPass) {
+    const actor = getCurrentActor(req);
+    if (actor) {
+      actor.password = newAdminPass;
+    }
+    const primaryAdmin = (store.ADMIN_USERS || []).find(u => u.id === (actor && actor.id) || u.id === 'USR-001');
+    if (primaryAdmin) {
+      primaryAdmin.password = newAdminPass;
+    }
+  }
+
   store.SYSTEM_SETTINGS = { ...store.SYSTEM_SETTINGS, ...incoming };
   saveStore();
-  logAudit('System Settings Saved', `Updated system settings and security session timeout (${store.SYSTEM_SETTINGS.session_timeout_minutes || 30} mins).`, 'settings', '/settings/admin');
-  flash('success', 'System and security settings saved permanently.');
+
+  // Refresh active session cookie timeout immediately
+  const timeoutMs = getSessionTimeoutMinutes() * 60 * 1000;
+  if (req.cookies?.opsloom_user) {
+    setSafeCookie(req, res, 'opsloom_user', req.cookies.opsloom_user, timeoutMs);
+    setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()), timeoutMs);
+  }
+
+  logAudit('System Settings Saved', `Updated system settings and security session timeout (${store.SYSTEM_SETTINGS.session_timeout_minutes || 30} mins)${newAdminPass ? ' + updated admin password' : ''}.`, 'settings', '/settings/admin');
+  flash('success', `System and security settings saved (${store.SYSTEM_SETTINGS.session_timeout_minutes || 30}m session duration${newAdminPass ? ', password updated' : ''}).`);
   res.redirect('/settings/admin');
 });
 
@@ -5609,34 +5867,50 @@ app.get('/settings/admin-users', (req, res) => {
   seedInitialDataIfEmpty();
   const actor = getCurrentActor(req);
   const rawUsers = Array.isArray(store.ADMIN_USERS) ? [...store.ADMIN_USERS] : [];
-  // Guarantee current signed-in actor is always represented in the admin users list
   if (actor && !rawUsers.some(u => u.id === actor.id || (u.email && actor.email && u.email.toLowerCase() === actor.email.toLowerCase()))) {
     rawUsers.unshift({
       id: actor.id || 'USR-001',
       name: actor.name || 'Laurence Magondu',
       email: actor.email || 'opsloom.ke@gmail.com',
+      password: actor.password || 'Admin@123',
       role: actor.role || 'Administrator',
       access_scope: 'Full System',
       department: actor.department || 'Engineering',
       company_id: store.ACTIVE_COMPANY_ID || 'comp-001',
       active: true,
-      permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'companies', 'all']
+      permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'companies', 'recycle_bin', 'all'],
+      edit_permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'companies', 'recycle_bin', 'all'],
+      delete_permissions: ['assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'users_manage', 'technicians_manage', 'recycle_bin', 'all']
     });
     store.ADMIN_USERS = rawUsers;
     saveStore();
   }
 
-  const presets = {
-    Administrator: ['all', 'dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'companies'],
-    Manager: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'technicians_manage'],
-    Technician: ['dashboard', 'assets', 'breakdowns', 'maintenance'],
-    Viewer: ['dashboard', 'reports']
-  };
+  const customRoles = Array.isArray(store.CUSTOM_ROLES) && store.CUSTOM_ROLES.length
+    ? store.CUSTOM_ROLES
+    : DEFAULT_CUSTOM_ROLES;
+
+  const presets = {};
+  const editPresets = {};
+  const deletePresets = {};
+  customRoles.forEach(r => {
+    presets[r.name] = r.modules || ['dashboard'];
+    editPresets[r.name] = r.edit_modules || [];
+    deletePresets[r.name] = r.delete_modules || [];
+  });
+
   const user_rows = rawUsers.map(u => {
     const comp = (store.COMPANIES || []).find(c => c.id === u.company_id) || (store.COMPANIES && store.COMPANIES[0]) || {};
+    const roleDef = getRoleDefinition(u.role);
     const perms = Array.isArray(u.permissions) && u.permissions.length
       ? u.permissions
-      : (presets[u.role] || presets.Viewer);
+      : (presets[u.role] || ['dashboard']);
+    const editPerms = Array.isArray(u.edit_permissions)
+      ? u.edit_permissions
+      : (editPresets[u.role] || (u.role === 'Administrator' ? perms : []));
+    const deletePerms = Array.isArray(u.delete_permissions)
+      ? u.delete_permissions
+      : (deletePresets[u.role] || (u.role === 'Administrator' ? perms : []));
     const permLabels = perms
       .filter(k => k !== 'all' && MODULE_LABELS[k])
       .map(k => MODULE_LABELS[k]);
@@ -5647,8 +5921,10 @@ app.get('/settings/admin-users', (req, res) => {
       active: u.active !== false,
       company_name: u.company_name || comp.name || 'Ultravetis East Africa Ltd',
       department: u.department || 'Engineering',
-      access_scope: u.access_scope || (u.role === 'Administrator' ? 'Full System' : 'Department'),
+      access_scope: u.access_scope || (roleDef ? roleDef.access_scope : (u.role === 'Administrator' ? 'Full System' : 'Department')),
       permissions: perms,
+      edit_permissions: editPerms,
+      delete_permissions: deletePerms,
       permission_labels: permLabels.length ? permLabels : Object.values(MODULE_LABELS),
       last_login_at: isCurrentUser ? 'Current Active Session' : (u.last_login_at || 'Configured'),
       signature_name: u.signature_name || u.name || '',
@@ -5660,6 +5936,8 @@ app.get('/settings/admin-users', (req, res) => {
 
   const editId = req.query.edit || '';
   const edit_user = editId ? (user_rows.find(u => u.id === editId) || null) : null;
+  const editRoleId = req.query.edit_role || '';
+  const edit_role = editRoleId ? (customRoles.find(r => r.id === editRoleId) || null) : null;
   const admin_count = user_rows.filter(u => u.role === 'Administrator').length;
   const active_count = user_rows.filter(u => u.active !== false).length;
   const reset_requests = (store.INTERNAL_MESSAGES || [])
@@ -5679,36 +5957,144 @@ app.get('/settings/admin-users', (req, res) => {
     users: user_rows,
     user_rows,
     edit_user,
+    edit_role,
+    custom_roles: customRoles,
     admin_count,
     active_count,
     reset_requests,
     audit_rows: audit_rows.slice(0, 8),
     module_labels: MODULE_LABELS,
-    permission_presets: presets
+    permission_presets: presets,
+    edit_permission_presets: editPresets,
+    delete_permission_presets: deletePresets
   });
+});
+
+app.post('/settings/admin-users/roles/save', (req, res) => {
+  seedInitialDataIfEmpty();
+  if (!Array.isArray(store.CUSTOM_ROLES)) {
+    store.CUSTOM_ROLES = JSON.parse(JSON.stringify(DEFAULT_CUSTOM_ROLES));
+  }
+  const roleId = (req.body.role_id || '').trim();
+  const roleName = (req.body.name || '').trim();
+  if (!roleName) {
+    flash('error', 'Role name is required.');
+    return res.redirect('/settings/admin-users#roleDefinitionsSection');
+  }
+
+  let viewMods = req.body.modules || [];
+  if (!Array.isArray(viewMods)) viewMods = [viewMods];
+  let editMods = req.body.edit_modules || [];
+  if (!Array.isArray(editMods)) editMods = [editMods];
+  let delMods = req.body.delete_modules || [];
+  if (!Array.isArray(delMods)) delMods = [delMods];
+
+  // Ensure any module that can be edited or deleted is also in viewMods
+  viewMods = Array.from(new Set(['dashboard', ...viewMods, ...editMods, ...delMods]));
+
+  let targetRole = roleId ? store.CUSTOM_ROLES.find(r => r.id === roleId) : store.CUSTOM_ROLES.find(r => r.name.toLowerCase() === roleName.toLowerCase());
+  const isNew = !targetRole;
+  const oldRoleName = targetRole ? targetRole.name : null;
+
+  if (isNew) {
+    targetRole = {
+      id: 'role-' + Date.now(),
+      is_system: false
+    };
+    store.CUSTOM_ROLES.push(targetRole);
+  }
+
+  targetRole.name = targetRole.is_system ? 'Administrator' : roleName;
+  targetRole.description = (req.body.description || `${targetRole.name} access profile with customized module capabilities.`).trim();
+  targetRole.access_scope = req.body.access_scope || 'Department';
+  targetRole.modules = targetRole.is_system
+    ? ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'settings_manage', 'users_manage', 'technicians_manage', 'notifications_manage', 'recycle_bin']
+    : viewMods;
+  targetRole.edit_modules = targetRole.is_system
+    ? [...targetRole.modules]
+    : editMods;
+  targetRole.delete_modules = targetRole.is_system
+    ? ['assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'users_manage', 'technicians_manage', 'recycle_bin']
+    : delMods;
+
+  // Propagate updated role permissions to users assigned to this role if requested or if role name changed
+  if (req.body.sync_assigned_users === '1' || oldRoleName) {
+    (store.ADMIN_USERS || []).forEach(u => {
+      if (u.role && (u.role === oldRoleName || u.role === targetRole.name)) {
+        u.role = targetRole.name;
+        if (req.body.sync_assigned_users === '1') {
+          u.permissions = [...targetRole.modules];
+          u.edit_permissions = [...targetRole.edit_modules];
+          u.delete_permissions = [...targetRole.delete_modules];
+          u.access_scope = targetRole.access_scope;
+        }
+      }
+    });
+  }
+
+  saveStore();
+  logAudit(isNew ? 'Custom Role Defined' : 'Role Definition Updated', `${isNew ? 'Created' : 'Updated'} role "${targetRole.name}" (${targetRole.modules.length} view / ${targetRole.edit_modules.length} edit modules).`, 'security', '/settings/admin-users');
+  flash('success', `Role "${targetRole.name}" saved with ${targetRole.modules.length} accessible module(s) and ${targetRole.edit_modules.length} editable module(s).`);
+  res.redirect('/settings/admin-users#roleDefinitionsSection');
+});
+
+app.post('/settings/admin-users/roles/:role_id/delete', (req, res) => {
+  if (!Array.isArray(store.CUSTOM_ROLES)) return res.redirect('/settings/admin-users');
+  const idx = store.CUSTOM_ROLES.findIndex(r => r.id === req.params.role_id);
+  if (idx !== -1) {
+    const role = store.CUSTOM_ROLES[idx];
+    if (role.is_system || role.name === 'Administrator') {
+      flash('error', 'The core Administrator role cannot be deleted.');
+      return res.redirect('/settings/admin-users#roleDefinitionsSection');
+    }
+    store.CUSTOM_ROLES.splice(idx, 1);
+    saveStore();
+    logAudit('Role Definition Deleted', `Removed custom role "${role.name}"`, 'security', '/settings/admin-users', 'warning');
+    flash('info', `Deleted role "${role.name}".`);
+  }
+  res.redirect('/settings/admin-users#roleDefinitionsSection');
 });
 
 app.post('/settings/admin-users/create', (req, res) => {
   if (!store.ADMIN_USERS) store.ADMIN_USERS = [];
-  const presets = {
-    Administrator: ['all', 'dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'companies'],
-    Manager: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports'],
-    Technician: ['dashboard', 'assets', 'breakdowns', 'maintenance'],
-    Viewer: ['dashboard', 'reports']
-  };
-  const role = req.body.role || 'Viewer';
+  const role = (req.body.role || 'Viewer').trim();
+  const roleDef = getRoleDefinition(role);
+
   let perms = req.body.permissions;
   if (!perms) {
-    perms = presets[role] || presets.Viewer;
+    perms = roleDef ? [...roleDef.modules] : ['dashboard'];
   } else if (!Array.isArray(perms)) {
     perms = [perms];
   }
-  if (role === 'Administrator' && !perms.includes('all')) {
-    perms = ['all', ...perms];
+
+  let editPerms = req.body.edit_permissions;
+  if (editPerms === undefined) {
+    editPerms = roleDef ? [...roleDef.edit_modules] : [];
+  } else if (!Array.isArray(editPerms)) {
+    editPerms = [editPerms];
+  }
+
+  let deletePerms = req.body.delete_permissions;
+  if (deletePerms === undefined) {
+    deletePerms = roleDef ? [...roleDef.delete_modules] : [];
+  } else if (!Array.isArray(deletePerms)) {
+    deletePerms = [deletePerms];
+  }
+
+  // Ensure any module in editPerms or deletePerms is also included in view perms
+  perms = Array.from(new Set([...perms, ...editPerms, ...deletePerms]));
+
+  if (role === 'Administrator') {
+    if (!perms.includes('all')) perms = ['all', ...perms];
+    if (!editPerms.includes('all')) editPerms = ['all', ...editPerms];
+    if (!deletePerms.includes('all')) deletePerms = ['all', ...deletePerms];
   }
 
   const existingId = (req.body.user_id || '').trim();
-  let target = existingId ? store.ADMIN_USERS.find(u => u.id === existingId) : null;
+  const cleanEmail = (req.body.email || '').trim();
+  let target = existingId
+    ? store.ADMIN_USERS.find(u => u.id === existingId)
+    : (cleanEmail ? store.ADMIN_USERS.find(u => (u.email || '').toLowerCase() === cleanEmail.toLowerCase()) : null);
   const isNew = !target;
 
   if (isNew) {
@@ -5728,10 +6114,13 @@ app.post('/settings/admin-users/create', (req, res) => {
     target.password = 'Admin@123';
   }
   target.role = role;
-  target.access_scope = role === 'Administrator' ? 'Full System' : (req.body.access_scope || 'Department');
+  target.access_scope = role === 'Administrator' ? 'Full System' : (req.body.access_scope || (roleDef && roleDef.access_scope) || 'Department');
   target.department = req.body.department || target.department || 'Engineering';
   target.company_id = req.body.company_id || target.company_id || store.ACTIVE_COMPANY_ID || 'comp-001';
   target.permissions = perms;
+  target.edit_permissions = editPerms;
+  target.delete_permissions = deletePerms;
+  target.active = req.body.active === '1' || req.body.active === 'on' || req.body.active === true;
   target.signature_name = req.body.signature_name || target.name;
   target.signature_title = req.body.signature_title || target.role;
   target.signature_font = req.body.signature_font || target.signature_font || 'Inter';
@@ -5739,7 +6128,7 @@ app.post('/settings/admin-users/create', (req, res) => {
 
   saveStore();
   logAudit(isNew ? 'User Account Provisioned' : 'User Credentials Updated', `${isNew ? 'Created' : 'Updated'} ${target.name} (${target.email}) as ${target.role}`, 'security', '/settings/admin-users');
-  flash('success', isNew ? `User account for ${target.name} created permanently.` : `Credentials and permissions for ${target.name} updated permanently.`);
+  flash('success', isNew ? `User account for ${target.name} created permanently.` : `Credentials, password, and role permissions for ${target.name} updated permanently.`);
   res.redirect('/settings/admin-users');
 });
 
@@ -6068,9 +6457,11 @@ app.post('/settings/notifications/read-all', (req, res) => {
 });
 
 app.get('/settings/profile', (req, res) => {
+  const actor = getCurrentActor(req);
   res.render('settings/profile.html', {
     ...baseCtx(req, 'settings'),
-    user: store.ADMIN_USERS[0]
+    user: actor,
+    profile: actor
   });
 });
 
@@ -6080,7 +6471,20 @@ app.post('/settings/profile/save', upload.fields([
 ]), (req, res) => {
   if (store.ADMIN_USERS && store.ADMIN_USERS.length > 0) {
     const target = getCurrentActor(req);
-    Object.assign(target, req.body);
+    const incoming = { ...req.body };
+    const newPassword = (incoming.new_password || incoming.password || '').trim();
+    delete incoming.new_password;
+    delete incoming.password;
+    if (incoming.remove_profile_image === '1') {
+      target.profile_image_url = '';
+    }
+    delete incoming.remove_profile_image;
+
+    Object.assign(target, incoming);
+    if (newPassword) {
+      target.password = newPassword;
+      logAudit('Password Updated', `${target.name} (${target.email}) updated their account password.`, 'security', '/settings/profile');
+    }
     const profFile = req.files && req.files['profile_image'] && req.files['profile_image'][0];
     const sigFile = req.files && req.files['signature_image'] && req.files['signature_image'][0];
     if (profFile) {
@@ -6090,7 +6494,7 @@ app.post('/settings/profile/save', upload.fields([
       target.signature_image_url = fileToDataUrl(sigFile) || `/static/uploads/${sigFile.filename}`;
     }
     saveStore();
-    flash('success', 'Profile settings saved permanently.');
+    flash('success', newPassword ? 'Profile and login password updated permanently.' : 'Profile settings saved permanently.');
   }
   res.redirect('/settings/profile');
 });

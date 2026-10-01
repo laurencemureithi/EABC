@@ -247,25 +247,42 @@
             <input type="hidden" name="next" value="{{ request.args.get('next','') }}">
             <div>
               <label class="auth-label">Company Email</label>
-              <input id="loginEmailInput" name="email" type="email" required placeholder="opsloom.ke@gmail.com" class="auth-input">
+              <input id="loginEmailInput" name="email" type="email" required autocomplete="email" placeholder="name@company.com" class="auth-input">
             </div>
             <div>
               <div class="flex items-center justify-between mb-2">
                 <label class="auth-label" style="margin-bottom:0;">Password</label>
-                <button type="button" onclick="fillDemoAdmin()" class="text-[11px] font-extrabold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer">
-                  Quick Fill Admin Credentials
+                <button type="button" id="toggleLoginPasswordBtn" onclick="toggleLoginPasswordVisibility()" class="text-[11px] font-extrabold text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer inline-flex items-center gap-1">
+                  <span class="material-symbols-outlined" style="font-size:14px;" id="toggleLoginPasswordIcon">visibility</span>
+                  <span id="toggleLoginPasswordText">Show Password</span>
                 </button>
               </div>
-              <input id="loginPasswordInput" name="password" type="password" required placeholder="Enter your password" class="auth-input">
+              <input id="loginPasswordInput" name="password" type="password" required autocomplete="current-password" placeholder="Enter your password" class="auth-input">
+            </div>
+            <div class="flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300">
+              <span class="inline-flex items-center gap-1.5 font-semibold">
+                <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400" style="font-size:16px;">verified_user</span>
+                Auto-lock after <strong>{{ session_timeout_minutes or 30 }} min</strong> of inactivity
+              </span>
+              <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Strict Auth</span>
             </div>
             <button class="auth-primary cursor-pointer" type="submit">Sign In to Workspace</button>
           </form>
           <script>
-            function fillDemoAdmin() {
-              var e = document.getElementById('loginEmailInput');
+            function toggleLoginPasswordVisibility() {
               var p = document.getElementById('loginPasswordInput');
-              if (e) e.value = 'opsloom.ke@gmail.com';
-              if (p) p.value = 'Admin@123';
+              var icon = document.getElementById('toggleLoginPasswordIcon');
+              var txt = document.getElementById('toggleLoginPasswordText');
+              if (!p) return;
+              if (p.type === 'password') {
+                p.type = 'text';
+                if (icon) icon.textContent = 'visibility_off';
+                if (txt) txt.textContent = 'Hide Password';
+              } else {
+                p.type = 'password';
+                if (icon) icon.textContent = 'visibility';
+                if (txt) txt.textContent = 'Show Password';
+              }
             }
           </script>
 

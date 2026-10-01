@@ -83,34 +83,63 @@
         <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Report Watermark</label><input name="report_watermark" value="{{ settings.report_watermark or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
 
         <div class="pt-4 border-t border-slate-200 dark:border-dark-border">
-          <div class="flex items-center gap-2 mb-3">
-            <span class="material-symbols-outlined text-amber-500 text-lg">security</span>
-            <h3 class="text-xs font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-100">Session Timeout &amp; Device Security</h3>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Auto-Logout / Inactivity Timeout</label>
-              {% set cur_timeout = (settings.session_timeout_minutes or session_timeout_minutes or 30)|int %}
-              <select name="session_timeout_minutes" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm font-semibold">
-                <option value="15" {% if cur_timeout == 15 %}selected{% endif %}>15 Minutes (High Security)</option>
-                <option value="30" {% if cur_timeout == 30 %}selected{% endif %}>30 Minutes (Recommended Standard)</option>
-                <option value="60" {% if cur_timeout == 60 %}selected{% endif %}>60 Minutes (1 Hour Shift)</option>
-                <option value="120" {% if cur_timeout == 120 %}selected{% endif %}>120 Minutes (2 Hours Shift)</option>
-                <option value="480" {% if cur_timeout == 480 %}selected{% endif %}>480 Minutes (8 Hours Plant Shift)</option>
-              </select>
-              <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">Requires authentication on new devices and automatically locks idle sessions.</p>
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-amber-500 text-lg">security</span>
+              <h3 class="text-xs font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-100">Session Timeout, Admin Password &amp; Device Security</h3>
             </div>
-            <div class="flex flex-col justify-end">
-              <div class="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-900/60 p-3.5 flex items-center justify-between gap-3">
-                <div>
-                  <p class="text-xs font-extrabold text-slate-800 dark:text-slate-100">Immediate Session Lock</p>
-                  <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Lock this device now and require credentials to re-enter.</p>
+            <span class="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[11px] font-black uppercase tracking-wider">
+              Active Policy: {{ (settings.session_timeout_minutes or session_timeout_minutes or 30)|int }} Mins
+            </span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Auto-Logout / Inactivity Timeout (Minutes)</label>
+              {% set cur_timeout = (settings.session_timeout_minutes or session_timeout_minutes or 30)|int %}
+              <div class="flex flex-col sm:flex-row gap-2">
+                <select id="sessionTimeoutPresetSelect" name="session_timeout_minutes" onchange="document.getElementById('customSessionTimeoutMinutes').value = this.value;" class="flex-1 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm font-semibold">
+                  <option value="1" {% if cur_timeout == 1 %}selected{% endif %}>1 Minute (Rapid Lock Test)</option>
+                  <option value="2" {% if cur_timeout == 2 %}selected{% endif %}>2 Minutes</option>
+                  <option value="5" {% if cur_timeout == 5 %}selected{% endif %}>5 Minutes (Strict Security)</option>
+                  <option value="10" {% if cur_timeout == 10 %}selected{% endif %}>10 Minutes</option>
+                  <option value="15" {% if cur_timeout == 15 %}selected{% endif %}>15 Minutes (High Security)</option>
+                  <option value="30" {% if cur_timeout == 30 %}selected{% endif %}>30 Minutes (Recommended Standard)</option>
+                  <option value="45" {% if cur_timeout == 45 %}selected{% endif %}>45 Minutes</option>
+                  <option value="60" {% if cur_timeout == 60 %}selected{% endif %}>60 Minutes (1 Hour Shift)</option>
+                  <option value="120" {% if cur_timeout == 120 %}selected{% endif %}>120 Minutes (2 Hours Shift)</option>
+                  <option value="240" {% if cur_timeout == 240 %}selected{% endif %}>240 Minutes (4 Hours Shift)</option>
+                  <option value="480" {% if cur_timeout == 480 %}selected{% endif %}>480 Minutes (8 Hours Plant Shift)</option>
+                  {% if cur_timeout not in [1, 2, 5, 10, 15, 30, 45, 60, 120, 240, 480] %}
+                  <option value="{{ cur_timeout }}" selected>Custom ({{ cur_timeout }} Minutes)</option>
+                  {% endif %}
+                </select>
+                <div class="relative sm:w-32 shrink-0">
+                  <input type="number" id="customSessionTimeoutMinutes" name="custom_session_timeout_minutes" min="1" max="1440" value="{{ cur_timeout }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 pl-3 pr-10 py-3 text-sm font-black text-slate-900 dark:text-white" title="Enter any exact session duration in minutes (1-1440)">
+                  <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400 pointer-events-none">min</span>
                 </div>
-                <a href="/lock?next={{ request.path }}" class="px-3.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-black uppercase tracking-wider shrink-0 flex items-center gap-1.5">
-                  <span class="material-symbols-outlined text-sm">lock</span>
-                  Lock Now
-                </a>
               </div>
+              <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">Pick a preset or enter any custom duration (1–1440 min). Enforced on login &amp; active sessions.</p>
+            </div>
+            <div>
+              <label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Update Admin Login Password ({{ current_user_email }})</label>
+              <input type="password" name="admin_new_password" autocomplete="new-password" placeholder="Enter new password to change (leave blank to keep current)" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm font-semibold">
+              <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">Immediately updates your sign-in password and invalidates the previous password.</p>
+            </div>
+          </div>
+          <div class="mt-4 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-900/60 p-3.5 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="text-xs font-extrabold text-slate-800 dark:text-slate-100">Immediate Session Lock &amp; Role Governance</p>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Lock this device immediately or manage custom user roles and module permissions.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <a href="{{ url_for('admin_users_page') }}" class="px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-black uppercase tracking-wider shrink-0 flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-sm">admin_panel_settings</span>
+                Define Roles &amp; Permissions
+              </a>
+              <a href="/lock?next={{ request.path }}" class="px-3.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-black uppercase tracking-wider shrink-0 flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-sm">lock</span>
+                Lock Now
+              </a>
             </div>
           </div>
         </div>

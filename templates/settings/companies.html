@@ -96,6 +96,17 @@
               </div>
             </div>
           </div>
+
+          <!-- Print Header Designation Preview -->
+          <div class="p-3.5 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-slate-900/40 space-y-1">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Print Header Designation Details</span>
+              <span class="material-symbols-outlined text-xs text-slate-400">print</span>
+            </div>
+            <p class="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">{{ comp.designation_line_1 or (comp.name ~ ' (' ~ comp.code ~ ')') }}</p>
+            <p class="text-[11px] font-semibold text-slate-600 dark:text-slate-300 truncate">{{ comp.designation_line_2 or 'Shanghai Road, Nairobi, Kenya • Zip Code 00100' }}</p>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">{{ comp.designation_line_3 or 'Email: opsloom.ke@gmail.com' }}</p>
+          </div>
         </div>
 
         <!-- Footer Actions -->
@@ -161,6 +172,31 @@
             <div>
               <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">Short Code</label>
               <input type="text" name="code" id="compFormCode" required placeholder="e.g. UEAL" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-800 text-sm font-semibold outline-none focus:border-ueal-purple">
+            </div>
+          </div>
+
+          <!-- Print Document Header Designation Details -->
+          <div class="p-4 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/30 space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <div>
+                <h4 class="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Print Document Header Designation Details</h4>
+                <p class="text-[11px] text-slate-500">Displayed in the top header alongside this company's logo whenever reports or schedules are printed in this workspace.</p>
+              </div>
+              <span class="material-symbols-outlined text-slate-400">print</span>
+            </div>
+            <div class="space-y-2.5">
+              <div>
+                <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Designation Line 1 (Company Legal Title / Division)</label>
+                <input type="text" name="designation_line_1" id="compFormDesig1" placeholder="e.g. Ultravetis East Africa Limited (UEAL)" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-xs font-semibold">
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Designation Line 2 (Physical Address / P.O. Box / Location)</label>
+                <input type="text" name="designation_line_2" id="compFormDesig2" placeholder="e.g. Industrial Area, Shanghai Road • P.O. Box 00100, Nairobi, Kenya" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-xs font-semibold">
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Designation Line 3 (Official Contact Email / Operations Scope)</label>
+                <input type="text" name="designation_line_3" id="compFormDesig3" placeholder="e.g. Veterinary, Agro-Inputs & Manufacturing Operations • Email: info@ultravetis.com" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-xs font-semibold">
+              </div>
             </div>
           </div>
 
@@ -322,6 +358,9 @@ function openCreateCompanyModal() {
   document.getElementById('compFormId').value = '';
   document.getElementById('compFormName').value = '';
   document.getElementById('compFormCode').value = '';
+  if (document.getElementById('compFormDesig1')) document.getElementById('compFormDesig1').value = '';
+  if (document.getElementById('compFormDesig2')) document.getElementById('compFormDesig2').value = '';
+  if (document.getElementById('compFormDesig3')) document.getElementById('compFormDesig3').value = '';
   document.getElementById('compFormPrimary').value = '#1554FF';
   document.getElementById('compFormPrimaryHex').value = '#1554FF';
   document.getElementById('compFormSecondary').value = '#F59E0B';
@@ -350,6 +389,9 @@ function editCompany(id) {
   document.getElementById('compFormId').value = comp.id;
   document.getElementById('compFormName').value = comp.name || '';
   document.getElementById('compFormCode').value = comp.code || '';
+  if (document.getElementById('compFormDesig1')) document.getElementById('compFormDesig1').value = comp.designation_line_1 || '';
+  if (document.getElementById('compFormDesig2')) document.getElementById('compFormDesig2').value = comp.designation_line_2 || '';
+  if (document.getElementById('compFormDesig3')) document.getElementById('compFormDesig3').value = comp.designation_line_3 || '';
   document.getElementById('compFormPrimary').value = comp.primary_color || '#1554FF';
   document.getElementById('compFormPrimaryHex').value = comp.primary_color || '#1554FF';
   document.getElementById('compFormSecondary').value = comp.secondary_color || '#F59E0B';

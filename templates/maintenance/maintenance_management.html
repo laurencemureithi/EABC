@@ -110,7 +110,7 @@
         </button>
 
         <div id="filterPanel"
-             class="hidden absolute left-0 sm:left-auto sm:right-0 mt-2 w-full sm:w-[380px] max-w-[96vw] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl p-4 z-30">
+             class="hidden absolute right-0 mt-2 w-[calc(100vw-2.5rem)] sm:w-[380px] max-w-[92vw] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl p-4 z-30">
           <div class="flex items-center justify-between mb-3">
             <div class="text-sm font-extrabold text-slate-900 dark:text-white">Filters</div>
             <button type="button" id="filterClose"
@@ -159,7 +159,7 @@
               </select>
             </div>
 
-            <div>
+            <div class="col-span-2">
               <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Status</label>
               <select name="status" class="mt-1 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-ueal-purple/20 outline-none text-slate-700 dark:text-slate-300">
                 <option value="">All Status</option>
@@ -169,12 +169,11 @@
               </select>
             </div>
 
-            <div>
+            <div class="col-span-2">
               <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Due range</label>
-              <div class="mt-1 flex items-center gap-2">
+              <div class="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input name="due_from" value="{{ selected_due_from or '' }}" type="date"
                        class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-sm outline-none text-slate-700 dark:text-slate-300"/>
-                <span class="text-xs text-slate-400">to</span>
                 <input name="due_to" value="{{ selected_due_to or '' }}" type="date"
                        class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-sm outline-none text-slate-700 dark:text-slate-300"/>
               </div>

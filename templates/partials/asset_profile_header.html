@@ -2,12 +2,12 @@
 {% set breadcrumbs = breadcrumbs|default([]) %}
 {% set header_show_image = header_show_image|default(true) %}
 
-<div class="max-w-6xl mx-auto mb-6 flex justify-between items-start gap-6">
+<div class="max-w-6xl mx-auto mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 sm:gap-6">
 
   <!-- LEFT -->
-  <div class="min-w-0">
+  <div class="min-w-0 flex-1">
     <div class="flex items-center gap-3 flex-wrap">
-      <h1 class="text-3xl font-bold text-slate-900 dark:text-slate-100 leading-tight truncate">
+      <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 leading-tight break-words">
         {{ asset.asset_name }}
       </h1>
 
@@ -52,7 +52,7 @@
   </div>
 
   <!-- RIGHT: actions + optional thumbnail -->
-  <div class="shrink-0 flex flex-col items-end gap-3">
+  <div class="shrink-0 flex flex-row sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-3">
     {% if not print_mode %}
     <div class="flex flex-wrap items-center justify-end gap-2" data-no-print>
       <a href="{{ url_for('assets_profile_get', asset_uid=asset.uid, print=1, autoprint=1) }}" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">Print</a>

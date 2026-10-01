@@ -426,13 +426,13 @@
   <button
     type="button"
     onclick="openOpsloomAiModal()"
-    class="opsloom-fab flex items-center gap-2 px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-full text-white shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer group border border-white/20 print:hidden"
-    style="position: fixed !important; right: 16px !important; z-index: 950 !important; background: linear-gradient(135deg, var(--brand-primary, #7E22CE), #1e1b4b); box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.4);"
+    class="opsloom-fab flex items-center justify-center gap-2 w-11 h-11 sm:w-auto sm:h-auto sm:px-4 sm:py-3 rounded-full text-white shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer group border border-white/20 print:hidden"
+    style="position: fixed !important; right: 14px !important; z-index: 950 !important; background: linear-gradient(135deg, var(--brand-primary, #7E22CE), #1e1b4b); box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.4);"
     title="Open Opsloom AI Plant Intelligence"
     aria-label="Opsloom AI"
   >
     <span class="material-symbols-outlined text-amber-400 text-lg sm:text-xl animate-pulse">auto_awesome</span>
-    <span class="text-xs font-black tracking-wide pr-0.5">Opsloom AI</span>
+    <span class="hidden sm:inline text-xs font-black tracking-wide pr-0.5">Opsloom AI</span>
   </button>
 
   <!-- Mobile Bottom Quick-Navigation Bar (Phones & Tablets) -->
@@ -473,7 +473,7 @@
             <span class="material-symbols-outlined text-2xl">lock_clock</span>
           </div>
           <div class="flex-1 min-w-0">
-            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600 dark:text-amber-400">Security Protection</p>
+            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600 dark:text-amber-400">Security Protection ({{ session_timeout_minutes or 30 }}m Policy)</p>
             <h3 class="font-black text-base text-slate-900 dark:text-white mt-0.5">Session Timeout Warning</h3>
             <p class="text-xs text-slate-600 dark:text-slate-300 mt-1">
               Your workspace has been inactive. For security, this device will automatically lock in <span id="sessionTimeoutCountdown" class="font-black text-rose-600 dark:text-rose-400">60</span> seconds.
@@ -493,10 +493,53 @@
   </div>
 
   <script>
+    // Ensure repeating document header in print mode across both Portrait and Landscape
+    function ensureBaseRepeatingPrintHeader() {
+      const shell = document.querySelector('.business-print-shell');
+      if (!shell || shell.querySelector('.opsloom-repeating-doc-table')) return;
+      const allHeaders = Array.from(shell.querySelectorAll('.eabc-doc-header'));
+      if (!allHeaders.length) return;
+
+      const primaryHeader = allHeaders[0].cloneNode(true);
+      allHeaders.forEach(h => h.setAttribute('data-redundant-doc-header', '1'));
+
+      const masterTable = document.createElement('table');
+      masterTable.className = 'opsloom-repeating-doc-table';
+
+      const thead = document.createElement('thead');
+      thead.className = 'opsloom-repeating-doc-thead';
+      const headTr = document.createElement('tr');
+      const headTd = document.createElement('td');
+      headTd.className = 'opsloom-repeating-doc-head-cell';
+      headTd.appendChild(primaryHeader);
+      headTr.appendChild(headTd);
+      thead.appendChild(headTr);
+
+      const tbody = document.createElement('tbody');
+      tbody.className = 'opsloom-repeating-doc-tbody';
+      const bodyTr = document.createElement('tr');
+      const bodyTd = document.createElement('td');
+      bodyTd.className = 'opsloom-repeating-doc-body-cell';
+
+      while (shell.firstChild) {
+        bodyTd.appendChild(shell.firstChild);
+      }
+      bodyTr.appendChild(bodyTd);
+      tbody.appendChild(bodyTr);
+
+      masterTable.appendChild(thead);
+      masterTable.appendChild(tbody);
+      shell.appendChild(masterTable);
+    }
+    window.addEventListener('beforeprint', ensureBaseRepeatingPrintHeader);
+    if (document.body.classList.contains('report-screen-print-mode')) {
+      document.addEventListener('DOMContentLoaded', ensureBaseRepeatingPrintHeader);
+    }
+
     (function () {
       var timeoutMinutes = Number("{{ session_timeout_minutes or 30 }}") || 30;
-      var timeoutMs = Math.max(5, timeoutMinutes) * 60 * 1000;
-      var warningBeforeMs = 60 * 1000;
+      var timeoutMs = Math.max(1, timeoutMinutes) * 60 * 1000;
+      var warningBeforeMs = Math.min(60 * 1000, Math.max(10 * 1000, Math.floor(timeoutMs * 0.35)));
       var lastActivity = Date.now();
       var warningShown = false;
       var modal = document.getElementById('sessionTimeoutModal');

@@ -10,6 +10,20 @@
 
 {% set user_list = admin_users or user_rows or users or [] %}
 
+{% set all_system_modules = [
+  {'key': 'dashboard', 'label': 'Executive Dashboard'},
+  {'key': 'assets', 'label': 'Asset Register'},
+  {'key': 'breakdowns', 'label': 'Breakdown Management'},
+  {'key': 'maintenance', 'label': 'Preventive Maintenance'},
+  {'key': 'inventory', 'label': 'Spares Inventory'},
+  {'key': 'reports', 'label': 'Reports & Intelligence'},
+  {'key': 'companies', 'label': 'Company Workspaces'},
+  {'key': 'settings_manage', 'label': 'Settings & Admin'},
+  {'key': 'users_manage', 'label': 'Users & Role Governance'},
+  {'key': 'technicians_manage', 'label': 'Technicians Directory'},
+  {'key': 'recycle_bin', 'label': 'Admin Recycle Bin'}
+] %}
+
 <div class="max-w-7xl mx-auto space-y-6">
   <!-- Summary KPIs -->
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -24,11 +38,11 @@
 
     <div class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl p-4 sm:p-5 shadow-sm">
       <div class="flex items-center justify-between">
-        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Administrators</p>
-        <span class="material-symbols-outlined text-lg text-emerald-500">verified_user</span>
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Defined Roles</p>
+        <span class="material-symbols-outlined text-lg text-emerald-500">badge</span>
       </div>
-      <p class="mt-2 text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">{{ admin_count or 1 }}</p>
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Full system governance</p>
+      <p class="mt-2 text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">{{ (custom_roles or [])|length }}</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ admin_count or 1 }} Admin(s) • Custom RBAC</p>
     </div>
 
     <div class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl p-4 sm:p-5 shadow-sm">
@@ -37,7 +51,7 @@
         <span class="material-symbols-outlined text-lg text-blue-500">how_to_reg</span>
       </div>
       <p class="mt-2 text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">{{ active_count or (user_list|length) }}</p>
-      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Signed in as {{ current_user_name }}</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400 truncate">Signed in as {{ current_user_name }}</p>
     </div>
 
     <div class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl p-4 sm:p-5 shadow-sm">
@@ -50,12 +64,104 @@
     </div>
   </div>
 
+  <!-- Custom Role Definitions & Module Capabilities Matrix -->
+  <div class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-sm overflow-hidden">
+    <div class="px-4 sm:px-6 py-4 border-b border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-slate-800/30 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-ueal-purple dark:text-ueal-gold text-lg">security</span>
+          <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-900 dark:text-white">Role Definitions &amp; Granular Module Permissions</h2>
+        </div>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Define custom user roles and specify exactly which modules each role can access (view), edit/create, or delete.</p>
+      </div>
+      <button type="button" onclick="openRoleModal()" class="px-3.5 py-2 rounded-lg bg-ueal-gold text-white text-xs font-black uppercase tracking-wider shadow-xs cursor-pointer inline-flex items-center gap-1.5 hover:opacity-95">
+        <span class="material-symbols-outlined text-sm">add_moderator</span>
+        + Define New Role
+      </button>
+    </div>
+
+    <div class="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {% for r in (custom_roles or []) %}
+      <div class="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/40 dark:bg-slate-900/40 p-4 flex flex-col justify-between gap-3 hover:border-ueal-purple/50 transition">
+        <div>
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="text-sm font-black text-slate-900 dark:text-white">{{ r.name }}</h3>
+                <span class="px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[10px] font-black uppercase tracking-wider">{{ r.access_scope or 'Department' }}</span>
+              </div>
+              <p class="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{{ r.description or 'Custom operational role with tailored module access and edit privileges.' }}</p>
+            </div>
+          </div>
+
+          <div class="mt-3 pt-3 border-t border-slate-200/70 dark:border-slate-800 space-y-2.5">
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Can Access (View): {{ (r.modules or [])|length }} Module(s)</p>
+              <div class="flex flex-wrap gap-1">
+                {% for m in (r.modules or []) %}
+                <span class="px-2 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] font-bold uppercase">{{ m|replace('_manage','')|replace('_',' ') }}</span>
+                {% endfor %}
+              </div>
+            </div>
+
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1">Can Edit / Create: {{ (r.edit_modules or [])|length }} Module(s)</p>
+              <div class="flex flex-wrap gap-1">
+                {% if r.edit_modules and r.edit_modules|length > 0 %}
+                  {% for m in r.edit_modules %}
+                  <span class="px-2 py-0.5 rounded bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold uppercase">{{ m|replace('_manage','')|replace('_',' ') }}</span>
+                  {% endfor %}
+                {% else %}
+                  <span class="px-2 py-0.5 rounded bg-amber-100/70 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] font-bold uppercase">Read-Only (Cannot Edit)</span>
+                {% endif %}
+              </div>
+            </div>
+
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-wider text-rose-500 dark:text-rose-400 mb-1">Can Delete Records: {{ (r.delete_modules or [])|length }} Module(s)</p>
+              <div class="flex flex-wrap gap-1">
+                {% if r.delete_modules and r.delete_modules|length > 0 %}
+                  {% for m in r.delete_modules %}
+                  <span class="px-2 py-0.5 rounded bg-rose-100/70 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 text-[10px] font-bold uppercase">{{ m|replace('_manage','')|replace('_',' ') }}</span>
+                  {% endfor %}
+                {% else %}
+                  <span class="text-[10px] font-semibold text-slate-400">No deletion privileges</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between gap-2">
+          <button type="button"
+            onclick='openRoleModal({{ r | dump | safe }})'
+            class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-extrabold text-slate-700 dark:text-slate-200 hover:border-ueal-purple cursor-pointer inline-flex items-center gap-1">
+            <span class="material-symbols-outlined text-sm">tune</span>
+            Configure Capabilities
+          </button>
+
+          {% if r.name != 'Administrator' %}
+          <form method="post" action="/settings/roles/{{ r.id }}/delete" onsubmit="return confirm('Remove custom role {{ r.name }}?');">
+            <button type="submit" class="px-2.5 py-1.5 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs font-bold cursor-pointer inline-flex items-center gap-1">
+              <span class="material-symbols-outlined text-sm">delete</span>
+              Remove
+            </button>
+          </form>
+          {% else %}
+          <span class="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Core Protected</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
   <div class="grid grid-cols-1 xl:grid-cols-5 gap-6">
     <div class="xl:col-span-3 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-sm overflow-hidden">
       <div class="px-4 sm:px-6 py-4 border-b border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-slate-800/30 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 class="text-sm font-black uppercase tracking-[0.18em]">System User Register</h2>
-          <p class="mt-1 text-xs text-slate-500">Roles, scope, privileges, and custom sign-off settings for each user.</p>
+          <p class="mt-1 text-xs text-slate-500">Roles, scope, view/edit/delete privileges, and custom sign-off settings for each user.</p>
         </div>
         <div class="flex items-center gap-2">
           <a href="{{ url_for('admin_users_page') }}#provisionUserForm" class="px-3.5 py-2 rounded-lg bg-ueal-purple text-white text-xs font-black uppercase tracking-wider shadow-xs">
@@ -71,7 +177,7 @@
               <th class="px-4 sm:px-6 py-3 text-left text-[11px] font-black uppercase tracking-[0.18em]">User &amp; Identity</th>
               <th class="px-4 sm:px-6 py-3 text-left text-[11px] font-black uppercase tracking-[0.18em]">Role &amp; Status</th>
               <th class="px-4 sm:px-6 py-3 text-left text-[11px] font-black uppercase tracking-[0.18em]">Scope</th>
-              <th class="px-4 sm:px-6 py-3 text-left text-[11px] font-black uppercase tracking-[0.18em]">Permissions</th>
+              <th class="px-4 sm:px-6 py-3 text-left text-[11px] font-black uppercase tracking-[0.18em]">Access &amp; Edit Rights</th>
               <th class="px-4 sm:px-6 py-3 text-right text-[11px] font-black uppercase tracking-[0.18em]">Actions</th>
             </tr>
           </thead>
@@ -92,7 +198,7 @@
                 <div class="text-[11px] text-slate-400 mt-1">{{ row.department or 'Engineering' }} • {{ row.company_name or 'Ultravetis East Africa Ltd' }}</div>
               </td>
               <td class="px-4 sm:px-6 py-4 align-top">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold {% if row.role == 'Administrator' %}bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-200{% elif row.role == 'Manager' %}bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200{% else %}bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200{% endif %}">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold {% if row.role == 'Administrator' %}bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-200{% elif 'Manager' in row.role %}bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200{% else %}bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200{% endif %}">
                   {{ row.role }}
                 </span>
                 <div class="text-xs mt-1.5 font-semibold {% if row.active %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-500{% endif %}">
@@ -102,10 +208,22 @@
               </td>
               <td class="px-4 sm:px-6 py-4 align-top font-medium text-slate-700 dark:text-slate-200">{{ row.access_scope }}</td>
               <td class="px-4 sm:px-6 py-4 align-top">
-                <div class="flex flex-wrap gap-1.5 max-w-xs">
-                  {% for perm in row.permissions or [] %}
-                  <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-200">{{ perm|replace('_',' ') }}</span>
-                  {% endfor %}
+                <div class="space-y-1.5 max-w-xs">
+                  <div class="flex flex-wrap gap-1">
+                    {% for perm in row.permissions or [] %}
+                    <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-200">{{ perm|replace('_manage','')|replace('_',' ') }}</span>
+                    {% endfor %}
+                  </div>
+                  <div class="text-[10px] font-bold">
+                    {% if row.edit_permissions and row.edit_permissions|length > 0 %}
+                      <span class="text-emerald-600 dark:text-emerald-400">Can Edit: {{ row.edit_permissions|length }} module(s)</span>
+                    {% else %}
+                      <span class="text-amber-600 dark:text-amber-400">Read-Only (No Edit Rights)</span>
+                    {% endif %}
+                    {% if row.delete_permissions and row.delete_permissions|length > 0 %}
+                      <span class="text-rose-500 ml-1">• Delete ({{ row.delete_permissions|length }})</span>
+                    {% endif %}
+                  </div>
                 </div>
               </td>
               <td class="px-4 sm:px-6 py-4 text-right align-top">
@@ -127,7 +245,7 @@
 
     <div id="provisionUserForm" class="xl:col-span-2 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-sm p-5 sm:p-6">
       {% set form_user = edit_user or {} %}
-      <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center justify-between gap-2 flex-wrap">
         <h2 class="text-sm font-black uppercase tracking-[0.18em]">{{ 'Edit Access User' if edit_user else 'Provision New User' }}</h2>
         {% if edit_user %}
         <span class="px-2.5 py-1 rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] font-black uppercase">Editing {{ form_user.name }}</span>
@@ -138,22 +256,66 @@
         <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Full Name</label><input name="name" value="{{ form_user.name or '' }}" required placeholder="Full name" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
         <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Email</label><input name="email" type="email" value="{{ form_user.email or '' }}" required placeholder="Email" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Role</label><select name="role" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">{% for role_name, role_perms in (permission_presets or {'Administrator':[], 'Manager':[], 'Technician':[], 'Viewer':[]}) %}<option value="{{ role_name }}" {% if (form_user.role == role_name) or (not form_user.role and role_name == 'Administrator') %}selected{% endif %}>{{ role_name }}</option>{% endfor %}</select></div>
-          <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Access Scope</label><select name="access_scope" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"><option {% if (form_user.access_scope or '') == 'Full System' %}selected{% endif %}>Full System</option><option {% if (form_user.access_scope or '') == 'Department' %}selected{% endif %}>Department</option><option {% if (form_user.access_scope or '') == 'Section' %}selected{% endif %}>Section</option><option {% if (form_user.access_scope or '') == 'Read Only' %}selected{% endif %}>Read Only</option></select></div>
+          <div>
+            <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Assigned Role</label>
+            <select id="userRoleSelect" name="role" onchange="applyRolePresetToUserForm(this.value)" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm font-semibold">
+              {% for r in (custom_roles or []) %}
+              <option value="{{ r.name }}" {% if (form_user.role == r.name) or (not form_user.role and r.name == 'Administrator') %}selected{% endif %}>{{ r.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Access Scope</label>
+            <select id="userScopeSelect" name="access_scope" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">
+              <option value="Full System" {% if (form_user.access_scope or '') == 'Full System' %}selected{% endif %}>Full System</option>
+              <option value="Department" {% if (form_user.access_scope or '') == 'Department' %}selected{% endif %}>Department</option>
+              <option value="Section" {% if (form_user.access_scope or '') == 'Section' %}selected{% endif %}>Section</option>
+              <option value="Read Only" {% if (form_user.access_scope or '') == 'Read Only' %}selected{% endif %}>Read Only</option>
+            </select>
+          </div>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Department</label><select name="department" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">{% for dep in departments %}<option value="{{ dep }}" {% if (form_user.department or current_department) == dep %}selected{% endif %}>{{ dep }}</option>{% endfor %}</select></div>
           <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">{% if edit_user %}Reset Password{% else %}Initial Password{% endif %}</label><input name="password" type="text" placeholder="{% if edit_user %}Leave blank to keep current{% else %}Required for new user{% endif %}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm" {% if not edit_user %}required{% endif %}></div>
         </div>
+
+        <!-- Per-User Module Access, Edit & Delete Matrix -->
         <div>
-          <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Allowed Modules &amp; Controls</label>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-900 p-3">
-            {% set active_perms = form_user.permissions or ['dashboard','assets','breakdowns','maintenance','inventory','reports'] %}
-            {% for perm in ['dashboard','assets','breakdowns','maintenance','inventory','reports','settings_manage','users_manage','notifications_manage','technicians_manage'] %}
-            <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200"><input type="checkbox" name="permissions" value="{{ perm }}" {% if perm in active_perms %}checked{% endif %} class="rounded border-slate-300">{{ perm|replace('_',' ')|title }}</label>
-            {% endfor %}
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Module Access, Edit &amp; Delete Matrix</label>
+            <button type="button" onclick="openRoleModal()" class="text-[10px] font-black uppercase text-ueal-purple dark:text-ueal-gold hover:underline cursor-pointer">+ New Role Template</button>
           </div>
+          {% set active_perms = form_user.permissions or ['dashboard','assets','breakdowns','maintenance','inventory','reports','companies','settings_manage','users_manage','technicians_manage','recycle_bin'] %}
+          {% set active_edits = form_user.edit_permissions if form_user.edit_permissions is defined else ['dashboard','assets','breakdowns','maintenance','inventory','reports','companies','settings_manage','users_manage','technicians_manage','recycle_bin'] %}
+          {% set active_deletes = form_user.delete_permissions if form_user.delete_permissions is defined else ['assets','breakdowns','maintenance','inventory','reports','companies','users_manage','technicians_manage','recycle_bin'] %}
+
+          <div class="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-900 overflow-hidden">
+            <div class="grid grid-cols-12 gap-1 px-3 py-2 bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-dark-border text-[10px] font-black uppercase tracking-wider text-slate-500">
+              <div class="col-span-6">Module</div>
+              <div class="col-span-2 text-center">View</div>
+              <div class="col-span-2 text-center text-emerald-600 dark:text-emerald-400">Edit</div>
+              <div class="col-span-2 text-center text-rose-500">Delete</div>
+            </div>
+            <div class="divide-y divide-slate-200/60 dark:divide-slate-800 max-h-64 overflow-y-auto">
+              {% for mod in all_system_modules %}
+              <div class="grid grid-cols-12 gap-1 px-3 py-2 items-center text-xs hover:bg-white/60 dark:hover:bg-slate-800/40">
+                <div class="col-span-6 font-semibold text-slate-700 dark:text-slate-200 truncate" title="{{ mod.label }}">{{ mod.label }}</div>
+                <div class="col-span-2 flex justify-center">
+                  <input type="checkbox" name="permissions" value="{{ mod.key }}" {% if mod.key in active_perms or 'all' in active_perms %}checked{% endif %} class="user-perm-view rounded border-slate-300">
+                </div>
+                <div class="col-span-2 flex justify-center">
+                  <input type="checkbox" name="edit_permissions" value="{{ mod.key }}" {% if mod.key in active_edits or 'all' in active_edits %}checked{% endif %} class="user-perm-edit rounded border-slate-300 accent-emerald-600">
+                </div>
+                <div class="col-span-2 flex justify-center">
+                  <input type="checkbox" name="delete_permissions" value="{{ mod.key }}" {% if mod.key in active_deletes or 'all' in active_deletes %}checked{% endif %} class="user-perm-delete rounded border-slate-300 accent-rose-600">
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          <p class="mt-1 text-[11px] text-slate-400">Selecting a Role above pre-fills these capabilities; you can also customize individual View, Edit, and Delete checkboxes for this user.</p>
         </div>
+
         <div class="pt-2 border-t border-slate-200 dark:border-dark-border">
           <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-3">Custom Sign-off</p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -174,5 +336,168 @@
     </div>
   </div>
 </div>
+
+<!-- Define / Edit Custom Role Modal -->
+<div id="roleDefinitionModal" class="fixed inset-0 z-50 hidden bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+  <div class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5">
+        <span class="material-symbols-outlined text-ueal-purple dark:text-ueal-gold">admin_panel_settings</span>
+        <div>
+          <h3 id="roleModalTitle" class="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">Define Custom Role &amp; Module Permissions</h3>
+          <p class="text-xs text-slate-500">Specify which modules this role can access (view), edit/create, and delete.</p>
+        </div>
+      </div>
+      <button type="button" onclick="closeRoleModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <form method="post" action="/settings/roles/save" class="p-5 overflow-y-auto space-y-4">
+      <input type="hidden" id="roleFormId" name="role_id" value="">
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="sm:col-span-2">
+          <label class="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 mb-1.5">Role Name</label>
+          <input type="text" id="roleFormName" name="role_name" required placeholder="e.g., Packaging Supervisor, QA Auditor, Storekeeper" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-bold">
+        </div>
+        <div>
+          <label class="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 mb-1.5">Default Scope</label>
+          <select id="roleFormScope" name="access_scope" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-semibold">
+            <option value="Full System">Full System</option>
+            <option value="Department" selected>Department</option>
+            <option value="Section">Section</option>
+            <option value="Read Only">Read Only</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 mb-1.5">Role Responsibility Description</label>
+        <input type="text" id="roleFormDesc" name="description" placeholder="Describe what users assigned to this role are responsible for..." class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm">
+      </div>
+
+      <div>
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <label class="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Module Capabilities Matrix (Access vs Edit vs Delete)</label>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="setRoleMatrixPreset('full')" class="px-2 py-1 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[10px] font-black uppercase cursor-pointer">Select All</button>
+            <button type="button" onclick="setRoleMatrixPreset('ops')" class="px-2 py-1 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-[10px] font-black uppercase cursor-pointer">Operations Edit</button>
+            <button type="button" onclick="setRoleMatrixPreset('readonly')" class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-black uppercase cursor-pointer">View Only (No Edit)</button>
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 dark:border-dark-border overflow-hidden">
+          <div class="grid grid-cols-12 gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-500">
+            <div class="col-span-6">System Module</div>
+            <div class="col-span-2 text-center">Can Access (View)</div>
+            <div class="col-span-2 text-center text-emerald-600 dark:text-emerald-400">Can Edit / Create</div>
+            <div class="col-span-2 text-center text-rose-500">Can Delete</div>
+          </div>
+          <div class="divide-y divide-slate-100 dark:divide-slate-800 max-h-64 overflow-y-auto bg-white dark:bg-slate-900">
+            {% for mod in all_system_modules %}
+            <div class="grid grid-cols-12 gap-2 px-4 py-2.5 items-center text-xs hover:bg-slate-50 dark:hover:bg-slate-800/50">
+              <div class="col-span-6 font-bold text-slate-800 dark:text-slate-100">{{ mod.label }}</div>
+              <div class="col-span-2 flex justify-center">
+                <input type="checkbox" name="modules" value="{{ mod.key }}" class="role-mod-view w-4 h-4 rounded border-slate-300">
+              </div>
+              <div class="col-span-2 flex justify-center">
+                <input type="checkbox" name="edit_modules" value="{{ mod.key }}" class="role-mod-edit w-4 h-4 rounded border-slate-300 accent-emerald-600">
+              </div>
+              <div class="col-span-2 flex justify-center">
+                <input type="checkbox" name="delete_modules" value="{{ mod.key }}" class="role-mod-delete w-4 h-4 rounded border-slate-300 accent-rose-600">
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-3 border-t border-slate-200 dark:border-dark-border flex items-center justify-end gap-3">
+        <button type="button" onclick="closeRoleModal()" class="px-4 py-2.5 rounded-lg border border-slate-200 dark:border-dark-border text-xs font-black uppercase tracking-wider cursor-pointer">Cancel</button>
+        <button type="submit" class="px-5 py-2.5 rounded-lg bg-ueal-purple text-white text-xs font-black uppercase tracking-wider shadow cursor-pointer">Save Role Definition</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const OPSLOOM_CUSTOM_ROLES = {{ (custom_roles or []) | dump | safe }};
+
+  function openRoleModal(roleObj) {
+    const modal = document.getElementById('roleDefinitionModal');
+    if (!modal) return;
+    const titleEl = document.getElementById('roleModalTitle');
+    const idEl = document.getElementById('roleFormId');
+    const nameEl = document.getElementById('roleFormName');
+    const scopeEl = document.getElementById('roleFormScope');
+    const descEl = document.getElementById('roleFormDesc');
+
+    const viewBoxes = document.querySelectorAll('.role-mod-view');
+    const editBoxes = document.querySelectorAll('.role-mod-edit');
+    const delBoxes = document.querySelectorAll('.role-mod-delete');
+
+    if (roleObj && roleObj.name) {
+      titleEl.textContent = 'Edit Role Capabilities: ' + roleObj.name;
+      idEl.value = roleObj.id || '';
+      nameEl.value = roleObj.name || '';
+      scopeEl.value = roleObj.access_scope || 'Department';
+      descEl.value = roleObj.description || '';
+      const mods = Array.isArray(roleObj.modules) ? roleObj.modules : [];
+      const edits = Array.isArray(roleObj.edit_modules) ? roleObj.edit_modules : [];
+      const dels = Array.isArray(roleObj.delete_modules) ? roleObj.delete_modules : [];
+      viewBoxes.forEach(cb => { cb.checked = mods.includes('all') || mods.includes(cb.value); });
+      editBoxes.forEach(cb => { cb.checked = edits.includes('all') || edits.includes(cb.value); });
+      delBoxes.forEach(cb => { cb.checked = dels.includes('all') || dels.includes(cb.value); });
+    } else {
+      titleEl.textContent = 'Define New Role & Module Permissions';
+      idEl.value = '';
+      nameEl.value = '';
+      scopeEl.value = 'Department';
+      descEl.value = '';
+      setRoleMatrixPreset('ops');
+    }
+    modal.classList.remove('hidden');
+  }
+
+  function closeRoleModal() {
+    const modal = document.getElementById('roleDefinitionModal');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  function setRoleMatrixPreset(mode) {
+    const opsMods = ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports'];
+    document.querySelectorAll('.role-mod-view').forEach(cb => {
+      cb.checked = mode === 'full' ? true : opsMods.includes(cb.value);
+    });
+    document.querySelectorAll('.role-mod-edit').forEach(cb => {
+      cb.checked = mode === 'full' ? true : (mode === 'ops' ? opsMods.includes(cb.value) : false);
+    });
+    document.querySelectorAll('.role-mod-delete').forEach(cb => {
+      cb.checked = mode === 'full';
+    });
+  }
+
+  function applyRolePresetToUserForm(roleName) {
+    const found = (OPSLOOM_CUSTOM_ROLES || []).find(r => (r.name || '').toLowerCase() === String(roleName || '').toLowerCase());
+    if (!found) return;
+    const scopeEl = document.getElementById('userScopeSelect');
+    if (scopeEl && found.access_scope) {
+      scopeEl.value = found.access_scope;
+    }
+    const mods = Array.isArray(found.modules) ? found.modules : [];
+    const edits = Array.isArray(found.edit_modules) ? found.edit_modules : [];
+    const dels = Array.isArray(found.delete_modules) ? found.delete_modules : [];
+    document.querySelectorAll('.user-perm-view').forEach(cb => {
+      cb.checked = mods.includes('all') || mods.includes(cb.value);
+    });
+    document.querySelectorAll('.user-perm-edit').forEach(cb => {
+      cb.checked = edits.includes('all') || edits.includes(cb.value);
+    });
+    document.querySelectorAll('.user-perm-delete').forEach(cb => {
+      cb.checked = dels.includes('all') || dels.includes(cb.value);
+    });
+  }
+</script>
 {% endblock %}
 

@@ -2,12 +2,15 @@
 {% if export is defined and export.department %}{% set department_name = export.department %}{% endif %}
 {% set raw_department = document_department or department_name or current_department %}
 {% set report_department_label = report_department_display(raw_department) %}
+{% set header_logo_src = print_company_logo if (print_company_logo is defined and print_company_logo) else url_for('static', filename='brand/opsloom_wordmark_dark.png') %}
+{% set header_company_name = print_company_name if (print_company_name is defined and print_company_name) else (active_company.name if (active_company is defined and active_company.name) else 'Opsloom') %}
+{% set header_address_lines = print_company_address_lines if (print_company_address_lines is defined and print_company_address_lines and print_company_address_lines|length) else ultravetis_address_lines %}
 <div class="eabc-doc-header mb-6 print:mb-4">
   <div class="eabc-doc-header-banner">
     <div class="eabc-doc-header-brand">
-      <img src="{{ url_for('static', filename='brand/opsloom_wordmark_dark.png') }}" alt="Opsloom" class="eabc-doc-header-logo">
-      <div class="eabc-doc-header-address" aria-label="Opsloom address block">
-        {% for line in ultravetis_address_lines %}
+      <img src="{{ header_logo_src }}" onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_dark.png';" alt="{{ header_company_name }}" class="eabc-doc-header-logo">
+      <div class="eabc-doc-header-address" aria-label="{{ header_company_name }} designation block">
+        {% for line in header_address_lines %}
           <div>{{ line }}</div>
         {% endfor %}
       </div>
