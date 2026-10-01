@@ -730,6 +730,79 @@ img, svg, canvas, video {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
+/* Zoom-adaptive & viewport-fitting Sidebar */
+.app-sidebar {
+  height: 100dvh;
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.app-sidebar-nav {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.app-sidebar-nav::-webkit-scrollbar {
+  width: 4px;
+}
+.app-sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 9999px;
+}
+
+/* Automatically scale sidebar vertical spacing when viewport height is compact or zoomed */
+@media screen and (max-height: 820px) {
+  .app-sidebar-brand {
+    min-height: 48px !important;
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
+  }
+  .app-sidebar-brand img {
+    max-height: 34px !important;
+    height: 34px !important;
+  }
+  .app-sidebar-nav {
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
+  }
+  .app-sidebar-link {
+    padding-top: 0.4rem !important;
+    padding-bottom: 0.4rem !important;
+    font-size: 0.8125rem !important;
+  }
+  .app-sidebar-footer {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.375rem !important;
+  }
+  .app-sidebar-footer button,
+  .app-sidebar-footer a {
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
+  }
+  .app-sidebar-context {
+    padding-top: 0.45rem !important;
+    padding-bottom: 0.45rem !important;
+  }
+  .app-sidebar-context #deptToggleBtn {
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
+  }
+}
+
+@media screen and (max-height: 680px) {
+  .app-sidebar-link {
+    padding-top: 0.28rem !important;
+    padding-bottom: 0.28rem !important;
+    font-size: 0.78rem !important;
+  }
+  .app-sidebar-context label {
+    display: none !important;
+  }
+}
+
 @media screen and (max-width: 1024px) {
   .app-container {
     min-height: 100dvh;
@@ -783,17 +856,6 @@ img, svg, canvas, video {
     max-height: 42px;
     width: auto;
   }
-  .grid[class*="grid-cols-12"],
-  .grid[class*="lg:grid-cols-"],
-  .grid[class*="md:grid-cols-"] {
-    grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
-    gap: 1rem !important;
-  }
-  [class*="lg:col-span-"],
-  [class*="md:col-span-"],
-  [class*="col-span-"] {
-    grid-column: auto / span 1 !important;
-  }
   .business-print-grid,
   .business-print-kpis {
     grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
@@ -806,6 +868,13 @@ img, svg, canvas, video {
   }
 }
 @media screen and (max-width: 768px) {
+  .grid.grid-cols-12 {
+    grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+    gap: 1rem !important;
+  }
+  .grid.grid-cols-12 > [class*="col-span-"] {
+    grid-column: auto / span 1 !important;
+  }
   .app-sidebar {
     width: min(19rem, 92vw) !important;
     max-width: min(19rem, 92vw);
@@ -888,9 +957,56 @@ img, svg, canvas, video {
   }
 }
 
+/* Opsloom AI Modal & Floating Pill Button */
+.opsloom-ai-dialog {
+  width: 100%;
+  max-width: 56rem;
+  height: min(85dvh, 720px);
+  max-height: min(85dvh, 720px);
+  display: flex;
+  flex-direction: column;
+}
+.opsloom-ai-body {
+  display: grid;
+  grid-template-columns: 15.5rem minmax(0, 1fr);
+}
+.ai-mobile-history-btn {
+  display: none !important;
+}
+@media screen and (max-width: 767px) {
+  .opsloom-ai-dialog {
+    height: 88dvh;
+    max-height: 88dvh;
+    border-radius: 1rem;
+  }
+  .opsloom-ai-body {
+    display: flex;
+    flex-direction: column;
+  }
+  .ai-mobile-history-btn {
+    display: inline-flex !important;
+  }
+  .opsloom-ai-sidebar {
+    display: none !important;
+    max-height: 38%;
+    border-bottom: 2px solid #cbd5e1;
+  }
+  .opsloom-ai-sidebar.is-mobile-open {
+    display: flex !important;
+  }
+}
+
 /* Mobile Bottom Quick-Navigation Bar & FAB positioning */
 .opsloom-fab {
+  position: fixed !important;
+  right: 20px !important;
   bottom: 24px !important;
+  z-index: 950 !important;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, var(--brand-primary, #7E22CE), #1e1b4b);
+  box-shadow: 0 10px 24px -4px rgba(15, 23, 42, 0.42);
 }
 .app-mobile-bottom-nav {
   display: none;
@@ -899,7 +1015,9 @@ img, svg, canvas, video {
 @media screen and (max-width: 1024px) {
   .opsloom-fab {
     bottom: 74px !important;
-    right: 12px !important;
+    right: 14px !important;
+    height: 38px;
+    padding: 0 14px;
   }
   main.main-content {
     padding-bottom: 5.5rem !important;

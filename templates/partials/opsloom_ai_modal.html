@@ -2,44 +2,48 @@
 <div id="opsloomAiModal" class="fixed inset-0 z-50 hidden overflow-y-auto" style="position: fixed; inset: 0; z-index: 9990;" aria-labelledby="ai-modal-title" role="dialog" aria-modal="true">
   <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" style="position: fixed; inset: 0; background-color: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px);" onclick="closeOpsloomAiModal()"></div>
 
-  <div class="flex min-h-full items-center justify-center p-4 text-center" style="position: relative; z-index: 1; min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 1rem;">
-    <div class="relative transform overflow-hidden rounded-2xl bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border text-left shadow-2xl transition-all w-full max-w-4xl flex flex-col" style="width: 100%; max-width: 56rem; height: 82vh; max-height: 82vh; display: flex; flex-direction: column;">
+  <div class="flex min-h-full items-center justify-center p-2 sm:p-4 text-center" style="position: relative; z-index: 1; min-height: 100%; display: flex; align-items: center; justify-content: center;">
+    <div class="opsloom-ai-dialog relative transform overflow-hidden rounded-2xl bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border text-left shadow-2xl transition-all w-full max-w-4xl flex flex-col">
       
       <!-- AI Header -->
-      <div class="px-6 py-4 border-b border-slate-200 dark:border-dark-border flex items-center justify-between gap-4 text-white shrink-0" style="background: linear-gradient(90deg, var(--brand-primary, #581c87), #1e1b4b, #0f172a);">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center font-black shadow-inner shrink-0">
-            <span class="material-symbols-outlined text-[22px] text-amber-400">auto_awesome</span>
+      <div class="px-3.5 py-3 sm:px-5 sm:py-3.5 border-b border-slate-200 dark:border-dark-border flex items-center justify-between gap-2 text-white shrink-0" style="background: linear-gradient(90deg, var(--brand-primary, #581c87), #1e1b4b, #0f172a);">
+        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center font-black shadow-inner shrink-0">
+            <span class="material-symbols-outlined text-[20px] text-amber-400">auto_awesome</span>
           </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <h3 class="text-base font-black tracking-tight text-white" id="ai-modal-title">Opsloom AI Reliability Copilot</h3>
-              <span class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-400 text-slate-900">
-                STRUCTURED ENGINE
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2 min-w-0">
+              <h3 class="text-sm sm:text-base font-black tracking-tight text-white truncate" id="ai-modal-title">Opsloom AI Copilot</h3>
+              <span class="hidden sm:inline-flex px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider shrink-0" style="background-color: rgba(251, 191, 36, 0.2); color: #fde68a; border: 1px solid rgba(251, 191, 36, 0.35);">
+                LIVE TELEMETRY
               </span>
             </div>
-            <p class="text-[11px] text-slate-200 mt-0.5">Live telemetry synthesis, root-cause diagnostics &amp; persistent chat archive</p>
+            <p class="text-[11px] text-slate-200/90 truncate mt-0.5">Root-cause diagnostics &amp; plant reliability synthesis</p>
           </div>
         </div>
-        <div class="flex items-center gap-2">
-          <button type="button" onclick="startNewAiSession()" class="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-black flex items-center gap-1.5 transition cursor-pointer">
-            <span class="material-symbols-outlined text-sm">add_comment</span>
-            <span>New Chat</span>
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <button type="button" onclick="toggleMobileAiHistory()" class="ai-mobile-history-btn px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap" title="Saved Chats">
+            <span class="material-symbols-outlined text-[16px]">history</span>
+            <span id="aiMobileHistoryCount" class="text-[11px] font-extrabold">Chats</span>
           </button>
-          <button type="button" onclick="closeOpsloomAiModal()" class="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer">
-            <span class="material-symbols-outlined text-lg">close</span>
+          <button type="button" onclick="startNewAiSession()" class="px-2.5 sm:px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-bold flex items-center gap-1 transition cursor-pointer whitespace-nowrap" title="Start New Chat">
+            <span class="material-symbols-outlined text-[16px]">add_comment</span>
+            <span>New</span>
+          </button>
+          <button type="button" onclick="closeOpsloomAiModal()" class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-white flex items-center justify-center transition cursor-pointer shrink-0" aria-label="Close Opsloom AI">
+            <span class="material-symbols-outlined text-[18px]">close</span>
           </button>
         </div>
       </div>
 
       <!-- Main Body: Left Saved Chats Sidebar + Right Active Structured Conversation -->
-      <div class="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-[16rem_minmax(0,1fr)] overflow-hidden">
+      <div class="opsloom-ai-body flex-1 min-h-0 overflow-hidden">
         
-        <!-- Saved Chats Archive Sidebar -->
-        <aside class="border-b md:border-b-0 md:border-r border-slate-200 dark:border-dark-border bg-slate-50/80 dark:bg-slate-900/60 flex flex-col min-h-0">
-          <div class="px-4 py-3 border-b border-slate-200 dark:border-dark-border flex items-center justify-between">
-            <span class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Saved Chats</span>
-            <button type="button" onclick="clearAllAiChats()" class="text-[10px] font-bold text-rose-600 hover:underline cursor-pointer" title="Move all saved chats to Admin Recycle Bin">
+        <!-- Saved Chats Archive Sidebar (Always visible on desktop, toggleable drawer on mobile) -->
+        <aside id="aiSavedChatsSidebar" class="opsloom-ai-sidebar border-b md:border-b-0 md:border-r border-slate-200 dark:border-dark-border bg-slate-50/90 dark:bg-slate-900/80 flex flex-col min-h-0">
+          <div class="px-3.5 py-2.5 border-b border-slate-200 dark:border-dark-border flex items-center justify-between shrink-0">
+            <span class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Saved Chats</span>
+            <button type="button" onclick="clearAllAiChats()" class="text-[11px] font-bold text-rose-600 hover:underline cursor-pointer" title="Move all saved chats to Admin Recycle Bin">
               Clear All
             </button>
           </div>
@@ -49,52 +53,57 @@
         </aside>
 
         <!-- Right Column: Quick Diagnostic Actions + Structured Chat Feed + Input Footer -->
-        <div class="flex flex-col min-h-0 bg-white dark:bg-dark-surface">
-          <!-- Quick Action Toolbar -->
-          <div class="px-4 py-2.5 bg-slate-50/70 dark:bg-slate-800/40 border-b border-slate-200 dark:border-dark-border flex items-center gap-2 overflow-x-auto shrink-0">
-            <span class="text-[10px] font-black uppercase tracking-wider text-slate-400 shrink-0 mr-1">Diagnostics:</span>
-            <button type="button" onclick="runAiQuickAction('diagnose_fleet')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 hover:border-ueal-purple transition whitespace-nowrap shadow-xs flex items-center gap-1.5 cursor-pointer">
-              <span class="material-symbols-outlined text-sm text-emerald-600">health_and_safety</span> Plant Health Audit
-            </button>
-            <button type="button" onclick="runAiQuickAction('critical_breakdowns')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 hover:border-ueal-purple transition whitespace-nowrap shadow-xs flex items-center gap-1.5 cursor-pointer">
-              <span class="material-symbols-outlined text-sm text-rose-500">warning</span> Triage Active Faults
-            </button>
-            <button type="button" onclick="runAiQuickAction('spare_replenishment')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 hover:border-ueal-purple transition whitespace-nowrap shadow-xs flex items-center gap-1.5 cursor-pointer">
-              <span class="material-symbols-outlined text-sm text-amber-500">inventory_2</span> Spares Stock Risk
-            </button>
-            <button type="button" onclick="runAiQuickAction('pm_compliance')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 hover:border-ueal-purple transition whitespace-nowrap shadow-xs flex items-center gap-1.5 cursor-pointer">
-              <span class="material-symbols-outlined text-sm text-indigo-500">event_available</span> PM SLA Review
-            </button>
+        <div class="flex flex-col flex-1 min-h-0 min-w-0 bg-white dark:bg-dark-surface">
+          <!-- Quick Action Toolbar: 2x2 grid on phone, 4 columns on tablet/desktop so ALL buttons are always visible -->
+          <div class="p-2.5 sm:px-4 sm:py-3 bg-slate-50/80 dark:bg-slate-800/40 border-b border-slate-200 dark:border-dark-border shrink-0">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
+              <button type="button" onclick="runAiQuickAction('diagnose_fleet')" class="px-2.5 py-2 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 hover:border-ueal-purple transition shadow-2xs flex items-center justify-center sm:justify-start gap-1.5 cursor-pointer text-left">
+                <span class="material-symbols-outlined text-[16px] text-emerald-600 shrink-0">health_and_safety</span>
+                <span class="truncate">Plant Health Audit</span>
+              </button>
+              <button type="button" onclick="runAiQuickAction('critical_breakdowns')" class="px-2.5 py-2 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 hover:border-ueal-purple transition shadow-2xs flex items-center justify-center sm:justify-start gap-1.5 cursor-pointer text-left">
+                <span class="material-symbols-outlined text-[16px] text-rose-500 shrink-0">warning</span>
+                <span class="truncate">Triage Active Faults</span>
+              </button>
+              <button type="button" onclick="runAiQuickAction('spare_replenishment')" class="px-2.5 py-2 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 hover:border-ueal-purple transition shadow-2xs flex items-center justify-center sm:justify-start gap-1.5 cursor-pointer text-left">
+                <span class="material-symbols-outlined text-[16px] text-amber-500 shrink-0">inventory_2</span>
+                <span class="truncate">Spares Stock Risk</span>
+              </button>
+              <button type="button" onclick="runAiQuickAction('pm_compliance')" class="px-2.5 py-2 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 hover:border-ueal-purple transition shadow-2xs flex items-center justify-center sm:justify-start gap-1.5 cursor-pointer text-left">
+                <span class="material-symbols-outlined text-[16px] text-indigo-500 shrink-0">event_available</span>
+                <span class="truncate">PM SLA Review</span>
+              </button>
+            </div>
           </div>
 
           <!-- AI Chat & Diagnostics Output Area -->
-          <div id="aiResponseContainer" class="p-5 overflow-y-auto space-y-4 flex-1 text-sm text-slate-700 dark:text-slate-300">
-            <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40">
-              <div class="flex items-center justify-between gap-2 mb-1.5">
+          <div id="aiResponseContainer" class="p-3.5 sm:p-5 overflow-y-auto space-y-3.5 flex-1 min-h-0 text-sm text-slate-700 dark:text-slate-300">
+            <div class="p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40">
+              <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                 <div class="flex items-center gap-2 text-slate-900 dark:text-white font-black text-xs uppercase tracking-wider">
                   <span class="material-symbols-outlined text-base text-ueal-purple dark:text-ueal-gold">psychology</span>
                   <span>Opsloom AI Plant Copilot Ready</span>
                 </div>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">Connected to Live Register</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 whitespace-nowrap">Live Register Connected</span>
               </div>
               <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                Every diagnostic and conversation is structured with executive takeaways, telemetry metrics, root-cause findings, and recommended engineering actions—and automatically saved in your chat history on the left for easy recall.
+                Tap any of the 4 diagnostic buttons above or ask a question below. Every analysis is structured with executive takeaways, telemetry metrics, root-cause findings, and recommended engineering actions.
               </p>
             </div>
           </div>
 
-          <!-- Prompt Input Footer (Send button guaranteed visible in both Light & Dark mode) -->
-          <div class="p-4 bg-slate-50 dark:bg-slate-800/70 border-t border-slate-200 dark:border-dark-border shrink-0">
-            <form id="aiPromptForm" onsubmit="submitAiPrompt(event)" class="flex items-center gap-2.5">
-              <div class="relative flex-1">
-                <input type="text" id="aiUserInput" placeholder="Ask Opsloom AI e.g. 'Analyze rotary filler downtime and spares risk'..." required
-                       class="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm outline-none focus:border-ueal-purple transition">
+          <!-- Prompt Input Footer -->
+          <div class="p-3 sm:p-4 bg-slate-50 dark:bg-slate-800/70 border-t border-slate-200 dark:border-dark-border shrink-0">
+            <form id="aiPromptForm" onsubmit="submitAiPrompt(event)" class="flex items-center gap-2">
+              <div class="relative flex-1 min-w-0">
+                <input type="text" id="aiUserInput" placeholder="Ask Opsloom AI about assets, faults, or spares..." required
+                       class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs sm:text-sm outline-none focus:border-ueal-purple transition">
               </div>
               <button type="submit" id="aiSubmitBtn"
-                      class="px-5 py-2.5 rounded-xl bg-ueal-purple text-white text-xs font-black flex items-center gap-2 shadow-md hover:opacity-95 transition shrink-0 cursor-pointer"
+                      class="px-4 py-2.5 rounded-xl bg-ueal-purple text-white text-xs font-black flex items-center justify-center gap-1.5 shadow-md hover:opacity-95 transition shrink-0 cursor-pointer"
                       style="background-color: var(--brand-primary, #7E22CE) !important; color: #ffffff !important; border: 1px solid rgba(255,255,255,0.15);">
                 <span style="color: #ffffff !important;">Send</span>
-                <span class="material-symbols-outlined text-sm" style="color: #ffffff !important;">send</span>
+                <span class="material-symbols-outlined text-[16px]" style="color: #ffffff !important;">send</span>
               </button>
             </form>
           </div>
@@ -214,11 +223,15 @@ function renderStructuredAiCard(data) {
 
 async function loadSavedAiChats() {
   const listEl = document.getElementById('aiSavedChatsList');
+  const countEl = document.getElementById('aiMobileHistoryCount');
   if (!listEl) return;
   try {
     const res = await fetch('/api/ai/chats', { headers: { 'Accept': 'application/json' } });
     const data = await res.json();
     __opsloomChatsCache = data.chats || [];
+    if (countEl) {
+      countEl.textContent = __opsloomChatsCache.length ? `Chats (${__opsloomChatsCache.length})` : 'Chats';
+    }
     if (!__opsloomChatsCache.length) {
       listEl.innerHTML = `<div class="p-4 text-center text-[11px] text-slate-400">No saved chats yet. Run a diagnostic or ask a question below.</div>`;
       return;
@@ -239,10 +252,21 @@ async function loadSavedAiChats() {
   }
 }
 
+function toggleMobileAiHistory(forceClose) {
+  const sidebar = document.getElementById('aiSavedChatsSidebar');
+  if (!sidebar) return;
+  if (forceClose === true) {
+    sidebar.classList.remove('is-mobile-open');
+  } else {
+    sidebar.classList.toggle('is-mobile-open');
+  }
+}
+
 function openSavedAiChat(chatId) {
   const chat = __opsloomChatsCache.find(c => c.id === chatId);
   if (!chat) return;
   __opsloomActiveChatId = chat.id;
+  toggleMobileAiHistory(true);
   loadSavedAiChats();
   const container = document.getElementById('aiResponseContainer');
   if (!container) return;

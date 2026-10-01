@@ -1,15 +1,16 @@
-<aside id="appSidebar" class="app-sidebar sidebar-bg w-64 flex-shrink-0 flex flex-col text-white h-screen relative">
+<aside id="appSidebar" class="app-sidebar sidebar-bg w-64 flex-shrink-0 flex flex-col text-white relative">
   <!-- Brand & Configurable Workspace Logo -->
   {% set raw_light_logo = active_company.logo_light_url if active_company and active_company.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png') %}
   {% set raw_dark_logo = active_company.logo_dark_url if active_company and active_company.logo_dark_url else raw_light_logo %}
   {% set safe_light_logo = url_for('static', filename='brand/opsloom_wordmark_light.png') if ('opsloom_wordmark_dark.png' in raw_light_logo) else raw_light_logo %}
   {% set safe_dark_logo = url_for('static', filename='brand/opsloom_wordmark_light.png') if ('opsloom_wordmark_dark.png' in raw_dark_logo) else raw_dark_logo %}
-  {% set logo_h = active_company.logo_height if active_company and active_company.logo_height else 52 %}
+  {% set logo_h = active_company.logo_height if active_company and active_company.logo_height else 42 %}
+  {% set effective_logo_h = [logo_h, 44]|min %}
   {% set logo_w = active_company.logo_width_pct if active_company and active_company.logo_width_pct else 100 %}
   {% set logo_align = active_company.logo_alignment if active_company and active_company.logo_alignment else 'left' %}
   {% set logo_obj_pos = 'center center' if logo_align == 'center' else ('right center' if logo_align == 'right' else 'left center') %}
-  <div class="px-3 py-2.5 flex items-center justify-between gap-2 border-b border-white/10"
-       style="min-height: {{ [(logo_h + 20), 64]|max }}px;">
+  <div class="app-sidebar-brand px-3 py-2 flex items-center justify-between gap-2 border-b border-white/10 shrink-0"
+       style="min-height: 54px;">
     <div class="min-w-0 flex-1 flex items-center gap-2.5 {% if logo_align == 'center' %}justify-center{% elif logo_align == 'right' %}justify-end{% else %}justify-start{% endif %}">
       <!-- Light Theme Logo Image (shown on dark sidebar when app is in light mode) -->
       <img id="sidebarLogoLight"
@@ -17,14 +18,14 @@
            onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_light.png';"
            alt="{{ active_company.name if active_company else 'Opsloom' }}"
            class="block dark:hidden transition-all duration-200"
-           style="height: {{ logo_h }}px; max-height: {{ logo_h }}px; width: {{ 'auto' if (active_company and active_company.show_name_next_to_logo) else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: contain; object-position: {{ logo_obj_pos }};" />
+           style="height: {{ effective_logo_h }}px; max-height: {{ effective_logo_h }}px; width: {{ 'auto' if (active_company and active_company.show_name_next_to_logo) else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: contain; object-position: {{ logo_obj_pos }};" />
       <!-- Dark Theme Logo Image (shown on dark sidebar when app is in dark mode) -->
       <img id="sidebarLogoDark"
            src="{{ safe_dark_logo }}"
            onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_light.png';"
            alt="{{ active_company.name if active_company else 'Opsloom' }}"
            class="hidden dark:block transition-all duration-200"
-           style="height: {{ logo_h }}px; max-height: {{ logo_h }}px; width: {{ 'auto' if (active_company and active_company.show_name_next_to_logo) else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: contain; object-position: {{ logo_obj_pos }};" />
+           style="height: {{ effective_logo_h }}px; max-height: {{ effective_logo_h }}px; width: {{ 'auto' if (active_company and active_company.show_name_next_to_logo) else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: contain; object-position: {{ logo_obj_pos }};" />
 
       {% if active_company and active_company.show_name_next_to_logo %}
         <div class="flex flex-col min-w-0">
@@ -39,107 +40,106 @@
   </div>
 
   <!-- Nav -->
-  <nav class="flex-1 px-3 space-y-1">
+  <nav class="app-sidebar-nav flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-0.5">
     {% set perms = current_user_permissions or [] %}
     {% if 'dashboard' in perms or 'settings_manage' in perms %}
     <a
-      class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors
+      class="app-sidebar-link flex items-center gap-3 px-3 py-2 rounded-lg transition-colors
         {% if active_nav=='dashboard' %} bg-ueal-gold text-white shadow-lg shadow-black/20 {% else %} text-white/70 hover:bg-white/10 hover:text-white {% endif %}"
       href="{{ url_for('dashboard') }}"
     >
-      <span class="material-symbols-outlined text-xl">dashboard</span>
+      <span class="material-symbols-outlined text-[20px]">dashboard</span>
       <span class="font-medium text-sm">Dashboard</span>
     </a>
     {% endif %}
 
     {% if 'assets' in perms or 'settings_manage' in perms %}
     <a
-      class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors
+      class="app-sidebar-link flex items-center gap-3 px-3 py-2 rounded-lg transition-colors
         {% if active_nav=='assets' %} bg-ueal-gold text-white shadow-lg shadow-black/20 {% else %} text-white/70 hover:bg-white/10 hover:text-white {% endif %}"
       href="{{ url_for('assets_master_list') }}"
     >
-      <span class="material-symbols-outlined text-xl">inventory</span>
+      <span class="material-symbols-outlined text-[20px]">inventory</span>
       <span class="font-medium text-sm">Asset Register</span>
     </a>
     {% endif %}
 
     {% if 'breakdowns' in perms or 'settings_manage' in perms %}
     <a
-      class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors
+      class="app-sidebar-link flex items-center gap-3 px-3 py-2 rounded-lg transition-colors
         {% if active_nav=='breakdowns' %} bg-ueal-gold text-white shadow-lg shadow-black/20 {% else %} text-white/70 hover:bg-white/10 hover:text-white {% endif %}"
       href="{{ url_for('breakdowns') }}"
     >
-      <span class="material-symbols-outlined text-xl">error_outline</span>
+      <span class="material-symbols-outlined text-[20px]">error_outline</span>
       <span class="font-medium text-sm">Breakdowns</span>
     </a>
     {% endif %}
 
     {% if 'maintenance' in perms or 'settings_manage' in perms %}
-<a
-  class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors
-    {% if active_nav=='maintenance' %} bg-ueal-gold text-white shadow-lg shadow-black/20
-    {% else %} text-white/70 hover:bg-white/10 hover:text-white {% endif %}"
-  href="{{ url_for('maintenance_management') }}"
->
-  <span class="material-symbols-outlined text-xl">build</span>
-  <span class="font-medium text-sm">Maintenance</span>
-</a>
-{% endif %}
+    <a
+      class="app-sidebar-link flex items-center gap-3 px-3 py-2 rounded-lg transition-colors
+        {% if active_nav=='maintenance' %} bg-ueal-gold text-white shadow-lg shadow-black/20
+        {% else %} text-white/70 hover:bg-white/10 hover:text-white {% endif %}"
+      href="{{ url_for('maintenance_management') }}"
+    >
+      <span class="material-symbols-outlined text-[20px]">build</span>
+      <span class="font-medium text-sm">Maintenance</span>
+    </a>
+    {% endif %}
 
-{% if 'inventory' in perms or 'settings_manage' in perms %}
-<a
-  class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors
-    {% if active_nav=='inventory' %} bg-ueal-gold text-white shadow-lg shadow-black/20
-    {% else %} text-white/70 hover:bg-white/10 hover:text-white {% endif %}"
-  href="{{ url_for('inventory_management') }}"
->
-  <span class="material-symbols-outlined text-xl">inventory_2</span>
-  <span class="font-medium text-sm">Inventory</span>
-</a>
-{% endif %}
-
+    {% if 'inventory' in perms or 'settings_manage' in perms %}
+    <a
+      class="app-sidebar-link flex items-center gap-3 px-3 py-2 rounded-lg transition-colors
+        {% if active_nav=='inventory' %} bg-ueal-gold text-white shadow-lg shadow-black/20
+        {% else %} text-white/70 hover:bg-white/10 hover:text-white {% endif %}"
+      href="{{ url_for('inventory_management') }}"
+    >
+      <span class="material-symbols-outlined text-[20px]">inventory_2</span>
+      <span class="font-medium text-sm">Inventory</span>
+    </a>
+    {% endif %}
 
     {% if 'reports' in perms or 'settings_manage' in perms %}
     <a
-      class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors
+      class="app-sidebar-link flex items-center gap-3 px-3 py-2 rounded-lg transition-colors
         {% if active_nav=='reports' %} bg-ueal-gold text-white shadow-lg shadow-black/20 {% else %} text-white/70 hover:bg-white/10 hover:text-white {% endif %}"
       href="{{ url_for('reports_center') }}"
     >
-      <span class="material-symbols-outlined text-xl">assessment</span>
+      <span class="material-symbols-outlined text-[20px]">assessment</span>
       <span class="font-medium text-sm">Reports</span>
     </a>
     {% endif %}
 
     {% if 'companies' in perms or 'settings_manage' in perms or 'all' in perms %}
     <a
-      class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors
+      class="app-sidebar-link flex items-center gap-3 px-3 py-2 rounded-lg transition-colors
         {% if active_nav=='companies' %} bg-ueal-gold text-white shadow-lg shadow-black/20 {% else %} text-white/70 hover:bg-white/10 hover:text-white {% endif %}"
       href="/settings/companies"
     >
-      <span class="material-symbols-outlined text-xl">domain</span>
+      <span class="material-symbols-outlined text-[20px]">domain</span>
       <span class="font-medium text-sm">Workspaces / Brand</span>
     </a>
     {% endif %}
 
     {% if 'settings_manage' in perms or 'users_manage' in perms or 'technicians_manage' in perms or 'all' in perms %}
     <a
-      class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors
+      class="app-sidebar-link flex items-center gap-3 px-3 py-2 rounded-lg transition-colors
         {% if active_nav=='settings' %} bg-ueal-gold text-white shadow-lg shadow-black/20 {% else %} text-white/70 hover:bg-white/10 hover:text-white {% endif %}"
       href="{{ url_for('settings_admin') }}"
     >
-      <span class="material-symbols-outlined text-xl">settings</span>
+      <span class="material-symbols-outlined text-[20px]">settings</span>
       <span class="font-medium text-sm">Settings / Admin</span>
     </a>
     {% endif %}
 
     {% if 'recycle_bin' in perms or 'settings_manage' in perms or 'all' in perms %}
     <a
-      class="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg transition-colors
+      class="app-sidebar-link flex items-center justify-between gap-3 px-3 py-2 rounded-lg transition-colors
         {% if active_nav=='recycle_bin' %} bg-ueal-gold text-white shadow-lg shadow-black/20 {% else %} text-white/70 hover:bg-white/10 hover:text-white {% endif %}"
       href="/settings/recycle-bin"
     >
       <span class="flex items-center gap-3">
-        <span class="material-symbols-outlined text-xl">restore_from_trash</span>
+        <span class="material-symbols-outlined text-[20px]">restore_from_trash</span>
         <span class="font-medium text-sm">Recycle Bin</span>
       </span>
       {% if recycle_bin_count and recycle_bin_count > 0 %}
@@ -150,46 +150,46 @@
   </nav>
 
   <!-- Footer: Opsloom AI Copilot & Logout -->
-  <div class="px-3 pb-3 mt-auto space-y-2">
+  <div class="app-sidebar-footer px-3 pb-2 pt-1 shrink-0 space-y-1.5">
     <button
       type="button"
       onclick="openOpsloomAiModal()"
-      class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-purple-200 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/30 text-left group cursor-pointer"
+      class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors text-purple-200 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/30 text-left group cursor-pointer"
     >
-      <span class="material-symbols-outlined text-amber-400 text-xl animate-pulse">auto_awesome</span>
-      <span class="font-bold text-sm text-purple-100 group-hover:text-white">Opsloom AI</span>
+      <span class="material-symbols-outlined text-amber-400 text-[18px]">auto_awesome</span>
+      <span class="font-bold text-xs text-purple-100 group-hover:text-white">Opsloom AI</span>
       <span class="ml-auto text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300">COPILOT</span>
     </button>
 
-    <div class="grid grid-cols-2 gap-2">
+    <div class="grid grid-cols-2 gap-1.5">
       <a
-        class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 transition-all text-amber-300 hover:text-amber-200 border border-amber-500/20"
+        class="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 transition-all text-amber-300 hover:text-amber-200 border border-amber-500/20"
         href="/lock?next={{ request.path }}"
         title="Lock session now"
       >
-        <span class="material-symbols-outlined text-lg">lock</span>
+        <span class="material-symbols-outlined text-[16px]">lock</span>
         <span class="font-bold text-xs">Lock</span>
       </a>
       <a
-        class="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-all text-red-300 hover:text-red-200 border border-red-500/20"
+        class="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-all text-red-300 hover:text-red-200 border border-red-500/20"
         href="{{ url_for('logout') }}"
       >
-        <span class="material-symbols-outlined text-lg">logout</span>
+        <span class="material-symbols-outlined text-[16px]">logout</span>
         <span class="font-bold text-xs">Logout</span>
       </a>
     </div>
   </div>
 
   <!-- Department Context -->
-  <div class="p-4 border-t border-white/10 relative" id="deptDropdownRoot">
-    <label class="text-[10px] text-white/50 uppercase font-bold tracking-wider mb-2 block px-2">
+  <div class="app-sidebar-context px-3 py-2.5 border-t border-white/10 relative shrink-0" id="deptDropdownRoot">
+    <label class="text-[9px] text-white/50 uppercase font-bold tracking-wider mb-1 block px-1">
       Current Context
     </label>
 
     <button
       id="deptToggleBtn"
       type="button"
-      class="w-full bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg py-2.5 px-3 flex items-center justify-between transition-all group"
+      class="w-full bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg py-2 px-2.5 flex items-center justify-between transition-all group"
       aria-haspopup="menu"
       aria-expanded="false"
     >
@@ -199,7 +199,7 @@
         </span>
         {% if current_department_parent %}<span class="text-[9px] text-ueal-gold uppercase tracking-tighter">{{ current_department_parent }} Department</span>{% else %}<span class="text-[9px] text-ueal-gold uppercase tracking-tighter">Active Department</span>{% endif %}
       </div>
-      <span class="material-symbols-outlined text-white/60 group-hover:text-ueal-gold">unfold_more</span>
+      <span class="material-symbols-outlined text-white/60 group-hover:text-ueal-gold text-lg">unfold_more</span>
     </button>
 
     <!-- Menu (ALWAYS pops up without pushing layout) -->

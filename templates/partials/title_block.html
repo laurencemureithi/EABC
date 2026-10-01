@@ -42,7 +42,7 @@
     </div>
 
     {% if show_system_badge %}
-      <button type="button" onclick="openSystemHealthModal()" class="inline-flex items-center justify-between sm:justify-start gap-3 px-3.5 py-2 bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 hover:border-emerald-500/50 dark:hover:border-emerald-500/50 rounded-xl shadow-xs shrink-0 transition-all cursor-pointer group text-left w-full sm:w-auto" data-no-print title="Click to view EABC Operational Reliability Terms">
+      <button type="button" onclick="openSystemHealthModal()" class="inline-flex items-center gap-3 px-3.5 py-2 bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 hover:border-emerald-500/50 dark:hover:border-emerald-500/50 rounded-xl shadow-xs shrink-0 transition-all cursor-pointer group text-left self-start" data-no-print title="Click to view EABC Operational Reliability Terms">
         <span class="w-8 h-8 rounded-lg {% if system_badge_state == 'stable' %}bg-emerald-500/10 text-emerald-600 dark:text-emerald-400{% elif system_badge_state == 'warning' %}bg-amber-500/10 text-amber-600 dark:text-amber-400{% else %}bg-rose-500/10 text-rose-600 dark:text-rose-400{% endif %} flex items-center justify-center shrink-0">
           <span class="material-symbols-outlined text-[18px]">{% if system_badge_state == 'stable' %}verified{% elif system_badge_state == 'warning' %}vital_signs{% else %}warning{% endif %}</span>
         </span>
