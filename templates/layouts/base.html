@@ -651,26 +651,10 @@
           tzInput.value = tz;
         }, true);
 
-        // Synchronize master state snapshot so saved/edited/deleted data never disappears across sessions or instances
+        // Cache authoritative server state snapshot locally for offline reference
         var serverSnap = {{ (client_sync_snapshot or {}) | dump | safe }};
-        if (serverSnap && typeof serverSnap === 'object') {
-          var rawLocal = localStorage.getItem('opsloom_master_state_v1');
-          var localSnap = rawLocal ? JSON.parse(rawLocal) : null;
-          var serverRev = Number(serverSnap.revision || 0);
-          var localRev = localSnap ? Number(localSnap.revision || 0) : 0;
-
-          if (localSnap && localRev > serverRev && !sessionStorage.getItem('opsloom_hydrated_rev_' + localRev)) {
-            sessionStorage.setItem('opsloom_hydrated_rev_' + localRev, '1');
-            fetch('/api/system/hydrate-state', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ snapshot: localSnap })
-            }).then(function(r) {
-              if (r.ok) window.location.reload();
-            }).catch(function() {});
-          } else {
-            localStorage.setItem('opsloom_master_state_v1', JSON.stringify(serverSnap));
-          }
+        if (serverSnap && typeof serverSnap === 'object' && serverSnap.revision) {
+          localStorage.setItem('opsloom_master_state_v1', JSON.stringify(serverSnap));
         }
       } catch (e) {}
     })();

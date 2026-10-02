@@ -245,7 +245,6 @@
 
           <form id="loginForm" method="post" action="{{ url_for('login_submit') }}" class="space-y-5">
             <input type="hidden" name="next" value="{{ request.args.get('next','') }}">
-            <input type="hidden" name="client_master_state" class="js-client-master-state" value="">
             <input type="hidden" name="_client_now_ms" class="js-client-now-ms" value="">
             <input type="hidden" name="_client_tz" class="js-client-tz" value="">
             <div>
@@ -323,7 +322,6 @@
               </div>
 
               <form method="post" action="{{ url_for('reset_admin_password') }}" class="space-y-3.5">
-                <input type="hidden" name="client_master_state" class="js-client-master-state" value="">
                 <input type="hidden" name="_client_now_ms" class="js-client-now-ms" value="">
                 <input type="hidden" name="_client_tz" class="js-client-tz" value="">
                 <div>
@@ -359,7 +357,6 @@
                 Enter your work email address and optional details below. The system automatically identifies which company workspace your account belongs to and notifies the System Administrator (<strong>opsloom.ke@gmail.com</strong>) to assist you.
               </p>
               <form method="post" action="{{ url_for('forgot_password') }}" class="space-y-3">
-                <input type="hidden" name="client_master_state" class="js-client-master-state" value="">
                 <input type="hidden" name="_client_now_ms" class="js-client-now-ms" value="">
                 <input type="hidden" name="_client_tz" class="js-client-tz" value="">
                 <div>
@@ -412,8 +409,6 @@
                 document.cookie = 'opsloom_client_now_ms=' + nowMs + '; path=/; max-age=604800; SameSite=Lax';
                 document.cookie = 'opsloom_tz=' + encodeURIComponent(tz) + '; path=/; max-age=604800; SameSite=Lax';
 
-                var masterRaw = localStorage.getItem('opsloom_master_state_v1') || '';
-                document.querySelectorAll('.js-client-master-state').forEach(function(el) { el.value = masterRaw; });
                 document.querySelectorAll('.js-client-now-ms').forEach(function(el) { el.value = String(nowMs); });
                 document.querySelectorAll('.js-client-tz').forEach(function(el) { el.value = tz; });
 
@@ -422,14 +417,6 @@
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ client_now_ms: nowMs, client_tz: tz })
                 }).catch(function() {});
-
-                if (masterRaw) {
-                  fetch('/api/system/hydrate-state', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ snapshot: masterRaw })
-                  }).catch(function() {});
-                }
               } catch (e) {}
             })();
           </script>

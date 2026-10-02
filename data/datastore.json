@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "saved_at": "2026-10-02T07:12:39.699Z",
+  "saved_at": "2026-10-02T07:51:40.230Z",
   "COMPANIES": [
     {
       "id": "comp-001",
@@ -504,6 +504,32 @@
   ],
   "AUDIT_TRAIL": [
     {
+      "id": "6dc7aa30bb6548beb2ad26f694c6f3b8",
+      "action": "Password Reset Request Dispatched",
+      "detail": "User David Kimani (david.kimani@opsloom.co.ke) in workspace Opsloom Kenya (OPS) submitted a password reset request to Administrator (opsloom.ke@gmail.com).",
+      "module": "security",
+      "severity": "warning",
+      "href": "/settings/admin-users",
+      "created_at": "2026-10-02T07:51:34.424Z",
+      "time_display": "02 Oct 2026, 10:51:34",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "6937470c0123445bb359c3cd842595bc",
+      "action": "Admin Reset Code Reverted",
+      "detail": "Generated 6-digit password reset code for opsloom.ke@gmail.com and reverted to laurencemureithi1999@gmail.com.",
+      "module": "security",
+      "severity": "warning",
+      "href": "/login",
+      "created_at": "2026-10-02T07:51:30.476Z",
+      "time_display": "02 Oct 2026, 10:51:30",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
       "id": "4c2513cd5dcb425db946f6ef561f9793",
       "action": "Company KPI Targets & Budgets Updated",
       "detail": "Laurence Magondu (Administrator) updated KPI attainment levels & budgets for Opsloom Kenya (OPS): Uptime SLA 88.5%, PM SLA 94%, Monthly Budget KES 620,000.",
@@ -658,6 +684,17 @@
     "timezone": "Africa/Nairobi"
   },
   "SYSTEM_NOTIFICATIONS": [
+    {
+      "id": "notif-1790927494425",
+      "title": "Password Reset Request: David Kimani (OPS)",
+      "message": "David Kimani (david.kimani@opsloom.co.ke) in Opsloom Kenya (OPS) requested a password reset. Click to reset their password.",
+      "kind": "warning",
+      "created_at": "2026-10-02T07:51:34.421Z",
+      "created_display": "02 Oct 2026, 10:51",
+      "is_read": false,
+      "href": "/settings/admin-users?edit=USR-003#provisionUserForm",
+      "should_toast": false
+    },
     {
       "id": "notif-1790925159549",
       "title": "Password Reset Request: David Kimani (UEAL)",
@@ -839,6 +876,30 @@
   ],
   "INTERNAL_MESSAGES": [
     {
+      "id": "msg-reset-1790927494425",
+      "thread_id": "thread-reset-1790927494425",
+      "category": "Credential Reset",
+      "user_id": "USR-003",
+      "user_name": "David Kimani",
+      "user_role": "Technician",
+      "user_department": "Engineering",
+      "workspace_id": "comp-001",
+      "workspace_name": "Opsloom Kenya",
+      "workspace_code": "OPS",
+      "sender_email": "david.kimani@opsloom.co.ke",
+      "sender_name": "David Kimani (Technician • OPS)",
+      "recipient_emails": [
+        "opsloom.ke@gmail.com"
+      ],
+      "subject": "Password Reset Request: David Kimani [Opsloom Kenya (OPS)]",
+      "body": "User Identity: David Kimani\nAccount Email: david.kimani@opsloom.co.ke\nDetected Workspace: Opsloom Kenya (OPS)\nAssigned Role: Technician • Department: Engineering\nAccount Status: Verified Workspace User (USR-003)\n\nAction Required: Open Admin Credentials & Users to reset the password for David Kimani (david.kimani@opsloom.co.ke) in Opsloom Kenya (OPS).",
+      "attachments": [],
+      "created_at": "2026-10-02T07:51:34.420Z",
+      "is_read_by": [],
+      "delivery_status": "delivered",
+      "sent_at": "2026-10-02T07:51:34.420Z"
+    },
+    {
       "id": "msg-reset-1790925159549",
       "thread_id": "thread-reset-1790925159549",
       "category": "Credential Reset",
@@ -908,6 +969,18 @@
   ],
   "DRAFT_MESSAGES": [],
   "OUTBOX_MESSAGES": [
+    {
+      "id": "out-1790927490480",
+      "sender_name": "Opsloom Security Core",
+      "sender_email": "opsloom.ke@gmail.com",
+      "recipient_emails": [
+        "laurencemureithi1999@gmail.com"
+      ],
+      "subject": "Opsloom Admin Password Reset Code (207849)",
+      "body": "Administrator password reset requested for opsloom.ke@gmail.com. Your 6-digit recovery reset code reverted to laurencemureithi1999@gmail.com is: 207849 (valid for 15 minutes).",
+      "created_at": "2026-10-02T07:51:30.476Z",
+      "delivery_status": "sent"
+    },
     {
       "id": "out-1790848310079",
       "sender_name": "Opsloom Security Core",
@@ -1100,7 +1173,13 @@
       "delete_modules": []
     }
   ],
-  "ADMIN_RESET_STATE": null,
+  "ADMIN_RESET_STATE": {
+    "admin_email": "opsloom.ke@gmail.com",
+    "recovery_email": "laurencemureithi1999@gmail.com",
+    "code": "207849",
+    "created_at": "2026-10-02T07:51:30.476Z",
+    "expires_at": 1790928390480
+  },
   "WORKSPACE_DATA": {
     "comp-001": {
       "ASSETS": [
@@ -1576,6 +1655,32 @@
       ],
       "AUDIT_TRAIL": [
         {
+          "id": "6dc7aa30bb6548beb2ad26f694c6f3b8",
+          "action": "Password Reset Request Dispatched",
+          "detail": "User David Kimani (david.kimani@opsloom.co.ke) in workspace Opsloom Kenya (OPS) submitted a password reset request to Administrator (opsloom.ke@gmail.com).",
+          "module": "security",
+          "severity": "warning",
+          "href": "/settings/admin-users",
+          "created_at": "2026-10-02T07:51:34.424Z",
+          "time_display": "02 Oct 2026, 10:51:34",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "6937470c0123445bb359c3cd842595bc",
+          "action": "Admin Reset Code Reverted",
+          "detail": "Generated 6-digit password reset code for opsloom.ke@gmail.com and reverted to laurencemureithi1999@gmail.com.",
+          "module": "security",
+          "severity": "warning",
+          "href": "/login",
+          "created_at": "2026-10-02T07:51:30.476Z",
+          "time_display": "02 Oct 2026, 10:51:30",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
           "id": "4c2513cd5dcb425db946f6ef561f9793",
           "action": "Company KPI Targets & Budgets Updated",
           "detail": "Laurence Magondu (Administrator) updated KPI attainment levels & budgets for Opsloom Kenya (OPS): Uptime SLA 88.5%, PM SLA 94%, Monthly Budget KES 620,000.",
@@ -1751,7 +1856,32 @@
         }
       ],
       "ASSET_DOCUMENTS": [],
-      "INTERNAL_MESSAGES": []
+      "INTERNAL_MESSAGES": [
+        {
+          "id": "msg-reset-1790927494425",
+          "thread_id": "thread-reset-1790927494425",
+          "category": "Credential Reset",
+          "user_id": "USR-003",
+          "user_name": "David Kimani",
+          "user_role": "Technician",
+          "user_department": "Engineering",
+          "workspace_id": "comp-001",
+          "workspace_name": "Opsloom Kenya",
+          "workspace_code": "OPS",
+          "sender_email": "david.kimani@opsloom.co.ke",
+          "sender_name": "David Kimani (Technician • OPS)",
+          "recipient_emails": [
+            "opsloom.ke@gmail.com"
+          ],
+          "subject": "Password Reset Request: David Kimani [Opsloom Kenya (OPS)]",
+          "body": "User Identity: David Kimani\nAccount Email: david.kimani@opsloom.co.ke\nDetected Workspace: Opsloom Kenya (OPS)\nAssigned Role: Technician • Department: Engineering\nAccount Status: Verified Workspace User (USR-003)\n\nAction Required: Open Admin Credentials & Users to reset the password for David Kimani (david.kimani@opsloom.co.ke) in Opsloom Kenya (OPS).",
+          "attachments": [],
+          "created_at": "2026-10-02T07:51:34.420Z",
+          "is_read_by": [],
+          "delivery_status": "delivered",
+          "sent_at": "2026-10-02T07:51:34.420Z"
+        }
+      ]
     },
     "comp-002": {
       "ASSETS": [
@@ -3398,9 +3528,33 @@
     }
   },
   "_BOUND_COMPANY_ID": "comp-001",
-  "revision": 23,
-  "saved_at_ms": 1790925159703,
+  "revision": 34,
+  "saved_at_ms": 1790927500234,
   "PASSWORD_RESET_REQUESTS": [
+    {
+      "id": "msg-reset-1790927494425",
+      "thread_id": "thread-reset-1790927494425",
+      "category": "Credential Reset",
+      "user_id": "USR-003",
+      "user_name": "David Kimani",
+      "user_role": "Technician",
+      "user_department": "Engineering",
+      "workspace_id": "comp-001",
+      "workspace_name": "Opsloom Kenya",
+      "workspace_code": "OPS",
+      "sender_email": "david.kimani@opsloom.co.ke",
+      "sender_name": "David Kimani (Technician • OPS)",
+      "recipient_emails": [
+        "opsloom.ke@gmail.com"
+      ],
+      "subject": "Password Reset Request: David Kimani [Opsloom Kenya (OPS)]",
+      "body": "User Identity: David Kimani\nAccount Email: david.kimani@opsloom.co.ke\nDetected Workspace: Opsloom Kenya (OPS)\nAssigned Role: Technician • Department: Engineering\nAccount Status: Verified Workspace User (USR-003)\n\nAction Required: Open Admin Credentials & Users to reset the password for David Kimani (david.kimani@opsloom.co.ke) in Opsloom Kenya (OPS).",
+      "attachments": [],
+      "created_at": "2026-10-02T07:51:34.420Z",
+      "is_read_by": [],
+      "delivery_status": "delivered",
+      "sent_at": "2026-10-02T07:51:34.420Z"
+    },
     {
       "id": "msg-reset-1790925159549",
       "thread_id": "thread-reset-1790925159549",

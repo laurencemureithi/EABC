@@ -93,13 +93,13 @@
             </span>
           </div>
 
-          <div class="grid grid-cols-1 2xl:grid-cols-2 gap-5">
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
             <div class="min-w-0 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-slate-900/40 p-4 flex flex-col justify-between">
               <div>
                 <label class="block text-[11px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 mb-2">Auto-Logout / Inactivity Timeout (Minutes)</label>
                 {% set cur_timeout = (settings.session_timeout_minutes or session_timeout_minutes or 30)|int %}
-                <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-                  <div class="sm:col-span-8 min-w-0">
+                <div class="flex flex-col sm:flex-row gap-2.5">
+                  <div class="flex-1 min-w-0">
                     <select id="sessionTimeoutPresetSelect" name="session_timeout_minutes" onchange="document.getElementById('customSessionTimeoutMinutes').value = this.value;" class="w-full min-w-0 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100">
                       <option value="1" {% if cur_timeout == 1 %}selected{% endif %}>1 Min (Rapid Lock Test)</option>
                       <option value="2" {% if cur_timeout == 2 %}selected{% endif %}>2 Minutes</option>
@@ -117,7 +117,7 @@
                       {% endif %}
                     </select>
                   </div>
-                  <div class="sm:col-span-4 relative min-w-0">
+                  <div class="w-full sm:w-32 relative shrink-0">
                     <input type="number" id="customSessionTimeoutMinutes" name="custom_session_timeout_minutes" min="1" max="1440" value="{{ cur_timeout }}" class="w-full min-w-0 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 pl-3 pr-10 py-2.5 text-sm font-black text-slate-900 dark:text-white" title="Enter any exact session duration in minutes (1-1440)">
                     <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400 pointer-events-none">min</span>
                   </div>
@@ -132,12 +132,12 @@
                   <label class="block text-[11px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 truncate">Update Admin Login Password ({{ current_user_email }})</label>
                   <button type="button" onclick="var el=document.getElementById('adminNewPasswordInput'); el.type = el.type === 'password' ? 'text' : 'password';" class="text-[10px] font-extrabold uppercase text-ueal-purple dark:text-ueal-gold hover:underline cursor-pointer shrink-0">Show / Hide</button>
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-                  <div class="sm:col-span-8 min-w-0">
+                <div class="flex flex-col sm:flex-row gap-2.5">
+                  <div class="flex-1 min-w-0">
                     <input id="adminNewPasswordInput" type="password" name="admin_new_password" autocomplete="new-password" placeholder="New password (blank to keep current)" class="w-full min-w-0 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100">
                   </div>
-                  <div class="sm:col-span-4 min-w-0">
-                    <button type="submit" class="w-full h-full min-h-[42px] px-3 py-2.5 rounded-lg bg-ueal-purple hover:opacity-95 text-white text-xs font-black uppercase tracking-wider cursor-pointer flex items-center justify-center text-center">Update Password</button>
+                  <div class="w-full sm:w-auto shrink-0">
+                    <button type="submit" class="w-full sm:w-auto h-full min-h-[42px] px-4 py-2.5 rounded-lg bg-ueal-purple hover:opacity-95 text-white text-xs font-black uppercase tracking-wider cursor-pointer whitespace-nowrap flex items-center justify-center text-center">Update Password</button>
                   </div>
                 </div>
               </div>
@@ -145,17 +145,17 @@
             </div>
           </div>
 
-          <div class="mt-4 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-900/60 p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3.5">
-            <div class="min-w-0">
+          <div class="mt-4 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-900/60 p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="min-w-0 flex-1">
               <p class="text-xs font-extrabold text-slate-800 dark:text-slate-100">Immediate Session Lock &amp; Role Governance</p>
               <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">Lock this device immediately (saving any password/timeout changes) or manage custom user roles &amp; KPI target privileges.</p>
             </div>
             <div class="flex flex-wrap items-center gap-2.5 shrink-0">
-              <a href="{{ url_for('admin_users_page') }}" class="px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+              <a href="{{ url_for('admin_users_page') }}" class="px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 transition whitespace-nowrap">
                 <span class="material-symbols-outlined text-sm">admin_panel_settings</span>
                 <span>Define Roles &amp; Permissions</span>
               </a>
-              <button type="submit" name="lock_after_save" value="1" class="px-3.5 py-2.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition">
+              <button type="submit" name="lock_after_save" value="1" class="px-3.5 py-2.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap">
                 <span class="material-symbols-outlined text-sm">lock</span>
                 <span>Save &amp; Lock Now</span>
               </button>

@@ -55,7 +55,15 @@ function getSystemNowIso() {
 
 function normalizeTimestampToClientClock(rawVal) {
   if (!rawVal) return getSystemNow();
-  const d = rawVal instanceof Date ? new Date(rawVal.getTime()) : new Date(rawVal);
+  if (rawVal instanceof Date) return isNaN(rawVal.getTime()) ? getSystemNow() : rawVal;
+  let str = String(rawVal).trim();
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(str)) {
+    str = str.replace(' ', 'T');
+  }
+  let d = new Date(str);
+  if (isNaN(d.getTime())) {
+    d = new Date(String(rawVal));
+  }
   if (isNaN(d.getTime())) return getSystemNow();
   const offset = getEffectiveClockOffsetMs();
   // If container clock was skewed (e.g. Oct 2026) and client offset is > 12 hours, shift container-recorded timestamps into real client time
@@ -1755,55 +1763,83 @@ function hydrateStoreFromClientSnapshot(rawSnap) {
   try {
     const snap = typeof rawSnap === 'string' ? JSON.parse(rawSnap) : rawSnap;
     if (!snap || typeof snap !== 'object') return false;
-    const snapRev = Number(snap.revision) || 0;
-    const curRev = Number(store.revision) || 0;
-    const snapMs = Number(snap.saved_at_ms) || 0;
-    const curMs = Number(store.saved_at_ms) || 0;
-    // Accept snapshot if it has a newer revision or timestamp than this instance
-    if (snapRev > curRev || (snapMs > curMs + 500)) {
-      if (Array.isArray(snap.COMPANIES) && snap.COMPANIES.length) {
-        // Preserve base64 logos if already present on server or incoming
-        snap.COMPANIES.forEach(inc => {
-          const existing = (store.COMPANIES || []).find(c => c.id === inc.id);
-          if (existing) {
-            if (!inc.logo_light_url && existing.logo_light_url) inc.logo_light_url = existing.logo_light_url;
-            if (!inc.logo_dark_url && existing.logo_dark_url) inc.logo_dark_url = existing.logo_dark_url;
-            if (!inc.print_logo_url && existing.print_logo_url) inc.print_logo_url = existing.print_logo_url;
-          }
-        });
-        store.COMPANIES = snap.COMPANIES;
-      }
-      if (Array.isArray(snap.CUSTOM_ROLES) && snap.CUSTOM_ROLES.length) {
-        store.CUSTOM_ROLES = snap.CUSTOM_ROLES;
-      }
-      if (Array.isArray(snap.ADMIN_USERS) && snap.ADMIN_USERS.length) {
-        store.ADMIN_USERS = snap.ADMIN_USERS;
-      }
-      if (snap.SYSTEM_SETTINGS && typeof snap.SYSTEM_SETTINGS === 'object') {
-        store.SYSTEM_SETTINGS = { ...(store.SYSTEM_SETTINGS || {}), ...snap.SYSTEM_SETTINGS };
-      }
-      if (snap.WORKSPACE_DATA && typeof snap.WORKSPACE_DATA === 'object') {
-        if (!store.WORKSPACE_DATA) store.WORKSPACE_DATA = {};
-        for (const [cid, wData] of Object.entries(snap.WORKSPACE_DATA)) {
-          if (wData && typeof wData === 'object') {
-            store.WORKSPACE_DATA[cid] = { ...(store.WORKSPACE_DATA[cid] || {}), ...wData };
+
+    // Server datastore on disk is authoritative. Never overwrite if server already has initialized assets and companies
+    const serverHasData = Array.isArray(store.ASSETS) && store.ASSETS.length > 0 && Array.isArray(store.COMPANIES) && store.COMPANIES.length > 0;
+    if (serverHasData && !isVercel) {
+      return false;
+    }
+
+    // Preserve all server-authoritative passwords and security settings
+    const serverPasswords = new Map();
+    (store.ADMIN_USERS || []).forEach(u => {
+      if (u && u.id && u.password) serverPasswords.set(u.id, u.password);
+      if (u && u.email && u.password) serverPasswords.set(u.email.toLowerCase(), u.password);
+    });
+    const serverAdminLoginPass = store.SYSTEM_SETTINGS?.admin_login_password;
+
+    if (Array.isArray(snap.COMPANIES) && snap.COMPANIES.length) {
+      snap.COMPANIES.forEach(inc => {
+        const existing = (store.COMPANIES || []).find(c => c.id === inc.id);
+        if (existing) {
+          // Never overwrite a custom uploaded logo with a default or older URL
+          if (existing.custom_logo_updated_at || String(existing.logo_light_url || '').startsWith('data:image/') || String(existing.logo_light_url || '').startsWith('/static/uploads/')) {
+            inc.logo_light_url = existing.logo_light_url;
+            inc.logo_dark_url = existing.logo_dark_url;
+            inc.print_logo_url = existing.print_logo_url;
+            inc.logo_height = existing.logo_height;
+            inc.logo_width_pct = existing.logo_width_pct;
+            inc.logo_alignment = existing.logo_alignment;
+            inc.logo_fit = existing.logo_fit;
+            inc.custom_logo_updated_at = existing.custom_logo_updated_at;
           }
         }
-      }
-      if (Array.isArray(snap.INTERNAL_MESSAGES)) {
-        store.INTERNAL_MESSAGES = snap.INTERNAL_MESSAGES;
-      }
-      if (Array.isArray(snap.SYSTEM_NOTIFICATIONS)) {
-        store.SYSTEM_NOTIFICATIONS = snap.SYSTEM_NOTIFICATIONS;
-      }
-      if (snap.ACTIVE_COMPANY_ID) {
-        store.ACTIVE_COMPANY_ID = snap.ACTIVE_COMPANY_ID;
-      }
-      store.revision = Math.max(curRev, snapRev);
-      activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
-      saveStore();
-      return true;
+      });
+      store.COMPANIES = snap.COMPANIES;
     }
+
+    if (Array.isArray(snap.CUSTOM_ROLES) && snap.CUSTOM_ROLES.length) {
+      // Merge roles so custom roles created on the server are never wiped out
+      const existingNames = new Set((store.CUSTOM_ROLES || []).map(r => (r.name || '').toLowerCase()));
+      const incomingRoles = snap.CUSTOM_ROLES;
+      (store.CUSTOM_ROLES || []).forEach(existingRole => {
+        if (!incomingRoles.some(r => (r.name || '').toLowerCase() === (existingRole.name || '').toLowerCase())) {
+          incomingRoles.push(existingRole);
+        }
+      });
+      store.CUSTOM_ROLES = incomingRoles;
+    }
+
+    if (Array.isArray(snap.ADMIN_USERS) && snap.ADMIN_USERS.length) {
+      snap.ADMIN_USERS.forEach(u => {
+        const existingPass = serverPasswords.get(u.id) || serverPasswords.get((u.email || '').toLowerCase());
+        if (existingPass) u.password = existingPass;
+      });
+      store.ADMIN_USERS = snap.ADMIN_USERS;
+    }
+
+    if (snap.SYSTEM_SETTINGS && typeof snap.SYSTEM_SETTINGS === 'object') {
+      store.SYSTEM_SETTINGS = { ...(store.SYSTEM_SETTINGS || {}), ...snap.SYSTEM_SETTINGS };
+      if (serverAdminLoginPass) {
+        store.SYSTEM_SETTINGS.admin_login_password = serverAdminLoginPass;
+      }
+    }
+
+    if (snap.WORKSPACE_DATA && typeof snap.WORKSPACE_DATA === 'object') {
+      if (!store.WORKSPACE_DATA) store.WORKSPACE_DATA = {};
+      for (const [cid, wData] of Object.entries(snap.WORKSPACE_DATA)) {
+        if (wData && typeof wData === 'object') {
+          store.WORKSPACE_DATA[cid] = { ...(store.WORKSPACE_DATA[cid] || {}), ...wData };
+        }
+      }
+    }
+
+    if (snap.ACTIVE_COMPANY_ID) {
+      store.ACTIVE_COMPANY_ID = snap.ACTIVE_COMPANY_ID;
+    }
+    activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
+    saveStore();
+    return true;
   } catch (e) {
     console.warn('Client snapshot hydration skipped:', e.message);
   }
@@ -1812,6 +1848,16 @@ function hydrateStoreFromClientSnapshot(rawSnap) {
 
 function buildClientSyncSnapshot() {
   flushBoundWorkspaceToBucket();
+  // Strip sensitive passwords before client sync so they never leak into browser localStorage
+  const sanitizedUsers = (store.ADMIN_USERS || []).map(u => {
+    const copy = { ...u };
+    delete copy.password;
+    return copy;
+  });
+  const sanitizedSettings = { ...(store.SYSTEM_SETTINGS || {}) };
+  delete sanitizedSettings.admin_login_password;
+  delete sanitizedSettings.smtp_pass;
+
   return {
     revision: Number(store.revision) || 1,
     saved_at_ms: Number(store.saved_at_ms) || Date.now(),
@@ -1819,8 +1865,8 @@ function buildClientSyncSnapshot() {
     ACTIVE_COMPANY_ID: store.ACTIVE_COMPANY_ID || 'comp-001',
     COMPANIES: store.COMPANIES || [],
     CUSTOM_ROLES: store.CUSTOM_ROLES || [],
-    ADMIN_USERS: store.ADMIN_USERS || [],
-    SYSTEM_SETTINGS: store.SYSTEM_SETTINGS || {},
+    ADMIN_USERS: sanitizedUsers,
+    SYSTEM_SETTINGS: sanitizedSettings,
     INTERNAL_MESSAGES: (store.INTERNAL_MESSAGES || []).slice(0, 40),
     SYSTEM_NOTIFICATIONS: (store.SYSTEM_NOTIFICATIONS || []).slice(0, 30),
     WORKSPACE_DATA: store.WORKSPACE_DATA || {}
@@ -2097,6 +2143,8 @@ nunjucksEnv.addGlobal('ultravetis_address_lines', [
 ]);
 
 // Add Nunjucks filters
+nunjucksEnv.addFilter('formatDateTime', (v, sec = false) => formatSystemTimestamp(v, sec));
+nunjucksEnv.addFilter('formatDate', (v) => formatSystemDateOnly(v));
 nunjucksEnv.addFilter('sys_dt', (v, sec = false) => formatSystemTimestamp(v, sec));
 nunjucksEnv.addFilter('sys_date', (v) => formatSystemDateOnly(v));
 nunjucksEnv.addFilter('kes0', (v) => 'KES ' + Math.round(Number(v) || 0).toLocaleString());
@@ -2266,7 +2314,8 @@ function resolveLogoDataUri(comp = {}) {
 
 // Branded PowerPoint (.pptx) Presentation Generator
 async function sendBrandPowerPoint(req, res, options = {}) {
-  const ctx = baseCtx(req);
+  try {
+    const ctx = baseCtx(req);
   const explicitCompId = options.company_id || req.query?.company_id;
   const comp = options.company
     || (explicitCompId && (store.COMPANIES || []).find(c => c.id === explicitCompId))
@@ -2710,10 +2759,17 @@ async function sendBrandPowerPoint(req, res, options = {}) {
     });
   });
 
-  const buf = await pres.write({ outputType: 'nodebuffer' });
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename.endsWith('.pptx') ? filename : filename + '.pptx'}"`);
-  return res.send(buf);
+    const buf = await pres.write({ outputType: 'nodebuffer' });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename.endsWith('.pptx') ? filename : filename + '.pptx'}"`);
+    return res.send(buf);
+  } catch (err) {
+    console.error('Error generating PowerPoint presentation:', err);
+    if (!res.headersSent) {
+      flash('error', `Failed to generate PowerPoint export: ${err.message || 'Export error'}`);
+      return res.redirect(req.headers?.referer || '/dashboard');
+    }
+  }
 }
 
 // Comprehensive Report Analysis Builder for all 5 Report Categories & Print Views
@@ -3292,9 +3348,6 @@ app.use((req, res, next) => {
     }
 
     syncStoreFromDisk();
-    if (req.body && req.body.client_master_state) {
-      hydrateStoreFromClientSnapshot(req.body.client_master_state);
-    }
     resolveActiveWorkspaceForRequest(req);
   }
   next();
