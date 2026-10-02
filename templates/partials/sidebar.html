@@ -100,8 +100,8 @@
               nameBox.classList.remove('flex');
             }
           }
-          // If the user navigated between modules while the upload POST was still in flight, finish syncing to server
-          if (cached.pending_sync || (cachedMs > serverMs + 1500)) {
+          // If the user navigated between modules while an upload POST was still in flight, finish syncing to server
+          if (cached.pending_sync) {
             fetch('/api/companies/save-logo', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },

@@ -525,7 +525,7 @@ function applyLogoToLiveDom(compId, lightDataUrl, darkDataUrl, sizingOpts = null
   const effLight = lightDataUrl || existingComp.logo_light_url || '/static/brand/opsloom_wordmark_light.png';
   const effDark = darkDataUrl || lightDataUrl || existingComp.logo_dark_url || effLight;
 
-  if (!compId || compId === activeWorkspaceId) {
+  if (compId && compId === activeWorkspaceId) {
     const box = document.getElementById('sidebarBrandContainer');
     const wrap = document.getElementById('sidebarBrandWrap');
     const nameBox = document.getElementById('sidebarBrandNameBox');
@@ -578,7 +578,12 @@ function applyLogoToLiveDom(compId, lightDataUrl, darkDataUrl, sizingOpts = null
 async function persistLogoImmediately(compId, mode, dataUrl, sizingOpts = null) {
   if (!compId) return;
   const existingComp = rawCompanies.find(c => c.id === compId) || {};
-  const effDataUrl = dataUrl || existingComp.logo_light_url || '';
+  const effLightUrl = (mode === 'dark')
+    ? (existingComp.logo_light_url || dataUrl || '')
+    : (dataUrl || existingComp.logo_light_url || '');
+  const effDarkUrl = (mode === 'light')
+    ? (existingComp.logo_dark_url || dataUrl || '')
+    : (dataUrl || existingComp.logo_dark_url || effLightUrl);
   const effSizing = sizingOpts || {
     logo_height: mode === 'card_quick_upload' ? 48 : (existingComp.logo_height || 48),
     logo_width_pct: mode === 'card_quick_upload' ? 100 : (existingComp.logo_width_pct || 100),
@@ -589,10 +594,12 @@ async function persistLogoImmediately(compId, mode, dataUrl, sizingOpts = null) 
 
   // Immediately update local rawCompanies and localStorage so navigating away never loses the upload
   if (existingComp) {
-    if (effDataUrl) {
-      existingComp.logo_light_url = effDataUrl;
-      existingComp.logo_dark_url = effDataUrl;
-      existingComp.print_logo_url = effDataUrl;
+    if (effLightUrl) {
+      existingComp.logo_light_url = effLightUrl;
+      existingComp.print_logo_url = effLightUrl;
+    }
+    if (effDarkUrl) {
+      existingComp.logo_dark_url = effDarkUrl;
     }
     existingComp.logo_height = effSizing.logo_height;
     existingComp.logo_width_pct = effSizing.logo_width_pct;
@@ -605,8 +612,8 @@ async function persistLogoImmediately(compId, mode, dataUrl, sizingOpts = null) 
     currentEditingComp = existingComp;
   }
   saveBrandCacheToLocalStorage(compId, {
-    logo_light_url: effDataUrl,
-    logo_dark_url: effDataUrl,
+    logo_light_url: effLightUrl,
+    logo_dark_url: effDarkUrl,
     ...effSizing
   }, true);
 
@@ -614,7 +621,9 @@ async function persistLogoImmediately(compId, mode, dataUrl, sizingOpts = null) 
     const payload = {
       id: compId,
       mode: mode || 'both',
-      logo_data_url: effDataUrl,
+      logo_data_url: dataUrl || effLightUrl,
+      logo_light_data_url: effLightUrl,
+      logo_dark_data_url: effDarkUrl,
       logo_height: effSizing.logo_height,
       logo_width_pct: effSizing.logo_width_pct,
       logo_alignment: effSizing.logo_alignment,
@@ -642,7 +651,7 @@ async function persistLogoImmediately(compId, mode, dataUrl, sizingOpts = null) 
       applyLogoToLiveDom(compId, data.company.logo_light_url, data.company.logo_dark_url, data.company);
       const modalBadge = document.getElementById('modalLogoSaveStatus');
       if (modalBadge) {
-        modalBadge.textContent = '✓ Logo and sizing saved permanently to this workspace.';
+        modalBadge.textContent = '✓ Logo and sizing saved permanently to ' + (data.company.name || 'this workspace') + ' (Active workspace unchanged).';
         modalBadge.classList.remove('hidden');
       }
       const cardBadge = document.getElementById('cardLogoSavedStatus_' + compId);
@@ -677,11 +686,27 @@ async function handleLogoFileSelect(input, mode) {
   if (!file) return;
   const dataUrl = await normalizeImageFileToDataUrl(file);
   if (!dataUrl) return;
-  let effectiveMode = 'both';
-  document.getElementById('compFormLogoLightBase64').value = dataUrl;
-  document.getElementById('compFormLogoLight').value = '[Uploaded: ' + file.name + ']';
-  document.getElementById('compFormLogoDarkBase64').value = dataUrl;
-  document.getElementById('compFormLogoDark').value = '[Uploaded: ' + file.name + ']';
+  const effectiveMode = (mode === 'light' || mode === 'dark') ? mode : 'both';
+  if (effectiveMode === 'light') {
+    document.getElementById('compFormLogoLightBase64').value = dataUrl;
+    document.getElementById('compFormLogoLight').value = '[Uploaded: ' + file.name + ']';
+    if (!document.getElementById('compFormLogoDarkBase64').value && (!currentEditingComp || !currentEditingComp.logo_dark_url || currentEditingComp.logo_dark_url.includes('opsloom_wordmark') || currentEditingComp.logo_dark_url.includes('ultravetis_logo'))) {
+      document.getElementById('compFormLogoDarkBase64').value = dataUrl;
+      document.getElementById('compFormLogoDark').value = '[Uploaded: ' + file.name + ']';
+    }
+  } else if (effectiveMode === 'dark') {
+    document.getElementById('compFormLogoDarkBase64').value = dataUrl;
+    document.getElementById('compFormLogoDark').value = '[Uploaded: ' + file.name + ']';
+    if (!document.getElementById('compFormLogoLightBase64').value && (!currentEditingComp || !currentEditingComp.logo_light_url || currentEditingComp.logo_light_url.includes('opsloom_wordmark') || currentEditingComp.logo_light_url.includes('ultravetis_logo'))) {
+      document.getElementById('compFormLogoLightBase64').value = dataUrl;
+      document.getElementById('compFormLogoLight').value = '[Uploaded: ' + file.name + ']';
+    }
+  } else {
+    document.getElementById('compFormLogoLightBase64').value = dataUrl;
+    document.getElementById('compFormLogoLight').value = '[Uploaded: ' + file.name + ']';
+    document.getElementById('compFormLogoDarkBase64').value = dataUrl;
+    document.getElementById('compFormLogoDark').value = '[Uploaded: ' + file.name + ']';
+  }
   setSimTheme(mode === 'light' ? 'light' : 'dark');
   updateSimulator(false);
 
@@ -694,7 +719,9 @@ async function handleLogoFileSelect(input, mode) {
       logo_fit: document.getElementById('compFormFit').value || 'contain',
       show_name_next_to_logo: document.getElementById('compFormShowName').checked
     };
-    applyLogoToLiveDom(compId, dataUrl, dataUrl, modalSizing);
+    const lUrl = document.getElementById('compFormLogoLightBase64').value || (currentEditingComp && currentEditingComp.logo_light_url) || dataUrl;
+    const dUrl = document.getElementById('compFormLogoDarkBase64').value || (currentEditingComp && currentEditingComp.logo_dark_url) || dataUrl;
+    applyLogoToLiveDom(compId, lUrl, dUrl, modalSizing);
     await persistLogoImmediately(compId, effectiveMode, dataUrl, modalSizing);
   }
 }
@@ -732,7 +759,7 @@ document.addEventListener('DOMContentLoaded', function() {
     e.preventDefault();
     const compId = document.getElementById('compFormId').value;
     const lightB64 = document.getElementById('compFormLogoLightBase64').value;
-    const darkB64 = document.getElementById('compFormLogoDarkBase64').value || lightB64;
+    const darkB64 = document.getElementById('compFormLogoDarkBase64').value;
     const payload = {
       id: compId,
       name: document.getElementById('compFormName').value,
@@ -754,10 +781,11 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     if (compId) {
       const existingComp = rawCompanies.find(c => c.id === compId) || {};
-      const effLogo = lightB64 || ((!payload.logo_light_url.startsWith('[Uploaded') && payload.logo_light_url) ? payload.logo_light_url : existingComp.logo_light_url);
+      const effLightLogo = lightB64 || ((!payload.logo_light_url.startsWith('[Uploaded') && payload.logo_light_url) ? payload.logo_light_url : existingComp.logo_light_url);
+      const effDarkLogo = darkB64 || ((!payload.logo_dark_url.startsWith('[Uploaded') && payload.logo_dark_url) ? payload.logo_dark_url : (existingComp.logo_dark_url || effLightLogo));
       saveBrandCacheToLocalStorage(compId, {
-        logo_light_url: effLogo,
-        logo_dark_url: effLogo,
+        logo_light_url: effLightLogo,
+        logo_dark_url: effDarkLogo,
         logo_height: payload.logo_height,
         logo_width_pct: payload.logo_width_pct,
         logo_alignment: payload.logo_alignment,

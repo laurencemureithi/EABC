@@ -302,7 +302,7 @@ function ensureCompanyDesignation(comp) {
     comp.logo_dark_url = comp.logo_light_url;
   }
 
-  // If one theme logo is a custom uploaded image and the other is still a default placeholder, keep both identical so the sidebar never switches logos
+  // If one theme logo is a custom uploaded image and the other is still a default placeholder, populate the missing theme so it never falls back to a generic placeholder
   const isCustomLight = String(comp.logo_light_url || '').startsWith('data:image/png') || String(comp.logo_light_url || '').startsWith('data:image/jpeg') || String(comp.logo_light_url || '').startsWith('data:image/webp') || String(comp.logo_light_url || '').startsWith('/static/uploads/');
   const isCustomDark = String(comp.logo_dark_url || '').startsWith('data:image/png') || String(comp.logo_dark_url || '').startsWith('data:image/jpeg') || String(comp.logo_dark_url || '').startsWith('data:image/webp') || String(comp.logo_dark_url || '').startsWith('/static/uploads/');
   if (isCustomLight && !isCustomDark) {
@@ -310,8 +310,10 @@ function ensureCompanyDesignation(comp) {
   } else if (isCustomDark && !isCustomLight) {
     comp.logo_light_url = comp.logo_dark_url;
   }
-  if (isCustomLight || isCustomDark) {
+  if (isCustomLight) {
     comp.print_logo_url = comp.logo_light_url;
+  } else if (isCustomDark) {
+    comp.print_logo_url = comp.logo_dark_url;
   }
 
   // Normalize logo dimensions so every workspace renders with a stable, consistent size across all modules
@@ -1526,12 +1528,27 @@ function syncStoreFromDisk() {
     if (fs.existsSync(targetPath)) {
       const stat = fs.statSync(targetPath);
       if (stat.mtimeMs > lastDiskMtimeMs) {
+        const prevRoles = Array.isArray(store.CUSTOM_ROLES) ? [...store.CUSTOM_ROLES] : [];
+        const prevUsers = Array.isArray(store.ADMIN_USERS) ? [...store.ADMIN_USERS] : [];
         const raw = fs.readFileSync(targetPath, 'utf-8');
         const parsed = JSON.parse(raw);
         store = { ...store, ...parsed, initialized: true };
         if (!Array.isArray(store.ADMIN_USERS) || store.ADMIN_USERS.length === 0) {
           seedInitialDataIfEmpty();
         }
+        // Merge any in-memory custom roles or users so newly created roles/users never vanish
+        if (!Array.isArray(store.CUSTOM_ROLES)) store.CUSTOM_ROLES = [];
+        prevRoles.forEach(pr => {
+          if (pr && pr.name && !store.CUSTOM_ROLES.some(r => (r.name || '').toLowerCase() === String(pr.name).toLowerCase())) {
+            store.CUSTOM_ROLES.push(pr);
+          }
+        });
+        prevUsers.forEach(pu => {
+          if (pu && pu.email && !store.ADMIN_USERS.some(u => (u.email || '').toLowerCase() === String(pu.email).toLowerCase())) {
+            store.ADMIN_USERS.push(pu);
+          }
+        });
+        purgeLegacySeededResetNoise();
         ensureWorkspaceBuckets();
         activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
         lastDiskMtimeMs = stat.mtimeMs;
@@ -1542,19 +1559,52 @@ function syncStoreFromDisk() {
   }
 }
 
+// Clear any stuck/forced toast flags and remove legacy seeded grace.wanjiku reset messages on startup
+function purgeLegacySeededResetNoise() {
+  if (Array.isArray(store.SYSTEM_NOTIFICATIONS)) {
+    store.SYSTEM_NOTIFICATIONS = store.SYSTEM_NOTIFICATIONS.filter(
+      n => !(n && (String(n.message || '').includes('grace.wanjiku@opsloom.co.ke') || String(n.title || '').includes('Grace Wanjiku')))
+    );
+    store.SYSTEM_NOTIFICATIONS.forEach(n => {
+      if (n && n.should_toast) n.should_toast = false;
+    });
+  }
+  if (Array.isArray(store.INTERNAL_MESSAGES)) {
+    store.INTERNAL_MESSAGES = store.INTERNAL_MESSAGES.filter(
+      m => !(m && (m.id === 'msg-reset-1790848310149' || (m.sender_email === 'grace.wanjiku@opsloom.co.ke' && (m.category === 'Credential Reset' || String(m.subject || '').includes('Credential Reset')))))
+    );
+  }
+  if (Array.isArray(store.AUDIT_TRAIL)) {
+    store.AUDIT_TRAIL = store.AUDIT_TRAIL.filter(
+      a => !(a && String(a.detail || '').includes('grace.wanjiku@opsloom.co.ke'))
+    );
+  }
+  if (store.WORKSPACE_DATA && typeof store.WORKSPACE_DATA === 'object') {
+    Object.values(store.WORKSPACE_DATA).forEach(w => {
+      if (w && Array.isArray(w.AUDIT_TRAIL)) {
+        w.AUDIT_TRAIL = w.AUDIT_TRAIL.filter(
+          a => !(a && String(a.detail || '').includes('grace.wanjiku@opsloom.co.ke'))
+        );
+      }
+      if (w && Array.isArray(w.INTERNAL_MESSAGES)) {
+        w.INTERNAL_MESSAGES = w.INTERNAL_MESSAGES.filter(
+          m => !(m && (m.id === 'msg-reset-1790848310149' || (m.sender_email === 'grace.wanjiku@opsloom.co.ke' && (m.category === 'Credential Reset' || String(m.subject || '').includes('Credential Reset')))))
+        );
+      }
+      if (w && Array.isArray(w.SYSTEM_NOTIFICATIONS)) {
+        w.SYSTEM_NOTIFICATIONS = w.SYSTEM_NOTIFICATIONS.filter(
+          n => !(n && (String(n.message || '').includes('grace.wanjiku@opsloom.co.ke') || String(n.title || '').includes('Grace Wanjiku')))
+        );
+      }
+    });
+  }
+}
+
 syncStoreFromDisk();
 seedInitialDataIfEmpty();
 ensureWorkspaceBuckets();
 activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
-// Clear any stuck/forced toast flags on startup so refreshes never force stale popups
-if (Array.isArray(store.SYSTEM_NOTIFICATIONS)) {
-  store.SYSTEM_NOTIFICATIONS = store.SYSTEM_NOTIFICATIONS.filter(
-    n => !(n && n.title === 'Password Reset Help Requested' && String(n.message || '').includes('grace.wanjiku@opsloom.co.ke'))
-  );
-  store.SYSTEM_NOTIFICATIONS.forEach(n => {
-    if (n && n.should_toast) n.should_toast = false;
-  });
-}
+purgeLegacySeededResetNoise();
 saveStore();
 
 function saveStore() {
@@ -2853,19 +2903,18 @@ function resolveActiveWorkspaceForRequest(req) {
   if (!store.COMPANIES || !store.COMPANIES.length) {
     seedInitialDataIfEmpty();
   }
-  // Only honor query/body company_id on /set-company or explicit workspace_id query parameter, NEVER on user creation forms
+  // Strictly honor workspace switching ONLY on /set-company, and lock to the user's opsloom_ws_id session cookie across all module navigation.
   const explicitSwitchId = (req && req.path === '/set-company')
     ? (req.query?.company_id || req.body?.company_id)
-    : (req && (req.query?.workspace_id || req.headers?.['x-workspace-id']));
-  const cookieCompId = req && req.cookies ? req.cookies.current_company_id : null;
-  const ua = String(req?.headers?.['user-agent'] || '');
-  const isBrowserRequest = ua.includes('Mozilla/');
+    : null;
+  const cleanWsCookie = req && req.cookies ? req.cookies.opsloom_ws_id : null;
+  const validCookieComp = cleanWsCookie && (store.COMPANIES || []).find(c => c.id === cleanWsCookie);
   const targetCompId = explicitSwitchId
-    || (isBrowserRequest ? (store.ACTIVE_COMPANY_ID || cookieCompId) : (cookieCompId || store.ACTIVE_COMPANY_ID))
+    || (validCookieComp ? validCookieComp.id : null)
+    || store.ACTIVE_COMPANY_ID
     || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id);
   const activeCompany = (store.COMPANIES || []).find(c => c.id === targetCompId)
     || (store.ACTIVE_COMPANY_ID && (store.COMPANIES || []).find(c => c.id === store.ACTIVE_COMPANY_ID))
-    || (cookieCompId && (store.COMPANIES || []).find(c => c.id === cookieCompId))
     || (store.COMPANIES && store.COMPANIES[0])
     || {
       id: 'comp-001',
@@ -2881,7 +2930,9 @@ function resolveActiveWorkspaceForRequest(req) {
       logo_alignment: 'left',
       logo_fit: 'contain'
     };
-  store.ACTIVE_COMPANY_ID = activeCompany.id;
+  if (store.ACTIVE_COMPANY_ID !== activeCompany.id) {
+    store.ACTIVE_COMPANY_ID = activeCompany.id;
+  }
   ensureCompanyDesignation(activeCompany);
   activateWorkspaceBucket(activeCompany.id);
   return activeCompany;
@@ -3131,8 +3182,11 @@ app.use((req, res, next) => {
   setSafeCookie(req, res, 'opsloom_user', matchedUser.id, timeoutMs);
   setSafeCookie(req, res, 'opsloom_role', matchedUser.role || 'Viewer', timeoutMs);
   setSafeCookie(req, res, 'opsloom_last_active', String(nowMs), timeoutMs);
+  if (req.cookies?.current_company_id) {
+    res.clearCookie('current_company_id', { path: '/' });
+  }
   if (store.ACTIVE_COMPANY_ID) {
-    setSafeCookie(req, res, 'current_company_id', store.ACTIVE_COMPANY_ID);
+    setSafeCookie(req, res, 'opsloom_ws_id', store.ACTIVE_COMPANY_ID);
   }
   next();
 });
@@ -3373,17 +3427,28 @@ app.get('/login', (req, res) => {
   const activeReset = store.ADMIN_RESET_STATE && store.ADMIN_RESET_STATE.expires_at > Date.now()
     ? store.ADMIN_RESET_STATE
     : null;
+  const registeredUsers = (store.ADMIN_USERS || [])
+    .filter(u => u && u.email)
+    .map(u => ({
+      id: u.id,
+      name: u.name || u.email,
+      email: u.email,
+      role: u.role || 'User',
+      department: u.department || 'Engineering'
+    }));
   res.render('auth/login.html', {
     ...baseCtx(req, 'login'),
     departments: DEPARTMENTS,
+    registered_users: registeredUsers,
     session_timeout_minutes: getSessionTimeoutMinutes(),
-    password_reset_help: store.SYSTEM_SETTINGS?.password_reset_help || 'Standard users: contact opsloom.ke@gmail.com for password reset help.',
+    password_reset_help: store.SYSTEM_SETTINGS?.password_reset_help || 'Standard users: submit a password reset request below to notify the System Administrator.',
     company_contact_email: store.SYSTEM_SETTINGS?.company_contact_email || ADMIN_PRIMARY_EMAIL,
     admin_recovery_email: ADMIN_RECOVERY_EMAIL,
     admin_reset_active: Boolean(req.query.admin_reset === '1' && activeReset),
     admin_reset_state: activeReset,
     contact_admin_help: req.query.contact_admin === '1',
     contact_admin_user_email: req.query.user_email || '',
+    contact_admin_user_name: req.query.user_name || '',
     show_forgot_box: Boolean(req.query.forgot === '1' || req.query.admin_reset === '1' || req.query.contact_admin === '1')
   });
 });
@@ -3440,12 +3505,13 @@ app.post('/login', (req, res) => {
   setSafeCookie(req, res, 'opsloom_role', user.role || 'Viewer', timeoutMs);
   setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()), timeoutMs);
 
-  const preferredCompId = req.cookies?.current_company_id || store.ACTIVE_COMPANY_ID || user.company_id;
+  const preferredCompId = req.cookies?.opsloom_ws_id || store.ACTIVE_COMPANY_ID || user.company_id || 'comp-001';
   if (preferredCompId) {
     store.ACTIVE_COMPANY_ID = preferredCompId;
     activateWorkspaceBucket(preferredCompId);
-    setSafeCookie(req, res, 'current_company_id', preferredCompId);
+    setSafeCookie(req, res, 'opsloom_ws_id', preferredCompId);
   }
+  res.clearCookie('current_company_id', { path: '/' });
   const preferredDept = req.cookies?.current_department || store.ACTIVE_DEPARTMENT || user.department || 'Engineering';
   if (preferredDept) {
     setSafeCookie(req, res, 'current_department', preferredDept);
@@ -3460,10 +3526,12 @@ app.get('/login/google', (req, res) => {
   setSafeCookie(req, res, 'opsloom_user', 'USR-001');
   setSafeCookie(req, res, 'opsloom_role', 'Administrator');
   setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()));
-  const preferredCompId = req.cookies?.current_company_id || store.ACTIVE_COMPANY_ID || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id);
+  const preferredCompId = store.ACTIVE_COMPANY_ID || req.cookies?.opsloom_ws_id || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id);
   if (preferredCompId) {
-    setSafeCookie(req, res, 'current_company_id', preferredCompId);
+    store.ACTIVE_COMPANY_ID = preferredCompId;
+    setSafeCookie(req, res, 'opsloom_ws_id', preferredCompId);
   }
+  res.clearCookie('current_company_id', { path: '/' });
   logAudit('Google sign-in', 'Laurence Magondu signed in via Google SSO.', 'security', '/dashboard');
   res.redirect('/dashboard');
 });
@@ -3537,45 +3605,57 @@ app.post('/login/forgot-password', (req, res) => {
     return res.redirect('/login?admin_reset=1');
   }
 
-  // Any other user -> must always contact opsloom.ke@gmail.com for help
+  // Any other user -> send a real, user-identified password reset request message & notification to the Administrator in the system
   const nowIso = new Date().toISOString();
-  const matchedUser = (store.ADMIN_USERS || []).find(u => (u.email || '').trim().toLowerCase() === rawEmail);
-  const senderLabel = matchedUser ? `${matchedUser.name} (${matchedUser.role})` : rawEmail;
+  const submittedName = String(req.body.requester_name || '').trim();
+  const submittedReason = String(req.body.reset_reason || '').trim();
+  const matchedUser = (store.ADMIN_USERS || []).find(
+    u => (u.email || '').trim().toLowerCase() === rawEmail || (submittedName && (u.name || '').trim().toLowerCase() === submittedName.toLowerCase())
+  );
+  const resolvedName = matchedUser ? matchedUser.name : (submittedName || rawEmail);
+  const resolvedRole = matchedUser ? matchedUser.role : 'Unverified User';
+  const resolvedDept = matchedUser ? (matchedUser.department || 'Engineering') : 'General';
+  const senderLabel = matchedUser ? `${matchedUser.name} (${matchedUser.role})` : (submittedName ? `${submittedName} (${rawEmail})` : rawEmail);
+  const msgId = 'msg-reset-' + Date.now();
 
   if (!Array.isArray(store.INTERNAL_MESSAGES)) store.INTERNAL_MESSAGES = [];
   store.INTERNAL_MESSAGES.unshift({
-    id: 'msg-reset-' + Date.now(),
+    id: msgId,
     thread_id: 'thread-reset-' + Date.now(),
     category: 'Credential Reset',
+    user_id: matchedUser ? matchedUser.id : '',
+    user_name: resolvedName,
+    user_role: resolvedRole,
+    user_department: resolvedDept,
     sender_email: rawEmail,
     sender_name: senderLabel,
     recipient_emails: [ADMIN_PRIMARY_EMAIL],
-    subject: `Credential Reset Help Request: ${rawEmail}`,
-    body: `User ${senderLabel} (${rawEmail}) requested password reset help from the login screen. Please contact or reset their password from Admin Credentials & Users.`,
+    subject: `Password Reset Request: ${resolvedName} (${rawEmail})`,
+    body: `User Identity: ${resolvedName}\nAccount Email: ${rawEmail}\nAssigned Role: ${resolvedRole} • Department: ${resolvedDept}\nAccount Status: ${matchedUser ? 'Registered System User (' + matchedUser.id + ')' : 'Email Not Found in User Register'}\n${submittedReason ? 'User Note: ' + submittedReason + '\n' : ''}\nAction Required: Open Admin Credentials & Users to set a new password for ${resolvedName} (${rawEmail}).`,
     attachments: [],
     created_at: nowIso,
     is_read_by: [],
-    delivery_status: 'sent',
+    delivery_status: 'delivered',
     sent_at: nowIso
   });
 
   pushNotification(
-    'Password Reset Help Requested',
-    `${rawEmail} requested password reset assistance. Contact ${ADMIN_PRIMARY_EMAIL}.`,
+    `Password Reset Request: ${resolvedName}`,
+    `${senderLabel} (${rawEmail}) requested a password reset from the login screen. Click to reset their password.`,
     'warning',
-    '/settings/admin-users',
+    matchedUser ? `/settings/admin-users?edit=${encodeURIComponent(matchedUser.id)}#provisionUserForm` : '/settings/admin-users#passwordResetRequestsSection',
     true
   );
   logAudit(
-    'User Password Help Requested',
-    `User ${rawEmail} directed to contact ${ADMIN_PRIMARY_EMAIL} for password reset assistance.`,
+    'Password Reset Request Dispatched',
+    `User ${senderLabel} (${rawEmail}) submitted an in-system password reset request to Administrator (${ADMIN_PRIMARY_EMAIL}).`,
     'security',
     '/settings/admin-users',
-    'info'
+    'warning'
   );
   saveStore();
-  flash('info', `For ${rawEmail}, please contact the System Administrator at ${ADMIN_PRIMARY_EMAIL} for password reset help. Your request has also been notified to ${ADMIN_PRIMARY_EMAIL}.`);
-  return res.redirect(`/login?contact_admin=1&user_email=${encodeURIComponent(rawEmail)}`);
+  flash('success', `Password reset request for ${resolvedName} (${rawEmail}) has been sent directly to the System Administrator in Messages Center and Admin Credentials & Users.`);
+  return res.redirect(`/login?contact_admin=1&user_email=${encodeURIComponent(rawEmail)}&user_name=${encodeURIComponent(resolvedName)}`);
 });
 
 app.post('/login/reset-admin-password', (req, res) => {
@@ -3621,7 +3701,45 @@ app.post('/login/reset-admin-password', (req, res) => {
 });
 
 app.post('/login/request-credentials', (req, res) => {
-  flash('info', 'Account provisioning request received. Opsloom Administrator will be notified.');
+  const rawEmail = String(req.body.email || '').trim().toLowerCase();
+  const rawName = String(req.body.name || '').trim() || rawEmail || 'New User';
+  const rawDept = String(req.body.department || 'Engineering').trim();
+  if (!rawEmail) {
+    flash('error', 'Please enter your company email address to request access.');
+    return res.redirect('/login');
+  }
+  const nowIso = new Date().toISOString();
+  const msgId = 'msg-access-' + Date.now();
+  if (!Array.isArray(store.INTERNAL_MESSAGES)) store.INTERNAL_MESSAGES = [];
+  store.INTERNAL_MESSAGES.unshift({
+    id: msgId,
+    thread_id: 'thread-access-' + Date.now(),
+    category: 'Credential Reset',
+    user_id: '',
+    user_name: rawName,
+    user_role: 'Requested Access',
+    user_department: rawDept,
+    sender_email: rawEmail,
+    sender_name: `${rawName} (Access Request)`,
+    recipient_emails: [ADMIN_PRIMARY_EMAIL],
+    subject: `New Account Provisioning Request: ${rawName} (${rawEmail})`,
+    body: `Applicant Name: ${rawName}\nEmail: ${rawEmail}\nRequested Department: ${rawDept}\n\nSubmitted from the Login Portal. Go to Admin Credentials & Users to provision this account.`,
+    attachments: [],
+    created_at: nowIso,
+    is_read_by: [],
+    delivery_status: 'delivered',
+    sent_at: nowIso
+  });
+  pushNotification(
+    `Account Access Request: ${rawName}`,
+    `${rawName} (${rawEmail}) requested a new workspace account.`,
+    'info',
+    '/settings/admin-users#provisionUserForm',
+    true
+  );
+  logAudit('Account Access Requested', `New user access requested by ${rawName} (${rawEmail}).`, 'security', '/settings/admin-users', 'info');
+  saveStore();
+  flash('success', `Account access request for ${rawName} (${rawEmail}) has been sent to the System Administrator.`);
   res.redirect('/login');
 });
 
@@ -3658,27 +3776,53 @@ app.post('/api/companies/save-logo', upload.single('logo_file'), (req, res) => {
     logo_height, logo_width_pct, logo_alignment, logo_fit, show_name_next_to_logo,
     primary_color, secondary_color
   } = req.body || {};
-  const targetId = id || store.ACTIVE_COMPANY_ID || req.cookies?.current_company_id || (store.COMPANIES[0] && store.COMPANIES[0].id);
+  // Capture the user's current active workspace BEFORE editing target so saving a logo NEVER switches the active workspace
+  const preservedActiveId = (req.cookies && req.cookies.opsloom_ws_id && store.COMPANIES.some(c => c.id === req.cookies.opsloom_ws_id))
+    ? req.cookies.opsloom_ws_id
+    : (store.ACTIVE_COMPANY_ID || (store.COMPANIES[0] && store.COMPANIES[0].id));
+
+  const targetId = id || preservedActiveId;
   const target = store.COMPANIES.find(c => c.id === targetId) || store.COMPANIES[0];
   if (!target) {
     return res.status(404).json({ ok: false, error: 'Workspace not found' });
   }
 
   const uploadedFileDataUrl = req.file ? fileToDataUrl(req.file) : '';
-  const primaryDataUrl = uploadedFileDataUrl || String(logo_data_url || logo_light_data_url || logo_dark_data_url || '').trim();
-  const incomingLight = String(logo_light_data_url || (mode !== 'dark' ? primaryDataUrl : '') || '').trim();
-  const incomingDark = String(logo_dark_data_url || (mode !== 'light' ? primaryDataUrl : '') || '').trim();
+  const primaryDataUrl = uploadedFileDataUrl || String(logo_data_url || '').trim();
+  const incomingLight = String(logo_light_data_url || (mode === 'light' || mode === 'both' || mode === 'card_quick_upload' ? primaryDataUrl : '') || '').trim();
+  const incomingDark = String(logo_dark_data_url || (mode === 'dark' || mode === 'both' || mode === 'card_quick_upload' ? primaryDataUrl : '') || '').trim();
+  const isDefaultUrl = (u) => !u || u.includes('opsloom_wordmark_light.png') || u.includes('opsloom_wordmark_dark.png') || u.includes('ultravetis_logo.png') || u.startsWith('data:image/svg+xml');
 
-  if (incomingLight.startsWith('data:image/') || incomingLight.startsWith('/static/') || incomingLight.startsWith('http')) {
-    target.logo_light_url = incomingLight;
-    target.logo_dark_url = (incomingDark && (incomingDark.startsWith('data:image/') || incomingDark.startsWith('/static/') || incomingDark.startsWith('http')))
-      ? incomingDark
-      : incomingLight;
-    target.print_logo_url = incomingLight;
-  } else if (incomingDark.startsWith('data:image/') || incomingDark.startsWith('/static/') || incomingDark.startsWith('http')) {
-    target.logo_dark_url = incomingDark;
-    target.logo_light_url = incomingDark;
-    target.print_logo_url = incomingDark;
+  if (mode === 'light') {
+    if (incomingLight.startsWith('data:image/') || incomingLight.startsWith('/static/') || incomingLight.startsWith('http')) {
+      target.logo_light_url = incomingLight;
+      target.print_logo_url = incomingLight;
+      if (isDefaultUrl(target.logo_dark_url)) {
+        target.logo_dark_url = incomingLight;
+      }
+    }
+  } else if (mode === 'dark') {
+    if (incomingDark.startsWith('data:image/') || incomingDark.startsWith('/static/') || incomingDark.startsWith('http')) {
+      target.logo_dark_url = incomingDark;
+      if (isDefaultUrl(target.logo_light_url)) {
+        target.logo_light_url = incomingDark;
+        target.print_logo_url = incomingDark;
+      }
+    }
+  } else {
+    if (incomingLight.startsWith('data:image/') || incomingLight.startsWith('/static/') || incomingLight.startsWith('http')) {
+      target.logo_light_url = incomingLight;
+      target.print_logo_url = incomingLight;
+    }
+    if (incomingDark.startsWith('data:image/') || incomingDark.startsWith('/static/') || incomingDark.startsWith('http')) {
+      target.logo_dark_url = incomingDark;
+      if (!target.logo_light_url || isDefaultUrl(target.logo_light_url)) {
+        target.logo_light_url = incomingDark;
+        target.print_logo_url = incomingDark;
+      }
+    } else if (incomingLight && (!target.logo_dark_url || isDefaultUrl(target.logo_dark_url))) {
+      target.logo_dark_url = incomingLight;
+    }
   }
 
   if (mode === 'card_quick_upload') {
@@ -3714,19 +3858,18 @@ app.post('/api/companies/save-logo', upload.single('logo_file'), (req, res) => {
   target.custom_logo_updated_at = new Date().toISOString();
   ensureCompanyDesignation(target);
 
-  // Only update active company cookie if no workspace is set yet or if editing the already-active workspace
-  const currentActiveId = store.ACTIVE_COMPANY_ID || req.cookies?.current_company_id;
-  if (!currentActiveId || currentActiveId === target.id) {
-    store.ACTIVE_COMPANY_ID = target.id;
-    setSafeCookie(req, res, 'current_company_id', target.id);
-  }
+  // Strictly lock active workspace to preservedActiveId so editing another company NEVER switches workspaces
+  store.ACTIVE_COMPANY_ID = preservedActiveId;
+  activateWorkspaceBucket(preservedActiveId);
+  setSafeCookie(req, res, 'opsloom_ws_id', preservedActiveId);
+  res.clearCookie('current_company_id', { path: '/' });
 
   saveStore();
   logAudit('Workspace Logo Updated', `Updated brand logo for ${target.name} (${target.code})`, 'settings', '/settings/companies');
   return res.json({
     ok: true,
     company: target,
-    active_company_id: store.ACTIVE_COMPANY_ID
+    active_company_id: preservedActiveId
   });
 });
 
@@ -3780,26 +3923,40 @@ app.post(['/settings/companies/save', '/api/companies/save'], upload.fields([
     || Boolean(target.custom_logo_updated_at && String(target.logo_light_url || '').startsWith('data:image/'));
   const isDefaultPlaceholderInput = (u) => !u || u.includes('opsloom_wordmark_light.png') || u.includes('opsloom_wordmark_dark.png') || u.includes('ultravetis_logo.png');
 
-  // If user uploaded a new Light logo, apply it; if they only uploaded a Dark logo, mirror it to Light as well
-  if (lightFromUpload) {
+  // Support both independent Light/Dark uploads and single-theme uploads without overwriting an existing custom logo on the other theme
+  if (lightFromUpload && darkFromUpload) {
     target.logo_light_url = lightFromUpload;
-    target.logo_dark_url = darkFromUpload || lightFromUpload;
+    target.logo_dark_url = darkFromUpload;
+    target.print_logo_url = lightFromUpload;
+    target.custom_logo_updated_at = new Date().toISOString();
+  } else if (lightFromUpload) {
+    target.logo_light_url = lightFromUpload;
+    if (!target.logo_dark_url || isDefaultPlaceholderInput(target.logo_dark_url)) {
+      target.logo_dark_url = lightFromUpload;
+    }
     target.print_logo_url = lightFromUpload;
     target.custom_logo_updated_at = new Date().toISOString();
   } else if (darkFromUpload) {
-    target.logo_light_url = darkFromUpload;
     target.logo_dark_url = darkFromUpload;
-    target.print_logo_url = darkFromUpload;
+    if (!target.logo_light_url || isDefaultPlaceholderInput(target.logo_light_url)) {
+      target.logo_light_url = darkFromUpload;
+      target.print_logo_url = darkFromUpload;
+    }
     target.custom_logo_updated_at = new Date().toISOString();
-  } else if (cleanLightUrlInput && !(alreadyHasCustomLogo && isDefaultPlaceholderInput(cleanLightUrlInput))) {
-    target.logo_light_url = cleanLightUrlInput;
-    target.logo_dark_url = (cleanDarkUrlInput && !(alreadyHasCustomLogo && isDefaultPlaceholderInput(cleanDarkUrlInput)))
-      ? cleanDarkUrlInput
-      : cleanLightUrlInput;
-    target.print_logo_url = cleanLightUrlInput;
-  } else if (!target.logo_light_url) {
-    target.logo_light_url = '/static/brand/opsloom_wordmark_light.png';
-    target.logo_dark_url = target.logo_light_url;
+  } else {
+    if (cleanLightUrlInput && !(alreadyHasCustomLogo && isDefaultPlaceholderInput(cleanLightUrlInput))) {
+      target.logo_light_url = cleanLightUrlInput;
+      target.print_logo_url = cleanLightUrlInput;
+    }
+    if (cleanDarkUrlInput && !(alreadyHasCustomLogo && isDefaultPlaceholderInput(cleanDarkUrlInput))) {
+      target.logo_dark_url = cleanDarkUrlInput;
+    } else if (cleanLightUrlInput && (!target.logo_dark_url || isDefaultPlaceholderInput(target.logo_dark_url))) {
+      target.logo_dark_url = target.logo_light_url;
+    }
+    if (!target.logo_light_url) {
+      target.logo_light_url = '/static/brand/opsloom_wordmark_light.png';
+      target.logo_dark_url = target.logo_dark_url || target.logo_light_url;
+    }
   }
 
   target.show_name_next_to_logo = show_name_next_to_logo === '1' || show_name_next_to_logo === true || show_name_next_to_logo === 'on';
@@ -3823,20 +3980,21 @@ app.post(['/settings/companies/save', '/api/companies/save'], upload.fields([
   ensureCompanyDesignation(target);
   ensureWorkspaceBuckets();
 
-  // Only switch active workspace automatically if creating a brand-new workspace or if editing the currently active workspace
-  const currentCookieCompId = req.cookies?.current_company_id || store.ACTIVE_COMPANY_ID;
-  if (isNew || !currentCookieCompId || currentCookieCompId === target.id || req.body.activate_workspace === '1') {
-    store.ACTIVE_COMPANY_ID = target.id;
-    setSafeCookie(req, res, 'current_company_id', target.id);
-    activateWorkspaceBucket(target.id);
-  }
+  const preservedActiveId = (req.cookies && req.cookies.opsloom_ws_id && store.COMPANIES.some(c => c.id === req.cookies.opsloom_ws_id))
+    ? req.cookies.opsloom_ws_id
+    : (store.ACTIVE_COMPANY_ID || (store.COMPANIES[0] && store.COMPANIES[0].id) || target.id);
+  store.ACTIVE_COMPANY_ID = preservedActiveId;
+  // Re-bind the user's currently active workspace bucket so saving another company never shifts active workspace state
+  activateWorkspaceBucket(preservedActiveId);
+  setSafeCookie(req, res, 'opsloom_ws_id', preservedActiveId);
+  res.clearCookie('current_company_id', { path: '/' });
 
   saveStore();
   logAudit(isNew ? 'Company Workspace Created' : 'Company Workspace Updated', `Saved branding and logo configuration for ${target.name} (${target.code})`, 'settings', '/settings/companies');
   if (req.path === '/api/companies/save' || (req.headers.accept && req.headers.accept.includes('application/json'))) {
-    return res.json({ ok: true, company: target, active_company_id: store.ACTIVE_COMPANY_ID });
+    return res.json({ ok: true, company: target, active_company_id: preservedActiveId });
   }
-  flash('success', `Company workspace ${target.name} saved permanently.`);
+  flash('success', `Company workspace ${target.name} saved permanently (Active workspace remains unchanged).`);
   res.redirect('/settings/companies');
 });
 
@@ -3853,7 +4011,7 @@ app.post('/settings/companies/:id/delete', (req, res) => {
       });
       if (store.ACTIVE_COMPANY_ID === removed.id && store.COMPANIES[0]) {
         store.ACTIVE_COMPANY_ID = store.COMPANIES[0].id;
-        setSafeCookie(req, res, 'current_company_id', store.COMPANIES[0].id);
+        setSafeCookie(req, res, 'opsloom_ws_id', store.COMPANIES[0].id);
       }
       saveStore();
       logAudit('Company Workspace Deleted', `Moved company workspace ${removed.name} to Admin Recycle Bin`, 'settings', '/settings/recycle-bin', 'warning');
@@ -3876,7 +4034,8 @@ app.all('/set-company', (req, res) => {
       actor.company_id = company.id;
     }
     saveStore();
-    setSafeCookie(req, res, 'current_company_id', company.id);
+    setSafeCookie(req, res, 'opsloom_ws_id', company.id);
+    res.clearCookie('current_company_id', { path: '/' });
     logAudit('Workspace Switched', `Switched active organization workspace to ${company.name} (${company.code})`, 'settings', '/settings/companies');
     flash('success', `Switched active workspace to ${company.name} (${company.code}). All modules, reports, prints, and PowerPoints are now scoped to ${company.name}.`);
   }
@@ -7583,9 +7742,31 @@ app.get('/settings/admin-users', (req, res) => {
     saveStore();
   }
 
-  const customRoles = Array.isArray(store.CUSTOM_ROLES) && store.CUSTOM_ROLES.length
-    ? store.CUSTOM_ROLES
-    : DEFAULT_CUSTOM_ROLES;
+  if (!Array.isArray(store.CUSTOM_ROLES) || !store.CUSTOM_ROLES.length) {
+    store.CUSTOM_ROLES = JSON.parse(JSON.stringify(DEFAULT_CUSTOM_ROLES));
+  }
+  // Ensure any role assigned to any existing user in ADMIN_USERS is always preserved in CUSTOM_ROLES
+  let rolesChanged = false;
+  rawUsers.forEach(u => {
+    const rName = String(u.role || '').trim();
+    if (rName && !store.CUSTOM_ROLES.some(r => (r.name || '').toLowerCase() === rName.toLowerCase())) {
+      store.CUSTOM_ROLES.push({
+        id: 'role-' + rName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        name: rName,
+        description: `${rName} access profile with customized module capabilities.`,
+        access_scope: u.access_scope || 'Department',
+        is_system: false,
+        modules: Array.isArray(u.permissions) && u.permissions.length ? u.permissions.filter(p => p !== 'all') : ['dashboard'],
+        edit_modules: Array.isArray(u.edit_permissions) ? u.edit_permissions.filter(p => p !== 'all') : [],
+        delete_modules: Array.isArray(u.delete_permissions) ? u.delete_permissions.filter(p => p !== 'all') : []
+      });
+      rolesChanged = true;
+    }
+  });
+  if (rolesChanged) {
+    saveStore();
+  }
+  const customRoles = store.CUSTOM_ROLES;
 
   const presets = {};
   const editPresets = {};
@@ -7633,19 +7814,26 @@ app.get('/settings/admin-users', (req, res) => {
 
   const editId = req.query.edit || '';
   const edit_user = editId ? (user_rows.find(u => u.id === editId) || null) : null;
+  const selected_role = req.query.selected_role || '';
   const editRoleId = req.query.edit_role || '';
   const edit_role = editRoleId ? (customRoles.find(r => r.id === editRoleId) || null) : null;
   const admin_count = user_rows.filter(u => u.role === 'Administrator').length;
   const active_count = user_rows.filter(u => u.active !== false).length;
   const reset_requests = (store.INTERNAL_MESSAGES || [])
-    .filter(m => m.category === 'Credential Reset' || (m.subject && m.subject.toLowerCase().includes('credential')))
-    .map(m => ({
-      subject: m.subject,
-      sender_name: m.sender_name,
-      sender_email: m.sender_email,
-      body: m.body,
-      created_display: m.created_at ? new Date(m.created_at).toLocaleString('en-GB') : 'Recent'
-    }));
+    .filter(m => m && (m.category === 'Credential Reset' || (m.subject && m.subject.toLowerCase().includes('password reset')) || (m.subject && m.subject.toLowerCase().includes('credential'))))
+    .map(m => {
+      const matchedU = rawUsers.find(u => (u.email || '').toLowerCase() === String(m.sender_email || '').toLowerCase());
+      return {
+        id: m.id,
+        user_id: m.user_id || (matchedU ? matchedU.id : ''),
+        subject: m.subject,
+        sender_name: m.sender_name,
+        sender_email: m.sender_email,
+        body: m.body,
+        is_unread: !(m.is_read_by || []).includes(ADMIN_PRIMARY_EMAIL),
+        created_display: m.created_at ? new Date(m.created_at).toLocaleString('en-GB') : 'Recent'
+      };
+    });
   const { filtered: audit_rows } = getFilteredAuditRows(req);
 
   res.render('settings/admin_users.html', {
@@ -7654,6 +7842,7 @@ app.get('/settings/admin-users', (req, res) => {
     users: user_rows,
     user_rows,
     edit_user,
+    selected_role,
     edit_role,
     custom_roles: customRoles,
     admin_count,
@@ -7665,6 +7854,18 @@ app.get('/settings/admin-users', (req, res) => {
     edit_permission_presets: editPresets,
     delete_permission_presets: deletePresets
   });
+});
+
+app.post('/settings/admin-users/reset-requests/:msg_id/dismiss', (req, res) => {
+  if (Array.isArray(store.INTERNAL_MESSAGES)) {
+    const idx = store.INTERNAL_MESSAGES.findIndex(m => m && m.id === req.params.msg_id);
+    if (idx !== -1) {
+      store.INTERNAL_MESSAGES.splice(idx, 1);
+      saveStore();
+      flash('info', 'Password reset request dismissed.');
+    }
+  }
+  res.redirect('/settings/admin-users');
 });
 
 app.post(['/settings/admin-users/roles/save', '/settings/roles/save', '/api/roles/save'], (req, res) => {
@@ -7731,8 +7932,11 @@ app.post(['/settings/admin-users/roles/save', '/settings/roles/save', '/api/role
 
   saveStore();
   logAudit(isNew ? 'Custom Role Defined' : 'Role Definition Updated', `${isNew ? 'Created' : 'Updated'} role "${targetRole.name}" (${targetRole.modules.length} view / ${targetRole.edit_modules.length} edit modules).`, 'security', '/settings/admin-users');
-  flash('success', `Role "${targetRole.name}" saved with ${targetRole.modules.length} accessible module(s) and ${targetRole.edit_modules.length} editable module(s).`);
-  res.redirect('/settings/admin-users#roleDefinitionsSection');
+  if (req.path === '/api/roles/save' || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+    return res.json({ ok: true, role: targetRole, custom_roles: store.CUSTOM_ROLES });
+  }
+  flash('success', `Role "${targetRole.name}" saved permanently with ${targetRole.modules.length} accessible module(s) and ${targetRole.edit_modules.length} editable module(s).`);
+  res.redirect(`/settings/admin-users?selected_role=${encodeURIComponent(targetRole.name)}#roleDefinitionsSection`);
 });
 
 app.post(['/settings/admin-users/roles/:role_id/delete', '/settings/roles/:role_id/delete'], (req, res) => {
@@ -7754,8 +7958,25 @@ app.post(['/settings/admin-users/roles/:role_id/delete', '/settings/roles/:role_
 
 app.post('/settings/admin-users/create', (req, res) => {
   if (!store.ADMIN_USERS) store.ADMIN_USERS = [];
+  if (!Array.isArray(store.CUSTOM_ROLES) || !store.CUSTOM_ROLES.length) {
+    store.CUSTOM_ROLES = JSON.parse(JSON.stringify(DEFAULT_CUSTOM_ROLES));
+  }
+  // Merge any client-synced custom roles so newly defined roles never disappear across requests or instances
+  if (req.body.custom_roles_json) {
+    try {
+      const incomingRoles = JSON.parse(req.body.custom_roles_json);
+      if (Array.isArray(incomingRoles)) {
+        incomingRoles.forEach(ir => {
+          if (ir && ir.name && !store.CUSTOM_ROLES.some(er => (er.name || '').toLowerCase() === String(ir.name).toLowerCase())) {
+            store.CUSTOM_ROLES.push(ir);
+          }
+        });
+      }
+    } catch (e) {}
+  }
+
   const role = (req.body.role || 'Viewer').trim();
-  const roleDef = getRoleDefinition(role);
+  let roleDef = getRoleDefinition(role);
 
   let perms = req.body.permissions;
   if (!perms) {
@@ -7780,6 +8001,21 @@ app.post('/settings/admin-users/create', (req, res) => {
 
   // Ensure any module in editPerms or deletePerms is also included in view perms
   perms = Array.from(new Set([...perms, ...editPerms, ...deletePerms]));
+
+  // Guarantee the assigned role is permanently registered in store.CUSTOM_ROLES so it never disappears
+  if (role && !roleDef) {
+    roleDef = {
+      id: 'role-' + Date.now(),
+      name: role,
+      description: `${role} access profile with customized module capabilities.`,
+      access_scope: req.body.access_scope || 'Department',
+      is_system: false,
+      modules: perms.filter(p => p !== 'all'),
+      edit_modules: editPerms.filter(p => p !== 'all'),
+      delete_modules: deletePerms.filter(p => p !== 'all')
+    };
+    store.CUSTOM_ROLES.push(roleDef);
+  }
 
   if (role === 'Administrator') {
     if (!perms.includes('all')) perms = ['all', ...perms];

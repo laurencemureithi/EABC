@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "saved_at": "2026-10-01T14:02:11.537Z",
+  "saved_at": "2026-10-02T05:53:30.660Z",
   "COMPANIES": [
     {
       "id": "comp-001",
@@ -696,23 +696,6 @@
     }
   ],
   "INTERNAL_MESSAGES": [
-    {
-      "id": "msg-reset-1790848310149",
-      "thread_id": "thread-reset-1790848310149",
-      "category": "Credential Reset",
-      "sender_email": "grace.wanjiku@opsloom.co.ke",
-      "sender_name": "Eng. Grace Wanjiku (Manager)",
-      "recipient_emails": [
-        "opsloom.ke@gmail.com"
-      ],
-      "subject": "Credential Reset Help Request: grace.wanjiku@opsloom.co.ke",
-      "body": "User Eng. Grace Wanjiku (Manager) (grace.wanjiku@opsloom.co.ke) requested password reset help from the login screen. Please contact or reset their password from Admin Credentials & Users.",
-      "attachments": [],
-      "created_at": "2026-10-01T09:51:50.149Z",
-      "is_read_by": [],
-      "delivery_status": "sent",
-      "sent_at": "2026-10-01T09:51:50.149Z"
-    },
     {
       "id": "msg-welcome-admin",
       "thread_id": "thread-welcome-admin",
@@ -2421,18 +2404,6 @@
           "severity": "info",
           "href": "/settings/companies",
           "created_at": "2026-10-01T10:48:42.927Z",
-          "user_name": "Laurence Magondu",
-          "user_email": "opsloom.ke@gmail.com",
-          "department": "Engineering"
-        },
-        {
-          "id": "b44fad4da5714f0ab6f034751afd5146",
-          "action": "User Password Help Requested",
-          "detail": "User grace.wanjiku@opsloom.co.ke directed to contact opsloom.ke@gmail.com for password reset assistance.",
-          "module": "security",
-          "severity": "info",
-          "href": "/settings/admin-users",
-          "created_at": "2026-10-01T09:51:50.150Z",
           "user_name": "Laurence Magondu",
           "user_email": "opsloom.ke@gmail.com",
           "department": "Engineering"

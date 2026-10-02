@@ -290,10 +290,9 @@
 
           <div class="auth-secondary-grid">
             <a href="{{ url_for('login_google') }}" class="auth-secondary"><span class="material-symbols-outlined">google</span>Sign In with Google</a>
-            <form id="quickForgotForm" method="post" action="{{ url_for('forgot_password') }}" onsubmit="return handleQuickForgotSubmit(event);">
-              <input type="hidden" name="email" id="quickForgotEmailInput" value="">
-              <button class="auth-secondary-btn cursor-pointer" type="submit"><span class="material-symbols-outlined">lock_reset</span>Forgot Password</button>
-            </form>
+            <button type="button" onclick="openForgotPasswordPanel()" class="auth-secondary-btn cursor-pointer">
+              <span class="material-symbols-outlined">lock_reset</span>Forgot Password
+            </button>
           </div>
 
           <!-- Password Recovery & Reset Panel -->
@@ -301,7 +300,7 @@
             <div class="flex items-center justify-between gap-2 mb-3">
               <div class="flex items-center gap-2">
                 <span class="material-symbols-outlined text-blue-600 dark:text-blue-400">lock_reset</span>
-                <h3 class="text-xs font-black uppercase tracking-[0.16em] text-slate-800 dark:text-slate-100">Password Recovery &amp; Reset</h3>
+                <h3 class="text-xs font-black uppercase tracking-[0.16em] text-slate-800 dark:text-slate-100">Password Reset &amp; Admin Escalation</h3>
               </div>
               <button type="button" onclick="document.getElementById('forgotPasswordPanel').classList.add('hidden');" class="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer">Close</button>
             </div>
@@ -337,48 +336,85 @@
               </form>
             {% else %}
               {% if contact_admin_help %}
-              <div class="rounded-xl border border-amber-300 dark:border-amber-800/70 bg-amber-50 dark:bg-amber-950/30 p-4 mb-4 text-xs text-amber-900 dark:text-amber-200 space-y-2">
-                <div class="font-black uppercase tracking-wider text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
-                  <span class="material-symbols-outlined text-sm">support_agent</span>
-                  Contact Administrator for Password Reset Help
+              <div class="rounded-xl border border-emerald-300 dark:border-emerald-800/70 bg-emerald-50 dark:bg-emerald-950/30 p-4 mb-4 text-xs text-emerald-900 dark:text-emerald-200 space-y-2">
+                <div class="font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                  <span class="material-symbols-outlined text-sm">check_circle</span>
+                  In-System Password Reset Request Sent to Admin
                 </div>
-                <p>For <strong>{{ contact_admin_user_email or 'your account' }}</strong>, self-service reset codes are restricted to the System Administrator.</p>
-                <p>Please contact <strong><a href="mailto:opsloom.ke@gmail.com?subject=Password%20Reset%20Help%20Request%20({{ contact_admin_user_email }})" class="underline text-blue-600 dark:text-blue-400">opsloom.ke@gmail.com</a></strong> for help. Your request has also been logged to the administrator's inbox.</p>
+                <p>Requesting User: <strong>{{ contact_admin_user_name or contact_admin_user_email }} ({{ contact_admin_user_email }})</strong></p>
+                <p>Your password reset request has been delivered directly to the System Administrator (<strong>opsloom.ke@gmail.com</strong>) inside the Opsloom <strong>Messages Center</strong> and <strong>Admin Credentials &amp; Users</strong> portal.</p>
               </div>
               {% endif %}
 
               <p class="text-xs text-slate-600 dark:text-slate-300 mb-3 leading-relaxed">
-                • If you are the <strong>Admin (opsloom.ke@gmail.com)</strong>, entering your email below reverts a 6-digit reset code to <strong>laurencemureithi1999@gmail.com</strong>.<br>
-                • Any other user will be directed to contact <strong>opsloom.ke@gmail.com</strong> for assistance.
+                Identify the account requesting a password reset below. An internal system message and alert will be dispatched immediately to the Administrator (<strong>opsloom.ke@gmail.com</strong>) with your exact user details.
               </p>
               <form method="post" action="{{ url_for('forgot_password') }}" class="space-y-3">
+                {% if registered_users and registered_users|length > 0 %}
                 <div>
-                  <label class="auth-label">Account Email</label>
-                  <input id="forgotEmailField" name="email" type="email" required value="{{ contact_admin_user_email or '' }}" placeholder="opsloom.ke@gmail.com or your company email" class="auth-input">
+                  <label class="auth-label">Select Your User Account</label>
+                  <select id="forgotUserSelect" onchange="handleForgotUserSelect(this)" class="auth-select">
+                    <option value="">-- Choose your registered user account or type below --</option>
+                    {% for u in registered_users %}
+                    <option value="{{ u.email }}" data-name="{{ u.name }}" {% if contact_admin_user_email == u.email %}selected{% endif %}>{{ u.name }} ({{ u.role }}) — {{ u.email }}</option>
+                    {% endfor %}
+                  </select>
                 </div>
-                <button type="submit" class="auth-primary cursor-pointer">Submit Password Recovery Request</button>
+                {% endif %}
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label class="auth-label">Account Email (Required)</label>
+                    <input id="forgotEmailField" name="email" type="email" required value="{{ contact_admin_user_email or '' }}" placeholder="your.email@company.com" class="auth-input">
+                  </div>
+                  <div>
+                    <label class="auth-label">Your Full Name</label>
+                    <input id="forgotNameField" name="requester_name" type="text" value="{{ contact_admin_user_name or '' }}" placeholder="e.g. David Kimani" class="auth-input">
+                  </div>
+                </div>
+                <div>
+                  <label class="auth-label">Reason / Note to Administrator</label>
+                  <input id="forgotReasonField" name="reset_reason" type="text" placeholder="e.g. Forgot password, requesting credential reset from Admin" class="auth-input">
+                </div>
+                <button type="submit" class="auth-primary cursor-pointer">Send Password Reset Request to Admin</button>
               </form>
             {% endif %}
           </div>
 
           <script>
-            function handleQuickForgotSubmit(e) {
+            function openForgotPasswordPanel() {
               var loginEmail = document.getElementById('loginEmailInput');
-              var hiddenEmail = document.getElementById('quickForgotEmailInput');
               var panel = document.getElementById('forgotPasswordPanel');
               var forgotField = document.getElementById('forgotEmailField');
-              var typed = loginEmail && loginEmail.value ? loginEmail.value.trim() : '';
-              if (typed) {
-                hiddenEmail.value = typed;
-                return true;
-              }
-              if (panel && panel.classList.contains('hidden')) {
-                e.preventDefault();
+              var userSelect = document.getElementById('forgotUserSelect');
+              if (panel) {
                 panel.classList.remove('hidden');
-                if (forgotField) forgotField.focus();
-                return false;
               }
-              return true;
+              var typed = loginEmail && loginEmail.value ? loginEmail.value.trim() : '';
+              if (typed && forgotField && !forgotField.value) {
+                forgotField.value = typed;
+                if (userSelect) {
+                  for (var i = 0; i < userSelect.options.length; i++) {
+                    if (userSelect.options[i].value.toLowerCase() === typed.toLowerCase()) {
+                      userSelect.selectedIndex = i;
+                      handleForgotUserSelect(userSelect);
+                      break;
+                    }
+                  }
+                }
+              }
+              if (forgotField) forgotField.focus();
+            }
+
+            function handleForgotUserSelect(sel) {
+              if (!sel) return;
+              var opt = sel.options[sel.selectedIndex];
+              var emailField = document.getElementById('forgotEmailField');
+              var nameField = document.getElementById('forgotNameField');
+              if (opt && opt.value) {
+                if (emailField) emailField.value = opt.value;
+                var uName = opt.getAttribute('data-name') || '';
+                if (nameField && uName) nameField.value = uName;
+              }
             }
           </script>
 
