@@ -4223,11 +4223,11 @@ app.post('/login/request-credentials', (req, res) => {
 });
 
 app.all('/set-department', (req, res) => {
-  const dept = req.body.department || req.query.department || 'Engineering';
+  const dept = req.body?.department || req.query?.department || 'Engineering';
   store.ACTIVE_DEPARTMENT = dept;
   saveStore();
   setSafeCookie(req, res, 'current_department', dept);
-  const next = req.body.next || req.query.next || req.header('Referer') || '/dashboard';
+  const next = req.body?.next || req.query?.next || req.header('Referer') || '/dashboard';
   res.redirect(next);
 });
 
@@ -4503,7 +4503,7 @@ app.post('/settings/companies/:id/delete', (req, res) => {
 });
 
 app.all('/set-company', (req, res) => {
-  const companyId = req.query.company_id || req.body.company_id;
+  const companyId = req.query?.company_id || req.body?.company_id;
   const company = (store.COMPANIES || []).find(c => c.id === companyId);
   if (company) {
     store.ACTIVE_COMPANY_ID = company.id;
@@ -4518,7 +4518,7 @@ app.all('/set-company', (req, res) => {
     logAudit('Workspace Switched', `Switched active organization workspace to ${company.name} (${company.code})`, 'settings', '/settings/companies');
     flash('success', `Switched active workspace to ${company.name} (${company.code}). All modules, reports, prints, and PowerPoints are now scoped to ${company.name}.`);
   }
-  const next = req.query.next || req.body.next || req.header('Referer') || '/dashboard';
+  const next = req.query?.next || req.body?.next || req.header('Referer') || '/dashboard';
   res.redirect(next);
 });
 
@@ -5369,8 +5369,25 @@ app.post('/assets/new/step-3', upload.single('photo'), (req, res) => {
   res.redirect(`/assets/success/${uid}`);
 });
 
+function findAssetByUidOrId(identifier) {
+  if (!identifier) return null;
+  const clean = String(identifier).trim().toLowerCase();
+  const cleanAlpha = clean.replace(/[^a-z0-9]/g, '');
+  return (store.ASSETS || []).find(a => {
+    if (!a) return false;
+    const aUid = String(a.uid || '').toLowerCase();
+    const aId = String(a.asset_id || '').toLowerCase();
+    if (aUid === clean || aId === clean) return true;
+    const aUidAlpha = aUid.replace(/[^a-z0-9]/g, '');
+    const aIdAlpha = aId.replace(/[^a-z0-9]/g, '');
+    if (aUidAlpha === cleanAlpha || aIdAlpha === cleanAlpha) return true;
+    if (cleanAlpha && (aUidAlpha.endsWith(cleanAlpha) || aIdAlpha.endsWith(cleanAlpha))) return true;
+    return false;
+  }) || null;
+}
+
 app.get('/assets/success/:asset_uid', (req, res) => {
-  const asset = store.ASSETS.find(a => a.uid === req.params.asset_uid) || store.ASSETS[0];
+  const asset = findAssetByUidOrId(req.params.asset_uid) || store.ASSETS[0];
   res.render('assets/assets_success.html', {
     ...baseCtx(req, 'assets'),
     asset
@@ -5378,7 +5395,7 @@ app.get('/assets/success/:asset_uid', (req, res) => {
 });
 
 app.get('/assets/:asset_uid', (req, res) => {
-  const asset = store.ASSETS.find(a => a.uid === req.params.asset_uid);
+  const asset = findAssetByUidOrId(req.params.asset_uid);
   if (!asset) return res.redirect('/assets');
 
   const assetBreakdowns = (store.BREAKDOWNS || []).filter(b => b.asset_uid === asset.uid || b.asset_id === asset.asset_id);
@@ -5405,13 +5422,13 @@ app.get('/assets/:asset_uid', (req, res) => {
 });
 
 app.get('/assets/:asset_uid/profile.pdf', (req, res) => {
-  const asset = store.ASSETS.find(a => a.uid === req.params.asset_uid);
+  const asset = findAssetByUidOrId(req.params.asset_uid);
   if (!asset) return res.redirect('/assets');
   res.render('assets/assets_profile_print.html', buildAssetProfilePrintContext(req, asset));
 });
 
 app.get('/assets/:asset_uid/edit', (req, res) => {
-  const asset = store.ASSETS.find(a => a.uid === req.params.asset_uid);
+  const asset = findAssetByUidOrId(req.params.asset_uid);
   if (!asset) return res.redirect('/assets');
   res.render('assets/assets_edit.html', {
     ...baseCtx(req, 'assets'),
@@ -5420,7 +5437,7 @@ app.get('/assets/:asset_uid/edit', (req, res) => {
 });
 
 app.post('/assets/:asset_uid/edit', upload.single('photo'), (req, res) => {
-  const asset = store.ASSETS.find(a => a.uid === req.params.asset_uid);
+  const asset = findAssetByUidOrId(req.params.asset_uid);
   if (asset) {
     Object.assign(asset, req.body);
     const photoDataUrl = fileToDataUrl(req.file);
@@ -8106,7 +8123,7 @@ function getFilteredAuditRows(req) {
   return { filtered, modules, q: req.query.q || '', mod, start, end };
 }
 
-app.get('/settings/audit-trail', (req, res) => {
+app.get(['/settings/audit-trail', '/settings/audit-logs', '/settings/audit'], (req, res) => {
   const { filtered, modules, q, mod, start, end } = getFilteredAuditRows(req);
   const per_page = Math.max(1, parseInt(req.query.per_page, 10) || 15);
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -8678,7 +8695,11 @@ app.post('/settings/admin-users/create', (req, res) => {
   target.edit_permissions = editPerms;
   target.delete_permissions = deletePerms;
   target.can_adjust_kpi_targets = userCanAdjustKpis;
-  target.active = req.body.active === '1' || req.body.active === 'on' || req.body.active === true;
+  if (req.body.active !== undefined) {
+    target.active = req.body.active === '1' || req.body.active === 'on' || req.body.active === true || req.body.active === 'true';
+  } else if (isNew) {
+    target.active = true;
+  }
   target.signature_name = req.body.signature_name || target.name;
   target.signature_title = req.body.signature_title || target.role;
   target.signature_font = req.body.signature_font || target.signature_font || 'Inter';
@@ -9252,7 +9273,7 @@ app.post(['/settings/help', '/settings/help/request'], (req, res) => {
 // -------------------------
 // LIVE APIS (FOR POLLING & CHARTS)
 // -------------------------
-app.get('/api/live/dashboard/kpis', (req, res) => {
+app.get(['/api/system/health', '/api/health', '/api/live/dashboard/kpis'], (req, res) => {
   const sysHealth = computeSystemHealthStatus();
   const breakdowns = store.BREAKDOWNS || [];
   const activeBds = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved');

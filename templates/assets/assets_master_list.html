@@ -807,6 +807,52 @@
 
         if (btnPrint) btnPrint.addEventListener("click", printSelection);
 
+        if (btnDownloadPptx) {
+          btnDownloadPptx.addEventListener("click", async function (e) {
+            e.preventDefault();
+            const origHtml = btnDownloadPptx.innerHTML;
+            btnDownloadPptx.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin">progress_activity</span> Generating Deck...';
+            btnDownloadPptx.classList.add("pointer-events-none", "opacity-80");
+            try {
+              const qs = buildQueryForReport();
+              const url = "/assets/export/pptx?source=smart_insights" + (qs ? ("&" + qs) : "");
+              if (window.downloadBlobFile) {
+                await window.downloadBlobFile(url, "smart_asset_insights_deck.pptx");
+              } else {
+                window.location.assign(url);
+              }
+            } catch (err) {
+              console.error("Failed to export PowerPoint:", err);
+            } finally {
+              btnDownloadPptx.innerHTML = origHtml;
+              btnDownloadPptx.classList.remove("pointer-events-none", "opacity-80");
+            }
+          });
+        }
+
+        if (btnDownloadPdf) {
+          btnDownloadPdf.addEventListener("click", async function (e) {
+            e.preventDefault();
+            const origHtml = btnDownloadPdf.innerHTML;
+            btnDownloadPdf.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin">progress_activity</span> Generating PDF...';
+            btnDownloadPdf.classList.add("pointer-events-none", "opacity-80");
+            try {
+              const qs = buildQueryForReport();
+              const url = "/assets/export/pdf?source=smart_insights" + (qs ? ("&" + qs) : "");
+              if (window.downloadBlobFile) {
+                await window.downloadBlobFile(url, "smart_asset_insights_report.pdf");
+              } else {
+                window.location.assign(url);
+              }
+            } catch (err) {
+              console.error("Failed to export PDF:", err);
+            } finally {
+              btnDownloadPdf.innerHTML = origHtml;
+              btnDownloadPdf.classList.remove("pointer-events-none", "opacity-80");
+            }
+          });
+        }
+
         refresh();
       }
 

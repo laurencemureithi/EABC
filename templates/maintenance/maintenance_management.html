@@ -700,12 +700,26 @@
       }
 
       document.querySelectorAll('[data-md-export]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          window.open(exportUrl(btn.getAttribute('data-md-export') || 'pdf'), '_blank');
+        btn.addEventListener('click', async () => {
+          const fmt = btn.getAttribute('data-md-export') || 'pdf';
+          const targetUrl = exportUrl(fmt);
+          const origText = btn.innerHTML;
+          btn.innerHTML = '<span class="material-symbols-outlined text-xs animate-spin">progress_activity</span>';
+          btn.classList.add('pointer-events-none', 'opacity-80');
+          try {
+            if (window.downloadBlobFile) {
+              await window.downloadBlobFile(targetUrl, `maintenance_distribution_${fmt}.${fmt === 'powerpoint' ? 'pptx' : fmt}`);
+            } else {
+              window.open(targetUrl, '_blank');
+            }
+          } finally {
+            btn.innerHTML = origText;
+            btn.classList.remove('pointer-events-none', 'opacity-80');
+          }
         });
       });
       document.getElementById('mdPrintBtn')?.addEventListener('click', () => {
-        window.open(exportUrl('html') + '&autoprint=1', '_blank');
+        window.location.assign(exportUrl('html') + '&autoprint=1');
       });
 
       await refresh();
