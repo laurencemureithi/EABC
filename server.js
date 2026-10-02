@@ -41,8 +41,43 @@ if (!Object.prototype.get) {
   });
 }
 const PORT = process.env.PORT || 3000;
-const isVercel = Boolean(process.env.VERCEL);
+const isVercel = Boolean(
+  process.env.VERCEL || 
+  process.env.VERCEL_ENV || 
+  process.env.NOW_REGION || 
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.LAMBDA_TASK_ROOT
+);
 process.env.TZ = process.env.TZ || 'Africa/Nairobi';
+
+function resolveAppDir(dirName) {
+  const candidates = [
+    path.join(__dirname, dirName),
+    path.join(__dirname, '..', dirName),
+    path.join(process.cwd(), dirName),
+    path.join(process.cwd(), '..', dirName)
+  ];
+  for (const c of candidates) {
+    try {
+      if (fs.existsSync(c)) return c;
+    } catch (e) {}
+  }
+  return path.join(__dirname, dirName);
+}
+
+function getTemplateSearchDirs() {
+  const candidates = [
+    path.join(__dirname, 'templates'),
+    path.join(__dirname, '..', 'templates'),
+    path.join(process.cwd(), 'templates'),
+    path.join(process.cwd(), '..', 'templates'),
+    'templates'
+  ];
+  const found = candidates.filter(d => {
+    try { return fs.existsSync(d); } catch (e) { return false; }
+  });
+  return found.length ? found : [path.join(__dirname, 'templates')];
+}
 
 let runtimeClientClockOffsetMs = 0;
 let runtimeClientTimezone = 'Africa/Nairobi';
@@ -155,9 +190,9 @@ function getSystemTimeHM(rawVal) {
 }
 
 // Serverless-resilient directory paths
-const DATA_DIR = isVercel ? '/tmp/data' : path.join(__dirname, 'data');
+const DATA_DIR = isVercel ? '/tmp/data' : resolveAppDir('data');
 const DATASTORE_PATH = isVercel ? '/tmp/opsloom_datastore.json' : path.join(DATA_DIR, 'datastore.json');
-const STATIC_DIR = path.join(__dirname, 'static');
+const STATIC_DIR = resolveAppDir('static');
 const UPLOADS_DIR = isVercel ? '/tmp/uploads' : path.join(STATIC_DIR, 'uploads');
 
 try {
@@ -1666,10 +1701,26 @@ function activateWorkspaceBucket(companyId) {
 let lastDiskMtimeMs = 0;
 function syncStoreFromDisk() {
   try {
-    const targetPath = fs.existsSync(DATASTORE_PATH)
-      ? DATASTORE_PATH
-      : path.join(__dirname, 'data', 'datastore.json');
-    if (fs.existsSync(targetPath)) {
+    let targetPath = null;
+    if (fs.existsSync(DATASTORE_PATH)) {
+      targetPath = DATASTORE_PATH;
+    } else {
+      const candidates = [
+        path.join(resolveAppDir('data'), 'datastore.json'),
+        path.join(__dirname, 'data', 'datastore.json'),
+        path.join(__dirname, '..', 'data', 'datastore.json'),
+        path.join(process.cwd(), 'data', 'datastore.json')
+      ];
+      for (const c of candidates) {
+        try {
+          if (fs.existsSync(c)) {
+            targetPath = c;
+            break;
+          }
+        } catch (e) {}
+      }
+    }
+    if (targetPath && fs.existsSync(targetPath)) {
       const stat = fs.statSync(targetPath);
       if (stat.mtimeMs > lastDiskMtimeMs) {
         const raw = fs.readFileSync(targetPath, 'utf-8');
@@ -1760,13 +1811,19 @@ function saveStore() {
     store.saved_at = getSystemNowIso();
     store.saved_at_ms = Date.now();
     const payload = JSON.stringify(store, null, 2);
+    const targetDir = path.dirname(DATASTORE_PATH);
+    if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
     fs.writeFileSync(DATASTORE_PATH, payload, 'utf-8');
     const stat = fs.statSync(DATASTORE_PATH);
     lastDiskMtimeMs = stat.mtimeMs;
     // If not on Vercel and DATASTORE_PATH differs from repo data/datastore.json, keep both in sync
-    const repoPath = path.join(__dirname, 'data', 'datastore.json');
-    if (!isVercel && DATASTORE_PATH !== repoPath) {
-      fs.writeFileSync(repoPath, payload, 'utf-8');
+    if (!isVercel) {
+      try {
+        const repoPath = path.join(resolveAppDir('data'), 'datastore.json');
+        if (DATASTORE_PATH !== repoPath) {
+          fs.writeFileSync(repoPath, payload, 'utf-8');
+        }
+      } catch (e) {}
     }
   } catch (err) {
     console.warn('Failed to write datastore.json (ephemeral in serverless):', err.message);
@@ -1981,8 +2038,10 @@ function moveToRecycleBin(entity_type, entity_label, primary_id, record, deleted
   return entry;
 }
 
-// Configure Nunjucks
-const nunjucksEnv = nunjucks.configure('templates', {
+// Configure Nunjucks with multi-path fallback for local, monorepo, and Vercel serverless execution
+const templateSearchDirs = getTemplateSearchDirs();
+app.set('views', templateSearchDirs);
+const nunjucksEnv = nunjucks.configure(templateSearchDirs, {
   autoescape: true,
   express: app,
   noCache: true
@@ -10178,9 +10237,10 @@ app.use((req, res) => {
 
 // Export app for serverless (Vercel)
 module.exports = app;
+module.exports.default = app;
 
 // Start Server in standalone / development environment
-if (!process.env.VERCEL) {
+if (!isVercel && require.main === module) {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[AI Studio] Opsloom server running on http://0.0.0.0:${PORT}`);
   });
