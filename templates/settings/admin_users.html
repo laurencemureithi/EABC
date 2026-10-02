@@ -21,7 +21,8 @@
   {'key': 'settings_manage', 'label': 'Settings & Admin'},
   {'key': 'users_manage', 'label': 'Users & Role Governance'},
   {'key': 'technicians_manage', 'label': 'Technicians Directory'},
-  {'key': 'recycle_bin', 'label': 'Admin Recycle Bin'}
+  {'key': 'recycle_bin', 'label': 'Admin Recycle Bin'},
+  {'key': 'kpi_targets_manage', 'label': 'KPI Targets, Budgets & Attainment'}
 ] %}
 
 <div class="max-w-7xl mx-auto space-y-6">
@@ -82,17 +83,28 @@
       {% for req in reset_requests %}
       <div class="rounded-xl border border-amber-200/80 dark:border-amber-800/50 bg-white dark:bg-slate-900 p-4 flex flex-col justify-between gap-3 shadow-xs">
         <div>
-          <div class="flex items-center justify-between gap-2">
-            <span class="font-black text-sm text-slate-900 dark:text-white">{{ req.sender_name }}</span>
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="font-black text-sm text-slate-900 dark:text-white">{{ req.user_name or req.sender_name }}</span>
+              {% if req.workspace_name %}
+              <span class="px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-black uppercase tracking-wider">
+                Workspace: {{ req.workspace_name }} ({{ req.workspace_code or 'OPS' }})
+              </span>
+              {% endif %}
+            </div>
             <span class="text-[10px] font-bold text-slate-400">{{ req.created_display }}</span>
           </div>
-          <p class="text-xs font-semibold text-amber-700 dark:text-amber-300 mt-0.5">{{ req.sender_email }}</p>
+          <p class="text-xs font-semibold text-amber-700 dark:text-amber-300 mt-1">{{ req.sender_email }} {% if req.user_role %}• {{ req.user_role }} ({{ req.user_department or 'Engineering' }}){% endif %}</p>
           <p class="text-xs text-slate-600 dark:text-slate-300 mt-2 whitespace-pre-line leading-relaxed">{{ req.body }}</p>
         </div>
-        <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+        <div class="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
           {% if req.user_id %}
           <a href="{{ url_for('admin_users_page', edit=req.user_id) }}#provisionUserForm" class="px-3 py-1.5 rounded-lg bg-ueal-purple text-white text-xs font-black uppercase tracking-wider">
             Reset User Password
+          </a>
+          {% else %}
+          <a href="{{ url_for('admin_users_page') }}#provisionUserForm" class="px-3 py-1.5 rounded-lg bg-ueal-purple text-white text-xs font-black uppercase tracking-wider">
+            Provision / Reset Account
           </a>
           {% endif %}
           <form method="post" action="/settings/admin-users/reset-requests/{{ req.id }}/dismiss">
@@ -132,6 +144,11 @@
               <div class="flex items-center gap-2 flex-wrap">
                 <h3 class="text-sm font-black text-slate-900 dark:text-white">{{ r.name }}</h3>
                 <span class="px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[10px] font-black uppercase tracking-wider">{{ r.access_scope or 'Department' }}</span>
+                {% if r.is_system or r.can_adjust_kpi_targets or ('kpi_targets_manage' in (r.edit_modules or [])) %}
+                <span class="px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                  <span class="material-symbols-outlined text-[11px]">tune</span> KPI &amp; Budget Rule
+                </span>
+                {% endif %}
               </div>
               <p class="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{{ r.description or 'Custom operational role with tailored module access and edit privileges.' }}</p>
             </div>
@@ -267,6 +284,14 @@
                       <span class="text-rose-500 ml-1">• Delete ({{ row.delete_permissions|length }})</span>
                     {% endif %}
                   </div>
+                  {% if row.can_adjust_kpi_targets or ('kpi_targets_manage' in (row.edit_permissions or [])) or row.role == 'Administrator' %}
+                  <div class="pt-0.5">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 text-[10px] font-black uppercase tracking-wider">
+                      <span class="material-symbols-outlined text-[12px]">tune</span>
+                      KPI Targets &amp; Budgets Privilege
+                    </span>
+                  </div>
+                  {% endif %}
                 </div>
               </td>
               <td class="px-4 sm:px-6 py-4 text-right align-top">
@@ -327,9 +352,17 @@
           </div>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Company Workspace</label>
+            <select name="company_id" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm font-semibold">
+              {% for comp in (companies or []) %}
+              <option value="{{ comp.id }}" {% if (form_user.company_id and form_user.company_id == comp.id) or (not form_user.company_id and active_company and active_company.id == comp.id) %}selected{% endif %}>{{ comp.name }} ({{ comp.code }})</option>
+              {% endfor %}
+            </select>
+          </div>
           <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Department</label><select name="department" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">{% for dep in departments %}<option value="{{ dep }}" {% if (form_user.department or current_department) == dep %}selected{% endif %}>{{ dep }}</option>{% endfor %}</select></div>
-          <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">{% if edit_user %}Reset Password{% else %}Initial Password{% endif %}</label><input name="password" type="text" placeholder="{% if edit_user %}Leave blank to keep current{% else %}Required for new user{% endif %}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm" {% if not edit_user %}required{% endif %}></div>
         </div>
+        <div><label class="block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">{% if edit_user %}Reset Password{% else %}Initial Password{% endif %}</label><input name="password" type="text" placeholder="{% if edit_user %}Leave blank to keep current{% else %}Required for new user{% endif %}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm" {% if not edit_user %}required{% endif %}></div>
 
         <!-- Per-User Module Access, Edit & Delete Matrix -->
         <div>
@@ -366,6 +399,23 @@
             </div>
           </div>
           <p class="mt-1 text-[11px] text-slate-400">Selecting a Role above pre-fills these capabilities; you can also customize individual View, Edit, and Delete checkboxes for this user.</p>
+        </div>
+
+        <!-- Privilege Rule: Adjust Company KPI Metrics, Attainment Levels, Budgets & Percentages -->
+        {% set has_kpi_rule = (form_user.can_adjust_kpi_targets if form_user.can_adjust_kpi_targets is defined else (form_user.role == 'Administrator' or not edit_user)) or ('kpi_targets_manage' in active_edits) %}
+        <div class="rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/70 dark:bg-amber-950/20 p-3.5">
+          <label class="flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" id="userCanAdjustKpiTargets" name="can_adjust_kpi_targets" value="1" {% if has_kpi_rule %}checked{% endif %} onchange="syncKpiPrivilegeCheckbox(this.checked)" class="mt-0.5 w-4 h-4 rounded border-amber-400 accent-amber-600 shrink-0">
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-sm">tune</span>
+                <span class="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">Privilege Rule: Adjust Company KPI Targets, Attainment Levels, Budgets &amp; Percentages</span>
+              </div>
+              <p class="text-[11px] text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                Grants this user authority to configure company-specific KPI attainment thresholds (OEE %, Uptime SLA %, PM Compliance %, MTTR/MTBF targets) and maintenance/spares budgets.
+              </p>
+            </div>
+          </label>
         </div>
 
         <div class="pt-2 border-t border-slate-200 dark:border-dark-border">
@@ -428,6 +478,21 @@
       <div>
         <label class="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400 mb-1.5">Role Responsibility Description</label>
         <input type="text" id="roleFormDesc" name="description" placeholder="Describe what users assigned to this role are responsible for..." class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm">
+      </div>
+
+      <div class="rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/70 dark:bg-amber-950/20 p-3.5">
+        <label class="flex items-start gap-3 cursor-pointer">
+          <input type="checkbox" id="roleFormCanAdjustKpis" name="can_adjust_kpi_targets" value="1" onchange="syncRoleKpiPrivilegeCheckbox(this.checked)" class="mt-0.5 w-4 h-4 rounded border-amber-400 accent-amber-600 shrink-0">
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-sm">tune</span>
+              <span class="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">Rule: Can Adjust Company KPI Targets, Attainment Levels, Budgets &amp; SLA Percentages</span>
+            </div>
+            <p class="text-[11px] text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+              Allow users assigned to this role to modify company KPI targets, SLA attainment percentages, and monthly maintenance/spares budgets.
+            </p>
+          </div>
+        </label>
       </div>
 
       <div>
@@ -521,6 +586,11 @@
           const mods = Array.from(document.querySelectorAll('.role-mod-view:checked')).map(cb => cb.value);
           const edits = Array.from(document.querySelectorAll('.role-mod-edit:checked')).map(cb => cb.value);
           const dels = Array.from(document.querySelectorAll('.role-mod-delete:checked')).map(cb => cb.value);
+          const kpiRuleChecked = Boolean(document.getElementById('roleFormCanAdjustKpis') && document.getElementById('roleFormCanAdjustKpis').checked);
+          if (kpiRuleChecked) {
+            if (!mods.includes('kpi_targets_manage')) mods.push('kpi_targets_manage');
+            if (!edits.includes('kpi_targets_manage')) edits.push('kpi_targets_manage');
+          }
           if (rName) {
             const roleEntry = {
               id: document.getElementById('roleFormId').value || ('role-' + Date.now()),
@@ -528,6 +598,7 @@
               access_scope: rScope,
               description: rDesc || (rName + ' access profile with customized module capabilities.'),
               is_system: rName === 'Administrator',
+              can_adjust_kpi_targets: rName === 'Administrator' || kpiRuleChecked,
               modules: Array.from(new Set(['dashboard', ...mods, ...edits, ...dels])),
               edit_modules: edits,
               delete_modules: dels
@@ -560,6 +631,7 @@
     const viewBoxes = document.querySelectorAll('.role-mod-view');
     const editBoxes = document.querySelectorAll('.role-mod-edit');
     const delBoxes = document.querySelectorAll('.role-mod-delete');
+    const kpiRuleBox = document.getElementById('roleFormCanAdjustKpis');
 
     if (roleObj && roleObj.name) {
       titleEl.textContent = 'Edit Role Capabilities: ' + roleObj.name;
@@ -573,6 +645,9 @@
       viewBoxes.forEach(cb => { cb.checked = mods.includes('all') || mods.includes(cb.value); });
       editBoxes.forEach(cb => { cb.checked = edits.includes('all') || edits.includes(cb.value); });
       delBoxes.forEach(cb => { cb.checked = dels.includes('all') || dels.includes(cb.value); });
+      if (kpiRuleBox) {
+        kpiRuleBox.checked = Boolean(roleObj.is_system || roleObj.can_adjust_kpi_targets || edits.includes('kpi_targets_manage') || edits.includes('all'));
+      }
     } else {
       titleEl.textContent = 'Define New Role & Module Permissions';
       idEl.value = '';
@@ -600,6 +675,22 @@
     document.querySelectorAll('.role-mod-delete').forEach(cb => {
       cb.checked = mode === 'full';
     });
+    const kpiRuleBox = document.getElementById('roleFormCanAdjustKpis');
+    if (kpiRuleBox) {
+      kpiRuleBox.checked = mode === 'full';
+    }
+  }
+
+  function syncRoleKpiPrivilegeCheckbox(checked) {
+    document.querySelectorAll('.role-mod-view, .role-mod-edit').forEach(cb => {
+      if (cb.value === 'kpi_targets_manage') cb.checked = Boolean(checked);
+    });
+  }
+
+  function syncKpiPrivilegeCheckbox(checked) {
+    document.querySelectorAll('.user-perm-view, .user-perm-edit').forEach(cb => {
+      if (cb.value === 'kpi_targets_manage') cb.checked = Boolean(checked);
+    });
   }
 
   function applyRolePresetToUserForm(roleName) {
@@ -621,6 +712,10 @@
     document.querySelectorAll('.user-perm-delete').forEach(cb => {
       cb.checked = dels.includes('all') || dels.includes(cb.value);
     });
+    const userKpiBox = document.getElementById('userCanAdjustKpiTargets');
+    if (userKpiBox) {
+      userKpiBox.checked = Boolean(found.is_system || found.name === 'Administrator' || found.can_adjust_kpi_targets || edits.includes('kpi_targets_manage') || edits.includes('all'));
+    }
   }
 </script>
 {% endblock %}

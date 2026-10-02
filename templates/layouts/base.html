@@ -588,6 +588,92 @@
         }
       }, 1000);
     })();
+
+    (function syncClientClockAndMasterState() {
+      try {
+        var nowMs = Date.now();
+        var tz = (Intl && Intl.DateTimeFormat && Intl.DateTimeFormat().resolvedOptions().timeZone) || 'Africa/Nairobi';
+        var serverRawEpoch = Number("{{ server_raw_epoch_ms or 0 }}") || nowMs;
+        var offsetMs = nowMs - serverRawEpoch;
+
+        document.cookie = 'opsloom_client_now_ms=' + nowMs + '; path=/; max-age=604800; SameSite=Lax';
+        document.cookie = 'opsloom_clock_offset_ms=' + offsetMs + '; path=/; max-age=604800; SameSite=Lax';
+        document.cookie = 'opsloom_tz=' + encodeURIComponent(tz) + '; path=/; max-age=604800; SameSite=Lax';
+
+        fetch('/api/system/clock-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ client_now_ms: nowMs, client_tz: tz })
+        }).catch(function() {});
+
+        // Format any audit/timestamp elements with data-iso using the browser's real clock & timezone
+        document.querySelectorAll('.js-audit-ts[data-iso]').forEach(function(el) {
+          var iso = el.getAttribute('data-iso');
+          if (!iso) return;
+          var d = new Date(iso);
+          if (isNaN(d.getTime())) return;
+          if (Math.abs(offsetMs) > 12 * 3600 * 1000 && d.getFullYear() >= 2026 && new Date(nowMs).getFullYear() < 2026) {
+            d = new Date(d.getTime() + offsetMs);
+          }
+          el.textContent = d.toLocaleString('en-GB', {
+            timeZone: tz,
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          });
+        });
+
+        // Attach real client timestamp & timezone to all POST forms
+        document.addEventListener('submit', function(ev) {
+          var form = ev.target;
+          if (!form || (form.method || '').toLowerCase() !== 'post') return;
+          var curNow = String(Date.now());
+          var nInput = form.querySelector('input[name="_client_now_ms"]');
+          if (!nInput) {
+            nInput = document.createElement('input');
+            nInput.type = 'hidden';
+            nInput.name = '_client_now_ms';
+            form.appendChild(nInput);
+          }
+          nInput.value = curNow;
+
+          var tzInput = form.querySelector('input[name="_client_tz"]');
+          if (!tzInput) {
+            tzInput = document.createElement('input');
+            tzInput.type = 'hidden';
+            tzInput.name = '_client_tz';
+            form.appendChild(tzInput);
+          }
+          tzInput.value = tz;
+        }, true);
+
+        // Synchronize master state snapshot so saved/edited/deleted data never disappears across sessions or instances
+        var serverSnap = {{ (client_sync_snapshot or {}) | dump | safe }};
+        if (serverSnap && typeof serverSnap === 'object') {
+          var rawLocal = localStorage.getItem('opsloom_master_state_v1');
+          var localSnap = rawLocal ? JSON.parse(rawLocal) : null;
+          var serverRev = Number(serverSnap.revision || 0);
+          var localRev = localSnap ? Number(localSnap.revision || 0) : 0;
+
+          if (localSnap && localRev > serverRev && !sessionStorage.getItem('opsloom_hydrated_rev_' + localRev)) {
+            sessionStorage.setItem('opsloom_hydrated_rev_' + localRev, '1');
+            fetch('/api/system/hydrate-state', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ snapshot: localSnap })
+            }).then(function(r) {
+              if (r.ok) window.location.reload();
+            }).catch(function() {});
+          } else {
+            localStorage.setItem('opsloom_master_state_v1', JSON.stringify(serverSnap));
+          }
+        }
+      } catch (e) {}
+    })();
   </script>
 
   {% include "partials/system_health_modal.html" %}

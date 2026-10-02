@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "saved_at": "2026-10-02T05:53:30.660Z",
+  "saved_at": "2026-10-02T07:12:39.699Z",
   "COMPANIES": [
     {
       "id": "comp-001",
@@ -25,7 +25,23 @@
       "designation_line_2": "Corporate & Plant Operations • Zip Code 00100, Nairobi, Kenya",
       "designation_line_3": "System Operations & Telemetry • Email: opsloom.ke@gmail.com",
       "print_logo_url": "/static/brand/opsloom_wordmark_light.png",
-      "custom_logo_updated_at": "2026-10-01T11:40:54.234Z"
+      "custom_logo_updated_at": "2026-10-01T11:40:54.234Z",
+      "kpi_targets": {
+        "uptime_target_pct": 88.5,
+        "oee_benchmark_pct": 86,
+        "pm_compliance_target_pct": 94,
+        "mttr_target_hours": 3.2,
+        "mtbf_target_hours": 160,
+        "monthly_maintenance_budget": 620000,
+        "spares_inventory_budget": 1850000,
+        "inventory_health_target_pct": 92,
+        "max_critical_breakdowns": 0,
+        "max_active_breakdowns": 2,
+        "max_oos_assets": 0,
+        "max_overdue_pm": 1,
+        "updated_by": "Laurence Magondu",
+        "updated_at": "2026-10-02T07:12:39.696Z"
+      }
     },
     {
       "id": "comp-002",
@@ -488,6 +504,97 @@
   ],
   "AUDIT_TRAIL": [
     {
+      "id": "4c2513cd5dcb425db946f6ef561f9793",
+      "action": "Company KPI Targets & Budgets Updated",
+      "detail": "Laurence Magondu (Administrator) updated KPI attainment levels & budgets for Opsloom Kenya (OPS): Uptime SLA 88.5%, PM SLA 94%, Monthly Budget KES 620,000.",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/admin",
+      "created_at": "2026-10-02T07:12:39.699Z",
+      "time_display": "02 Oct 2026, 10:12:39",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "35079760d8b34dd9a4362231730048aa",
+      "action": "User Login",
+      "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-10-02T07:12:39.558Z",
+      "time_display": "02 Oct 2026, 10:12:39",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "3636eb8fbb554560853301177a82f3ca",
+      "action": "Password Reset Request Dispatched",
+      "detail": "User David Kimani (david.kimani@ultravetis.com) in workspace Ultravetis East Africa Limited (UEAL) submitted a password reset request to Administrator (opsloom.ke@gmail.com).",
+      "module": "security",
+      "severity": "warning",
+      "href": "/settings/admin-users",
+      "created_at": "2026-10-02T07:12:39.545Z",
+      "time_display": "02 Oct 2026, 10:12:39",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "2e4e7b8531664b55a7a87cc08835e0b8",
+      "action": "User Login",
+      "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-10-02T07:08:37.006Z",
+      "time_display": "02 Oct 2026, 10:08:37",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "f1747332e0e64cd1b499af0ffd2fdcd5",
+      "action": "Password Reset Request Dispatched",
+      "detail": "User David Kimani (david.kimani@ultravetis.com) in workspace Ultravetis East Africa Limited (UEAL) submitted a password reset request to Administrator (opsloom.ke@gmail.com).",
+      "module": "security",
+      "severity": "warning",
+      "href": "/settings/admin-users",
+      "created_at": "2026-10-02T07:08:36.972Z",
+      "time_display": "02 Oct 2026, 10:08:36",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "92ef1e1c4b1f4cc48288963e77acad57",
+      "action": "Company KPI Targets & Budgets Updated",
+      "detail": "Laurence Magondu (Administrator) updated KPI attainment levels & budgets for Opsloom Kenya (OPS): Uptime SLA 88.5%, PM SLA 92.5%, Monthly Budget KES 3,200,000.",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/admin",
+      "created_at": "2026-10-02T07:03:46.889Z",
+      "time_display": "02 Oct 2026, 10:03:46",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "54d7b198b12d444087977a671b5f5695",
+      "action": "Password Reset Request Dispatched",
+      "detail": "User David Kimani (david.kimani@ultravetis.com) in workspace Opsloom Kenya (OPS) submitted a password reset request to Administrator (opsloom.ke@gmail.com).",
+      "module": "security",
+      "severity": "warning",
+      "href": "/settings/admin-users",
+      "created_at": "2026-10-02T07:03:46.865Z",
+      "time_display": "02 Oct 2026, 10:03:46",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
       "id": "96b24261a8ce4a19897fd5ea57bbc2b0",
       "action": "Role Definition Deleted",
       "detail": "Removed custom role \"Quality Assurance Lead\"",
@@ -546,9 +653,44 @@
     "company_contact_phone": "+254 20 2358205",
     "password_reset_help": "Contact Opsloom support or your system administrator to reset your password.",
     "session_timeout_minutes": 30,
-    "admin_login_password": "Admin@123"
+    "admin_login_password": "Admin@123",
+    "client_clock_offset_ms": -4,
+    "timezone": "Africa/Nairobi"
   },
   "SYSTEM_NOTIFICATIONS": [
+    {
+      "id": "notif-1790925159549",
+      "title": "Password Reset Request: David Kimani (UEAL)",
+      "message": "David Kimani (david.kimani@ultravetis.com) in Ultravetis East Africa Limited (UEAL) requested a password reset. Click to reset their password.",
+      "kind": "warning",
+      "created_at": "2026-10-02T07:12:39.543Z",
+      "created_display": "02 Oct 2026, 10:12",
+      "is_read": false,
+      "href": "/settings/admin-users?edit=USR-003#provisionUserForm",
+      "should_toast": false
+    },
+    {
+      "id": "notif-1790924916989",
+      "title": "Password Reset Request: David Kimani (UEAL)",
+      "message": "David Kimani (david.kimani@ultravetis.com) in Ultravetis East Africa Limited (UEAL) requested a password reset. Click to reset their password.",
+      "kind": "warning",
+      "created_at": "2026-10-02T07:08:36.969Z",
+      "created_display": "02 Oct 2026, 10:08",
+      "is_read": false,
+      "href": "/settings/admin-users?edit=USR-003#provisionUserForm",
+      "should_toast": false
+    },
+    {
+      "id": "notif-1790924626881",
+      "title": "Password Reset Request: David Kimani (OPS)",
+      "message": "David Kimani (david.kimani@ultravetis.com) in Opsloom Kenya (OPS) requested a password reset. Click to reset their password.",
+      "kind": "warning",
+      "created_at": "2026-10-02T07:03:46.863Z",
+      "created_display": "02 Oct 2026, 10:03",
+      "is_read": false,
+      "href": "/settings/admin-users?edit=USR-003#provisionUserForm",
+      "should_toast": false
+    },
     {
       "id": "notif-bd-001",
       "title": "Active Critical Breakdown: FBD-01",
@@ -640,7 +782,7 @@
       "signature_style": "formal",
       "signature_image_url": "",
       "profile_image_url": "",
-      "last_login_at": "01 Oct 2026, 09:51",
+      "last_login_at": "02 Oct 2026, 10:12",
       "password": "Admin@123"
     },
     {
@@ -696,6 +838,54 @@
     }
   ],
   "INTERNAL_MESSAGES": [
+    {
+      "id": "msg-reset-1790925159549",
+      "thread_id": "thread-reset-1790925159549",
+      "category": "Credential Reset",
+      "user_id": "USR-003",
+      "user_name": "David Kimani",
+      "user_role": "Technician",
+      "user_department": "Engineering",
+      "workspace_id": "comp-002",
+      "workspace_name": "Ultravetis East Africa Limited",
+      "workspace_code": "UEAL",
+      "sender_email": "david.kimani@ultravetis.com",
+      "sender_name": "David Kimani (Technician • UEAL)",
+      "recipient_emails": [
+        "opsloom.ke@gmail.com"
+      ],
+      "subject": "Password Reset Request: David Kimani [Ultravetis East Africa Limited (UEAL)]",
+      "body": "User Identity: David Kimani\nAccount Email: david.kimani@ultravetis.com\nDetected Workspace: Ultravetis East Africa Limited (UEAL)\nAssigned Role: Technician • Department: Engineering\nAccount Status: Verified Workspace User (USR-003)\nAdditional Details / Note: Forgot password after laptop replacement\n\nAction Required: Open Admin Credentials & Users to reset the password for David Kimani (david.kimani@ultravetis.com) in Ultravetis East Africa Limited (UEAL).",
+      "attachments": [],
+      "created_at": "2026-10-02T07:12:39.543Z",
+      "is_read_by": [],
+      "delivery_status": "delivered",
+      "sent_at": "2026-10-02T07:12:39.543Z"
+    },
+    {
+      "id": "msg-reset-1790924916989",
+      "thread_id": "thread-reset-1790924916989",
+      "category": "Credential Reset",
+      "user_id": "USR-003",
+      "user_name": "David Kimani",
+      "user_role": "Technician",
+      "user_department": "Engineering",
+      "workspace_id": "comp-002",
+      "workspace_name": "Ultravetis East Africa Limited",
+      "workspace_code": "UEAL",
+      "sender_email": "david.kimani@ultravetis.com",
+      "sender_name": "David Kimani (Technician • UEAL)",
+      "recipient_emails": [
+        "opsloom.ke@gmail.com"
+      ],
+      "subject": "Password Reset Request: David Kimani [Ultravetis East Africa Limited (UEAL)]",
+      "body": "User Identity: David Kimani\nAccount Email: david.kimani@ultravetis.com\nDetected Workspace: Ultravetis East Africa Limited (UEAL)\nAssigned Role: Technician • Department: Engineering\nAccount Status: Verified Workspace User (USR-003)\nAdditional Details / Note: Forgot password after laptop replacement\n\nAction Required: Open Admin Credentials & Users to reset the password for David Kimani (david.kimani@ultravetis.com) in Ultravetis East Africa Limited (UEAL).",
+      "attachments": [],
+      "created_at": "2026-10-02T07:08:36.969Z",
+      "is_read_by": [],
+      "delivery_status": "delivered",
+      "sent_at": "2026-10-02T07:08:36.969Z"
+    },
     {
       "id": "msg-welcome-admin",
       "thread_id": "thread-welcome-admin",
@@ -1386,6 +1576,97 @@
       ],
       "AUDIT_TRAIL": [
         {
+          "id": "4c2513cd5dcb425db946f6ef561f9793",
+          "action": "Company KPI Targets & Budgets Updated",
+          "detail": "Laurence Magondu (Administrator) updated KPI attainment levels & budgets for Opsloom Kenya (OPS): Uptime SLA 88.5%, PM SLA 94%, Monthly Budget KES 620,000.",
+          "module": "settings",
+          "severity": "info",
+          "href": "/settings/admin",
+          "created_at": "2026-10-02T07:12:39.699Z",
+          "time_display": "02 Oct 2026, 10:12:39",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "35079760d8b34dd9a4362231730048aa",
+          "action": "User Login",
+          "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+          "module": "security",
+          "severity": "info",
+          "href": "/dashboard",
+          "created_at": "2026-10-02T07:12:39.558Z",
+          "time_display": "02 Oct 2026, 10:12:39",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "3636eb8fbb554560853301177a82f3ca",
+          "action": "Password Reset Request Dispatched",
+          "detail": "User David Kimani (david.kimani@ultravetis.com) in workspace Ultravetis East Africa Limited (UEAL) submitted a password reset request to Administrator (opsloom.ke@gmail.com).",
+          "module": "security",
+          "severity": "warning",
+          "href": "/settings/admin-users",
+          "created_at": "2026-10-02T07:12:39.545Z",
+          "time_display": "02 Oct 2026, 10:12:39",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "2e4e7b8531664b55a7a87cc08835e0b8",
+          "action": "User Login",
+          "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+          "module": "security",
+          "severity": "info",
+          "href": "/dashboard",
+          "created_at": "2026-10-02T07:08:37.006Z",
+          "time_display": "02 Oct 2026, 10:08:37",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "f1747332e0e64cd1b499af0ffd2fdcd5",
+          "action": "Password Reset Request Dispatched",
+          "detail": "User David Kimani (david.kimani@ultravetis.com) in workspace Ultravetis East Africa Limited (UEAL) submitted a password reset request to Administrator (opsloom.ke@gmail.com).",
+          "module": "security",
+          "severity": "warning",
+          "href": "/settings/admin-users",
+          "created_at": "2026-10-02T07:08:36.972Z",
+          "time_display": "02 Oct 2026, 10:08:36",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "92ef1e1c4b1f4cc48288963e77acad57",
+          "action": "Company KPI Targets & Budgets Updated",
+          "detail": "Laurence Magondu (Administrator) updated KPI attainment levels & budgets for Opsloom Kenya (OPS): Uptime SLA 88.5%, PM SLA 92.5%, Monthly Budget KES 3,200,000.",
+          "module": "settings",
+          "severity": "info",
+          "href": "/settings/admin",
+          "created_at": "2026-10-02T07:03:46.889Z",
+          "time_display": "02 Oct 2026, 10:03:46",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "54d7b198b12d444087977a671b5f5695",
+          "action": "Password Reset Request Dispatched",
+          "detail": "User David Kimani (david.kimani@ultravetis.com) in workspace Opsloom Kenya (OPS) submitted a password reset request to Administrator (opsloom.ke@gmail.com).",
+          "module": "security",
+          "severity": "warning",
+          "href": "/settings/admin-users",
+          "created_at": "2026-10-02T07:03:46.865Z",
+          "time_display": "02 Oct 2026, 10:03:46",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
           "id": "96b24261a8ce4a19897fd5ea57bbc2b0",
           "action": "Role Definition Deleted",
           "detail": "Removed custom role \"Quality Assurance Lead\"",
@@ -1469,7 +1750,8 @@
           ]
         }
       ],
-      "ASSET_DOCUMENTS": []
+      "ASSET_DOCUMENTS": [],
+      "INTERNAL_MESSAGES": []
     },
     "comp-002": {
       "ASSETS": [
@@ -3062,8 +3344,110 @@
           "uploaded_by": "Laurence Magondu",
           "uploaded_at": "2026-09-01T09:00:00"
         }
+      ],
+      "INTERNAL_MESSAGES": [
+        {
+          "id": "msg-reset-1790925159549",
+          "thread_id": "thread-reset-1790925159549",
+          "category": "Credential Reset",
+          "user_id": "USR-003",
+          "user_name": "David Kimani",
+          "user_role": "Technician",
+          "user_department": "Engineering",
+          "workspace_id": "comp-002",
+          "workspace_name": "Ultravetis East Africa Limited",
+          "workspace_code": "UEAL",
+          "sender_email": "david.kimani@ultravetis.com",
+          "sender_name": "David Kimani (Technician • UEAL)",
+          "recipient_emails": [
+            "opsloom.ke@gmail.com"
+          ],
+          "subject": "Password Reset Request: David Kimani [Ultravetis East Africa Limited (UEAL)]",
+          "body": "User Identity: David Kimani\nAccount Email: david.kimani@ultravetis.com\nDetected Workspace: Ultravetis East Africa Limited (UEAL)\nAssigned Role: Technician • Department: Engineering\nAccount Status: Verified Workspace User (USR-003)\nAdditional Details / Note: Forgot password after laptop replacement\n\nAction Required: Open Admin Credentials & Users to reset the password for David Kimani (david.kimani@ultravetis.com) in Ultravetis East Africa Limited (UEAL).",
+          "attachments": [],
+          "created_at": "2026-10-02T07:12:39.543Z",
+          "is_read_by": [],
+          "delivery_status": "delivered",
+          "sent_at": "2026-10-02T07:12:39.543Z"
+        },
+        {
+          "id": "msg-reset-1790924916989",
+          "thread_id": "thread-reset-1790924916989",
+          "category": "Credential Reset",
+          "user_id": "USR-003",
+          "user_name": "David Kimani",
+          "user_role": "Technician",
+          "user_department": "Engineering",
+          "workspace_id": "comp-002",
+          "workspace_name": "Ultravetis East Africa Limited",
+          "workspace_code": "UEAL",
+          "sender_email": "david.kimani@ultravetis.com",
+          "sender_name": "David Kimani (Technician • UEAL)",
+          "recipient_emails": [
+            "opsloom.ke@gmail.com"
+          ],
+          "subject": "Password Reset Request: David Kimani [Ultravetis East Africa Limited (UEAL)]",
+          "body": "User Identity: David Kimani\nAccount Email: david.kimani@ultravetis.com\nDetected Workspace: Ultravetis East Africa Limited (UEAL)\nAssigned Role: Technician • Department: Engineering\nAccount Status: Verified Workspace User (USR-003)\nAdditional Details / Note: Forgot password after laptop replacement\n\nAction Required: Open Admin Credentials & Users to reset the password for David Kimani (david.kimani@ultravetis.com) in Ultravetis East Africa Limited (UEAL).",
+          "attachments": [],
+          "created_at": "2026-10-02T07:08:36.969Z",
+          "is_read_by": [],
+          "delivery_status": "delivered",
+          "sent_at": "2026-10-02T07:08:36.969Z"
+        }
       ]
     }
   },
-  "_BOUND_COMPANY_ID": "comp-001"
+  "_BOUND_COMPANY_ID": "comp-001",
+  "revision": 23,
+  "saved_at_ms": 1790925159703,
+  "PASSWORD_RESET_REQUESTS": [
+    {
+      "id": "msg-reset-1790925159549",
+      "thread_id": "thread-reset-1790925159549",
+      "category": "Credential Reset",
+      "user_id": "USR-003",
+      "user_name": "David Kimani",
+      "user_role": "Technician",
+      "user_department": "Engineering",
+      "workspace_id": "comp-002",
+      "workspace_name": "Ultravetis East Africa Limited",
+      "workspace_code": "UEAL",
+      "sender_email": "david.kimani@ultravetis.com",
+      "sender_name": "David Kimani (Technician • UEAL)",
+      "recipient_emails": [
+        "opsloom.ke@gmail.com"
+      ],
+      "subject": "Password Reset Request: David Kimani [Ultravetis East Africa Limited (UEAL)]",
+      "body": "User Identity: David Kimani\nAccount Email: david.kimani@ultravetis.com\nDetected Workspace: Ultravetis East Africa Limited (UEAL)\nAssigned Role: Technician • Department: Engineering\nAccount Status: Verified Workspace User (USR-003)\nAdditional Details / Note: Forgot password after laptop replacement\n\nAction Required: Open Admin Credentials & Users to reset the password for David Kimani (david.kimani@ultravetis.com) in Ultravetis East Africa Limited (UEAL).",
+      "attachments": [],
+      "created_at": "2026-10-02T07:12:39.543Z",
+      "is_read_by": [],
+      "delivery_status": "delivered",
+      "sent_at": "2026-10-02T07:12:39.543Z"
+    },
+    {
+      "id": "msg-reset-1790924916989",
+      "thread_id": "thread-reset-1790924916989",
+      "category": "Credential Reset",
+      "user_id": "USR-003",
+      "user_name": "David Kimani",
+      "user_role": "Technician",
+      "user_department": "Engineering",
+      "workspace_id": "comp-002",
+      "workspace_name": "Ultravetis East Africa Limited",
+      "workspace_code": "UEAL",
+      "sender_email": "david.kimani@ultravetis.com",
+      "sender_name": "David Kimani (Technician • UEAL)",
+      "recipient_emails": [
+        "opsloom.ke@gmail.com"
+      ],
+      "subject": "Password Reset Request: David Kimani [Ultravetis East Africa Limited (UEAL)]",
+      "body": "User Identity: David Kimani\nAccount Email: david.kimani@ultravetis.com\nDetected Workspace: Ultravetis East Africa Limited (UEAL)\nAssigned Role: Technician • Department: Engineering\nAccount Status: Verified Workspace User (USR-003)\nAdditional Details / Note: Forgot password after laptop replacement\n\nAction Required: Open Admin Credentials & Users to reset the password for David Kimani (david.kimani@ultravetis.com) in Ultravetis East Africa Limited (UEAL).",
+      "attachments": [],
+      "created_at": "2026-10-02T07:08:36.969Z",
+      "is_read_by": [],
+      "delivery_status": "delivered",
+      "sent_at": "2026-10-02T07:08:36.969Z"
+    }
+  ]
 }

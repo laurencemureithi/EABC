@@ -28,6 +28,109 @@ const app = express();
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 const isVercel = Boolean(process.env.VERCEL);
+process.env.TZ = process.env.TZ || 'Africa/Nairobi';
+
+let runtimeClientClockOffsetMs = 0;
+let runtimeClientTimezone = 'Africa/Nairobi';
+
+function getEffectiveTimezone() {
+  return (store && store.SYSTEM_SETTINGS && store.SYSTEM_SETTINGS.timezone) || runtimeClientTimezone || 'Africa/Nairobi';
+}
+
+function getEffectiveClockOffsetMs() {
+  if (runtimeClientClockOffsetMs) return runtimeClientClockOffsetMs;
+  if (store && store.SYSTEM_SETTINGS && typeof store.SYSTEM_SETTINGS.client_clock_offset_ms === 'number') {
+    return store.SYSTEM_SETTINGS.client_clock_offset_ms;
+  }
+  return 0;
+}
+
+function getSystemNow() {
+  return new Date(Date.now() + getEffectiveClockOffsetMs());
+}
+
+function getSystemNowIso() {
+  return getSystemNow().toISOString();
+}
+
+function normalizeTimestampToClientClock(rawVal) {
+  if (!rawVal) return getSystemNow();
+  const d = rawVal instanceof Date ? new Date(rawVal.getTime()) : new Date(rawVal);
+  if (isNaN(d.getTime())) return getSystemNow();
+  const offset = getEffectiveClockOffsetMs();
+  // If container clock was skewed (e.g. Oct 2026) and client offset is > 12 hours, shift container-recorded timestamps into real client time
+  if (Math.abs(offset) > 12 * 3600 * 1000 && d.getFullYear() >= 2026 && getSystemNow().getFullYear() < 2026) {
+    return new Date(d.getTime() + offset);
+  }
+  return d;
+}
+
+function formatSystemTimestamp(rawVal, includeSeconds = false) {
+  if (!rawVal) return '—';
+  const str = String(rawVal).trim();
+  if (str === 'Active Session' || str === 'Current Active Session' || str === 'Configured' || str === 'Recent') {
+    return str;
+  }
+  const d = normalizeTimestampToClientClock(rawVal);
+  if (isNaN(d.getTime())) return str.replace('T', ' ').replace(/\.\d+Z$/, '');
+  const tz = getEffectiveTimezone();
+  try {
+    const opts = {
+      timeZone: tz,
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    };
+    if (includeSeconds) opts.second = '2-digit';
+    return d.toLocaleString('en-GB', opts);
+  } catch (e) {
+    return d.toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  }
+}
+
+function formatSystemDateOnly(rawVal) {
+  const d = normalizeTimestampToClientClock(rawVal);
+  const tz = getEffectiveTimezone();
+  try {
+    return d.toLocaleDateString('en-GB', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
+  } catch (e) {
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+}
+
+function getSystemIsoDateStr(rawVal) {
+  const d = rawVal ? normalizeTimestampToClientClock(rawVal) : getSystemNow();
+  const tz = getEffectiveTimezone();
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d);
+    const y = parts.find(p => p.type === 'year')?.value || d.getFullYear();
+    const m = parts.find(p => p.type === 'month')?.value || String(d.getMonth() + 1).padStart(2, '0');
+    const day = parts.find(p => p.type === 'day')?.value || String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  } catch (e) {
+    return d.toISOString().slice(0, 10);
+  }
+}
+
+function getSystemTimeHM(rawVal) {
+  const d = rawVal ? normalizeTimestampToClientClock(rawVal) : getSystemNow();
+  const tz = getEffectiveTimezone();
+  try {
+    return d.toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false });
+  } catch (e) {
+    return d.toTimeString().slice(0, 5);
+  }
+}
 
 // Serverless-resilient directory paths
 const DATA_DIR = isVercel ? '/tmp/data' : path.join(__dirname, 'data');
@@ -84,6 +187,18 @@ function setSafeCookie(req, res, name, val, customMaxAgeMs = null) {
   res.cookie(name, val, {
     path: '/',
     maxAge: customMaxAgeMs || (365 * 24 * 60 * 60 * 1000),
+    sameSite: isHttps ? 'none' : 'lax',
+    secure: isHttps,
+    partitioned: isHttps
+  });
+}
+
+function clearSafeCookie(req, res, name) {
+  const protoHeader = String(req.headers['x-forwarded-proto'] || '').toLowerCase();
+  const isHttps = Boolean(req.secure || protoHeader.includes('https') || isVercel);
+  res.clearCookie(name, { path: '/' });
+  res.clearCookie(name, {
+    path: '/',
     sameSite: isHttps ? 'none' : 'lax',
     secure: isHttps,
     partitioned: isHttps
@@ -1464,12 +1579,8 @@ function ensureWorkspaceBuckets() {
       || (!hasExplicitUeal && idx === 0);
 
     const existingBucket = store.WORKSPACE_DATA[comp.id];
-    const mistakenlyHasUealSeed = !isPrimaryUeal
-      && existingBucket
-      && Array.isArray(existingBucket.ASSETS)
-      && existingBucket.ASSETS.some(a => a && a.asset_id === 'ENG-AST-0101');
 
-    if (!existingBucket || mistakenlyHasUealSeed) {
+    if (!existingBucket || typeof existingBucket !== 'object') {
       if (isPrimaryUeal) {
         // Bind primary Ultravetis plant dataset to Ultravetis workspace
         store.WORKSPACE_DATA[comp.id] = {
@@ -1489,19 +1600,30 @@ function ensureWorkspaceBuckets() {
         store.WORKSPACE_DATA[comp.id] = buildOpsloomWorkspaceSeed(comp);
       }
     } else {
-      // Ensure all collection arrays exist inside the bucket
+      // Ensure all collection arrays exist inside the bucket without overwriting any user edits or deletions
       const bucket = store.WORKSPACE_DATA[comp.id];
-      const fallbackSeed = !isPrimaryUeal ? buildOpsloomWorkspaceSeed(comp) : null;
       WORKSPACE_COLLECTION_KEYS.forEach(k => {
         if (!Array.isArray(bucket[k])) {
-          bucket[k] = fallbackSeed && Array.isArray(fallbackSeed[k]) ? fallbackSeed[k] : [];
+          bucket[k] = [];
         }
       });
     }
   });
 }
 
+function flushBoundWorkspaceToBucket() {
+  const boundId = store._BOUND_COMPANY_ID;
+  if (boundId && store.WORKSPACE_DATA && store.WORKSPACE_DATA[boundId]) {
+    WORKSPACE_COLLECTION_KEYS.forEach(k => {
+      if (Array.isArray(store[k])) {
+        store.WORKSPACE_DATA[boundId][k] = store[k];
+      }
+    });
+  }
+}
+
 function activateWorkspaceBucket(companyId) {
+  flushBoundWorkspaceToBucket();
   ensureWorkspaceBuckets();
   const targetId = companyId || store.ACTIVE_COMPANY_ID || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
   const comp = (store.COMPANIES || []).find(c => c.id === targetId) || (store.COMPANIES && store.COMPANIES[0]);
@@ -1528,29 +1650,22 @@ function syncStoreFromDisk() {
     if (fs.existsSync(targetPath)) {
       const stat = fs.statSync(targetPath);
       if (stat.mtimeMs > lastDiskMtimeMs) {
-        const prevRoles = Array.isArray(store.CUSTOM_ROLES) ? [...store.CUSTOM_ROLES] : [];
-        const prevUsers = Array.isArray(store.ADMIN_USERS) ? [...store.ADMIN_USERS] : [];
         const raw = fs.readFileSync(targetPath, 'utf-8');
         const parsed = JSON.parse(raw);
-        store = { ...store, ...parsed, initialized: true };
-        if (!Array.isArray(store.ADMIN_USERS) || store.ADMIN_USERS.length === 0) {
-          seedInitialDataIfEmpty();
+        const currentRev = Number(store.revision) || 0;
+        const diskRev = Number(parsed.revision) || 0;
+        if (lastDiskMtimeMs === 0 || diskRev >= currentRev) {
+          store = { ...store, ...parsed, initialized: true };
+          if (!Array.isArray(store.ADMIN_USERS) || store.ADMIN_USERS.length === 0) {
+            seedInitialDataIfEmpty();
+          }
+          if (!Array.isArray(store.CUSTOM_ROLES) || store.CUSTOM_ROLES.length === 0) {
+            store.CUSTOM_ROLES = JSON.parse(JSON.stringify(DEFAULT_CUSTOM_ROLES));
+          }
+          purgeLegacySeededResetNoise();
+          ensureWorkspaceBuckets();
+          activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
         }
-        // Merge any in-memory custom roles or users so newly created roles/users never vanish
-        if (!Array.isArray(store.CUSTOM_ROLES)) store.CUSTOM_ROLES = [];
-        prevRoles.forEach(pr => {
-          if (pr && pr.name && !store.CUSTOM_ROLES.some(r => (r.name || '').toLowerCase() === String(pr.name).toLowerCase())) {
-            store.CUSTOM_ROLES.push(pr);
-          }
-        });
-        prevUsers.forEach(pu => {
-          if (pu && pu.email && !store.ADMIN_USERS.some(u => (u.email || '').toLowerCase() === String(pu.email).toLowerCase())) {
-            store.ADMIN_USERS.push(pu);
-          }
-        });
-        purgeLegacySeededResetNoise();
-        ensureWorkspaceBuckets();
-        activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
         lastDiskMtimeMs = stat.mtimeMs;
       }
     }
@@ -1619,7 +1734,9 @@ function saveStore() {
       });
     }
     store.initialized = true;
-    store.saved_at = new Date().toISOString();
+    store.revision = (Number(store.revision) || 1) + 1;
+    store.saved_at = getSystemNowIso();
+    store.saved_at_ms = Date.now();
     const payload = JSON.stringify(store, null, 2);
     fs.writeFileSync(DATASTORE_PATH, payload, 'utf-8');
     const stat = fs.statSync(DATASTORE_PATH);
@@ -1632,6 +1749,82 @@ function saveStore() {
   } catch (err) {
     console.warn('Failed to write datastore.json (ephemeral in serverless):', err.message);
   }
+}
+
+function hydrateStoreFromClientSnapshot(rawSnap) {
+  try {
+    const snap = typeof rawSnap === 'string' ? JSON.parse(rawSnap) : rawSnap;
+    if (!snap || typeof snap !== 'object') return false;
+    const snapRev = Number(snap.revision) || 0;
+    const curRev = Number(store.revision) || 0;
+    const snapMs = Number(snap.saved_at_ms) || 0;
+    const curMs = Number(store.saved_at_ms) || 0;
+    // Accept snapshot if it has a newer revision or timestamp than this instance
+    if (snapRev > curRev || (snapMs > curMs + 500)) {
+      if (Array.isArray(snap.COMPANIES) && snap.COMPANIES.length) {
+        // Preserve base64 logos if already present on server or incoming
+        snap.COMPANIES.forEach(inc => {
+          const existing = (store.COMPANIES || []).find(c => c.id === inc.id);
+          if (existing) {
+            if (!inc.logo_light_url && existing.logo_light_url) inc.logo_light_url = existing.logo_light_url;
+            if (!inc.logo_dark_url && existing.logo_dark_url) inc.logo_dark_url = existing.logo_dark_url;
+            if (!inc.print_logo_url && existing.print_logo_url) inc.print_logo_url = existing.print_logo_url;
+          }
+        });
+        store.COMPANIES = snap.COMPANIES;
+      }
+      if (Array.isArray(snap.CUSTOM_ROLES) && snap.CUSTOM_ROLES.length) {
+        store.CUSTOM_ROLES = snap.CUSTOM_ROLES;
+      }
+      if (Array.isArray(snap.ADMIN_USERS) && snap.ADMIN_USERS.length) {
+        store.ADMIN_USERS = snap.ADMIN_USERS;
+      }
+      if (snap.SYSTEM_SETTINGS && typeof snap.SYSTEM_SETTINGS === 'object') {
+        store.SYSTEM_SETTINGS = { ...(store.SYSTEM_SETTINGS || {}), ...snap.SYSTEM_SETTINGS };
+      }
+      if (snap.WORKSPACE_DATA && typeof snap.WORKSPACE_DATA === 'object') {
+        if (!store.WORKSPACE_DATA) store.WORKSPACE_DATA = {};
+        for (const [cid, wData] of Object.entries(snap.WORKSPACE_DATA)) {
+          if (wData && typeof wData === 'object') {
+            store.WORKSPACE_DATA[cid] = { ...(store.WORKSPACE_DATA[cid] || {}), ...wData };
+          }
+        }
+      }
+      if (Array.isArray(snap.INTERNAL_MESSAGES)) {
+        store.INTERNAL_MESSAGES = snap.INTERNAL_MESSAGES;
+      }
+      if (Array.isArray(snap.SYSTEM_NOTIFICATIONS)) {
+        store.SYSTEM_NOTIFICATIONS = snap.SYSTEM_NOTIFICATIONS;
+      }
+      if (snap.ACTIVE_COMPANY_ID) {
+        store.ACTIVE_COMPANY_ID = snap.ACTIVE_COMPANY_ID;
+      }
+      store.revision = Math.max(curRev, snapRev);
+      activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
+      saveStore();
+      return true;
+    }
+  } catch (e) {
+    console.warn('Client snapshot hydration skipped:', e.message);
+  }
+  return false;
+}
+
+function buildClientSyncSnapshot() {
+  flushBoundWorkspaceToBucket();
+  return {
+    revision: Number(store.revision) || 1,
+    saved_at_ms: Number(store.saved_at_ms) || Date.now(),
+    saved_at: store.saved_at || getSystemNowIso(),
+    ACTIVE_COMPANY_ID: store.ACTIVE_COMPANY_ID || 'comp-001',
+    COMPANIES: store.COMPANIES || [],
+    CUSTOM_ROLES: store.CUSTOM_ROLES || [],
+    ADMIN_USERS: store.ADMIN_USERS || [],
+    SYSTEM_SETTINGS: store.SYSTEM_SETTINGS || {},
+    INTERNAL_MESSAGES: (store.INTERNAL_MESSAGES || []).slice(0, 40),
+    SYSTEM_NOTIFICATIONS: (store.SYSTEM_NOTIFICATIONS || []).slice(0, 30),
+    WORKSPACE_DATA: store.WORKSPACE_DATA || {}
+  };
 }
 
 function calculateDowntimeHours(b) {
@@ -1653,6 +1846,7 @@ function calculateDowntimeHours(b) {
 }
 
 function logAudit(action, detail, module = 'general', href = '/dashboard', severity = 'info') {
+  const nowIso = getSystemNowIso();
   const item = {
     id: crypto.randomUUID().replace(/-/g, ''),
     action,
@@ -1660,7 +1854,8 @@ function logAudit(action, detail, module = 'general', href = '/dashboard', sever
     module,
     severity,
     href,
-    created_at: new Date().toISOString(),
+    created_at: nowIso,
+    time_display: formatSystemTimestamp(nowIso, true),
     user_name: 'Laurence Magondu',
     user_email: 'opsloom.ke@gmail.com',
     department: 'Engineering'
@@ -1672,12 +1867,14 @@ function logAudit(action, detail, module = 'general', href = '/dashboard', sever
 }
 
 function pushNotification(title, message, kind = 'info', href = '/dashboard', should_toast = false) {
+  const nowIso = getSystemNowIso();
   const notif = {
     id: 'notif-' + Date.now(),
     title,
     message,
     kind,
-    created_at: new Date().toISOString(),
+    created_at: nowIso,
+    created_display: formatSystemTimestamp(nowIso),
     is_read: false,
     href,
     should_toast
@@ -1702,7 +1899,7 @@ function moveToRecycleBin(entity_type, entity_label, primary_id, record, deleted
     if (rec.cost_total || rec.cost || rec.unit_price) details.push(`KES ${Number(rec.cost_total || rec.cost || rec.unit_price || 0).toLocaleString()}`);
     summary = details.length ? details.join(' • ') : `Preserved ${entity_type} record (${entity_label || primary_id})`;
   }
-  const now = new Date();
+  const nowIso = getSystemNowIso();
   const entry = {
     id: 'bin-' + Date.now() + '-' + Math.floor(100 + Math.random() * 900),
     bin_id: '',
@@ -1715,8 +1912,8 @@ function moveToRecycleBin(entity_type, entity_label, primary_id, record, deleted
     deleted_by: deleted_by || 'Laurence Magondu',
     deleted_by_email: extra.deleted_by_email || 'opsloom.ke@gmail.com',
     deleted_by_role: extra.deleted_by_role || 'Administrator',
-    deleted_at: now.toISOString(),
-    deleted_at_fmt: now.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    deleted_at: nowIso,
+    deleted_at_fmt: formatSystemTimestamp(nowIso)
   };
   entry.bin_id = entry.id;
   store.RECYCLE_BIN.unshift(entry);
@@ -1889,8 +2086,8 @@ function getFlashedMessages() {
 // Add Nunjucks globals
 nunjucksEnv.addGlobal('url_for', url_for);
 nunjucksEnv.addGlobal('get_flashed_messages', getFlashedMessages);
-nunjucksEnv.addGlobal('now', () => new Date());
-nunjucksEnv.addGlobal('current_year', 2026);
+nunjucksEnv.addGlobal('now', () => getSystemNow());
+nunjucksEnv.addGlobal('current_year', getSystemNow().getFullYear());
 nunjucksEnv.addGlobal('report_department_display', (d) => d || 'Engineering');
 nunjucksEnv.addGlobal('scope_unit_display', (u) => u || 'All');
 nunjucksEnv.addGlobal('ultravetis_address_lines', [
@@ -1900,6 +2097,8 @@ nunjucksEnv.addGlobal('ultravetis_address_lines', [
 ]);
 
 // Add Nunjucks filters
+nunjucksEnv.addFilter('sys_dt', (v, sec = false) => formatSystemTimestamp(v, sec));
+nunjucksEnv.addFilter('sys_date', (v) => formatSystemDateOnly(v));
 nunjucksEnv.addFilter('kes0', (v) => 'KES ' + Math.round(Number(v) || 0).toLocaleString());
 nunjucksEnv.addFilter('kes2', (v) => 'KES ' + (Number(v) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 nunjucksEnv.addFilter('tojson', (v) => nunjucks.runtime.markSafe(JSON.stringify(v !== undefined ? v : null)));
@@ -2938,18 +3137,54 @@ function resolveActiveWorkspaceForRequest(req) {
   return activeCompany;
 }
 
+function getCompanyKpiTargets(companyId = null) {
+  const targetId = companyId || store.ACTIVE_COMPANY_ID || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
+  const comp = (store.COMPANIES || []).find(c => c.id === targetId) || (store.COMPANIES && store.COMPANIES[0]) || {};
+  const isUeal = ((comp.code || '').toUpperCase() === 'UEAL' || String(comp.name || '').toLowerCase().includes('ultravetis'));
+  const defaults = {
+    uptime_target_pct: isUeal ? 80.0 : 85.0,
+    oee_benchmark_pct: isUeal ? 92.0 : 95.0,
+    pm_compliance_target_pct: 90.0,
+    mttr_target_hours: 2.0,
+    mtbf_target_hours: 120.0,
+    monthly_maintenance_budget: isUeal ? 2500000 : 1800000,
+    spares_inventory_budget: isUeal ? 1500000 : 1200000,
+    inventory_health_target_pct: 85.0,
+    max_critical_breakdowns: 1,
+    max_active_breakdowns: 3,
+    max_oos_assets: 2,
+    max_overdue_pm: 2
+  };
+  const saved = (comp && comp.kpi_targets && typeof comp.kpi_targets === 'object') ? comp.kpi_targets : {};
+  return {
+    uptime_target_pct: Number(saved.uptime_target_pct ?? defaults.uptime_target_pct),
+    oee_benchmark_pct: Number(saved.oee_benchmark_pct ?? defaults.oee_benchmark_pct),
+    pm_compliance_target_pct: Number(saved.pm_compliance_target_pct ?? defaults.pm_compliance_target_pct),
+    mttr_target_hours: Number(saved.mttr_target_hours ?? defaults.mttr_target_hours),
+    mtbf_target_hours: Number(saved.mtbf_target_hours ?? defaults.mtbf_target_hours),
+    monthly_maintenance_budget: Number(saved.monthly_maintenance_budget ?? defaults.monthly_maintenance_budget),
+    spares_inventory_budget: Number(saved.spares_inventory_budget ?? defaults.spares_inventory_budget),
+    inventory_health_target_pct: Number(saved.inventory_health_target_pct ?? defaults.inventory_health_target_pct),
+    max_critical_breakdowns: Number(saved.max_critical_breakdowns ?? defaults.max_critical_breakdowns),
+    max_active_breakdowns: Number(saved.max_active_breakdowns ?? defaults.max_active_breakdowns),
+    max_oos_assets: Number(saved.max_oos_assets ?? defaults.max_oos_assets),
+    max_overdue_pm: Number(saved.max_overdue_pm ?? defaults.max_overdue_pm)
+  };
+}
+
 function computeSystemHealthStatus() {
   const assets = store.ASSETS || [];
   const breakdowns = store.BREAKDOWNS || [];
   const tasks = store.MAINTENANCE_TASKS || [];
   const parts = store.INVENTORY_PARTS || [];
+  const targets = getCompanyKpiTargets();
 
   const totalAssets = assets.length || 1;
   const operationalAssets = assets.filter(a => a.status === 'operational').length;
   const maintenanceAssets = assets.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
   const oosAssets = assets.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
   const uptimeRate = Math.round((operationalAssets / totalAssets) * 1000) / 10;
-  const uptimeTarget = 80.0;
+  const uptimeTarget = targets.uptime_target_pct;
 
   const activeBds = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved');
   const criticalOpenBds = activeBds.filter(b => String(b.severity || '').toLowerCase() === 'critical');
@@ -2961,9 +3196,9 @@ function computeSystemHealthStatus() {
   const outOfStockCount = parts.filter(p => Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) <= 0).length;
 
   const ruleUptimePass = uptimeRate >= uptimeTarget;
-  const ruleCritBdPass = criticalOpenBds.length <= 1 && activeBds.length <= 3;
-  const ruleOosPass = oosAssets <= 2;
-  const rulePmPass = overduePm <= 2;
+  const ruleCritBdPass = criticalOpenBds.length <= targets.max_critical_breakdowns && activeBds.length <= targets.max_active_breakdowns;
+  const ruleOosPass = oosAssets <= targets.max_oos_assets;
+  const rulePmPass = overduePm <= targets.max_overdue_pm && pmCompliance >= targets.pm_compliance_target_pct;
 
   const isRisk = !ruleUptimePass || !ruleCritBdPass || !ruleOosPass;
   const state = isRisk ? 'risk' : 'stable';
@@ -2978,19 +3213,19 @@ function computeSystemHealthStatus() {
     },
     {
       label: 'Active Breakdown Containment',
-      threshold_label: '≤ 1 Critical / ≤ 3 Active Stoppages',
+      threshold_label: `≤ ${targets.max_critical_breakdowns} Critical / ≤ ${targets.max_active_breakdowns} Active Stoppages`,
       actual: `${activeBds.length} Active (${criticalOpenBds.length} Critical)`,
       passed: ruleCritBdPass
     },
     {
       label: 'Out-of-Service (OOS) Fleet Cap',
-      threshold_label: '≤ 2 OOS Machines Simultaneously',
+      threshold_label: `≤ ${targets.max_oos_assets} OOS Machines Simultaneously`,
       actual: `${oosAssets} Out of Service`,
       passed: ruleOosPass
     },
     {
       label: 'Preventive Maintenance (PM) Cadence',
-      threshold_label: '≤ 2 Overdue PM Work Orders',
+      threshold_label: `≤ ${targets.max_overdue_pm} Overdue • SLA ≥ ${targets.pm_compliance_target_pct.toFixed(0)}%`,
       actual: `${overduePm} Overdue (${pmCompliance}% SLA)`,
       passed: rulePmPass
     }
@@ -3002,13 +3237,19 @@ function computeSystemHealthStatus() {
     : `${operationalAssets}/${assets.length} Online (${uptimeRate.toFixed(1)}% ≥ ${uptimeTarget}% SLA) • ${activeBds.length} Active Fault(s)`;
   const driverSummary = isRisk
     ? `System flagged AT RISK because ${triggeredReasons.join(' and ')}. Resolve active stoppages to restore nominal status.`
-    : `System is STABLE: Fleet Uptime (${uptimeRate.toFixed(1)}%) exceeds the ${uptimeTarget.toFixed(1)}% minimum SLA threshold and active breakdowns (${activeBds.length}) are within containment limits.`;
+    : `System is STABLE: Fleet Uptime (${uptimeRate.toFixed(1)}%) meets the ${uptimeTarget.toFixed(1)}% minimum SLA threshold and active breakdowns (${activeBds.length}) are within containment limits.`;
 
   return {
     state,
     badge,
     uptime_rate: uptimeRate,
     uptime_target: uptimeTarget,
+    pm_compliance_target: targets.pm_compliance_target_pct,
+    mttr_target_hours: targets.mttr_target_hours,
+    mtbf_target_hours: targets.mtbf_target_hours,
+    monthly_maintenance_budget: targets.monthly_maintenance_budget,
+    spares_inventory_budget: targets.spares_inventory_budget,
+    kpi_targets: targets,
     operational_assets: operationalAssets,
     maintenance_assets: maintenanceAssets,
     oos_assets: oosAssets,
@@ -3024,16 +3265,71 @@ function computeSystemHealthStatus() {
   };
 }
 
-// Keep in-memory store synchronized with disk and bind active workspace across requests
+// Keep in-memory store synchronized with disk, sync real client clock/timezone, and bind active workspace across requests
 app.use((req, res, next) => {
   if (!req.path.startsWith('/static') && !req.path.startsWith('/vendor') && !req.path.startsWith('/brand')) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
+
+    // Sync client browser timezone & real-world clock offset so all recorded timestamps are accurate
+    const clientTz = req.body?._client_tz || req.cookies?.opsloom_tz;
+    if (clientTz && typeof clientTz === 'string' && clientTz.includes('/')) {
+      runtimeClientTimezone = clientTz.trim();
+      if (store.SYSTEM_SETTINGS && !store.SYSTEM_SETTINGS.timezone_locked) {
+        store.SYSTEM_SETTINGS.timezone = runtimeClientTimezone;
+      }
+    }
+    const clientNowRaw = Number(req.body?._client_now_ms || req.cookies?.opsloom_client_now_ms || 0);
+    const clientOffsetRaw = Number(req.cookies?.opsloom_clock_offset_ms || 0);
+    if (clientNowRaw > 1700000000000) {
+      runtimeClientClockOffsetMs = clientNowRaw - Date.now();
+      if (store.SYSTEM_SETTINGS) {
+        store.SYSTEM_SETTINGS.client_clock_offset_ms = runtimeClientClockOffsetMs;
+      }
+    } else if (!isNaN(clientOffsetRaw) && Math.abs(clientOffsetRaw) > 1000) {
+      runtimeClientClockOffsetMs = clientOffsetRaw;
+    }
+
     syncStoreFromDisk();
+    if (req.body && req.body.client_master_state) {
+      hydrateStoreFromClientSnapshot(req.body.client_master_state);
+    }
     resolveActiveWorkspaceForRequest(req);
   }
   next();
+});
+
+app.post('/api/system/hydrate-state', (req, res) => {
+  const applied = hydrateStoreFromClientSnapshot(req.body?.snapshot || req.body);
+  res.json({ ok: true, applied, revision: store.revision || 1, saved_at_ms: store.saved_at_ms || Date.now() });
+});
+
+app.post('/api/system/clock-sync', (req, res) => {
+  const clientNowMs = Number(req.body?.client_now_ms || req.body?._client_now_ms || 0);
+  const clientTz = String(req.body?.client_tz || req.body?._client_tz || '').trim();
+  if (clientNowMs > 1700000000000) {
+    runtimeClientClockOffsetMs = clientNowMs - Date.now();
+    setSafeCookie(req, res, 'opsloom_client_now_ms', String(clientNowMs));
+    setSafeCookie(req, res, 'opsloom_clock_offset_ms', String(runtimeClientClockOffsetMs));
+    if (store.SYSTEM_SETTINGS) {
+      store.SYSTEM_SETTINGS.client_clock_offset_ms = runtimeClientClockOffsetMs;
+    }
+  }
+  if (clientTz && clientTz.includes('/')) {
+    runtimeClientTimezone = clientTz;
+    setSafeCookie(req, res, 'opsloom_tz', clientTz);
+    if (store.SYSTEM_SETTINGS && !store.SYSTEM_SETTINGS.timezone_locked) {
+      store.SYSTEM_SETTINGS.timezone = clientTz;
+    }
+  }
+  res.json({
+    ok: true,
+    timezone: getEffectiveTimezone(),
+    clock_offset_ms: getEffectiveClockOffsetMs(),
+    system_time_iso: getSystemNowIso(),
+    system_time_display: formatSystemTimestamp(getSystemNowIso(), true)
+  });
 });
 
 // Serve static assets
@@ -3053,13 +3349,13 @@ function getRoleDefinition(roleName) {
 
 function resolveUserCapabilities(actor) {
   if (!actor) {
-    return { view: ['dashboard'], edit: [], delete: [] };
+    return { view: ['dashboard'], edit: [], delete: [], can_adjust_kpi_targets: false };
   }
   const roleDef = getRoleDefinition(actor.role);
   const isAdmin = (actor.role || '').toLowerCase() === 'administrator' || (Array.isArray(actor.permissions) && actor.permissions.includes('all'));
   if (isAdmin) {
-    const allMods = ['all', 'dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'settings_manage', 'users_manage', 'technicians_manage', 'notifications_manage', 'recycle_bin', 'settings', 'admin'];
-    return { view: allMods, edit: allMods, delete: allMods };
+    const allMods = ['all', 'dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'settings_manage', 'users_manage', 'technicians_manage', 'notifications_manage', 'recycle_bin', 'kpi_targets_manage', 'settings', 'admin'];
+    return { view: allMods, edit: allMods, delete: allMods, can_adjust_kpi_targets: true };
   }
   const view = Array.isArray(actor.permissions) && actor.permissions.length
     ? actor.permissions
@@ -3070,7 +3366,14 @@ function resolveUserCapabilities(actor) {
   const del = Array.isArray(actor.delete_permissions)
     ? actor.delete_permissions
     : (roleDef && Array.isArray(roleDef.delete_modules) ? roleDef.delete_modules : []);
-  return { view, edit, delete: del };
+  const canAdjustKpis = Boolean(
+    actor.can_adjust_kpi_targets === true ||
+    (roleDef && roleDef.can_adjust_kpi_targets === true) ||
+    edit.includes('kpi_targets_manage') ||
+    view.includes('kpi_targets_manage') ||
+    edit.includes('all')
+  );
+  return { view, edit, delete: del, can_adjust_kpi_targets: canAdjustKpis };
 }
 
 function resolvePathModule(p) {
@@ -3084,6 +3387,7 @@ function resolvePathModule(p) {
   if (p.startsWith('/settings/admin-users')) return 'users_manage';
   if (p.startsWith('/settings/technicians')) return 'technicians_manage';
   if (p.startsWith('/settings/recycle-bin')) return 'recycle_bin';
+  if (p.startsWith('/settings/kpi-targets') || p.startsWith('/api/kpi-targets') || p.startsWith('/settings/admin/kpi-targets')) return 'kpi_targets_manage';
   if (p === '/settings' || p === '/settings/admin' || p.startsWith('/settings/admin/')) return 'settings_manage';
   return null;
 }
@@ -3097,6 +3401,8 @@ app.use((req, res, next) => {
     p.startsWith('/login/') ||
     p === '/logout' ||
     p === '/lock' ||
+    p === '/api/system/clock-sync' ||
+    p === '/api/system/hydrate-state' ||
     p.startsWith('/static') ||
     p.startsWith('/vendor') ||
     p.startsWith('/css') ||
@@ -3206,7 +3512,8 @@ const MODULE_LABELS = {
   users_manage: 'Users & Role Definitions',
   technicians_manage: 'Technicians Roster',
   notifications_manage: 'Notifications & Alerts',
-  recycle_bin: 'Admin Recycle Bin'
+  recycle_bin: 'Admin Recycle Bin',
+  kpi_targets_manage: 'KPI Targets, Budgets & Attainment'
 };
 
 function getCurrentActor(req) {
@@ -3337,9 +3644,15 @@ function baseCtx(req, activeNav = 'dashboard') {
     current_user_permissions: caps.view,
     current_user_edit_permissions: caps.edit,
     current_user_delete_permissions: caps.delete,
+    can_adjust_kpi_targets: Boolean(caps.can_adjust_kpi_targets),
     can_access: (mod) => caps.view.includes('all') || caps.view.includes(mod),
     can_edit: (mod) => caps.edit.includes('all') || caps.edit.includes(mod),
     can_delete: (mod) => caps.delete.includes('all') || caps.delete.includes(mod),
+    company_kpi_targets: sysHealth.kpi_targets,
+    server_raw_epoch_ms: Date.now(),
+    system_current_time_display: formatSystemTimestamp(getSystemNowIso(), true),
+    system_timezone: getEffectiveTimezone(),
+    client_sync_snapshot: buildClientSyncSnapshot(),
     current_user_signature: {
       name: actor.signature_name || actor.name || 'Laurence Magondu',
       title: actor.signature_title || actor.role || 'Administrator',
@@ -3449,9 +3762,96 @@ app.get('/login', (req, res) => {
     contact_admin_help: req.query.contact_admin === '1',
     contact_admin_user_email: req.query.user_email || '',
     contact_admin_user_name: req.query.user_name || '',
+    contact_admin_workspace_name: req.query.workspace_name || '',
     show_forgot_box: Boolean(req.query.forgot === '1' || req.query.admin_reset === '1' || req.query.contact_admin === '1')
   });
 });
+
+function detectUserAndWorkspaceByEmail(rawEmail, rawName = '', rawDept = '') {
+  const emailLower = String(rawEmail || '').trim().toLowerCase();
+  const nameLower = String(rawName || '').trim().toLowerCase();
+  const companies = Array.isArray(store.COMPANIES) && store.COMPANIES.length ? store.COMPANIES : [];
+
+  // 1. Check exact email match in store.ADMIN_USERS first
+  let matchedUser = (store.ADMIN_USERS || []).find(
+    u => u && (u.email || '').trim().toLowerCase() === emailLower
+  );
+  // Fall back to name match only if email didn't match and no conflicting domain
+  if (!matchedUser && nameLower) {
+    matchedUser = (store.ADMIN_USERS || []).find(
+      u => u && (u.name || '').trim().toLowerCase() === nameLower
+    );
+  }
+  let matchedWorkspaceId = (matchedUser && (matchedUser.email || '').trim().toLowerCase() === emailLower && matchedUser.company_id)
+    ? matchedUser.company_id
+    : null;
+
+  // 2. Check domain match from the entered email address
+  let domainMatchedCompany = null;
+  if (emailLower.includes('@')) {
+    const domainPart = emailLower.split('@')[1] || '';
+    domainMatchedCompany = companies.find(c => {
+      const cNameSlug = String(c.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cCodeLower = String(c.code || '').toLowerCase();
+      const cEmailDomain = String(c.contact_email || '').toLowerCase().split('@')[1] || '';
+      return (
+        (cEmailDomain && cEmailDomain === domainPart) ||
+        (domainPart.includes('ultravetis') && (cNameSlug.includes('ultravetis') || cCodeLower === 'ueal')) ||
+        (domainPart.includes('opsloom') && (cNameSlug.includes('opsloom') || cCodeLower === 'ops')) ||
+        (cCodeLower.length >= 3 && domainPart.includes(cCodeLower))
+      );
+    }) || null;
+  }
+
+  // 3. Also search across all workspace buckets (USERS & TECHNICIAN_DIRECTORY)
+  if (store.WORKSPACE_DATA && typeof store.WORKSPACE_DATA === 'object') {
+    for (const [cid, bucket] of Object.entries(store.WORKSPACE_DATA)) {
+      if (!bucket) continue;
+      const wsUser = (bucket.USERS || []).find(
+        u => u && (u.email || '').trim().toLowerCase() === emailLower
+      );
+      if (wsUser) {
+        if (!matchedUser) matchedUser = wsUser;
+        if (!matchedWorkspaceId) matchedWorkspaceId = wsUser.company_id || cid;
+        break;
+      }
+      const wsTech = (bucket.TECHNICIAN_DIRECTORY || []).find(
+        t => t && ((t.email || '').trim().toLowerCase() === emailLower || (nameLower && (t.name || '').trim().toLowerCase() === nameLower))
+      );
+      if (wsTech) {
+        if (!matchedUser) {
+          matchedUser = {
+            id: wsTech.id,
+            name: wsTech.name,
+            email: wsTech.email || rawEmail,
+            role: wsTech.role || 'Technician',
+            department: wsTech.discipline || rawDept || 'Engineering',
+            company_id: cid
+          };
+        }
+        if (!matchedWorkspaceId) matchedWorkspaceId = domainMatchedCompany ? domainMatchedCompany.id : cid;
+        break;
+      }
+    }
+  }
+
+  if (domainMatchedCompany && (!matchedWorkspaceId || (matchedUser && (matchedUser.email || '').trim().toLowerCase() !== emailLower))) {
+    matchedWorkspaceId = domainMatchedCompany.id;
+  } else if (!matchedWorkspaceId && matchedUser && matchedUser.company_id) {
+    matchedWorkspaceId = matchedUser.company_id;
+  }
+
+  const resolvedCompany = companies.find(c => c.id === matchedWorkspaceId)
+    || domainMatchedCompany
+    || companies.find(c => c.id === store.ACTIVE_COMPANY_ID)
+    || companies[0]
+    || { id: 'comp-001', name: 'Opsloom Kenya', code: 'OPS' };
+
+  return {
+    matchedUser: matchedUser || null,
+    company: resolvedCompany
+  };
+}
 
 app.post('/login', (req, res) => {
   const { email, password, next: nextTarget } = req.body;
@@ -3460,7 +3860,7 @@ app.post('/login', (req, res) => {
   const safeNext = (nextTarget && String(nextTarget).startsWith('/') && !String(nextTarget).startsWith('//') && !String(nextTarget).startsWith('/login'))
     ? String(nextTarget)
     : '/dashboard';
-  const nowFmt = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const nowFmt = formatSystemTimestamp(getSystemNowIso());
 
   // Ensure store has seeded users without overwriting any modified passwords
   seedInitialDataIfEmpty();
@@ -3572,7 +3972,7 @@ app.post('/login/forgot-password', (req, res) => {
   // Admin account (opsloom.ke@gmail.com) -> revert a 6-digit reset code to laurencemureithi1999@gmail.com
   if (rawEmail === ADMIN_PRIMARY_EMAIL || rawEmail === ADMIN_RECOVERY_EMAIL) {
     const resetCode = String(Math.floor(100000 + Math.random() * 900000));
-    const nowIso = new Date().toISOString();
+    const nowIso = getSystemNowIso();
     store.ADMIN_RESET_STATE = {
       admin_email: ADMIN_PRIMARY_EMAIL,
       recovery_email: ADMIN_RECOVERY_EMAIL,
@@ -3605,21 +4005,21 @@ app.post('/login/forgot-password', (req, res) => {
     return res.redirect('/login?admin_reset=1');
   }
 
-  // Any other user -> send a real, user-identified password reset request message & notification to the Administrator in the system
-  const nowIso = new Date().toISOString();
+  // Standard user -> automatically detect user & company workspace from email and send structured reset escalation to System Admin
+  const nowIso = getSystemNowIso();
   const submittedName = String(req.body.requester_name || '').trim();
+  const submittedDept = String(req.body.department || '').trim();
   const submittedReason = String(req.body.reset_reason || '').trim();
-  const matchedUser = (store.ADMIN_USERS || []).find(
-    u => (u.email || '').trim().toLowerCase() === rawEmail || (submittedName && (u.name || '').trim().toLowerCase() === submittedName.toLowerCase())
-  );
+  const { matchedUser, company: detectedWorkspace } = detectUserAndWorkspaceByEmail(rawEmail, submittedName, submittedDept);
+
   const resolvedName = matchedUser ? matchedUser.name : (submittedName || rawEmail);
   const resolvedRole = matchedUser ? matchedUser.role : 'Unverified User';
-  const resolvedDept = matchedUser ? (matchedUser.department || 'Engineering') : 'General';
-  const senderLabel = matchedUser ? `${matchedUser.name} (${matchedUser.role})` : (submittedName ? `${submittedName} (${rawEmail})` : rawEmail);
+  const resolvedDept = matchedUser ? (matchedUser.department || submittedDept || 'Engineering') : (submittedDept || 'General');
+  const workspaceLabel = `${detectedWorkspace.name} (${detectedWorkspace.code || 'OPS'})`;
+  const senderLabel = matchedUser ? `${matchedUser.name} (${matchedUser.role} • ${detectedWorkspace.code || 'OPS'})` : (submittedName ? `${submittedName} (${rawEmail})` : rawEmail);
   const msgId = 'msg-reset-' + Date.now();
 
-  if (!Array.isArray(store.INTERNAL_MESSAGES)) store.INTERNAL_MESSAGES = [];
-  store.INTERNAL_MESSAGES.unshift({
+  const resetMsgRecord = {
     id: msgId,
     thread_id: 'thread-reset-' + Date.now(),
     category: 'Credential Reset',
@@ -3627,35 +4027,53 @@ app.post('/login/forgot-password', (req, res) => {
     user_name: resolvedName,
     user_role: resolvedRole,
     user_department: resolvedDept,
+    workspace_id: detectedWorkspace.id,
+    workspace_name: detectedWorkspace.name,
+    workspace_code: detectedWorkspace.code || 'OPS',
     sender_email: rawEmail,
     sender_name: senderLabel,
     recipient_emails: [ADMIN_PRIMARY_EMAIL],
-    subject: `Password Reset Request: ${resolvedName} (${rawEmail})`,
-    body: `User Identity: ${resolvedName}\nAccount Email: ${rawEmail}\nAssigned Role: ${resolvedRole} • Department: ${resolvedDept}\nAccount Status: ${matchedUser ? 'Registered System User (' + matchedUser.id + ')' : 'Email Not Found in User Register'}\n${submittedReason ? 'User Note: ' + submittedReason + '\n' : ''}\nAction Required: Open Admin Credentials & Users to set a new password for ${resolvedName} (${rawEmail}).`,
+    subject: `Password Reset Request: ${resolvedName} [${workspaceLabel}]`,
+    body: `User Identity: ${resolvedName}\nAccount Email: ${rawEmail}\nDetected Workspace: ${workspaceLabel}\nAssigned Role: ${resolvedRole} • Department: ${resolvedDept}\nAccount Status: ${matchedUser ? 'Verified Workspace User (' + matchedUser.id + ')' : 'Unregistered Email — Requires Verification'}\n${submittedReason ? 'Additional Details / Note: ' + submittedReason + '\n' : ''}\nAction Required: Open Admin Credentials & Users to reset the password for ${resolvedName} (${rawEmail}) in ${workspaceLabel}.`,
     attachments: [],
     created_at: nowIso,
     is_read_by: [],
     delivery_status: 'delivered',
     sent_at: nowIso
-  });
+  };
+
+  if (!Array.isArray(store.PASSWORD_RESET_REQUESTS)) store.PASSWORD_RESET_REQUESTS = [];
+  store.PASSWORD_RESET_REQUESTS.unshift(resetMsgRecord);
+
+  if (!Array.isArray(store.INTERNAL_MESSAGES)) store.INTERNAL_MESSAGES = [];
+  store.INTERNAL_MESSAGES.unshift(resetMsgRecord);
+
+  // Also ensure the message is available in the detected workspace's INTERNAL_MESSAGES bucket
+  if (store.WORKSPACE_DATA && detectedWorkspace.id && store.WORKSPACE_DATA[detectedWorkspace.id]) {
+    const targetBucket = store.WORKSPACE_DATA[detectedWorkspace.id];
+    if (!Array.isArray(targetBucket.INTERNAL_MESSAGES)) targetBucket.INTERNAL_MESSAGES = [];
+    if (!targetBucket.INTERNAL_MESSAGES.some(m => m && m.id === msgId)) {
+      targetBucket.INTERNAL_MESSAGES.unshift(resetMsgRecord);
+    }
+  }
 
   pushNotification(
-    `Password Reset Request: ${resolvedName}`,
-    `${senderLabel} (${rawEmail}) requested a password reset from the login screen. Click to reset their password.`,
+    `Password Reset Request: ${resolvedName} (${detectedWorkspace.code || 'OPS'})`,
+    `${resolvedName} (${rawEmail}) in ${workspaceLabel} requested a password reset. Click to reset their password.`,
     'warning',
     matchedUser ? `/settings/admin-users?edit=${encodeURIComponent(matchedUser.id)}#provisionUserForm` : '/settings/admin-users#passwordResetRequestsSection',
     true
   );
   logAudit(
     'Password Reset Request Dispatched',
-    `User ${senderLabel} (${rawEmail}) submitted an in-system password reset request to Administrator (${ADMIN_PRIMARY_EMAIL}).`,
+    `User ${resolvedName} (${rawEmail}) in workspace ${workspaceLabel} submitted a password reset request to Administrator (${ADMIN_PRIMARY_EMAIL}).`,
     'security',
     '/settings/admin-users',
     'warning'
   );
   saveStore();
-  flash('success', `Password reset request for ${resolvedName} (${rawEmail}) has been sent directly to the System Administrator in Messages Center and Admin Credentials & Users.`);
-  return res.redirect(`/login?contact_admin=1&user_email=${encodeURIComponent(rawEmail)}&user_name=${encodeURIComponent(resolvedName)}`);
+  flash('success', `Password reset request for ${resolvedName} (${rawEmail}) has been matched to workspace "${workspaceLabel}" and sent to the System Administrator.`);
+  return res.redirect(`/login?contact_admin=1&user_email=${encodeURIComponent(rawEmail)}&user_name=${encodeURIComponent(resolvedName)}&workspace_name=${encodeURIComponent(workspaceLabel)}`);
 });
 
 app.post('/login/reset-admin-password', (req, res) => {
@@ -3708,10 +4126,11 @@ app.post('/login/request-credentials', (req, res) => {
     flash('error', 'Please enter your company email address to request access.');
     return res.redirect('/login');
   }
-  const nowIso = new Date().toISOString();
+  const nowIso = getSystemNowIso();
+  const { company: detectedWorkspace } = detectUserAndWorkspaceByEmail(rawEmail, rawName, rawDept);
+  const workspaceLabel = `${detectedWorkspace.name} (${detectedWorkspace.code || 'OPS'})`;
   const msgId = 'msg-access-' + Date.now();
-  if (!Array.isArray(store.INTERNAL_MESSAGES)) store.INTERNAL_MESSAGES = [];
-  store.INTERNAL_MESSAGES.unshift({
+  const accessMsgRecord = {
     id: msgId,
     thread_id: 'thread-access-' + Date.now(),
     category: 'Credential Reset',
@@ -3719,17 +4138,24 @@ app.post('/login/request-credentials', (req, res) => {
     user_name: rawName,
     user_role: 'Requested Access',
     user_department: rawDept,
+    workspace_id: detectedWorkspace.id,
+    workspace_name: detectedWorkspace.name,
+    workspace_code: detectedWorkspace.code || 'OPS',
     sender_email: rawEmail,
-    sender_name: `${rawName} (Access Request)`,
+    sender_name: `${rawName} (Access Request • ${detectedWorkspace.code || 'OPS'})`,
     recipient_emails: [ADMIN_PRIMARY_EMAIL],
-    subject: `New Account Provisioning Request: ${rawName} (${rawEmail})`,
-    body: `Applicant Name: ${rawName}\nEmail: ${rawEmail}\nRequested Department: ${rawDept}\n\nSubmitted from the Login Portal. Go to Admin Credentials & Users to provision this account.`,
+    subject: `New Account Provisioning Request: ${rawName} [${workspaceLabel}]`,
+    body: `Applicant Name: ${rawName}\nEmail: ${rawEmail}\nDetected Workspace: ${workspaceLabel}\nRequested Department: ${rawDept}\n\nSubmitted from the Login Portal. Go to Admin Credentials & Users to provision this account.`,
     attachments: [],
     created_at: nowIso,
     is_read_by: [],
     delivery_status: 'delivered',
     sent_at: nowIso
-  });
+  };
+  if (!Array.isArray(store.PASSWORD_RESET_REQUESTS)) store.PASSWORD_RESET_REQUESTS = [];
+  store.PASSWORD_RESET_REQUESTS.unshift(accessMsgRecord);
+  if (!Array.isArray(store.INTERNAL_MESSAGES)) store.INTERNAL_MESSAGES = [];
+  store.INTERNAL_MESSAGES.unshift(accessMsgRecord);
   pushNotification(
     `Account Access Request: ${rawName}`,
     `${rawName} (${rawEmail}) requested a new workspace account.`,
@@ -4178,12 +4604,23 @@ app.get('/dashboard', (req, res) => {
   ];
 
   const financialExposure = Math.round(totalDowntime * 18500);
+  const companyTargets = getCompanyKpiTargets();
+  const totalDirectSpend = maintenanceCostTotal + breakdownCostTotal;
+  const monthlyBudget = Math.max(1, companyTargets.monthly_maintenance_budget || 2500000);
+  const budgetUtilizationPct = Math.round((totalDirectSpend / monthlyBudget) * 1000) / 10;
 
   res.render('dashboard/executive_dashboard.html', {
     ...baseCtx(req, 'dashboard'),
     kpi_uptime: kpiUptimeRate,
     kpi_uptime_rate: kpiUptimeRate,
-    kpi_uptime_target: 80.0,
+    kpi_uptime_target: companyTargets.uptime_target_pct,
+    kpi_oee_benchmark: companyTargets.oee_benchmark_pct,
+    kpi_pm_target: companyTargets.pm_compliance_target_pct,
+    kpi_mttr_target: companyTargets.mttr_target_hours,
+    kpi_mtbf_target: companyTargets.mtbf_target_hours,
+    kpi_monthly_budget: companyTargets.monthly_maintenance_budget,
+    kpi_spares_budget: companyTargets.spares_inventory_budget,
+    kpi_budget_utilization_pct: budgetUtilizationPct,
     kpi_uptime_delta: 1.4,
     kpi_active_breakdowns: activeBds.length,
     active_breakdowns_count: activeBds.length,
@@ -5735,7 +6172,7 @@ app.post('/breakdowns/:id/update', upload.array('media', 5), (req, res) => {
         note: String(req.body.progress_note).trim(),
         author: actor.name,
         status: breakdown.status,
-        timestamp: new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        timestamp: formatSystemTimestamp(getSystemNowIso())
       });
     }
     if (Array.isArray(req.files) && req.files.length) {
@@ -5749,7 +6186,7 @@ app.post('/breakdowns/:id/update', upload.array('media', 5), (req, res) => {
       const asset = store.ASSETS.find(a => a.uid === breakdown.asset_uid || a.asset_id === breakdown.asset_id);
       if (asset) asset.status = 'operational';
       breakdown.downtime_hours = calculateDowntimeHours(breakdown);
-      breakdown.resolved_at = breakdown.resolved_at || new Date().toISOString();
+      breakdown.resolved_at = breakdown.resolved_at || getSystemNowIso();
     }
     saveStore();
     logAudit('Breakdown Updated', `Updated incident ${breakdown.breakdown_id} (${breakdown.status})`, 'breakdowns', `/breakdowns/${breakdown.breakdown_id}`);
@@ -5773,7 +6210,7 @@ app.get('/breakdowns/:id/rca', (req, res) => {
 app.post('/breakdowns/:id/rca', (req, res) => {
   const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
   if (breakdown) {
-    breakdown.rca = { ...(breakdown.rca || {}), ...req.body, updated_at: new Date().toISOString() };
+    breakdown.rca = { ...(breakdown.rca || {}), ...req.body, updated_at: getSystemNowIso() };
     saveStore();
     logAudit('RCA Recorded', `Saved Root Cause Analysis for ${breakdown.breakdown_id}`, 'breakdowns', `/breakdowns/${breakdown.breakdown_id}`);
     flash('success', 'Root Cause Analysis saved permanently.');
@@ -5785,7 +6222,7 @@ app.post('/breakdowns/:id/close', (req, res) => {
   const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
   if (breakdown) {
     breakdown.status = 'resolved';
-    breakdown.resolved_at = new Date().toISOString();
+    breakdown.resolved_at = getSystemNowIso();
     breakdown.downtime_hours = calculateDowntimeHours(breakdown);
     const asset = store.ASSETS.find(a => a.uid === breakdown.asset_uid);
     if (asset) asset.status = 'operational';
@@ -6056,11 +6493,11 @@ app.post('/maintenance/schedule/step-3', (req, res) => {
     frequency: data.frequency || 'Monthly',
     technician: data.technician || 'David Kimani',
     task_description: data.task_description || 'Preventative servicing task',
-    due_date: data.due_date || new Date(Date.now() + 604800000).toISOString().slice(0, 10),
+    due_date: data.due_date || new Date(getSystemNow().getTime() + 604800000).toISOString().slice(0, 10),
     status: 'upcoming',
     priority: data.priority || 'medium',
     cost: Number(data.cost) || 15000,
-    created_at: new Date().toISOString()
+    created_at: getSystemNowIso()
   };
 
   store.MAINTENANCE_TASKS.push(task);
@@ -6177,7 +6614,7 @@ app.post('/maintenance/:task_id/complete', (req, res) => {
   const task = store.MAINTENANCE_TASKS.find(t => t.task_id === req.params.task_id);
   if (task) {
     task.status = 'completed';
-    task.completed_at = new Date().toISOString();
+    task.completed_at = getSystemNowIso();
     task.completion_notes = req.body.completion_notes || 'Service protocol satisfied.';
     saveStore();
     logAudit('Task Completed', `Completed maintenance order ${task.task_id}`, 'maintenance', `/maintenance/${task.task_id}`, 'success');
@@ -6761,19 +7198,29 @@ app.get('/reports', (req, res) => {
     filtered = filtered.filter(r => (r.format || '').toLowerCase() === format.toLowerCase());
   }
 
+  const companyTargets = getCompanyKpiTargets();
+  const sysHealth = computeSystemHealthStatus();
+  const tasks = store.MAINTENANCE_TASKS || [];
+  const breakdowns = store.BREAKDOWNS || [];
+  const totalDowntime = Math.round(breakdowns.reduce((sum, b) => sum + calculateDowntimeHours(b), 0) * 10) / 10;
+  const avgMttr = breakdowns.length ? Math.round((totalDowntime / breakdowns.length) * 10) / 10 : 1.8;
+  const mtdSpendVal = tasks.reduce((s, t) => s + Number(t.cost_total || t.cost || 0), 0) + breakdowns.reduce((s, b) => s + Number(b.cost_total || b.cost || 0), 0) || 441000;
+  const budgetCap = Math.max(1, companyTargets.monthly_maintenance_budget || 2500000);
+  const budgetPct = Math.round((mtdSpendVal / budgetCap) * 1000) / 10;
+
   res.render('reports/reports_center.html', {
     ...baseCtx(req, 'reports'),
     reports: filtered,
     exports: filtered,
-    kpi_oee_score: 92.3,
-    kpi_oee_delta_label: '+2.1% vs last month',
-    kpi_pm_compliance: 83.3,
-    kpi_pm_target_label: 'Target: 90.0% PM Adherence',
-    kpi_mttr_delta: '-4.2%',
-    kpi_mttr_avg_label: 'Fleet MTTR: 1.8 hrs Mean Time',
-    kpi_mtd_spend: 'KES 441,000',
-    kpi_budget_pct: 17.6,
-    kpi_budget_label: '17.6% OF BUDGET • KES 2,500,000 CAP',
+    kpi_oee_score: sysHealth.uptime_rate,
+    kpi_oee_delta_label: `Target SLA: ${companyTargets.uptime_target_pct.toFixed(1)}% • OEE Benchmark: ${companyTargets.oee_benchmark_pct.toFixed(1)}%`,
+    kpi_pm_compliance: sysHealth.pm_compliance,
+    kpi_pm_target_label: `Target: ${companyTargets.pm_compliance_target_pct.toFixed(1)}% PM Adherence`,
+    kpi_mttr_delta: `${avgMttr} hrs`,
+    kpi_mttr_avg_label: `Fleet MTTR Target: ≤ ${companyTargets.mttr_target_hours.toFixed(1)} hrs • MTBF ≥ ${companyTargets.mtbf_target_hours.toFixed(0)} hrs`,
+    kpi_mtd_spend: `KES ${mtdSpendVal.toLocaleString()}`,
+    kpi_budget_pct: budgetPct,
+    kpi_budget_label: `${budgetPct}% OF BUDGET • KES ${budgetCap.toLocaleString()} CAP`,
     filters: { q: req.query.q || '', category, format }
   });
 });
@@ -6904,9 +7351,9 @@ app.post('/reports/generate/step3', (req, res) => {
     period: `${data.start_date || '2026-09-01'} → ${data.end_date || '2026-09-30'}`,
     format: (data.export_format || data.format || 'PDF').toUpperCase(),
     status: 'READY',
-    created_at: new Date().toISOString(),
-    created_at_fmt: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-    generated_label: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    created_at: getSystemNowIso(),
+    created_at_fmt: formatSystemTimestamp(getSystemNowIso()),
+    generated_label: formatSystemTimestamp(getSystemNowIso()),
     user_name: req.cookies?.opsloom_user || 'Laurence Magondu',
     exec_notes: data.exec_notes || ''
   };
@@ -7386,6 +7833,63 @@ app.post('/settings/admin/save', (req, res) => {
   res.redirect('/settings/admin');
 });
 
+app.post(['/settings/kpi-targets/save', '/settings/admin/kpi-targets/save', '/api/kpi-targets/save'], (req, res) => {
+  const actor = getCurrentActor(req);
+  const caps = resolveUserCapabilities(actor);
+  if (!caps.can_adjust_kpi_targets) {
+    flash('error', `Privilege Required: Your account (${actor.role}) does not have the "Adjust KPI Targets, Budgets & Attainment" privilege.`);
+    return res.redirect(req.header('Referer') || '/dashboard');
+  }
+
+  const targetCompanyId = (req.body.company_id || store.ACTIVE_COMPANY_ID || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001').trim();
+  const comp = (store.COMPANIES || []).find(c => c.id === targetCompanyId) || (store.COMPANIES && store.COMPANIES[0]);
+  if (!comp) {
+    flash('error', 'Target company workspace not found.');
+    return res.redirect(req.header('Referer') || '/settings/admin');
+  }
+
+  const current = getCompanyKpiTargets(comp.id);
+  const numOr = (val, fallback, minVal = 0, maxVal = 1000000000) => {
+    if (val === undefined || val === null || String(val).trim() === '') return fallback;
+    const n = Number(String(val).replace(/,/g, '').trim());
+    if (isNaN(n)) return fallback;
+    return Math.min(maxVal, Math.max(minVal, n));
+  };
+
+  comp.kpi_targets = {
+    uptime_target_pct: numOr(req.body.uptime_target_pct, current.uptime_target_pct, 1, 100),
+    oee_benchmark_pct: numOr(req.body.oee_benchmark_pct, current.oee_benchmark_pct, 1, 100),
+    pm_compliance_target_pct: numOr(req.body.pm_compliance_target_pct, current.pm_compliance_target_pct, 1, 100),
+    mttr_target_hours: numOr(req.body.mttr_target_hours, current.mttr_target_hours, 0.1, 720),
+    mtbf_target_hours: numOr(req.body.mtbf_target_hours, current.mtbf_target_hours, 1, 10000),
+    monthly_maintenance_budget: numOr(req.body.monthly_maintenance_budget, current.monthly_maintenance_budget, 0, 1000000000),
+    spares_inventory_budget: numOr(req.body.spares_inventory_budget, current.spares_inventory_budget, 0, 1000000000),
+    inventory_health_target_pct: numOr(req.body.inventory_health_target_pct, current.inventory_health_target_pct, 1, 100),
+    max_critical_breakdowns: Math.round(numOr(req.body.max_critical_breakdowns, current.max_critical_breakdowns, 0, 100)),
+    max_active_breakdowns: Math.round(numOr(req.body.max_active_breakdowns, current.max_active_breakdowns, 0, 200)),
+    max_oos_assets: Math.round(numOr(req.body.max_oos_assets, current.max_oos_assets, 0, 200)),
+    max_overdue_pm: Math.round(numOr(req.body.max_overdue_pm, current.max_overdue_pm, 0, 200)),
+    updated_by: actor.name,
+    updated_at: getSystemNowIso()
+  };
+
+  saveStore();
+  logAudit(
+    'Company KPI Targets & Budgets Updated',
+    `${actor.name} (${actor.role}) updated KPI attainment levels & budgets for ${comp.name} (${comp.code}): Uptime SLA ${comp.kpi_targets.uptime_target_pct}%, PM SLA ${comp.kpi_targets.pm_compliance_target_pct}%, Monthly Budget KES ${comp.kpi_targets.monthly_maintenance_budget.toLocaleString()}.`,
+    'settings',
+    '/settings/admin'
+  );
+
+  if (req.path === '/api/kpi-targets/save' || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+    return res.json({ ok: true, company_id: comp.id, kpi_targets: comp.kpi_targets });
+  }
+
+  flash('success', `KPI attainment targets, SLA percentages, and maintenance budgets saved for ${comp.name} (${comp.code}).`);
+  const redirectTarget = req.body.redirect_to || req.header('Referer') || '/settings/admin';
+  return res.redirect(redirectTarget);
+});
+
 // -------------------------
 // ADMIN RECYCLE BIN & DATA RECOVERY
 // -------------------------
@@ -7398,7 +7902,7 @@ app.get('/settings/recycle-bin', (req, res) => {
     deleted_by: item.deleted_by || 'Laurence Magondu',
     deleted_by_email: item.deleted_by_email || 'opsloom.ke@gmail.com',
     deleted_by_role: item.deleted_by_role || 'Administrator',
-    deleted_at_fmt: item.deleted_at_fmt || (item.deleted_at ? new Date(item.deleted_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent')
+    deleted_at_fmt: item.deleted_at ? formatSystemTimestamp(item.deleted_at) : (item.deleted_at_fmt || 'Recent')
   }));
   const selected_type = (req.query.type || 'all').toLowerCase();
   const items = selected_type === 'all'
@@ -7517,7 +8021,7 @@ app.post('/settings/recycle-bin/empty', (req, res) => {
 function getFilteredAuditRows(req) {
   const all = (store.AUDIT_TRAIL || []).map(a => ({
     ...a,
-    time_display: a.time_display || new Date(a.created_at || Date.now()).toLocaleString('en-GB'),
+    time_display: formatSystemTimestamp(a.created_at || getSystemNowIso(), true),
     user_name: a.user_name || 'Laurence Magondu',
     user_email: a.user_email || 'opsloom.ke@gmail.com',
     user_role: a.user_role || 'Plant Manager'
@@ -7793,6 +8297,14 @@ app.get('/settings/admin-users', (req, res) => {
       .filter(k => k !== 'all' && MODULE_LABELS[k])
       .map(k => MODULE_LABELS[k]);
     const isCurrentUser = Boolean(actor && (u.id === actor.id || (u.email && actor.email && u.email.toLowerCase() === actor.email.toLowerCase())));
+    const canAdjustKpis = Boolean(
+      u.role === 'Administrator' ||
+      u.can_adjust_kpi_targets === true ||
+      (roleDef && roleDef.can_adjust_kpi_targets === true) ||
+      editPerms.includes('kpi_targets_manage') ||
+      perms.includes('kpi_targets_manage') ||
+      editPerms.includes('all')
+    );
     return {
       ...u,
       is_current_user: isCurrentUser,
@@ -7803,8 +8315,9 @@ app.get('/settings/admin-users', (req, res) => {
       permissions: perms,
       edit_permissions: editPerms,
       delete_permissions: deletePerms,
+      can_adjust_kpi_targets: canAdjustKpis,
       permission_labels: permLabels.length ? permLabels : Object.values(MODULE_LABELS),
-      last_login_at: isCurrentUser ? 'Current Active Session' : (u.last_login_at || 'Configured'),
+      last_login_at: isCurrentUser ? 'Current Active Session' : (u.last_login_at ? formatSystemTimestamp(u.last_login_at) : 'Configured'),
       signature_name: u.signature_name || u.name || '',
       signature_title: u.signature_title || u.role || '',
       signature_font: u.signature_font || 'Inter',
@@ -7819,19 +8332,35 @@ app.get('/settings/admin-users', (req, res) => {
   const edit_role = editRoleId ? (customRoles.find(r => r.id === editRoleId) || null) : null;
   const admin_count = user_rows.filter(u => u.role === 'Administrator').length;
   const active_count = user_rows.filter(u => u.active !== false).length;
-  const reset_requests = (store.INTERNAL_MESSAGES || [])
-    .filter(m => m && (m.category === 'Credential Reset' || (m.subject && m.subject.toLowerCase().includes('password reset')) || (m.subject && m.subject.toLowerCase().includes('credential'))))
+
+  const combinedResetMsgs = [
+    ...(Array.isArray(store.PASSWORD_RESET_REQUESTS) ? store.PASSWORD_RESET_REQUESTS : []),
+    ...(Array.isArray(store.INTERNAL_MESSAGES) ? store.INTERNAL_MESSAGES : []).filter(m => m && (m.category === 'Credential Reset' || (m.subject && m.subject.toLowerCase().includes('password reset')) || (m.subject && m.subject.toLowerCase().includes('credential'))))
+  ];
+  const seenResetIds = new Set();
+  const reset_requests = combinedResetMsgs
+    .filter(m => {
+      if (!m || !m.id || seenResetIds.has(m.id)) return false;
+      seenResetIds.add(m.id);
+      return true;
+    })
     .map(m => {
-      const matchedU = rawUsers.find(u => (u.email || '').toLowerCase() === String(m.sender_email || '').toLowerCase());
+      const { matchedUser: matchedU, company: detectedComp } = detectUserAndWorkspaceByEmail(m.sender_email, m.user_name, m.user_department);
       return {
         id: m.id,
         user_id: m.user_id || (matchedU ? matchedU.id : ''),
+        user_name: m.user_name || (matchedU ? matchedU.name : m.sender_name),
+        user_role: m.user_role || (matchedU ? matchedU.role : 'User'),
+        user_department: m.user_department || (matchedU ? matchedU.department : 'Engineering'),
+        workspace_id: m.workspace_id || detectedComp.id,
+        workspace_name: m.workspace_name || detectedComp.name,
+        workspace_code: m.workspace_code || detectedComp.code || 'OPS',
         subject: m.subject,
         sender_name: m.sender_name,
         sender_email: m.sender_email,
         body: m.body,
         is_unread: !(m.is_read_by || []).includes(ADMIN_PRIMARY_EMAIL),
-        created_display: m.created_at ? new Date(m.created_at).toLocaleString('en-GB') : 'Recent'
+        created_display: m.created_at ? formatSystemTimestamp(m.created_at) : 'Recent'
       };
     });
   const { filtered: audit_rows } = getFilteredAuditRows(req);
@@ -7857,14 +8386,21 @@ app.get('/settings/admin-users', (req, res) => {
 });
 
 app.post('/settings/admin-users/reset-requests/:msg_id/dismiss', (req, res) => {
+  if (Array.isArray(store.PASSWORD_RESET_REQUESTS)) {
+    store.PASSWORD_RESET_REQUESTS = store.PASSWORD_RESET_REQUESTS.filter(m => m && m.id !== req.params.msg_id);
+  }
   if (Array.isArray(store.INTERNAL_MESSAGES)) {
-    const idx = store.INTERNAL_MESSAGES.findIndex(m => m && m.id === req.params.msg_id);
-    if (idx !== -1) {
-      store.INTERNAL_MESSAGES.splice(idx, 1);
-      saveStore();
-      flash('info', 'Password reset request dismissed.');
+    store.INTERNAL_MESSAGES = store.INTERNAL_MESSAGES.filter(m => m && m.id !== req.params.msg_id);
+  }
+  if (store.WORKSPACE_DATA && typeof store.WORKSPACE_DATA === 'object') {
+    for (const bucket of Object.values(store.WORKSPACE_DATA)) {
+      if (bucket && Array.isArray(bucket.INTERNAL_MESSAGES)) {
+        bucket.INTERNAL_MESSAGES = bucket.INTERNAL_MESSAGES.filter(m => m && m.id !== req.params.msg_id);
+      }
     }
   }
+  saveStore();
+  flash('info', 'Password reset request dismissed.');
   res.redirect('/settings/admin-users');
 });
 
@@ -7887,6 +8423,18 @@ app.post(['/settings/admin-users/roles/save', '/settings/roles/save', '/api/role
   let delMods = req.body.delete_modules || req.body.delete_permissions || [];
   if (!Array.isArray(delMods)) delMods = [delMods];
 
+  const roleCanAdjustKpi = Boolean(
+    req.body.can_adjust_kpi_targets === '1' ||
+    req.body.can_adjust_kpi_targets === 'on' ||
+    req.body.can_adjust_kpi_targets === true ||
+    editMods.includes('kpi_targets_manage') ||
+    viewMods.includes('kpi_targets_manage')
+  );
+  if (roleCanAdjustKpi) {
+    if (!viewMods.includes('kpi_targets_manage')) viewMods.push('kpi_targets_manage');
+    if (!editMods.includes('kpi_targets_manage')) editMods.push('kpi_targets_manage');
+  }
+
   // Ensure any module that can be edited or deleted is also in viewMods
   viewMods = Array.from(new Set(['dashboard', ...viewMods, ...editMods, ...delMods]));
 
@@ -7905,14 +8453,15 @@ app.post(['/settings/admin-users/roles/save', '/settings/roles/save', '/api/role
   targetRole.name = targetRole.is_system ? 'Administrator' : roleName;
   targetRole.description = (req.body.description || `${targetRole.name} access profile with customized module capabilities.`).trim();
   targetRole.access_scope = req.body.access_scope || 'Department';
+  targetRole.can_adjust_kpi_targets = targetRole.is_system ? true : roleCanAdjustKpi;
   targetRole.modules = targetRole.is_system
-    ? ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'settings_manage', 'users_manage', 'technicians_manage', 'notifications_manage', 'recycle_bin']
+    ? ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'settings_manage', 'users_manage', 'technicians_manage', 'notifications_manage', 'recycle_bin', 'kpi_targets_manage']
     : viewMods;
   targetRole.edit_modules = targetRole.is_system
     ? [...targetRole.modules]
     : editMods;
   targetRole.delete_modules = targetRole.is_system
-    ? ['assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'users_manage', 'technicians_manage', 'recycle_bin']
+    ? ['assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'users_manage', 'technicians_manage', 'recycle_bin', 'kpi_targets_manage']
     : delMods;
 
   // Propagate updated role permissions to users assigned to this role if requested or if role name changed
@@ -7924,6 +8473,7 @@ app.post(['/settings/admin-users/roles/save', '/settings/roles/save', '/api/role
           u.permissions = [...targetRole.modules];
           u.edit_permissions = [...targetRole.edit_modules];
           u.delete_permissions = [...targetRole.delete_modules];
+          u.can_adjust_kpi_targets = Boolean(targetRole.can_adjust_kpi_targets);
           u.access_scope = targetRole.access_scope;
         }
       }
@@ -7999,6 +8549,23 @@ app.post('/settings/admin-users/create', (req, res) => {
     deletePerms = [deletePerms];
   }
 
+  const userCanAdjustKpis = Boolean(
+    role === 'Administrator' ||
+    req.body.can_adjust_kpi_targets === '1' ||
+    req.body.can_adjust_kpi_targets === 'on' ||
+    req.body.can_adjust_kpi_targets === true ||
+    editPerms.includes('kpi_targets_manage') ||
+    perms.includes('kpi_targets_manage') ||
+    (req.body.can_adjust_kpi_targets === undefined && roleDef && roleDef.can_adjust_kpi_targets === true)
+  );
+  if (userCanAdjustKpis) {
+    if (!perms.includes('kpi_targets_manage')) perms.push('kpi_targets_manage');
+    if (!editPerms.includes('kpi_targets_manage')) editPerms.push('kpi_targets_manage');
+  } else {
+    perms = perms.filter(p => p !== 'kpi_targets_manage');
+    editPerms = editPerms.filter(p => p !== 'kpi_targets_manage');
+  }
+
   // Ensure any module in editPerms or deletePerms is also included in view perms
   perms = Array.from(new Set([...perms, ...editPerms, ...deletePerms]));
 
@@ -8010,6 +8577,7 @@ app.post('/settings/admin-users/create', (req, res) => {
       description: `${role} access profile with customized module capabilities.`,
       access_scope: req.body.access_scope || 'Department',
       is_system: false,
+      can_adjust_kpi_targets: userCanAdjustKpis,
       modules: perms.filter(p => p !== 'all'),
       edit_modules: editPerms.filter(p => p !== 'all'),
       delete_modules: deletePerms.filter(p => p !== 'all')
@@ -8034,7 +8602,7 @@ app.post('/settings/admin-users/create', (req, res) => {
     target = {
       id: 'USR-' + Math.floor(100 + Math.random() * 900),
       active: true,
-      created_at: new Date().toISOString()
+      created_at: getSystemNowIso()
     };
     store.ADMIN_USERS.push(target);
   }
@@ -8056,6 +8624,7 @@ app.post('/settings/admin-users/create', (req, res) => {
   target.permissions = perms;
   target.edit_permissions = editPerms;
   target.delete_permissions = deletePerms;
+  target.can_adjust_kpi_targets = userCanAdjustKpis;
   target.active = req.body.active === '1' || req.body.active === 'on' || req.body.active === true;
   target.signature_name = req.body.signature_name || target.name;
   target.signature_title = req.body.signature_title || target.role;
@@ -8107,21 +8676,23 @@ app.get('/settings/messages', (req, res) => {
   const allMsgs = (store.INTERNAL_MESSAGES || []).map(m => ({
     ...m,
     recipient_list: Array.isArray(m.recipient_emails) ? m.recipient_emails.join(', ') : (m.recipient_email || currentUserEmail),
-    created_display: m.created_at ? new Date(m.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : 'Recent',
+    created_display: m.created_at ? formatSystemTimestamp(m.created_at) : 'Recent',
     is_unread: !(m.is_read_by || []).includes(currentUserEmail)
   }));
   const draftsList = (store.DRAFT_MESSAGES || []).map(d => ({
     ...d,
     sender_name: 'Laurence Magondu (Draft)',
     sender_email: currentUserEmail,
-    created_at: d.updated_at || d.created_at || new Date().toISOString(),
+    created_at: d.updated_at || d.created_at || getSystemNowIso(),
+    created_display: formatSystemTimestamp(d.updated_at || d.created_at || getSystemNowIso()),
     is_read_by: [currentUserEmail]
   }));
   const outboxList = (store.OUTBOX_MESSAGES || []).map(o => ({
     ...o,
     sender_name: o.sender_name || 'Laurence Magondu',
     sender_email: o.sender_email || currentUserEmail,
-    created_at: o.created_at || new Date().toISOString(),
+    created_at: o.created_at || getSystemNowIso(),
+    created_display: formatSystemTimestamp(o.created_at || getSystemNowIso()),
     is_read_by: [currentUserEmail]
   }));
 
@@ -8226,7 +8797,7 @@ app.post('/settings/messages/send', (req, res) => {
       subject: req.body.subject || '(Untitled Draft)',
       body: req.body.body || '',
       priority: req.body.priority || 'Normal',
-      updated_at: new Date().toISOString()
+      updated_at: getSystemNowIso()
     };
     if (!store.DRAFT_MESSAGES) store.DRAFT_MESSAGES = [];
     store.DRAFT_MESSAGES.unshift(draft);
@@ -8243,7 +8814,7 @@ app.post('/settings/messages/send', (req, res) => {
       recipient_emails: recipients,
       subject: req.body.subject || 'Queued Engineering Dispatch',
       body: req.body.body || '',
-      created_at: new Date().toISOString(),
+      created_at: getSystemNowIso(),
       delivery_status: 'queued'
     };
     if (!store.OUTBOX_MESSAGES) store.OUTBOX_MESSAGES = [];
@@ -8265,9 +8836,9 @@ app.post('/settings/messages/send', (req, res) => {
     category: req.body.category || 'Operations',
     attachments: [],
     is_read_by: ['opsloom.ke@gmail.com'],
-    created_at: new Date().toISOString(),
+    created_at: getSystemNowIso(),
     delivery_status: 'delivered',
-    sent_at: new Date().toISOString()
+    sent_at: getSystemNowIso()
   };
   if (!store.INTERNAL_MESSAGES) store.INTERNAL_MESSAGES = [];
   store.INTERNAL_MESSAGES.unshift(msg);
@@ -8725,16 +9296,26 @@ app.get('/api/live/maintenance/kpis', (req, res) => {
 });
 
 app.get(['/api/live/reports/kpis', '/api/live/reports-kpis'], (req, res) => {
+  const targets = getCompanyKpiTargets();
+  const sysHealth = computeSystemHealthStatus();
+  const tasks = store.MAINTENANCE_TASKS || [];
+  const breakdowns = store.BREAKDOWNS || [];
+  const totalDowntime = Math.round(breakdowns.reduce((sum, b) => sum + calculateDowntimeHours(b), 0) * 10) / 10;
+  const avgMttr = breakdowns.length ? Math.round((totalDowntime / breakdowns.length) * 10) / 10 : 1.8;
+  const mtdSpendVal = tasks.reduce((s, t) => s + Number(t.cost_total || t.cost || 0), 0) + breakdowns.reduce((s, b) => s + Number(b.cost_total || b.cost || 0), 0) || 441000;
+  const budgetCap = Math.max(1, targets.monthly_maintenance_budget || 2500000);
+  const budgetPct = Math.round((mtdSpendVal / budgetCap) * 1000) / 10;
+
   res.json({
-    oee_score: "92.3%",
-    oee_delta: "+2.1% vs last month",
-    pm_compliance: "92.0%",
-    pm_target: "Target: 90.0% PM Adherence",
-    mttr_trend: "-4.2%",
-    mttr_avg: "Fleet MTTR: 1.8 hrs Mean Time",
-    mtd_spend: "KES 441,000",
-    budget_pct: 17.6,
-    budget_limit: "17.6% OF BUDGET • KES 2,500,000 CAP"
+    oee_score: `${sysHealth.uptime_rate.toFixed(1)}%`,
+    oee_delta: `Target SLA: ${targets.uptime_target_pct.toFixed(1)}% • OEE Benchmark: ${targets.oee_benchmark_pct.toFixed(1)}%`,
+    pm_compliance: `${sysHealth.pm_compliance.toFixed(1)}%`,
+    pm_target: `Target: ${targets.pm_compliance_target_pct.toFixed(1)}% PM Adherence`,
+    mttr_trend: `${avgMttr} hrs`,
+    mttr_avg: `Target MTTR ≤ ${targets.mttr_target_hours.toFixed(1)} hrs • MTBF ≥ ${targets.mtbf_target_hours.toFixed(0)} hrs`,
+    mtd_spend: `KES ${mtdSpendVal.toLocaleString()}`,
+    budget_pct: budgetPct,
+    budget_limit: `${budgetPct}% OF BUDGET • KES ${budgetCap.toLocaleString()} CAP`
   });
 });
 
@@ -8915,8 +9496,8 @@ function formatAiChatEntry(c) {
     ...c,
     chat_id: c.id,
     prompt: c.prompt || c.query || c.title || 'AI Diagnostic',
-    created_at_fmt: c.created_at_fmt || (c.created_at ? new Date(c.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : 'Saved Session'),
-    timestamp: c.timestamp || (c.created_at ? new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Live'),
+    created_at_fmt: c.created_at ? formatSystemTimestamp(c.created_at) : (c.created_at_fmt || 'Saved Session'),
+    timestamp: c.created_at ? formatSystemTimestamp(c.created_at) : (c.timestamp || 'Live'),
     structured
   };
 }

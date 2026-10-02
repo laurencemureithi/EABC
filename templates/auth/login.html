@@ -245,6 +245,9 @@
 
           <form id="loginForm" method="post" action="{{ url_for('login_submit') }}" class="space-y-5">
             <input type="hidden" name="next" value="{{ request.args.get('next','') }}">
+            <input type="hidden" name="client_master_state" class="js-client-master-state" value="">
+            <input type="hidden" name="_client_now_ms" class="js-client-now-ms" value="">
+            <input type="hidden" name="_client_tz" class="js-client-tz" value="">
             <div>
               <label class="auth-label">Company Email</label>
               <input id="loginEmailInput" name="email" type="email" required autocomplete="email" placeholder="name@company.com" class="auth-input">
@@ -320,6 +323,9 @@
               </div>
 
               <form method="post" action="{{ url_for('reset_admin_password') }}" class="space-y-3.5">
+                <input type="hidden" name="client_master_state" class="js-client-master-state" value="">
+                <input type="hidden" name="_client_now_ms" class="js-client-now-ms" value="">
+                <input type="hidden" name="_client_tz" class="js-client-tz" value="">
                 <div>
                   <label class="auth-label">6-Digit Recovery Code (sent to {{ admin_recovery_email }})</label>
                   <input id="adminResetCodeInput" name="reset_code" type="text" required maxlength="6" placeholder="Enter 6-digit code" value="{{ admin_reset_state.code }}" class="auth-input font-mono tracking-widest font-bold">
@@ -342,38 +348,42 @@
                   In-System Password Reset Request Sent to Admin
                 </div>
                 <p>Requesting User: <strong>{{ contact_admin_user_name or contact_admin_user_email }} ({{ contact_admin_user_email }})</strong></p>
-                <p>Your password reset request has been delivered directly to the System Administrator (<strong>opsloom.ke@gmail.com</strong>) inside the Opsloom <strong>Messages Center</strong> and <strong>Admin Credentials &amp; Users</strong> portal.</p>
+                {% if contact_admin_workspace_name %}
+                <p>Matched Workspace: <strong>{{ contact_admin_workspace_name }}</strong></p>
+                {% endif %}
+                <p>Your password reset request has been automatically matched to your company workspace and delivered to the System Administrator (<strong>opsloom.ke@gmail.com</strong>) inside <strong>Messages Center</strong> and <strong>Admin Credentials &amp; Users</strong>.</p>
               </div>
               {% endif %}
 
               <p class="text-xs text-slate-600 dark:text-slate-300 mb-3 leading-relaxed">
-                Identify the account requesting a password reset below. An internal system message and alert will be dispatched immediately to the Administrator (<strong>opsloom.ke@gmail.com</strong>) with your exact user details.
+                Enter your work email address and optional details below. The system automatically identifies which company workspace your account belongs to and notifies the System Administrator (<strong>opsloom.ke@gmail.com</strong>) to assist you.
               </p>
               <form method="post" action="{{ url_for('forgot_password') }}" class="space-y-3">
-                {% if registered_users and registered_users|length > 0 %}
+                <input type="hidden" name="client_master_state" class="js-client-master-state" value="">
+                <input type="hidden" name="_client_now_ms" class="js-client-now-ms" value="">
+                <input type="hidden" name="_client_tz" class="js-client-tz" value="">
                 <div>
-                  <label class="auth-label">Select Your User Account</label>
-                  <select id="forgotUserSelect" onchange="handleForgotUserSelect(this)" class="auth-select">
-                    <option value="">-- Choose your registered user account or type below --</option>
-                    {% for u in registered_users %}
-                    <option value="{{ u.email }}" data-name="{{ u.name }}" {% if contact_admin_user_email == u.email %}selected{% endif %}>{{ u.name }} ({{ u.role }}) — {{ u.email }}</option>
-                    {% endfor %}
-                  </select>
+                  <label class="auth-label">Your Account Email (Required)</label>
+                  <input id="forgotEmailField" name="email" type="email" required value="{{ contact_admin_user_email or '' }}" placeholder="your.email@company.com" class="auth-input">
                 </div>
-                {% endif %}
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label class="auth-label">Account Email (Required)</label>
-                    <input id="forgotEmailField" name="email" type="email" required value="{{ contact_admin_user_email or '' }}" placeholder="your.email@company.com" class="auth-input">
+                    <label class="auth-label">Full Name (Optional)</label>
+                    <input id="forgotNameField" name="requester_name" type="text" value="{{ contact_admin_user_name or '' }}" placeholder="e.g. David Kimani" class="auth-input">
                   </div>
                   <div>
-                    <label class="auth-label">Your Full Name</label>
-                    <input id="forgotNameField" name="requester_name" type="text" value="{{ contact_admin_user_name or '' }}" placeholder="e.g. David Kimani" class="auth-input">
+                    <label class="auth-label">Department (Optional)</label>
+                    <select name="department" class="auth-select">
+                      <option value="">Auto-detect from account</option>
+                      {% for dep in departments %}
+                      <option value="{{ dep }}">{{ dep }}</option>
+                      {% endfor %}
+                    </select>
                   </div>
                 </div>
                 <div>
-                  <label class="auth-label">Reason / Note to Administrator</label>
-                  <input id="forgotReasonField" name="reset_reason" type="text" placeholder="e.g. Forgot password, requesting credential reset from Admin" class="auth-input">
+                  <label class="auth-label">Additional Details / Note to Admin (Optional)</label>
+                  <input id="forgotReasonField" name="reset_reason" type="text" placeholder="e.g. Forgot password, need credential reset for shift login" class="auth-input">
                 </div>
                 <button type="submit" class="auth-primary cursor-pointer">Send Password Reset Request to Admin</button>
               </form>
@@ -385,37 +395,43 @@
               var loginEmail = document.getElementById('loginEmailInput');
               var panel = document.getElementById('forgotPasswordPanel');
               var forgotField = document.getElementById('forgotEmailField');
-              var userSelect = document.getElementById('forgotUserSelect');
               if (panel) {
                 panel.classList.remove('hidden');
               }
               var typed = loginEmail && loginEmail.value ? loginEmail.value.trim() : '';
               if (typed && forgotField && !forgotField.value) {
                 forgotField.value = typed;
-                if (userSelect) {
-                  for (var i = 0; i < userSelect.options.length; i++) {
-                    if (userSelect.options[i].value.toLowerCase() === typed.toLowerCase()) {
-                      userSelect.selectedIndex = i;
-                      handleForgotUserSelect(userSelect);
-                      break;
-                    }
-                  }
-                }
               }
               if (forgotField) forgotField.focus();
             }
 
-            function handleForgotUserSelect(sel) {
-              if (!sel) return;
-              var opt = sel.options[sel.selectedIndex];
-              var emailField = document.getElementById('forgotEmailField');
-              var nameField = document.getElementById('forgotNameField');
-              if (opt && opt.value) {
-                if (emailField) emailField.value = opt.value;
-                var uName = opt.getAttribute('data-name') || '';
-                if (nameField && uName) nameField.value = uName;
-              }
-            }
+            (function syncLoginClientStateAndClock() {
+              try {
+                var nowMs = Date.now();
+                var tz = (Intl && Intl.DateTimeFormat && Intl.DateTimeFormat().resolvedOptions().timeZone) || 'Africa/Nairobi';
+                document.cookie = 'opsloom_client_now_ms=' + nowMs + '; path=/; max-age=604800; SameSite=Lax';
+                document.cookie = 'opsloom_tz=' + encodeURIComponent(tz) + '; path=/; max-age=604800; SameSite=Lax';
+
+                var masterRaw = localStorage.getItem('opsloom_master_state_v1') || '';
+                document.querySelectorAll('.js-client-master-state').forEach(function(el) { el.value = masterRaw; });
+                document.querySelectorAll('.js-client-now-ms').forEach(function(el) { el.value = String(nowMs); });
+                document.querySelectorAll('.js-client-tz').forEach(function(el) { el.value = tz; });
+
+                fetch('/api/system/clock-sync', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ client_now_ms: nowMs, client_tz: tz })
+                }).catch(function() {});
+
+                if (masterRaw) {
+                  fetch('/api/system/hydrate-state', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ snapshot: masterRaw })
+                  }).catch(function() {});
+                }
+              } catch (e) {}
+            })();
           </script>
 
           <div class="auth-help-box" style="margin-top:18px;">

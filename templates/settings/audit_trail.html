@@ -42,7 +42,7 @@
         <colgroup><col style="width:16%"><col style="width:18%"><col style="width:12%"><col style="width:14%"><col style="width:32%"><col style="width:8%"></colgroup>
         <thead class="bg-slate-50 dark:bg-slate-800/50">
           <tr>
-            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Time</th>
+            <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Recorded Timestamp ({{ system_timezone or 'Africa/Nairobi' }})</th>
             <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Action</th>
             <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Module</th>
             <th class="px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">User</th>
@@ -53,8 +53,10 @@
         <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
           {% for row in audit_rows %}
           <tr>
-            <td class="px-4 py-3 text-xs text-slate-500 align-top break-words">{{ row.created_at.replace('T',' ') }}</td>
-            <td class="px-4 py-3 font-bold text-slate-900 dark:text-white align-top break-words">{{ row.action }}</td>
+            <td class="px-4 py-3 text-xs font-semibold text-slate-600 dark:text-slate-300 align-top whitespace-nowrap js-audit-ts" data-iso="{{ row.created_at or '' }}">
+              {{ row.time_display or (row.created_at | formatDateTime(true)) }}
+            </td>
+            <td class="px-4 py-3 font-bold text-slate-900 dark:text-white align-top break-words">{{ row.action or row.title }}</td>
             <td class="px-4 py-3 text-xs uppercase tracking-wider text-slate-500 align-top break-words">{{ row.module }}</td>
             <td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300 align-top break-words">{{ row.user_name }}</td>
             <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-300 align-top break-words">{{ row.detail }}</td>
