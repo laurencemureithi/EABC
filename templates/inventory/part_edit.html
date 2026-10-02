@@ -1,0 +1,132 @@
+{% extends "layouts/base.html" %}
+{% block title %}Edit Part • {{ part.part_name }} • Opsloom{% endblock %}
+
+{% block content %}
+{% set page_title = "Edit Spare Part" %}
+{% set title_icon = "edit" %}
+{% set page_subtitle = "Update specifications, pricing, stock thresholds, and supplier details." %}
+{% set show_system_badge = true %}
+{% set breadcrumbs = [
+  {"label":"Inventory", "href": url_for("inventory_management")},
+  {"label": part.part_name, "href": url_for("inventory_part_view", part_uid=(part.uid or part.id))},
+  {"label":"Edit"}
+] %}
+{% include "partials/title_block.html" %}
+
+<div class="max-w-4xl mx-auto space-y-6">
+  <div class="flex items-center justify-between" data-no-print>
+    <a href="{{ url_for('inventory_part_view', part_uid=(part.uid or part.id)) }}" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+      <span class="material-symbols-outlined text-lg">arrow_back</span> Back to Part Details
+    </a>
+  </div>
+
+  <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/30 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="material-symbols-outlined text-ueal-purple text-xl">build_circle</span>
+        <h3 class="font-bold text-slate-900 dark:text-white text-sm uppercase tracking-wide">Edit Part: {{ part.part_name }}</h3>
+      </div>
+      <span class="text-xs font-mono font-bold text-slate-400">UID: {{ part.uid or part.id }}</span>
+    </div>
+
+    <form method="post" action="/inventory/{{ part.uid or part.id }}/edit" class="p-6 sm:p-8 space-y-8">
+      <!-- Section 1: Basic Identity -->
+      <div>
+        <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">General Information</h4>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">Part Name *</label>
+            <input type="text" name="part_name" required value="{{ part.part_name }}" class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm font-semibold focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none">
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">SKU / Part Code *</label>
+            <input type="text" name="sku" required value="{{ part.sku }}" class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm font-mono font-semibold focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none">
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">Category</label>
+            <select name="category" class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm font-semibold focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none">
+              {% for cat in ['Mechanical', 'Electrical', 'Pneumatic', 'Hydraulic', 'Filtration', 'Consumables', 'Electronic', 'Other'] %}
+                <option value="{{ cat }}" {% if part.category == cat %}selected{% endif %}>{{ cat }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">Storage Location</label>
+            <input type="text" name="storage_location" value="{{ part.storage_location }}" placeholder="e.g. Shelf B4, Bin 12" class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm font-semibold focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Stock Levels & Pricing -->
+      <div class="pt-6 border-t border-slate-100 dark:border-dark-border">
+        <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Stock Levels & Financials</h4>
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-5">
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">Current Stock</label>
+            <input type="number" name="qty" min="0" step="1" value="{{ part.qty or 0 }}" class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm font-bold focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none">
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">Min Threshold</label>
+            <input type="number" name="min_qty" min="0" step="1" value="{{ part.min_qty or 0 }}" class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm font-bold focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none">
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">Target Stock</label>
+            <input type="number" name="target_qty" min="0" step="1" value="{{ part.target_qty or 20 }}" class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm font-bold focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none">
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">Unit Price (KES)</label>
+            <input type="number" name="unit_price" min="0" step="0.01" value="{{ part.unit_price or 0 }}" class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm font-bold focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Vendor & Criticality -->
+      <div class="pt-6 border-t border-slate-100 dark:border-dark-border">
+        <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Supplier & Criticality</h4>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">Supplier / Vendor</label>
+            <input type="text" name="supplier" value="{{ part.supplier or part.vendor }}" placeholder="Supplier Company" class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm font-semibold focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none">
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">Lead Time (Days)</label>
+            <input type="number" name="lead_time_days" min="0" step="1" value="{{ part.lead_time_days or 7 }}" class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm font-semibold focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none">
+          </div>
+
+          <div class="space-y-1.5 flex flex-col justify-end">
+            <label class="relative flex items-center gap-3 p-2.5 rounded-lg border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-800/40 cursor-pointer">
+              <input type="checkbox" name="is_critical" value="true" {% if part.is_critical %}checked{% endif %} class="rounded border-slate-300 text-ueal-purple focus:ring-ueal-purple">
+              <div>
+                <span class="text-xs font-bold text-slate-800 dark:text-white block">Critical Spare Part</span>
+                <span class="text-[10px] text-slate-400">Halts production if stock is exhausted</span>
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 4: Notes -->
+      <div class="pt-6 border-t border-slate-100 dark:border-dark-border space-y-1.5">
+        <label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">Technical Notes & Specifications</label>
+        <textarea name="notes" rows="3" class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none" placeholder="Add any technical tolerances, manufacturer part numbers, or fitting instructions...">{{ part.notes or '' }}</textarea>
+      </div>
+
+      <div class="pt-6 border-t border-slate-100 dark:border-dark-border flex items-center justify-end gap-3">
+        <a href="{{ url_for('inventory_part_view', part_uid=(part.uid or part.id)) }}" class="px-5 py-2.5 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+          Cancel
+        </a>
+        <button type="submit" class="px-6 py-2.5 rounded-lg bg-ueal-purple text-white text-sm font-bold shadow-md hover:bg-ueal-purple/90 transition-all flex items-center gap-2">
+          <span class="material-symbols-outlined text-lg">save</span> Save Part Details
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

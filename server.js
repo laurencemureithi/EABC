@@ -26,6 +26,20 @@ function getAiClient() {
 
 const app = express();
 app.set('trust proxy', 1);
+
+// Provide Python/Jinja compatibility for dictionaries in templates (.get(k, def))
+if (!Object.prototype.get) {
+  Object.defineProperty(Object.prototype, 'get', {
+    value: function(key, defaultVal) {
+      if (this == null) return defaultVal;
+      const val = this[key];
+      return (val !== undefined && val !== null) ? val : defaultVal;
+    },
+    writable: true,
+    configurable: true,
+    enumerable: false
+  });
+}
 const PORT = process.env.PORT || 3000;
 const isVercel = Boolean(process.env.VERCEL);
 process.env.TZ = process.env.TZ || 'Africa/Nairobi';
@@ -2043,6 +2057,9 @@ function url_for(endpoint, params = {}) {
     'inventory_add_step3_post': '/inventory/new/step-3',
     'inventory_part_view': (p) => `/inventory/${p.part_uid}`,
     'inventory_export': (p) => `/inventory/export/${p.fmt || 'csv'}`,
+    'purchase_orders': '/purchase-orders',
+    'purchase_orders_new': '/purchase-orders/new',
+    'purchase_order_new': '/purchase-orders/new',
     'reports_center': '/reports',
     'reports_history': '/reports/history',
     'reports_generate_step1_get': '/reports/generate/step1',
@@ -5421,7 +5438,7 @@ app.get('/assets/:asset_uid', (req, res) => {
   });
 });
 
-app.get('/assets/:asset_uid/profile.pdf', (req, res) => {
+app.get(['/assets/:asset_uid/profile.pdf', '/assets/:asset_uid/print'], (req, res) => {
   const asset = findAssetByUidOrId(req.params.asset_uid);
   if (!asset) return res.redirect('/assets');
   res.render('assets/assets_profile_print.html', buildAssetProfilePrintContext(req, asset));
@@ -5673,20 +5690,58 @@ app.get('/assets/:asset_uid/documents/upload', (req, res) => {
 
 app.post('/assets/:asset_uid/documents/upload', upload.single('document'), (req, res) => {
   const dataUrl = fileToDataUrl(req.file);
+  const fileName = req.file ? req.file.originalname : 'Document';
+  const fileExt = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : 'pdf';
+  const fileSizeLabel = req.file ? (req.file.size > 1048576 ? `${(req.file.size / 1048576).toFixed(1)} MB` : `${Math.round(req.file.size / 1024)} KB`) : '1.2 MB';
+  const actor = getCurrentActor(req);
+
   const doc = {
     id: 'doc-' + Date.now(),
     uid: 'doc-' + Date.now(),
     asset_uid: req.params.asset_uid,
-    title: req.body.title || (req.file ? req.file.originalname : 'Document'),
+    name: req.body.title || req.body.name || fileName,
+    title: req.body.title || req.body.name || fileName,
     category: req.body.category || 'Manual',
+    version: req.body.version || '1.0',
+    status: req.body.status || 'approved',
+    file_ext: fileExt,
+    size_label: fileSizeLabel,
     file_url: dataUrl || (req.file ? `/static/uploads/${req.file.filename}` : ''),
-    uploaded_at: new Date().toISOString()
+    file_path: dataUrl || (req.file ? `/static/uploads/${req.file.filename}` : '#'),
+    review_date: req.body.review_date || '',
+    expiry_date: req.body.expiry_date || '',
+    description: req.body.description || '',
+    uploaded_by: actor.name || 'Laurence Magondu',
+    uploaded_at: formatSystemTimestamp(getSystemNowIso(), false)
   };
   if (!store.ASSET_DOCUMENTS) store.ASSET_DOCUMENTS = [];
   store.ASSET_DOCUMENTS.push(doc);
   saveStore();
-  flash('success', 'Document uploaded and saved permanently.');
-  res.redirect(`/assets/${req.params.asset_uid}/documents`);
+  logAudit('Asset Document Uploaded', `Uploaded document ${doc.name} to asset repository`, 'assets', `/assets/${req.params.asset_uid}/documents`, 'success');
+  flash('success', 'Document uploaded and indexed successfully.');
+  res.redirect(`/assets/${req.params.asset_uid}/documents/upload/success/${doc.uid}`);
+});
+
+app.get('/assets/:asset_uid/documents/upload/success/:doc_uid', (req, res) => {
+  const asset = store.ASSETS.find(a => a.uid === req.params.asset_uid);
+  if (!asset) return res.redirect('/assets');
+  const doc = (store.ASSET_DOCUMENTS || []).find(d => (d.uid || d.id) === req.params.doc_uid) || {
+    name: 'Document',
+    category: 'Manual',
+    status: 'approved',
+    uploaded_at: formatSystemTimestamp(getSystemNowIso(), false)
+  };
+  res.render('assets/assets_documents_upload_success.html', {
+    ...baseCtx(req, 'assets'),
+    asset,
+    doc,
+    breadcrumbs: [
+      { label: 'Asset Register', href: '/assets' },
+      { label: asset.asset_name, href: '/assets/' + asset.uid },
+      { label: 'Documents', href: '/assets/' + asset.uid + '/documents' },
+      { label: 'Upload Success', href: null }
+    ]
+  });
 });
 
 app.post('/assets/:asset_uid/documents/:doc_uid/delete', (req, res) => {
@@ -7234,7 +7289,237 @@ app.post('/inventory/:part_uid/delete', (req, res) => {
 });
 
 // -------------------------
-// REPORTS
+// PURCHASE ORDERS
+// -------------------------
+function seedPurchaseOrdersIfEmpty() {
+  if (!store.PURCHASE_ORDERS || store.PURCHASE_ORDERS.length === 0) {
+    store.PURCHASE_ORDERS = [
+      {
+        id: 'po-001',
+        po_number: 'PO-2026-089',
+        supplier: 'InductoTherm Industrial',
+        section: 'General Store',
+        order_date: '2026-09-24',
+        required_date: '2026-10-15',
+        currency: 'KES',
+        items_count: 2,
+        items: [
+          { sku: 'ops-part-001', name: 'Hydraulic Seal Kit (35mm)', qty: 5, unit_price: 24500, total: 122500 },
+          { sku: 'ops-part-002', name: 'Heavy Duty Bearings 6205-2RS', qty: 10, unit_price: 3200, total: 32000 }
+        ],
+        subtotal: 154500,
+        vat: 24720,
+        total: 179220,
+        status: 'awaiting_approval',
+        notes: 'Buffer replenishment for high-wear packaging line components.',
+        created_at: new Date('2026-09-24T08:30:00Z').toISOString()
+      },
+      {
+        id: 'po-002',
+        po_number: 'PO-2026-085',
+        supplier: 'SKF Bearings Kenya',
+        section: 'Mechanical',
+        order_date: '2026-09-22',
+        required_date: '2026-10-06',
+        currency: 'KES',
+        items_count: 1,
+        items: [
+          { sku: 'ops-part-003', name: 'Pneumatic Solenoid Valve 24V DC', qty: 4, unit_price: 18500, total: 74000 }
+        ],
+        subtotal: 74000,
+        vat: 11840,
+        total: 85840,
+        status: 'sent',
+        notes: 'Fast-track order for filling station preventative maintenance.',
+        created_at: new Date('2026-09-22T09:15:00Z').toISOString()
+      },
+      {
+        id: 'po-003',
+        po_number: 'PO-2026-081',
+        supplier: 'Atlas Copco Compressors',
+        section: 'Utilities',
+        order_date: '2026-09-10',
+        required_date: '2026-09-25',
+        currency: 'KES',
+        items_count: 2,
+        items: [
+          { sku: 'ops-part-004', name: 'HEPA Air Intake Filter Panel', qty: 8, unit_price: 9500, total: 76000 },
+          { sku: 'ops-part-005', name: 'Food Grade Lubricant ISO VG 220 (20L)', qty: 3, unit_price: 28000, total: 84000 }
+        ],
+        subtotal: 160000,
+        vat: 25600,
+        total: 185600,
+        status: 'fulfilled',
+        notes: 'Delivered and verified against Store Delivery Receipt #SDR-9921.',
+        created_at: new Date('2026-09-10T11:00:00Z').toISOString()
+      }
+    ];
+    saveStore();
+  }
+}
+
+app.get(['/purchase-orders', '/purchase_orders'], (req, res) => {
+  seedPurchaseOrdersIfEmpty();
+  let list = [...(store.PURCHASE_ORDERS || [])];
+  const q = (req.query.q || '').trim().toLowerCase();
+  const selectedStatus = req.query.status || '';
+
+  if (q) {
+    list = list.filter(po => 
+      (po.po_number && po.po_number.toLowerCase().includes(q)) ||
+      (po.supplier && po.supplier.toLowerCase().includes(q)) ||
+      (po.notes && po.notes.toLowerCase().includes(q))
+    );
+  }
+  if (selectedStatus) {
+    list = list.filter(po => po.status === selectedStatus);
+  }
+
+  const allPOs = store.PURCHASE_ORDERS || [];
+  const openCount = allPOs.filter(p => p.status !== 'fulfilled' && p.status !== 'cancelled').length;
+  const awaitingCount = allPOs.filter(p => p.status === 'awaiting_approval').length;
+  const pendingCount = allPOs.filter(p => p.status === 'sent').length;
+  const totalSpend = allPOs.reduce((acc, p) => acc + Number(p.total || p.subtotal || 0), 0);
+
+  res.render('purchase_orders.html', {
+    ...baseCtx(req, 'inventory'),
+    purchase_orders: list,
+    q,
+    selected_status: selectedStatus,
+    kpi_open_pos: openCount,
+    kpi_awaiting_approval: awaitingCount,
+    kpi_pending_delivery: pendingCount,
+    total_spend: totalSpend
+  });
+});
+
+app.get(['/purchase-orders/new', '/purchase-orders/create', '/create-new-po'], (req, res) => {
+  seedPurchaseOrdersIfEmpty();
+  const allParts = store.INVENTORY_PARTS || [];
+  const uniqueSuppliers = [...new Set(allParts.map(p => p.supplier || p.vendor).filter(Boolean))];
+  const today = new Date().toISOString().slice(0, 10);
+  const nextWeek = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+
+  res.render('create_new_PO.html', {
+    ...baseCtx(req, 'inventory'),
+    parts: allParts,
+    suppliers: uniqueSuppliers,
+    today_date: today,
+    default_required_date: nextWeek
+  });
+});
+
+app.post('/purchase-orders/new', (req, res) => {
+  seedPurchaseOrdersIfEmpty();
+  const rawSkus = Array.isArray(req.body['part_sku[]']) ? req.body['part_sku[]'] : [req.body['part_sku[]'] || req.body.part_sku].filter(Boolean);
+  const rawNames = Array.isArray(req.body['part_name[]']) ? req.body['part_name[]'] : [req.body['part_name[]'] || req.body.part_name].filter(Boolean);
+  const rawQtys = Array.isArray(req.body['quantity[]']) ? req.body['quantity[]'] : [req.body['quantity[]'] || req.body.quantity].filter(Boolean);
+  const rawPrices = Array.isArray(req.body['unit_price[]']) ? req.body['unit_price[]'] : [req.body['unit_price[]'] || req.body.unit_price].filter(Boolean);
+
+  const items = [];
+  let subtotal = 0;
+  for (let i = 0; i < rawSkus.length; i++) {
+    const sku = String(rawSkus[i] || '').trim();
+    if (!sku) continue;
+    const name = String(rawNames[i] || sku);
+    const qty = Math.max(1, parseInt(rawQtys[i], 10) || 1);
+    const price = Math.max(0, parseFloat(rawPrices[i]) || 0);
+    const lineTotal = qty * price;
+    subtotal += lineTotal;
+    items.push({ sku, name, qty, unit_price: price, total: lineTotal });
+  }
+
+  const vat = Math.round(subtotal * 0.16);
+  const total = subtotal + vat;
+  const poNum = 'PO-' + new Date().getFullYear() + '-' + String(Math.floor(100 + Math.random() * 900));
+
+  const newPO = {
+    id: 'po-' + Date.now(),
+    po_number: poNum,
+    supplier: req.body.supplier || 'Vendor',
+    section: req.body.section || 'General Store',
+    order_date: req.body.order_date || new Date().toISOString().slice(0, 10),
+    required_date: req.body.required_date || '',
+    currency: req.body.currency || 'KES',
+    items_count: items.length,
+    items,
+    subtotal,
+    vat,
+    total,
+    status: 'awaiting_approval',
+    notes: req.body.notes || '',
+    created_at: new Date().toISOString()
+  };
+
+  store.PURCHASE_ORDERS.unshift(newPO);
+  saveStore();
+  logAudit('Purchase Order Created', `Created ${poNum} for ${newPO.supplier}`, 'inventory', '/purchase-orders', 'success');
+  flash('success', `Purchase Order ${poNum} created successfully and awaiting approval.`);
+  res.redirect('/purchase-orders');
+});
+
+app.post('/purchase-orders/:id/approve', (req, res) => {
+  seedPurchaseOrdersIfEmpty();
+  const po = store.PURCHASE_ORDERS.find(p => p.id === req.params.id);
+  if (po) {
+    po.status = 'sent';
+    saveStore();
+    logAudit('Purchase Order Approved', `Approved ${po.po_number} and dispatched to ${po.supplier}`, 'inventory', '/purchase-orders', 'success');
+    flash('success', `Purchase order ${po.po_number} approved and dispatched.`);
+  }
+  res.redirect('/purchase-orders');
+});
+
+app.post('/purchase-orders/:id/receive', (req, res) => {
+  seedPurchaseOrdersIfEmpty();
+  const po = store.PURCHASE_ORDERS.find(p => p.id === req.params.id);
+  if (po && po.status !== 'fulfilled') {
+    po.status = 'fulfilled';
+    po.received_at = new Date().toISOString();
+    let updatedCount = 0;
+    (po.items || []).forEach(item => {
+      const part = (store.INVENTORY_PARTS || []).find(p => 
+        (p.sku && item.sku && p.sku.toLowerCase() === item.sku.toLowerCase()) ||
+        (p.uid && item.sku && p.uid.toLowerCase() === item.sku.toLowerCase()) ||
+        (p.part_name && item.name && p.part_name.toLowerCase() === item.name.toLowerCase()) ||
+        (item.name && p.sku && item.name.toLowerCase().includes(p.sku.toLowerCase()))
+      );
+      if (part) {
+        part.qty = (part.qty || 0) + (item.qty || 1);
+        part.quantity_on_hand = part.qty;
+        updatedCount++;
+      }
+    });
+    saveStore();
+    logAudit('Purchase Order Received', `Received ${po.po_number}. Updated stock for ${updatedCount} spare parts.`, 'inventory', '/purchase-orders', 'success');
+    flash('success', `Stock from ${po.po_number} received! Inventory quantities have been automatically updated.`);
+  }
+  res.redirect('/purchase-orders');
+});
+
+app.post('/purchase-orders/:id/cancel', (req, res) => {
+  seedPurchaseOrdersIfEmpty();
+  const po = store.PURCHASE_ORDERS.find(p => p.id === req.params.id);
+  if (po) {
+    po.status = 'cancelled';
+    saveStore();
+    logAudit('Purchase Order Cancelled', `Cancelled ${po.po_number}`, 'inventory', '/purchase-orders', 'warning');
+    flash('warning', `Purchase order ${po.po_number} cancelled.`);
+  }
+  res.redirect('/purchase-orders');
+});
+
+app.post('/purchase-orders/:id/delete', (req, res) => {
+  seedPurchaseOrdersIfEmpty();
+  const idx = store.PURCHASE_ORDERS.findIndex(p => p.id === req.params.id);
+  if (idx !== -1) {
+    const deleted = store.PURCHASE_ORDERS.splice(idx, 1)[0];
+    saveStore();
+    logAudit('Purchase Order Deleted', `Removed ${deleted.po_number}`, 'inventory', '/purchase-orders', 'danger');
+    flash('info', `Purchase order ${deleted.po_number} deleted.`);
+  }
+  res.redirect('/purchase-orders');
+});
 // -------------------------
 function formatReportRecords(list) {
   return (list || []).map(r => ({
@@ -7355,6 +7640,11 @@ app.post('/reports/generate/step1', (req, res) => {
 app.get('/reports/generate/step2', (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
   const cat = (wizardState.reports[user]?.category || req.query.category || 'strategic_roi').toLowerCase();
+  if (req.query.category) {
+    if (!wizardState.reports[user]) wizardState.reports[user] = {};
+    wizardState.reports[user].category = req.query.category;
+  }
+  const currentWiz = wizardState.reports[user] || { category: cat };
   const templateMap = {
     strategic_roi: 'reports/reports_generate_strategic_roi_step2.html',
     breakdown_analytics: 'reports/reports_generate_breakdown_analytics_step2.html',
@@ -7365,8 +7655,10 @@ app.get('/reports/generate/step2', (req, res) => {
   const target = templateMap[cat] || 'reports/reports_generate_step2.html';
   res.render(target, {
     ...baseCtx(req, 'reports'),
-    wiz: wizardState.reports[user] || {},
-    step_data: wizardState.reports[user] || {},
+    wiz: currentWiz,
+    wizard: currentWiz,
+    step_data: currentWiz,
+    selected_metrics: currentWiz.metrics || [],
     assets: store.ASSETS || []
   });
 });
@@ -7379,7 +7671,12 @@ app.post('/reports/generate/step2', (req, res) => {
 
 app.get('/reports/generate/step3', (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
-  const cat = (wizardState.reports[user]?.category || 'strategic_roi').toLowerCase();
+  const cat = (wizardState.reports[user]?.category || req.query.category || 'strategic_roi').toLowerCase();
+  if (req.query.category && !wizardState.reports[user]?.category) {
+    if (!wizardState.reports[user]) wizardState.reports[user] = {};
+    wizardState.reports[user].category = req.query.category;
+  }
+  const currentWiz = wizardState.reports[user] || { category: cat };
   const templateMap = {
     strategic_roi: 'reports/reports_generate_strategic_roi_step3.html',
     breakdown_analytics: 'reports/reports_generate_breakdown_analytics_step3.html',
@@ -7390,8 +7687,9 @@ app.get('/reports/generate/step3', (req, res) => {
   const target = templateMap[cat] || 'reports/reports_generate_step3.html';
   res.render(target, {
     ...baseCtx(req, 'reports'),
-    wiz: wizardState.reports[user] || {},
-    step_data: wizardState.reports[user] || {}
+    wiz: currentWiz,
+    wizard: currentWiz,
+    step_data: currentWiz
   });
 });
 

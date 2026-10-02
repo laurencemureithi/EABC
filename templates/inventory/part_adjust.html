@@ -1,0 +1,170 @@
+{% extends "layouts/base.html" %}
+{% block title %}Adjust Stock • {{ part.part_name }} • Opsloom{% endblock %}
+
+{% block content %}
+{% set page_title = "Adjust Stock: " ~ part.part_name %}
+{% set title_icon = "tune" %}
+{% set page_subtitle = "Update physical stock quantities, log inventory receipts, or record manual deductions." %}
+{% set show_system_badge = true %}
+{% set breadcrumbs = [
+  {"label":"Inventory", "href": url_for("inventory_management")},
+  {"label": part.part_name, "href": url_for("inventory_part_view", part_uid=(part.uid or part.id))},
+  {"label":"Adjust Stock"}
+] %}
+{% include "partials/title_block.html" %}
+
+<div class="max-w-3xl mx-auto space-y-6">
+  <div class="flex items-center justify-between" data-no-print>
+    <a href="{{ url_for('inventory_part_view', part_uid=(part.uid or part.id)) }}" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+      <span class="material-symbols-outlined text-lg">arrow_back</span> Back to Part Details
+    </a>
+  </div>
+
+  <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/30 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="material-symbols-outlined text-ueal-purple text-xl">inventory_2</span>
+        <div>
+          <h3 class="font-bold text-slate-900 dark:text-white text-sm uppercase tracking-wide">{{ part.part_name }}</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400">SKU: <span class="font-mono font-bold">{{ part.sku }}</span></p>
+        </div>
+      </div>
+      <div class="text-right">
+        <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Current Stock</span>
+        <span class="text-xl font-extrabold text-ueal-purple dark:text-ueal-gold">{{ part.qty or 0 }}</span>
+      </div>
+    </div>
+
+    <form method="post" action="/inventory/{{ part.uid or part.id }}/adjust" class="p-6 sm:p-8 space-y-6">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-dark-border">
+        <div>
+          <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Current Level</span>
+          <span class="text-base font-bold text-slate-800 dark:text-slate-200">{{ part.qty or 0 }} Units</span>
+        </div>
+        <div>
+          <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Min Threshold</span>
+          <span class="text-base font-bold text-slate-800 dark:text-slate-200">{{ part.min_qty or 5 }} Units</span>
+        </div>
+        <div>
+          <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Target Stock</span>
+          <span class="text-base font-bold text-slate-800 dark:text-slate-200">{{ part.target_qty or 20 }} Units</span>
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        <label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">Adjustment Method</label>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <label class="relative flex flex-col p-4 rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 cursor-pointer hover:border-ueal-purple transition-all has-[:checked]:border-ueal-purple has-[:checked]:ring-2 has-[:checked]:ring-ueal-purple/20">
+            <input type="radio" name="adjust_mode" value="add" checked class="sr-only" onchange="updateMode(this.value)">
+            <span class="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-white">
+              <span class="material-symbols-outlined text-green-500">add_circle</span> Receive Stock (+)
+            </span>
+            <span class="text-xs text-slate-400 mt-1">Delivery from vendor or return to warehouse</span>
+          </label>
+
+          <label class="relative flex flex-col p-4 rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 cursor-pointer hover:border-ueal-purple transition-all has-[:checked]:border-ueal-purple has-[:checked]:ring-2 has-[:checked]:ring-ueal-purple/20">
+            <input type="radio" name="adjust_mode" value="deduct" class="sr-only" onchange="updateMode(this.value)">
+            <span class="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-white">
+              <span class="material-symbols-outlined text-amber-500">remove_circle</span> Issue / Deduct (-)
+            </span>
+            <span class="text-xs text-slate-400 mt-1">Consumed in maintenance or scrapped</span>
+          </label>
+
+          <label class="relative flex flex-col p-4 rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 cursor-pointer hover:border-ueal-purple transition-all has-[:checked]:border-ueal-purple has-[:checked]:ring-2 has-[:checked]:ring-ueal-purple/20">
+            <input type="radio" name="adjust_mode" value="set" class="sr-only" onchange="updateMode(this.value)">
+            <span class="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-white">
+              <span class="material-symbols-outlined text-ueal-purple">pin</span> Physical Count (=)
+            </span>
+            <span class="text-xs text-slate-400 mt-1">Audit verification count</span>
+          </label>
+        </div>
+      </div>
+
+      <div id="relativeQtyBlock" class="space-y-2">
+        <label id="relativeQtyLabel" class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">Quantity to Add</label>
+        <div class="relative">
+          <input type="number" id="relativeQtyInput" min="1" step="1" value="1" class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm font-bold focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none" oninput="calculatePreview()">
+        </div>
+      </div>
+
+      <div id="exactQtyBlock" class="space-y-2 hidden">
+        <label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">Exact Physical Count</label>
+        <div class="relative">
+          <input type="number" id="exactQtyInput" name="new_qty" disabled min="0" step="1" value="{{ part.qty or 0 }}" class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm font-bold focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none" oninput="calculatePreview()">
+        </div>
+      </div>
+
+      <input type="hidden" name="delta" id="hiddenDelta" value="1">
+
+      <div class="space-y-2">
+        <label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">Reason / Reference (Optional)</label>
+        <input type="text" name="reason" placeholder="e.g. PO-2026-081 Delivery / Work Order #WO-4819 / Audit Rebalance" class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none">
+      </div>
+
+      <div class="p-4 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-800/40 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-ueal-purple">update</span>
+          <div>
+            <span class="text-xs font-bold text-slate-700 dark:text-slate-300 block">Projected Stock Level:</span>
+            <span class="text-[11px] text-slate-500 dark:text-slate-400">After this adjustment is saved</span>
+          </div>
+        </div>
+        <span id="projectedStockValue" class="text-lg font-black text-ueal-purple dark:text-ueal-gold">{{ (part.qty or 0) + 1 }} Units</span>
+      </div>
+
+      <div class="pt-4 border-t border-slate-100 dark:border-dark-border flex items-center justify-end gap-3">
+        <a href="{{ url_for('inventory_part_view', part_uid=(part.uid or part.id)) }}" class="px-5 py-2.5 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+          Cancel
+        </a>
+        <button type="submit" class="px-6 py-2.5 rounded-lg bg-ueal-purple text-white text-sm font-bold shadow-md hover:bg-ueal-purple/90 transition-all flex items-center gap-2">
+          <span class="material-symbols-outlined text-lg">check</span> Apply Stock Adjustment
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  var currentStock = {{ part.qty or 0 }};
+  var currentMode = 'add';
+
+  function updateMode(mode) {
+    currentMode = mode;
+    var relBlock = document.getElementById('relativeQtyBlock');
+    var exactBlock = document.getElementById('exactQtyBlock');
+    var relLabel = document.getElementById('relativeQtyLabel');
+    var exactInput = document.getElementById('exactQtyInput');
+
+    if (mode === 'set') {
+      relBlock.classList.add('hidden');
+      exactBlock.classList.remove('hidden');
+      exactInput.disabled = false;
+    } else {
+      relBlock.classList.remove('hidden');
+      exactBlock.classList.add('hidden');
+      exactInput.disabled = true;
+      relLabel.textContent = (mode === 'add') ? 'Quantity to Add (+)' : 'Quantity to Deduct (-)';
+    }
+    calculatePreview();
+  }
+
+  function calculatePreview() {
+    var projected = currentStock;
+    var hiddenDelta = document.getElementById('hiddenDelta');
+    if (currentMode === 'add') {
+      var val = parseInt(document.getElementById('relativeQtyInput').value, 10) || 0;
+      hiddenDelta.value = val;
+      projected = currentStock + val;
+    } else if (currentMode === 'deduct') {
+      var val = parseInt(document.getElementById('relativeQtyInput').value, 10) || 0;
+      hiddenDelta.value = -val;
+      projected = Math.max(0, currentStock - val);
+    } else {
+      var val = parseInt(document.getElementById('exactQtyInput').value, 10) || 0;
+      hiddenDelta.value = 0;
+      projected = Math.max(0, val);
+    }
+    document.getElementById('projectedStockValue').textContent = projected + ' Units';
+  }
+</script>
+{% endblock %}

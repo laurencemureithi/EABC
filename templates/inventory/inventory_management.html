@@ -129,6 +129,11 @@
                 INVENTORY REPORT
               </a>
 
+              <a href="/purchase-orders" class="flex items-center justify-center gap-2 px-3.5 py-2 bg-white dark:bg-dark-surface text-slate-700 dark:text-slate-100 rounded-lg text-sm font-bold border border-slate-200 dark:border-dark-border hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                <span class="material-symbols-outlined text-sm">shopping_cart</span>
+                PURCHASE ORDERS
+              </a>
+
               <a href="{{ url_for('inventory_add_step1_get') }}" class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-ueal-gold text-white rounded-lg text-sm font-bold shadow-md hover:bg-opacity-90 transition-all whitespace-nowrap">
                 <span class="material-symbols-outlined text-sm">add</span>
                 ADD NEW PART
@@ -245,6 +250,8 @@
                   <td class="px-6 py-4 text-right">
                     {% set action_items = [
                       {"href": url_for('inventory_part_view', part_uid=(p.uid or p.id)), "icon": "visibility", "label": "Preview"},
+                      {"href": "/inventory/" ~ (p.uid or p.id) ~ "/adjust", "icon": "tune", "label": "Adjust Stock"},
+                      {"href": "/inventory/" ~ (p.uid or p.id) ~ "/edit", "icon": "edit", "label": "Edit Details"},
                       {"href": url_for('inventory_part_view', part_uid=(p.uid or p.id)) ~ '?print=1&autoprint=1', "icon": "print", "label": "Print"},
                       {"type": "form", "href": "/inventory/" ~ (p.uid or p.id) ~ "/delete", "icon": "delete", "label": "Delete Part", "variant": "danger", "confirm_key": "delete_inventory_part", "confirm_title": "Delete Spare Part", "confirm": "Move this spare part to the Admin Recycle Bin?", "confirm_ok": "Move to Recycle Bin"}
                     ] %}

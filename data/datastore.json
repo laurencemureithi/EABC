@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "saved_at": "2026-10-02T09:57:22.528Z",
+  "saved_at": "2026-10-02T11:57:03.673Z",
   "COMPANIES": [
     {
       "id": "comp-001",
@@ -40,7 +40,7 @@
         "max_oos_assets": 0,
         "max_overdue_pm": 1,
         "updated_by": "Laurence Magondu",
-        "updated_at": "2026-10-02T07:12:39.696Z"
+        "updated_at": "2026-10-02T11:57:03.670Z"
       }
     },
     {
@@ -227,9 +227,59 @@
       "capacity": "300 m/min",
       "last_service_date": "2026-09-20",
       "next_service_date": "2026-10-20"
+    },
+    {
+      "uid": "asset-1790942217549",
+      "asset_id": "AST-MIX-99",
+      "asset_name": "Industrial Mixer Pro",
+      "section": "Pharma",
+      "department": "Engineering",
+      "status": "operational",
+      "criticality": "High",
+      "serial_no": "",
+      "manufacturer": "Bosch",
+      "model_number": "",
+      "power_rating": "",
+      "supplier": "",
+      "technical_notes": "",
+      "photo_url": ""
     }
   ],
   "BREAKDOWNS": [
+    {
+      "breakdown_id": "BD-2026-428",
+      "asset_uid": "ops-ast-001",
+      "asset_id": "OPS-AST-001",
+      "asset_name": "Automated Bottling & Capping Line B1",
+      "section": "Packaging",
+      "department": "Engineering",
+      "incident_title": "Unscheduled equipment fault",
+      "severity": "High",
+      "failure_category": "Mechanical",
+      "status": "resolved",
+      "technician_name": "David Kimani",
+      "reported_dt": "2026-10-02 14:56",
+      "reported_date": "2026-10-02",
+      "reported_time": "14:56",
+      "duration_mins": 120,
+      "downtime_hours": 2,
+      "symptoms": "Overheating cleared",
+      "notes": "Replacement fuse installed",
+      "created_at": "2026-10-02T11:56:57.565Z",
+      "technician": "David Kimani",
+      "cost": "12000",
+      "rca": {
+        "root_cause": "Bearing wear",
+        "why1": "High friction",
+        "why2": "Low oil",
+        "why3": "Seal failure",
+        "why4": "Age",
+        "why5": "Overdue PM",
+        "corrective_action": "Replace seal and top-up lubricant",
+        "updated_at": "2026-10-02T11:57:03.631Z"
+      },
+      "resolved_at": "2026-10-02T11:57:03.645Z"
+    },
     {
       "breakdown_id": "OPS-BD-2026-001",
       "incident_title": "Shrink Tunnel Heating Bank Contactor Trip",
@@ -296,14 +346,16 @@
       "frequency": "Monthly",
       "due_date": "2026-10-05",
       "scheduled_date": "2026-10-05",
-      "status": "upcoming",
+      "status": "completed",
       "priority": "high",
       "technician": "Kelvin Mwangi",
       "cost_subtotal": 15000,
       "cost_vat_pct": 16,
       "cost_vat_amount": 2400,
       "cost_total": 17400,
-      "cost": 17400
+      "cost": 17400,
+      "completed_at": "2026-10-02T11:57:03.654Z",
+      "completion_notes": "Service protocol satisfied."
     },
     {
       "task_id": "OPS-TASK-2026-102",
@@ -372,6 +424,23 @@
       "cost_vat_amount": 4480,
       "cost_total": 32480,
       "cost": 32480
+    },
+    {
+      "task_id": "TASK-2026-225",
+      "asset_uid": "ops-ast-001",
+      "asset_id": "OPS-AST-001",
+      "asset_name": "Automated Bottling & Capping Line B1",
+      "section": "Packaging",
+      "department": "Engineering",
+      "maintenance_type": "PM",
+      "frequency": "Monthly",
+      "technician": "David Kimani",
+      "task_description": "Preventative servicing task",
+      "due_date": "2026-10-09",
+      "status": "upcoming",
+      "priority": "High",
+      "cost": 15000,
+      "created_at": "2026-10-02T11:56:52.467Z"
     }
   ],
   "INVENTORY_PARTS": [
@@ -380,13 +449,14 @@
       "sku": "OPS-SKU-CAP-01",
       "part_name": "Magnetic Capping Clutch Head Assembly",
       "category": "Mechanical",
-      "qty": 6,
+      "qty": 11,
       "min_qty": 2,
       "unit_price": 24500,
       "storage_location": "Rack OPS-A1",
       "supplier": "Krones East Africa",
       "is_critical": true,
-      "lead_time_days": 7
+      "lead_time_days": 7,
+      "quantity_on_hand": 11
     },
     {
       "uid": "ops-part-002",
@@ -503,6 +573,162 @@
     }
   ],
   "AUDIT_TRAIL": [
+    {
+      "id": "5b879c2b401547dea1b347031dafaec7",
+      "action": "Company KPI Targets & Budgets Updated",
+      "detail": "Laurence Magondu (Administrator) updated KPI attainment levels & budgets for Opsloom Kenya (OPS): Uptime SLA 88.5%, PM SLA 94%, Monthly Budget KES 620,000.",
+      "module": "settings",
+      "severity": "info",
+      "href": "/settings/admin",
+      "created_at": "2026-10-02T11:57:03.673Z",
+      "time_display": "02 Oct 2026, 14:57:03",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "5512670136b74f77aef92d3e6b617bbd",
+      "action": "Task Completed",
+      "detail": "Completed maintenance order OPS-TASK-2026-101",
+      "module": "maintenance",
+      "severity": "success",
+      "href": "/maintenance/OPS-TASK-2026-101",
+      "created_at": "2026-10-02T11:57:03.656Z",
+      "time_display": "02 Oct 2026, 14:57:03",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "e19bbcf66b08420883dea6cf4c824ab7",
+      "action": "Breakdown Closed",
+      "detail": "Incident BD-2026-428 resolved and closed.",
+      "module": "breakdowns",
+      "severity": "success",
+      "href": "/breakdowns/BD-2026-428",
+      "created_at": "2026-10-02T11:57:03.647Z",
+      "time_display": "02 Oct 2026, 14:57:03",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "e0539cfdf6ad4c0db650d5ea4fbd7e25",
+      "action": "RCA Recorded",
+      "detail": "Saved Root Cause Analysis for BD-2026-428",
+      "module": "breakdowns",
+      "severity": "info",
+      "href": "/breakdowns/BD-2026-428",
+      "created_at": "2026-10-02T11:57:03.633Z",
+      "time_display": "02 Oct 2026, 14:57:03",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "37d2ead402114cdf9084928b22182eab",
+      "action": "Breakdown Updated",
+      "detail": "Updated incident BD-2026-428 (in_progress)",
+      "module": "breakdowns",
+      "severity": "info",
+      "href": "/breakdowns/BD-2026-428",
+      "created_at": "2026-10-02T11:57:03.618Z",
+      "time_display": "02 Oct 2026, 14:57:03",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "73e95dd1f3af48b9ac690badac3c1e0b",
+      "action": "Task Scheduled",
+      "detail": "Scheduled PM task TASK-2026-225 for Automated Bottling & Capping Line B1",
+      "module": "maintenance",
+      "severity": "info",
+      "href": "/maintenance/TASK-2026-225",
+      "created_at": "2026-10-02T11:56:52.467Z",
+      "time_display": "02 Oct 2026, 14:56:52",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "f29f9de2d23948038a4f0a35223e8438",
+      "action": "Breakdown Logged",
+      "detail": "Reported fault on Automated Bottling & Capping Line B1: Unscheduled equipment fault",
+      "module": "breakdowns",
+      "severity": "warning",
+      "href": "/breakdowns/BD-2026-428",
+      "created_at": "2026-10-02T11:56:52.452Z",
+      "time_display": "02 Oct 2026, 14:56:52",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "00de57afb11543e1bf1d80729a8370cb",
+      "action": "Asset Created",
+      "detail": "Registered new asset Industrial Mixer Pro (AST-MIX-99)",
+      "module": "assets",
+      "severity": "info",
+      "href": "/assets/asset-1790942217549",
+      "created_at": "2026-10-02T11:56:52.436Z",
+      "time_display": "02 Oct 2026, 14:56:52",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "2f4441c4c56d4a5bb6adc2a1b5c556bd",
+      "action": "Purchase Order Received",
+      "detail": "Received PO-2026-586. Updated stock for 1 spare parts.",
+      "module": "inventory",
+      "severity": "success",
+      "href": "/purchase-orders",
+      "created_at": "2026-10-02T11:56:36.151Z",
+      "time_display": "02 Oct 2026, 14:56:36",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "e141f53b25ae45beb9490df94871722a",
+      "action": "Purchase Order Approved",
+      "detail": "Approved PO-2026-586 and dispatched to Krones AG",
+      "module": "inventory",
+      "severity": "success",
+      "href": "/purchase-orders",
+      "created_at": "2026-10-02T11:56:36.142Z",
+      "time_display": "02 Oct 2026, 14:56:36",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "4d2b57c0efa74e8789fa7c1a754fc29b",
+      "action": "Purchase Order Created",
+      "detail": "Created PO-2026-586 for Krones AG",
+      "module": "inventory",
+      "severity": "success",
+      "href": "/purchase-orders",
+      "created_at": "2026-10-02T11:56:36.127Z",
+      "time_display": "02 Oct 2026, 14:56:36",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "f1609fdbaeb44a42ad48e7f09f7e7b7e",
+      "action": "Purchase Order Created",
+      "detail": "Created PO-2026-486 for Krones AG",
+      "module": "inventory",
+      "severity": "success",
+      "href": "/purchase-orders",
+      "created_at": "2026-10-02T11:56:14.706Z",
+      "time_display": "02 Oct 2026, 14:56:14",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
     {
       "id": "ae6372d1702a46b0a91012d72f5e2970",
       "action": "User Login",
@@ -945,6 +1171,39 @@
   },
   "SYSTEM_NOTIFICATIONS": [
     {
+      "id": "notif-1790942217583",
+      "title": "PM Scheduled",
+      "message": "Task TASK-2026-225 assigned to David Kimani.",
+      "kind": "info",
+      "created_at": "2026-10-02T11:56:52.470Z",
+      "created_display": "02 Oct 2026, 14:56",
+      "is_read": false,
+      "href": "/maintenance/TASK-2026-225",
+      "should_toast": false
+    },
+    {
+      "id": "notif-1790942217567",
+      "title": "Breakdown Incident Logged",
+      "message": "Incident BD-2026-428 logged for Automated Bottling & Capping Line B1.",
+      "kind": "warning",
+      "created_at": "2026-10-02T11:56:52.454Z",
+      "created_display": "02 Oct 2026, 14:56",
+      "is_read": false,
+      "href": "/breakdowns/BD-2026-428",
+      "should_toast": false
+    },
+    {
+      "id": "notif-1790942217553",
+      "title": "Asset Registered",
+      "message": "New asset Industrial Mixer Pro has been enrolled in the register.",
+      "kind": "success",
+      "created_at": "2026-10-02T11:56:52.440Z",
+      "created_display": "02 Oct 2026, 14:56",
+      "is_read": false,
+      "href": "/assets/asset-1790942217549",
+      "should_toast": false
+    },
+    {
       "id": "notif-1790927494425",
       "title": "Password Reset Request: David Kimani (OPS)",
       "message": "David Kimani (david.kimani@opsloom.co.ke) in Opsloom Kenya (OPS) requested a password reset. Click to reset their password.",
@@ -1080,7 +1339,8 @@
       "signature_image_url": "",
       "profile_image_url": "",
       "last_login_at": "02 Oct 2026, 11:02",
-      "password": "Admin@123"
+      "password": "Admin@123",
+      "phone": "+254700112233"
     },
     {
       "id": "USR-002",
@@ -1616,9 +1876,59 @@
           "capacity": "300 m/min",
           "last_service_date": "2026-09-20",
           "next_service_date": "2026-10-20"
+        },
+        {
+          "uid": "asset-1790942217549",
+          "asset_id": "AST-MIX-99",
+          "asset_name": "Industrial Mixer Pro",
+          "section": "Pharma",
+          "department": "Engineering",
+          "status": "operational",
+          "criticality": "High",
+          "serial_no": "",
+          "manufacturer": "Bosch",
+          "model_number": "",
+          "power_rating": "",
+          "supplier": "",
+          "technical_notes": "",
+          "photo_url": ""
         }
       ],
       "BREAKDOWNS": [
+        {
+          "breakdown_id": "BD-2026-428",
+          "asset_uid": "ops-ast-001",
+          "asset_id": "OPS-AST-001",
+          "asset_name": "Automated Bottling & Capping Line B1",
+          "section": "Packaging",
+          "department": "Engineering",
+          "incident_title": "Unscheduled equipment fault",
+          "severity": "High",
+          "failure_category": "Mechanical",
+          "status": "resolved",
+          "technician_name": "David Kimani",
+          "reported_dt": "2026-10-02 14:56",
+          "reported_date": "2026-10-02",
+          "reported_time": "14:56",
+          "duration_mins": 120,
+          "downtime_hours": 2,
+          "symptoms": "Overheating cleared",
+          "notes": "Replacement fuse installed",
+          "created_at": "2026-10-02T11:56:57.565Z",
+          "technician": "David Kimani",
+          "cost": "12000",
+          "rca": {
+            "root_cause": "Bearing wear",
+            "why1": "High friction",
+            "why2": "Low oil",
+            "why3": "Seal failure",
+            "why4": "Age",
+            "why5": "Overdue PM",
+            "corrective_action": "Replace seal and top-up lubricant",
+            "updated_at": "2026-10-02T11:57:03.631Z"
+          },
+          "resolved_at": "2026-10-02T11:57:03.645Z"
+        },
         {
           "breakdown_id": "OPS-BD-2026-001",
           "incident_title": "Shrink Tunnel Heating Bank Contactor Trip",
@@ -1685,14 +1995,16 @@
           "frequency": "Monthly",
           "due_date": "2026-10-05",
           "scheduled_date": "2026-10-05",
-          "status": "upcoming",
+          "status": "completed",
           "priority": "high",
           "technician": "Kelvin Mwangi",
           "cost_subtotal": 15000,
           "cost_vat_pct": 16,
           "cost_vat_amount": 2400,
           "cost_total": 17400,
-          "cost": 17400
+          "cost": 17400,
+          "completed_at": "2026-10-02T11:57:03.654Z",
+          "completion_notes": "Service protocol satisfied."
         },
         {
           "task_id": "OPS-TASK-2026-102",
@@ -1761,6 +2073,23 @@
           "cost_vat_amount": 4480,
           "cost_total": 32480,
           "cost": 32480
+        },
+        {
+          "task_id": "TASK-2026-225",
+          "asset_uid": "ops-ast-001",
+          "asset_id": "OPS-AST-001",
+          "asset_name": "Automated Bottling & Capping Line B1",
+          "section": "Packaging",
+          "department": "Engineering",
+          "maintenance_type": "PM",
+          "frequency": "Monthly",
+          "technician": "David Kimani",
+          "task_description": "Preventative servicing task",
+          "due_date": "2026-10-09",
+          "status": "upcoming",
+          "priority": "High",
+          "cost": 15000,
+          "created_at": "2026-10-02T11:56:52.467Z"
         }
       ],
       "INVENTORY_PARTS": [
@@ -1769,13 +2098,14 @@
           "sku": "OPS-SKU-CAP-01",
           "part_name": "Magnetic Capping Clutch Head Assembly",
           "category": "Mechanical",
-          "qty": 6,
+          "qty": 11,
           "min_qty": 2,
           "unit_price": 24500,
           "storage_location": "Rack OPS-A1",
           "supplier": "Krones East Africa",
           "is_critical": true,
-          "lead_time_days": 7
+          "lead_time_days": 7,
+          "quantity_on_hand": 11
         },
         {
           "uid": "ops-part-002",
@@ -1928,6 +2258,162 @@
         }
       ],
       "AUDIT_TRAIL": [
+        {
+          "id": "5b879c2b401547dea1b347031dafaec7",
+          "action": "Company KPI Targets & Budgets Updated",
+          "detail": "Laurence Magondu (Administrator) updated KPI attainment levels & budgets for Opsloom Kenya (OPS): Uptime SLA 88.5%, PM SLA 94%, Monthly Budget KES 620,000.",
+          "module": "settings",
+          "severity": "info",
+          "href": "/settings/admin",
+          "created_at": "2026-10-02T11:57:03.673Z",
+          "time_display": "02 Oct 2026, 14:57:03",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "5512670136b74f77aef92d3e6b617bbd",
+          "action": "Task Completed",
+          "detail": "Completed maintenance order OPS-TASK-2026-101",
+          "module": "maintenance",
+          "severity": "success",
+          "href": "/maintenance/OPS-TASK-2026-101",
+          "created_at": "2026-10-02T11:57:03.656Z",
+          "time_display": "02 Oct 2026, 14:57:03",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "e19bbcf66b08420883dea6cf4c824ab7",
+          "action": "Breakdown Closed",
+          "detail": "Incident BD-2026-428 resolved and closed.",
+          "module": "breakdowns",
+          "severity": "success",
+          "href": "/breakdowns/BD-2026-428",
+          "created_at": "2026-10-02T11:57:03.647Z",
+          "time_display": "02 Oct 2026, 14:57:03",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "e0539cfdf6ad4c0db650d5ea4fbd7e25",
+          "action": "RCA Recorded",
+          "detail": "Saved Root Cause Analysis for BD-2026-428",
+          "module": "breakdowns",
+          "severity": "info",
+          "href": "/breakdowns/BD-2026-428",
+          "created_at": "2026-10-02T11:57:03.633Z",
+          "time_display": "02 Oct 2026, 14:57:03",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "37d2ead402114cdf9084928b22182eab",
+          "action": "Breakdown Updated",
+          "detail": "Updated incident BD-2026-428 (in_progress)",
+          "module": "breakdowns",
+          "severity": "info",
+          "href": "/breakdowns/BD-2026-428",
+          "created_at": "2026-10-02T11:57:03.618Z",
+          "time_display": "02 Oct 2026, 14:57:03",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "73e95dd1f3af48b9ac690badac3c1e0b",
+          "action": "Task Scheduled",
+          "detail": "Scheduled PM task TASK-2026-225 for Automated Bottling & Capping Line B1",
+          "module": "maintenance",
+          "severity": "info",
+          "href": "/maintenance/TASK-2026-225",
+          "created_at": "2026-10-02T11:56:52.467Z",
+          "time_display": "02 Oct 2026, 14:56:52",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "f29f9de2d23948038a4f0a35223e8438",
+          "action": "Breakdown Logged",
+          "detail": "Reported fault on Automated Bottling & Capping Line B1: Unscheduled equipment fault",
+          "module": "breakdowns",
+          "severity": "warning",
+          "href": "/breakdowns/BD-2026-428",
+          "created_at": "2026-10-02T11:56:52.452Z",
+          "time_display": "02 Oct 2026, 14:56:52",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "00de57afb11543e1bf1d80729a8370cb",
+          "action": "Asset Created",
+          "detail": "Registered new asset Industrial Mixer Pro (AST-MIX-99)",
+          "module": "assets",
+          "severity": "info",
+          "href": "/assets/asset-1790942217549",
+          "created_at": "2026-10-02T11:56:52.436Z",
+          "time_display": "02 Oct 2026, 14:56:52",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "2f4441c4c56d4a5bb6adc2a1b5c556bd",
+          "action": "Purchase Order Received",
+          "detail": "Received PO-2026-586. Updated stock for 1 spare parts.",
+          "module": "inventory",
+          "severity": "success",
+          "href": "/purchase-orders",
+          "created_at": "2026-10-02T11:56:36.151Z",
+          "time_display": "02 Oct 2026, 14:56:36",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "e141f53b25ae45beb9490df94871722a",
+          "action": "Purchase Order Approved",
+          "detail": "Approved PO-2026-586 and dispatched to Krones AG",
+          "module": "inventory",
+          "severity": "success",
+          "href": "/purchase-orders",
+          "created_at": "2026-10-02T11:56:36.142Z",
+          "time_display": "02 Oct 2026, 14:56:36",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "4d2b57c0efa74e8789fa7c1a754fc29b",
+          "action": "Purchase Order Created",
+          "detail": "Created PO-2026-586 for Krones AG",
+          "module": "inventory",
+          "severity": "success",
+          "href": "/purchase-orders",
+          "created_at": "2026-10-02T11:56:36.127Z",
+          "time_display": "02 Oct 2026, 14:56:36",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "f1609fdbaeb44a42ad48e7f09f7e7b7e",
+          "action": "Purchase Order Created",
+          "detail": "Created PO-2026-486 for Krones AG",
+          "module": "inventory",
+          "severity": "success",
+          "href": "/purchase-orders",
+          "created_at": "2026-10-02T11:56:14.706Z",
+          "time_display": "02 Oct 2026, 14:56:14",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
         {
           "id": "ae6372d1702a46b0a91012d72f5e2970",
           "action": "User Login",
@@ -4140,8 +4626,8 @@
     }
   },
   "_BOUND_COMPANY_ID": "comp-001",
-  "revision": 92,
-  "saved_at_ms": 1790935047641,
+  "revision": 128,
+  "saved_at_ms": 1790942228786,
   "PASSWORD_RESET_REQUESTS": [
     {
       "id": "msg-reset-1790927897598",
@@ -4238,6 +4724,148 @@
       "is_read_by": [],
       "delivery_status": "delivered",
       "sent_at": "2026-10-02T07:08:36.969Z"
+    }
+  ],
+  "PURCHASE_ORDERS": [
+    {
+      "id": "po-1790942201238",
+      "po_number": "PO-2026-586",
+      "supplier": "Krones AG",
+      "section": "General Store",
+      "order_date": "2026-10-02",
+      "required_date": "2026-10-20",
+      "currency": "KES",
+      "items_count": 1,
+      "items": [
+        {
+          "sku": "OPS-SKU-CAP-01",
+          "name": "Magnetic Capping Clutch",
+          "qty": 5,
+          "unit_price": 24500,
+          "total": 122500
+        }
+      ],
+      "subtotal": 122500,
+      "vat": 19600,
+      "total": 142100,
+      "status": "fulfilled",
+      "notes": "",
+      "created_at": "2026-10-02T11:56:41.238Z",
+      "received_at": "2026-10-02T11:56:41.261Z"
+    },
+    {
+      "id": "po-1790942179817",
+      "po_number": "PO-2026-486",
+      "supplier": "Krones AG",
+      "section": "General Store",
+      "order_date": "2026-10-02",
+      "required_date": "2026-10-20",
+      "currency": "KES",
+      "items_count": 1,
+      "items": [
+        {
+          "sku": "ops-part-001",
+          "name": "Hydraulic Seal Kit",
+          "qty": 3,
+          "unit_price": 24500,
+          "total": 73500
+        }
+      ],
+      "subtotal": 73500,
+      "vat": 11760,
+      "total": 85260,
+      "status": "awaiting_approval",
+      "notes": "",
+      "created_at": "2026-10-02T11:56:19.817Z"
+    },
+    {
+      "id": "po-001",
+      "po_number": "PO-2026-089",
+      "supplier": "InductoTherm Industrial",
+      "section": "General Store",
+      "order_date": "2026-09-24",
+      "required_date": "2026-10-15",
+      "currency": "KES",
+      "items_count": 2,
+      "items": [
+        {
+          "sku": "ops-part-001",
+          "name": "Hydraulic Seal Kit (35mm)",
+          "qty": 5,
+          "unit_price": 24500,
+          "total": 122500
+        },
+        {
+          "sku": "ops-part-002",
+          "name": "Heavy Duty Bearings 6205-2RS",
+          "qty": 10,
+          "unit_price": 3200,
+          "total": 32000
+        }
+      ],
+      "subtotal": 154500,
+      "vat": 24720,
+      "total": 179220,
+      "status": "awaiting_approval",
+      "notes": "Buffer replenishment for high-wear packaging line components.",
+      "created_at": "2026-09-24T08:30:00.000Z"
+    },
+    {
+      "id": "po-002",
+      "po_number": "PO-2026-085",
+      "supplier": "SKF Bearings Kenya",
+      "section": "Mechanical",
+      "order_date": "2026-09-22",
+      "required_date": "2026-10-06",
+      "currency": "KES",
+      "items_count": 1,
+      "items": [
+        {
+          "sku": "ops-part-003",
+          "name": "Pneumatic Solenoid Valve 24V DC",
+          "qty": 4,
+          "unit_price": 18500,
+          "total": 74000
+        }
+      ],
+      "subtotal": 74000,
+      "vat": 11840,
+      "total": 85840,
+      "status": "sent",
+      "notes": "Fast-track order for filling station preventative maintenance.",
+      "created_at": "2026-09-22T09:15:00.000Z"
+    },
+    {
+      "id": "po-003",
+      "po_number": "PO-2026-081",
+      "supplier": "Atlas Copco Compressors",
+      "section": "Utilities",
+      "order_date": "2026-09-10",
+      "required_date": "2026-09-25",
+      "currency": "KES",
+      "items_count": 2,
+      "items": [
+        {
+          "sku": "ops-part-004",
+          "name": "HEPA Air Intake Filter Panel",
+          "qty": 8,
+          "unit_price": 9500,
+          "total": 76000
+        },
+        {
+          "sku": "ops-part-005",
+          "name": "Food Grade Lubricant ISO VG 220 (20L)",
+          "qty": 3,
+          "unit_price": 28000,
+          "total": 84000
+        }
+      ],
+      "subtotal": 160000,
+      "vat": 25600,
+      "total": 185600,
+      "status": "fulfilled",
+      "notes": "Delivered and verified against Store Delivery Receipt #SDR-9921.",
+      "created_at": "2026-09-10T11:00:00.000Z"
     }
   ]
 }
