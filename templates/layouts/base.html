@@ -15,15 +15,9 @@
         const saved = localStorage.getItem('theme');
         const isDark = saved === 'dark';
         document.documentElement.classList.toggle('dark', isDark);
-        document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
 
-        // Preserve auth session across iframe navigations and cookie blocking
-        const urlParams = new URLSearchParams(window.location.search);
-        const authUser = urlParams.get('auth_user') || urlParams.get('user_id');
-        if (authUser) {
-          sessionStorage.setItem('opsloom_user', authUser);
-          localStorage.setItem('opsloom_user', authUser);
-        }
+        // Optional: helps form controls render correctly in dark mode
+        document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
       } catch (e) {}
     })();
   </script>

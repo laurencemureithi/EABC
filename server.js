@@ -26,58 +26,9 @@ function getAiClient() {
 
 const app = express();
 app.set('trust proxy', 1);
-
-// Provide Python/Jinja compatibility for dictionaries in templates (.get(k, def))
-if (!Object.prototype.get) {
-  Object.defineProperty(Object.prototype, 'get', {
-    value: function(key, defaultVal) {
-      if (this == null) return defaultVal;
-      const val = this[key];
-      return (val !== undefined && val !== null) ? val : defaultVal;
-    },
-    writable: true,
-    configurable: true,
-    enumerable: false
-  });
-}
 const PORT = process.env.PORT || 3000;
-const isVercel = Boolean(
-  process.env.VERCEL || 
-  process.env.VERCEL_ENV || 
-  process.env.NOW_REGION || 
-  process.env.AWS_LAMBDA_FUNCTION_NAME ||
-  process.env.LAMBDA_TASK_ROOT
-);
+const isVercel = Boolean(process.env.VERCEL);
 process.env.TZ = process.env.TZ || 'Africa/Nairobi';
-
-function resolveAppDir(dirName) {
-  const candidates = [
-    path.join(__dirname, dirName),
-    path.join(__dirname, '..', dirName),
-    path.join(process.cwd(), dirName),
-    path.join(process.cwd(), '..', dirName)
-  ];
-  for (const c of candidates) {
-    try {
-      if (fs.existsSync(c)) return c;
-    } catch (e) {}
-  }
-  return path.join(__dirname, dirName);
-}
-
-function getTemplateSearchDirs() {
-  const candidates = [
-    path.join(__dirname, 'templates'),
-    path.join(__dirname, '..', 'templates'),
-    path.join(process.cwd(), 'templates'),
-    path.join(process.cwd(), '..', 'templates'),
-    'templates'
-  ];
-  const found = candidates.filter(d => {
-    try { return fs.existsSync(d); } catch (e) { return false; }
-  });
-  return found.length ? found : [path.join(__dirname, 'templates')];
-}
 
 let runtimeClientClockOffsetMs = 0;
 let runtimeClientTimezone = 'Africa/Nairobi';
@@ -190,9 +141,9 @@ function getSystemTimeHM(rawVal) {
 }
 
 // Serverless-resilient directory paths
-const DATA_DIR = isVercel ? '/tmp/data' : resolveAppDir('data');
+const DATA_DIR = isVercel ? '/tmp/data' : path.join(__dirname, 'data');
 const DATASTORE_PATH = isVercel ? '/tmp/opsloom_datastore.json' : path.join(DATA_DIR, 'datastore.json');
-const STATIC_DIR = resolveAppDir('static');
+const STATIC_DIR = path.join(__dirname, 'static');
 const UPLOADS_DIR = isVercel ? '/tmp/uploads' : path.join(STATIC_DIR, 'uploads');
 
 try {
@@ -240,9 +191,7 @@ function fileToDataUrl(file) {
 
 function setSafeCookie(req, res, name, val, customMaxAgeMs = null) {
   const protoHeader = String(req.headers['x-forwarded-proto'] || '').toLowerCase();
-  const host = String(req.headers['host'] || req.hostname || '').toLowerCase();
-  const isLocalHttp = (host.startsWith('localhost') || host.startsWith('127.0.0.1')) && !protoHeader.includes('https') && !process.env.VERCEL;
-  const isHttps = !isLocalHttp;
+  const isHttps = Boolean(req.secure || protoHeader.includes('https') || isVercel);
   res.cookie(name, val, {
     path: '/',
     maxAge: customMaxAgeMs || (365 * 24 * 60 * 60 * 1000),
@@ -254,9 +203,8 @@ function setSafeCookie(req, res, name, val, customMaxAgeMs = null) {
 
 function clearSafeCookie(req, res, name) {
   const protoHeader = String(req.headers['x-forwarded-proto'] || '').toLowerCase();
-  const host = String(req.headers['host'] || req.hostname || '').toLowerCase();
-  const isLocalHttp = (host.startsWith('localhost') || host.startsWith('127.0.0.1')) && !protoHeader.includes('https') && !process.env.VERCEL;
-  const isHttps = !isLocalHttp;
+  const isHttps = Boolean(req.secure || protoHeader.includes('https') || isVercel);
+  res.clearCookie(name, { path: '/' });
   res.clearCookie(name, {
     path: '/',
     sameSite: isHttps ? 'none' : 'lax',
@@ -558,33 +506,6 @@ function seedInitialDataIfEmpty() {
     primaryAdmin.password = store.SYSTEM_SETTINGS?.admin_login_password || 'Admin@123';
   } else if (store.SYSTEM_SETTINGS?.admin_login_password && primaryAdmin.password !== store.SYSTEM_SETTINGS.admin_login_password) {
     primaryAdmin.password = store.SYSTEM_SETTINGS.admin_login_password;
-  }
-  const gathoniAdmin = store.ADMIN_USERS.find(
-    u => u && (u.email && u.email.toLowerCase() === 'gathonithairu@gmail.com')
-  );
-  if (!gathoniAdmin) {
-    store.ADMIN_USERS.push({
-      id: 'USR-004',
-      name: 'Gathoni Thairu',
-      email: 'gathonithairu@gmail.com',
-      password: 'Admin@123',
-      role: 'Administrator',
-      access_scope: 'Full System',
-      department: 'Engineering',
-      company_id: 'comp-001',
-      active: true,
-      last_login_at: 'Active Session',
-      permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'settings', 'admin', 'companies', 'recycle_bin', 'all'],
-      edit_permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'companies', 'recycle_bin', 'all'],
-      delete_permissions: ['assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'users_manage', 'technicians_manage', 'recycle_bin', 'all'],
-      signature_name: 'Gathoni Thairu',
-      signature_title: 'System Administrator',
-      signature_font: 'Inter',
-      signature_color: '#7E22CE',
-      signature_style: 'formal',
-      signature_image_url: '',
-      profile_image_url: ''
-    });
   }
   if (store.ADMIN_USERS.length === 1 && !store.seeded_default_team_users) {
     store.ADMIN_USERS.push(
@@ -1731,26 +1652,10 @@ function activateWorkspaceBucket(companyId) {
 let lastDiskMtimeMs = 0;
 function syncStoreFromDisk() {
   try {
-    let targetPath = null;
-    if (fs.existsSync(DATASTORE_PATH)) {
-      targetPath = DATASTORE_PATH;
-    } else {
-      const candidates = [
-        path.join(resolveAppDir('data'), 'datastore.json'),
-        path.join(__dirname, 'data', 'datastore.json'),
-        path.join(__dirname, '..', 'data', 'datastore.json'),
-        path.join(process.cwd(), 'data', 'datastore.json')
-      ];
-      for (const c of candidates) {
-        try {
-          if (fs.existsSync(c)) {
-            targetPath = c;
-            break;
-          }
-        } catch (e) {}
-      }
-    }
-    if (targetPath && fs.existsSync(targetPath)) {
+    const targetPath = fs.existsSync(DATASTORE_PATH)
+      ? DATASTORE_PATH
+      : path.join(__dirname, 'data', 'datastore.json');
+    if (fs.existsSync(targetPath)) {
       const stat = fs.statSync(targetPath);
       if (stat.mtimeMs > lastDiskMtimeMs) {
         const raw = fs.readFileSync(targetPath, 'utf-8');
@@ -1841,19 +1746,13 @@ function saveStore() {
     store.saved_at = getSystemNowIso();
     store.saved_at_ms = Date.now();
     const payload = JSON.stringify(store, null, 2);
-    const targetDir = path.dirname(DATASTORE_PATH);
-    if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
     fs.writeFileSync(DATASTORE_PATH, payload, 'utf-8');
     const stat = fs.statSync(DATASTORE_PATH);
     lastDiskMtimeMs = stat.mtimeMs;
     // If not on Vercel and DATASTORE_PATH differs from repo data/datastore.json, keep both in sync
-    if (!isVercel) {
-      try {
-        const repoPath = path.join(resolveAppDir('data'), 'datastore.json');
-        if (DATASTORE_PATH !== repoPath) {
-          fs.writeFileSync(repoPath, payload, 'utf-8');
-        }
-      } catch (e) {}
+    const repoPath = path.join(__dirname, 'data', 'datastore.json');
+    if (!isVercel && DATASTORE_PATH !== repoPath) {
+      fs.writeFileSync(repoPath, payload, 'utf-8');
     }
   } catch (err) {
     console.warn('Failed to write datastore.json (ephemeral in serverless):', err.message);
@@ -2068,10 +1967,8 @@ function moveToRecycleBin(entity_type, entity_label, primary_id, record, deleted
   return entry;
 }
 
-// Configure Nunjucks with multi-path fallback for local, monorepo, and Vercel serverless execution
-const templateSearchDirs = getTemplateSearchDirs();
-app.set('views', templateSearchDirs);
-const nunjucksEnv = nunjucks.configure(templateSearchDirs, {
+// Configure Nunjucks
+const nunjucksEnv = nunjucks.configure('templates', {
   autoescape: true,
   express: app,
   noCache: true
@@ -2146,9 +2043,6 @@ function url_for(endpoint, params = {}) {
     'inventory_add_step3_post': '/inventory/new/step-3',
     'inventory_part_view': (p) => `/inventory/${p.part_uid}`,
     'inventory_export': (p) => `/inventory/export/${p.fmt || 'csv'}`,
-    'purchase_orders': '/purchase-orders',
-    'purchase_orders_new': '/purchase-orders/new',
-    'purchase_order_new': '/purchase-orders/new',
     'reports_center': '/reports',
     'reports_history': '/reports/history',
     'reports_generate_step1_get': '/reports/generate/step1',
@@ -3572,9 +3466,7 @@ app.use((req, res, next) => {
     return next();
   }
 
-  const queryUid = req.query?.auth_user || req.query?.user_id;
-  const headerUid = req.headers['x-opsloom-user'];
-  const uid = req.cookies?.opsloom_user || queryUid || headerUid;
+  const uid = req.cookies?.opsloom_user;
   const timeoutMins = getSessionTimeoutMinutes();
   const timeoutMs = timeoutMins * 60 * 1000;
   const nowMs = Date.now();
@@ -3592,18 +3484,18 @@ app.use((req, res, next) => {
   const matchedUser = (store.ADMIN_USERS || []).find(u => u.id === uid || (u.email && u.email.toLowerCase() === String(uid).toLowerCase()))
     || (isCompanyBrandSaveApi ? ((store.ADMIN_USERS || [])[0] || { id: 'USR-001', role: 'Administrator', active: true, permissions: ['all'], edit_permissions: ['all'], delete_permissions: ['all'] }) : null);
   if (!matchedUser || matchedUser.active === false) {
-    clearSafeCookie(req, res, 'opsloom_user');
-    clearSafeCookie(req, res, 'opsloom_role');
-    clearSafeCookie(req, res, 'opsloom_last_active');
+    res.clearCookie('opsloom_user', { path: '/' });
+    res.clearCookie('opsloom_role', { path: '/' });
+    res.clearCookie('opsloom_last_active', { path: '/' });
     flash('error', 'Your account session is no longer active. Please sign in again.');
     return res.redirect('/login');
   }
 
   const lastActiveRaw = Number(req.cookies?.opsloom_last_active || 0);
-  if (!isCompanyBrandSaveApi && lastActiveRaw > 0 && (nowMs - lastActiveRaw) > timeoutMs && !queryUid) {
-    clearSafeCookie(req, res, 'opsloom_user');
-    clearSafeCookie(req, res, 'opsloom_role');
-    clearSafeCookie(req, res, 'opsloom_last_active');
+  if (!isCompanyBrandSaveApi && lastActiveRaw > 0 && (nowMs - lastActiveRaw) > timeoutMs) {
+    res.clearCookie('opsloom_user', { path: '/' });
+    res.clearCookie('opsloom_role', { path: '/' });
+    res.clearCookie('opsloom_last_active', { path: '/' });
     if (p.startsWith('/api/')) {
       return res.status(401).json({ error: 'Session timed out due to inactivity', redirect: '/login?timeout=1' });
     }
@@ -4029,18 +3921,11 @@ app.post('/login', (req, res) => {
   const timeoutMins = getSessionTimeoutMinutes();
   const timeoutMs = timeoutMins * 60 * 1000;
 
-  // Strictly match registered user in store.ADMIN_USERS, with fallback for active workspace admin
-  let user = (store.ADMIN_USERS || []).find(u => (u.email || '').trim().toLowerCase() === cleanEmail);
-  if (!user && (cleanEmail === 'gathonithairu@gmail.com' || cleanEmail.includes('gathoni') || cleanEmail.includes('thairu'))) {
-    user = (store.ADMIN_USERS || []).find(u => u.email === 'gathonithairu@gmail.com');
-  }
-  if (!user && (cleanEmail === 'admin@opsloom.com' || cleanEmail === 'admin@opsloom.co.ke' || cleanEmail === 'admin')) {
-    user = store.ADMIN_USERS[0];
-  }
-
+  // Strictly match registered user in store.ADMIN_USERS
+  const user = (store.ADMIN_USERS || []).find(u => (u.email || '').trim().toLowerCase() === cleanEmail);
   if (!user) {
     logAudit('Failed Login Attempt', `Unrecognized email login attempt: ${cleanEmail || 'empty'}`, 'security', '/login', 'warning');
-    flash('error', 'Invalid company email or password. Please verify your credentials or click Quick Sign-In.');
+    flash('error', 'Invalid company email or password. Please verify your credentials.');
     return res.redirect('/login');
   }
 
@@ -4050,7 +3935,7 @@ app.post('/login', (req, res) => {
     return res.redirect('/login');
   }
 
-  const isPrimaryAdminUser = user.id === 'USR-001' || cleanEmail === ADMIN_PRIMARY_EMAIL || user.email === 'gathonithairu@gmail.com';
+  const isPrimaryAdminUser = user.id === 'USR-001' || cleanEmail === ADMIN_PRIMARY_EMAIL;
   const expectedPassword = isPrimaryAdminUser
     ? String(store.SYSTEM_SETTINGS?.admin_login_password || user.password || 'Admin@123').trim()
     : String(user.password !== undefined && user.password !== '' ? user.password : 'Admin@123').trim();
@@ -4060,12 +3945,9 @@ app.post('/login', (req, res) => {
   }
 
   const submittedTrimmed = rawPass.trim();
-  const isDemoPass = submittedTrimmed === 'Admin@123' || submittedTrimmed === 'admin' || submittedTrimmed === 'password' || submittedTrimmed === '123456';
-  const isMatch = (rawPass === expectedPassword || submittedTrimmed === expectedPassword || isDemoPass);
-
-  if (!submittedTrimmed || !isMatch) {
+  if (!submittedTrimmed || (rawPass !== expectedPassword && submittedTrimmed !== expectedPassword)) {
     logAudit('Failed Login Attempt', `Incorrect password entered for ${user.email}.`, 'security', '/login', 'warning');
-    flash('error', 'Invalid company email or password. Use demo password Admin@123 or select a Quick Sign-In account.');
+    flash('error', 'Invalid company email or password. Please verify your credentials.');
     return res.redirect('/login');
   }
 
@@ -4089,44 +3971,13 @@ app.post('/login', (req, res) => {
   }
 
   logAudit('User Login', `${user.name} (${user.role}) authenticated with ${timeoutMins}m session policy.`, 'security', '/dashboard');
-  const redirectTarget = safeNext + (safeNext.includes('?') ? '&' : '?') + 'auth_user=' + encodeURIComponent(user.id);
-  return res.redirect(redirectTarget);
-});
-
-app.get('/login/quick/:role', (req, res) => {
-  seedInitialDataIfEmpty();
-  const roleReq = (req.params.role || 'admin').toLowerCase();
-  let targetUser = null;
-  if (roleReq === 'manager') {
-    targetUser = (store.ADMIN_USERS || []).find(u => u.role === 'Manager') || store.ADMIN_USERS[1];
-  } else if (roleReq === 'technician') {
-    targetUser = (store.ADMIN_USERS || []).find(u => u.role === 'Technician') || store.ADMIN_USERS[2];
-  } else {
-    targetUser = (store.ADMIN_USERS || []).find(u => u.email === 'gathonithairu@gmail.com') || store.ADMIN_USERS[0];
-  }
-  if (!targetUser) targetUser = store.ADMIN_USERS[0];
-
-  const timeoutMins = getSessionTimeoutMinutes();
-  const timeoutMs = timeoutMins * 60 * 1000;
-  setSafeCookie(req, res, 'opsloom_user', targetUser.id, timeoutMs);
-  setSafeCookie(req, res, 'opsloom_role', targetUser.role || 'Administrator', timeoutMs);
-  setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()), timeoutMs);
-
-  const preferredCompId = store.ACTIVE_COMPANY_ID || req.cookies?.opsloom_ws_id || 'comp-001';
-  store.ACTIVE_COMPANY_ID = preferredCompId;
-  activateWorkspaceBucket(preferredCompId);
-  setSafeCookie(req, res, 'opsloom_ws_id', preferredCompId);
-
-  logAudit('Quick Sign-In', `${targetUser.name} (${targetUser.role}) signed in via 1-Click Quick Access.`, 'security', '/dashboard');
-  flash('success', `Welcome back, ${targetUser.name}! Signed in as ${targetUser.role}.`);
-  res.redirect('/dashboard?auth_user=' + encodeURIComponent(targetUser.id));
+  return res.redirect(safeNext);
 });
 
 app.get('/login/google', (req, res) => {
   seedInitialDataIfEmpty();
-  const targetUser = (store.ADMIN_USERS || []).find(u => u.email === 'gathonithairu@gmail.com') || store.ADMIN_USERS[0] || { id: 'USR-001', role: 'Administrator', name: 'Gathoni Thairu' };
-  setSafeCookie(req, res, 'opsloom_user', targetUser.id);
-  setSafeCookie(req, res, 'opsloom_role', targetUser.role || 'Administrator');
+  setSafeCookie(req, res, 'opsloom_user', 'USR-001');
+  setSafeCookie(req, res, 'opsloom_role', 'Administrator');
   setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()));
   const preferredCompId = store.ACTIVE_COMPANY_ID || req.cookies?.opsloom_ws_id || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id);
   if (preferredCompId) {
@@ -4134,8 +3985,8 @@ app.get('/login/google', (req, res) => {
     setSafeCookie(req, res, 'opsloom_ws_id', preferredCompId);
   }
   res.clearCookie('current_company_id', { path: '/' });
-  logAudit('Google sign-in', `${targetUser.name} signed in via Google SSO.`, 'security', '/dashboard');
-  res.redirect('/dashboard?auth_user=' + encodeURIComponent(targetUser.id));
+  logAudit('Google sign-in', 'Laurence Magondu signed in via Google SSO.', 'security', '/dashboard');
+  res.redirect('/dashboard');
 });
 
 app.get('/logout', (req, res) => {
@@ -5570,7 +5421,7 @@ app.get('/assets/:asset_uid', (req, res) => {
   });
 });
 
-app.get(['/assets/:asset_uid/profile.pdf', '/assets/:asset_uid/print'], (req, res) => {
+app.get('/assets/:asset_uid/profile.pdf', (req, res) => {
   const asset = findAssetByUidOrId(req.params.asset_uid);
   if (!asset) return res.redirect('/assets');
   res.render('assets/assets_profile_print.html', buildAssetProfilePrintContext(req, asset));
@@ -5822,58 +5673,20 @@ app.get('/assets/:asset_uid/documents/upload', (req, res) => {
 
 app.post('/assets/:asset_uid/documents/upload', upload.single('document'), (req, res) => {
   const dataUrl = fileToDataUrl(req.file);
-  const fileName = req.file ? req.file.originalname : 'Document';
-  const fileExt = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : 'pdf';
-  const fileSizeLabel = req.file ? (req.file.size > 1048576 ? `${(req.file.size / 1048576).toFixed(1)} MB` : `${Math.round(req.file.size / 1024)} KB`) : '1.2 MB';
-  const actor = getCurrentActor(req);
-
   const doc = {
     id: 'doc-' + Date.now(),
     uid: 'doc-' + Date.now(),
     asset_uid: req.params.asset_uid,
-    name: req.body.title || req.body.name || fileName,
-    title: req.body.title || req.body.name || fileName,
+    title: req.body.title || (req.file ? req.file.originalname : 'Document'),
     category: req.body.category || 'Manual',
-    version: req.body.version || '1.0',
-    status: req.body.status || 'approved',
-    file_ext: fileExt,
-    size_label: fileSizeLabel,
     file_url: dataUrl || (req.file ? `/static/uploads/${req.file.filename}` : ''),
-    file_path: dataUrl || (req.file ? `/static/uploads/${req.file.filename}` : '#'),
-    review_date: req.body.review_date || '',
-    expiry_date: req.body.expiry_date || '',
-    description: req.body.description || '',
-    uploaded_by: actor.name || 'Laurence Magondu',
-    uploaded_at: formatSystemTimestamp(getSystemNowIso(), false)
+    uploaded_at: new Date().toISOString()
   };
   if (!store.ASSET_DOCUMENTS) store.ASSET_DOCUMENTS = [];
   store.ASSET_DOCUMENTS.push(doc);
   saveStore();
-  logAudit('Asset Document Uploaded', `Uploaded document ${doc.name} to asset repository`, 'assets', `/assets/${req.params.asset_uid}/documents`, 'success');
-  flash('success', 'Document uploaded and indexed successfully.');
-  res.redirect(`/assets/${req.params.asset_uid}/documents/upload/success/${doc.uid}`);
-});
-
-app.get('/assets/:asset_uid/documents/upload/success/:doc_uid', (req, res) => {
-  const asset = store.ASSETS.find(a => a.uid === req.params.asset_uid);
-  if (!asset) return res.redirect('/assets');
-  const doc = (store.ASSET_DOCUMENTS || []).find(d => (d.uid || d.id) === req.params.doc_uid) || {
-    name: 'Document',
-    category: 'Manual',
-    status: 'approved',
-    uploaded_at: formatSystemTimestamp(getSystemNowIso(), false)
-  };
-  res.render('assets/assets_documents_upload_success.html', {
-    ...baseCtx(req, 'assets'),
-    asset,
-    doc,
-    breadcrumbs: [
-      { label: 'Asset Register', href: '/assets' },
-      { label: asset.asset_name, href: '/assets/' + asset.uid },
-      { label: 'Documents', href: '/assets/' + asset.uid + '/documents' },
-      { label: 'Upload Success', href: null }
-    ]
-  });
+  flash('success', 'Document uploaded and saved permanently.');
+  res.redirect(`/assets/${req.params.asset_uid}/documents`);
 });
 
 app.post('/assets/:asset_uid/documents/:doc_uid/delete', (req, res) => {
@@ -7421,237 +7234,7 @@ app.post('/inventory/:part_uid/delete', (req, res) => {
 });
 
 // -------------------------
-// PURCHASE ORDERS
-// -------------------------
-function seedPurchaseOrdersIfEmpty() {
-  if (!store.PURCHASE_ORDERS || store.PURCHASE_ORDERS.length === 0) {
-    store.PURCHASE_ORDERS = [
-      {
-        id: 'po-001',
-        po_number: 'PO-2026-089',
-        supplier: 'InductoTherm Industrial',
-        section: 'General Store',
-        order_date: '2026-09-24',
-        required_date: '2026-10-15',
-        currency: 'KES',
-        items_count: 2,
-        items: [
-          { sku: 'ops-part-001', name: 'Hydraulic Seal Kit (35mm)', qty: 5, unit_price: 24500, total: 122500 },
-          { sku: 'ops-part-002', name: 'Heavy Duty Bearings 6205-2RS', qty: 10, unit_price: 3200, total: 32000 }
-        ],
-        subtotal: 154500,
-        vat: 24720,
-        total: 179220,
-        status: 'awaiting_approval',
-        notes: 'Buffer replenishment for high-wear packaging line components.',
-        created_at: new Date('2026-09-24T08:30:00Z').toISOString()
-      },
-      {
-        id: 'po-002',
-        po_number: 'PO-2026-085',
-        supplier: 'SKF Bearings Kenya',
-        section: 'Mechanical',
-        order_date: '2026-09-22',
-        required_date: '2026-10-06',
-        currency: 'KES',
-        items_count: 1,
-        items: [
-          { sku: 'ops-part-003', name: 'Pneumatic Solenoid Valve 24V DC', qty: 4, unit_price: 18500, total: 74000 }
-        ],
-        subtotal: 74000,
-        vat: 11840,
-        total: 85840,
-        status: 'sent',
-        notes: 'Fast-track order for filling station preventative maintenance.',
-        created_at: new Date('2026-09-22T09:15:00Z').toISOString()
-      },
-      {
-        id: 'po-003',
-        po_number: 'PO-2026-081',
-        supplier: 'Atlas Copco Compressors',
-        section: 'Utilities',
-        order_date: '2026-09-10',
-        required_date: '2026-09-25',
-        currency: 'KES',
-        items_count: 2,
-        items: [
-          { sku: 'ops-part-004', name: 'HEPA Air Intake Filter Panel', qty: 8, unit_price: 9500, total: 76000 },
-          { sku: 'ops-part-005', name: 'Food Grade Lubricant ISO VG 220 (20L)', qty: 3, unit_price: 28000, total: 84000 }
-        ],
-        subtotal: 160000,
-        vat: 25600,
-        total: 185600,
-        status: 'fulfilled',
-        notes: 'Delivered and verified against Store Delivery Receipt #SDR-9921.',
-        created_at: new Date('2026-09-10T11:00:00Z').toISOString()
-      }
-    ];
-    saveStore();
-  }
-}
-
-app.get(['/purchase-orders', '/purchase_orders'], (req, res) => {
-  seedPurchaseOrdersIfEmpty();
-  let list = [...(store.PURCHASE_ORDERS || [])];
-  const q = (req.query.q || '').trim().toLowerCase();
-  const selectedStatus = req.query.status || '';
-
-  if (q) {
-    list = list.filter(po => 
-      (po.po_number && po.po_number.toLowerCase().includes(q)) ||
-      (po.supplier && po.supplier.toLowerCase().includes(q)) ||
-      (po.notes && po.notes.toLowerCase().includes(q))
-    );
-  }
-  if (selectedStatus) {
-    list = list.filter(po => po.status === selectedStatus);
-  }
-
-  const allPOs = store.PURCHASE_ORDERS || [];
-  const openCount = allPOs.filter(p => p.status !== 'fulfilled' && p.status !== 'cancelled').length;
-  const awaitingCount = allPOs.filter(p => p.status === 'awaiting_approval').length;
-  const pendingCount = allPOs.filter(p => p.status === 'sent').length;
-  const totalSpend = allPOs.reduce((acc, p) => acc + Number(p.total || p.subtotal || 0), 0);
-
-  res.render('purchase_orders.html', {
-    ...baseCtx(req, 'inventory'),
-    purchase_orders: list,
-    q,
-    selected_status: selectedStatus,
-    kpi_open_pos: openCount,
-    kpi_awaiting_approval: awaitingCount,
-    kpi_pending_delivery: pendingCount,
-    total_spend: totalSpend
-  });
-});
-
-app.get(['/purchase-orders/new', '/purchase-orders/create', '/create-new-po'], (req, res) => {
-  seedPurchaseOrdersIfEmpty();
-  const allParts = store.INVENTORY_PARTS || [];
-  const uniqueSuppliers = [...new Set(allParts.map(p => p.supplier || p.vendor).filter(Boolean))];
-  const today = new Date().toISOString().slice(0, 10);
-  const nextWeek = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
-
-  res.render('create_new_PO.html', {
-    ...baseCtx(req, 'inventory'),
-    parts: allParts,
-    suppliers: uniqueSuppliers,
-    today_date: today,
-    default_required_date: nextWeek
-  });
-});
-
-app.post('/purchase-orders/new', (req, res) => {
-  seedPurchaseOrdersIfEmpty();
-  const rawSkus = Array.isArray(req.body['part_sku[]']) ? req.body['part_sku[]'] : [req.body['part_sku[]'] || req.body.part_sku].filter(Boolean);
-  const rawNames = Array.isArray(req.body['part_name[]']) ? req.body['part_name[]'] : [req.body['part_name[]'] || req.body.part_name].filter(Boolean);
-  const rawQtys = Array.isArray(req.body['quantity[]']) ? req.body['quantity[]'] : [req.body['quantity[]'] || req.body.quantity].filter(Boolean);
-  const rawPrices = Array.isArray(req.body['unit_price[]']) ? req.body['unit_price[]'] : [req.body['unit_price[]'] || req.body.unit_price].filter(Boolean);
-
-  const items = [];
-  let subtotal = 0;
-  for (let i = 0; i < rawSkus.length; i++) {
-    const sku = String(rawSkus[i] || '').trim();
-    if (!sku) continue;
-    const name = String(rawNames[i] || sku);
-    const qty = Math.max(1, parseInt(rawQtys[i], 10) || 1);
-    const price = Math.max(0, parseFloat(rawPrices[i]) || 0);
-    const lineTotal = qty * price;
-    subtotal += lineTotal;
-    items.push({ sku, name, qty, unit_price: price, total: lineTotal });
-  }
-
-  const vat = Math.round(subtotal * 0.16);
-  const total = subtotal + vat;
-  const poNum = 'PO-' + new Date().getFullYear() + '-' + String(Math.floor(100 + Math.random() * 900));
-
-  const newPO = {
-    id: 'po-' + Date.now(),
-    po_number: poNum,
-    supplier: req.body.supplier || 'Vendor',
-    section: req.body.section || 'General Store',
-    order_date: req.body.order_date || new Date().toISOString().slice(0, 10),
-    required_date: req.body.required_date || '',
-    currency: req.body.currency || 'KES',
-    items_count: items.length,
-    items,
-    subtotal,
-    vat,
-    total,
-    status: 'awaiting_approval',
-    notes: req.body.notes || '',
-    created_at: new Date().toISOString()
-  };
-
-  store.PURCHASE_ORDERS.unshift(newPO);
-  saveStore();
-  logAudit('Purchase Order Created', `Created ${poNum} for ${newPO.supplier}`, 'inventory', '/purchase-orders', 'success');
-  flash('success', `Purchase Order ${poNum} created successfully and awaiting approval.`);
-  res.redirect('/purchase-orders');
-});
-
-app.post('/purchase-orders/:id/approve', (req, res) => {
-  seedPurchaseOrdersIfEmpty();
-  const po = store.PURCHASE_ORDERS.find(p => p.id === req.params.id);
-  if (po) {
-    po.status = 'sent';
-    saveStore();
-    logAudit('Purchase Order Approved', `Approved ${po.po_number} and dispatched to ${po.supplier}`, 'inventory', '/purchase-orders', 'success');
-    flash('success', `Purchase order ${po.po_number} approved and dispatched.`);
-  }
-  res.redirect('/purchase-orders');
-});
-
-app.post('/purchase-orders/:id/receive', (req, res) => {
-  seedPurchaseOrdersIfEmpty();
-  const po = store.PURCHASE_ORDERS.find(p => p.id === req.params.id);
-  if (po && po.status !== 'fulfilled') {
-    po.status = 'fulfilled';
-    po.received_at = new Date().toISOString();
-    let updatedCount = 0;
-    (po.items || []).forEach(item => {
-      const part = (store.INVENTORY_PARTS || []).find(p => 
-        (p.sku && item.sku && p.sku.toLowerCase() === item.sku.toLowerCase()) ||
-        (p.uid && item.sku && p.uid.toLowerCase() === item.sku.toLowerCase()) ||
-        (p.part_name && item.name && p.part_name.toLowerCase() === item.name.toLowerCase()) ||
-        (item.name && p.sku && item.name.toLowerCase().includes(p.sku.toLowerCase()))
-      );
-      if (part) {
-        part.qty = (part.qty || 0) + (item.qty || 1);
-        part.quantity_on_hand = part.qty;
-        updatedCount++;
-      }
-    });
-    saveStore();
-    logAudit('Purchase Order Received', `Received ${po.po_number}. Updated stock for ${updatedCount} spare parts.`, 'inventory', '/purchase-orders', 'success');
-    flash('success', `Stock from ${po.po_number} received! Inventory quantities have been automatically updated.`);
-  }
-  res.redirect('/purchase-orders');
-});
-
-app.post('/purchase-orders/:id/cancel', (req, res) => {
-  seedPurchaseOrdersIfEmpty();
-  const po = store.PURCHASE_ORDERS.find(p => p.id === req.params.id);
-  if (po) {
-    po.status = 'cancelled';
-    saveStore();
-    logAudit('Purchase Order Cancelled', `Cancelled ${po.po_number}`, 'inventory', '/purchase-orders', 'warning');
-    flash('warning', `Purchase order ${po.po_number} cancelled.`);
-  }
-  res.redirect('/purchase-orders');
-});
-
-app.post('/purchase-orders/:id/delete', (req, res) => {
-  seedPurchaseOrdersIfEmpty();
-  const idx = store.PURCHASE_ORDERS.findIndex(p => p.id === req.params.id);
-  if (idx !== -1) {
-    const deleted = store.PURCHASE_ORDERS.splice(idx, 1)[0];
-    saveStore();
-    logAudit('Purchase Order Deleted', `Removed ${deleted.po_number}`, 'inventory', '/purchase-orders', 'danger');
-    flash('info', `Purchase order ${deleted.po_number} deleted.`);
-  }
-  res.redirect('/purchase-orders');
-});
+// REPORTS
 // -------------------------
 function formatReportRecords(list) {
   return (list || []).map(r => ({
@@ -7772,11 +7355,6 @@ app.post('/reports/generate/step1', (req, res) => {
 app.get('/reports/generate/step2', (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
   const cat = (wizardState.reports[user]?.category || req.query.category || 'strategic_roi').toLowerCase();
-  if (req.query.category) {
-    if (!wizardState.reports[user]) wizardState.reports[user] = {};
-    wizardState.reports[user].category = req.query.category;
-  }
-  const currentWiz = wizardState.reports[user] || { category: cat };
   const templateMap = {
     strategic_roi: 'reports/reports_generate_strategic_roi_step2.html',
     breakdown_analytics: 'reports/reports_generate_breakdown_analytics_step2.html',
@@ -7787,10 +7365,8 @@ app.get('/reports/generate/step2', (req, res) => {
   const target = templateMap[cat] || 'reports/reports_generate_step2.html';
   res.render(target, {
     ...baseCtx(req, 'reports'),
-    wiz: currentWiz,
-    wizard: currentWiz,
-    step_data: currentWiz,
-    selected_metrics: currentWiz.metrics || [],
+    wiz: wizardState.reports[user] || {},
+    step_data: wizardState.reports[user] || {},
     assets: store.ASSETS || []
   });
 });
@@ -7803,12 +7379,7 @@ app.post('/reports/generate/step2', (req, res) => {
 
 app.get('/reports/generate/step3', (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
-  const cat = (wizardState.reports[user]?.category || req.query.category || 'strategic_roi').toLowerCase();
-  if (req.query.category && !wizardState.reports[user]?.category) {
-    if (!wizardState.reports[user]) wizardState.reports[user] = {};
-    wizardState.reports[user].category = req.query.category;
-  }
-  const currentWiz = wizardState.reports[user] || { category: cat };
+  const cat = (wizardState.reports[user]?.category || 'strategic_roi').toLowerCase();
   const templateMap = {
     strategic_roi: 'reports/reports_generate_strategic_roi_step3.html',
     breakdown_analytics: 'reports/reports_generate_breakdown_analytics_step3.html',
@@ -7819,9 +7390,8 @@ app.get('/reports/generate/step3', (req, res) => {
   const target = templateMap[cat] || 'reports/reports_generate_step3.html';
   res.render(target, {
     ...baseCtx(req, 'reports'),
-    wiz: currentWiz,
-    wizard: currentWiz,
-    step_data: currentWiz
+    wiz: wizardState.reports[user] || {},
+    step_data: wizardState.reports[user] || {}
   });
 });
 
@@ -10310,10 +9880,9 @@ app.use((req, res) => {
 
 // Export app for serverless (Vercel)
 module.exports = app;
-module.exports.default = app;
 
 // Start Server in standalone / development environment
-if (!isVercel && require.main === module) {
+if (!process.env.VERCEL) {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[AI Studio] Opsloom server running on http://0.0.0.0:${PORT}`);
   });

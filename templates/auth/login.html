@@ -243,34 +243,13 @@
             </div>
           {% endif %}
 
-          <!-- Quick One-Click Access -->
-          <div class="mb-5 p-3.5 rounded-2xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/40">
-            <div class="flex items-center justify-between gap-2 mb-2.5">
-              <span class="text-[11px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
-                <span class="material-symbols-outlined text-sm">flash_on</span> Quick 1-Click Sign-In
-              </span>
-              <span class="text-[10px] text-slate-500 font-semibold">Immediate access</span>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <a href="/login/quick/admin" class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition text-center">
-                <span class="material-symbols-outlined text-sm">admin_panel_settings</span> Administrator
-              </a>
-              <a href="/login/quick/manager" class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-sm transition text-center">
-                <span class="material-symbols-outlined text-sm">manage_accounts</span> Manager
-              </a>
-              <a href="/login/quick/technician" class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition text-center">
-                <span class="material-symbols-outlined text-sm">engineering</span> Technician
-              </a>
-            </div>
-          </div>
-
           <form id="loginForm" method="post" action="{{ url_for('login_submit') }}" class="space-y-5">
             <input type="hidden" name="next" value="{{ request.args.get('next','') }}">
             <input type="hidden" name="_client_now_ms" class="js-client-now-ms" value="">
             <input type="hidden" name="_client_tz" class="js-client-tz" value="">
             <div>
               <label class="auth-label">Company Email</label>
-              <input id="loginEmailInput" name="email" type="email" required autocomplete="email" value="{{ request.args.get('email') or 'opsloom.ke@gmail.com' }}" placeholder="name@company.com" class="auth-input">
+              <input id="loginEmailInput" name="email" type="email" required autocomplete="email" placeholder="name@company.com" class="auth-input">
             </div>
             <div>
               <div class="flex items-center justify-between mb-2">
@@ -280,12 +259,12 @@
                   <span id="toggleLoginPasswordText">Show Password</span>
                 </button>
               </div>
-              <input id="loginPasswordInput" name="password" type="password" required autocomplete="current-password" value="Admin@123" placeholder="Enter your password" class="auth-input">
+              <input id="loginPasswordInput" name="password" type="password" required autocomplete="current-password" placeholder="Enter your password" class="auth-input">
             </div>
             <div class="flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300">
               <span class="inline-flex items-center gap-1.5 font-semibold">
                 <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400" style="font-size:16px;">verified_user</span>
-                Pass: <strong>Admin@123</strong> (or click Quick Sign-In above)
+                Auto-lock after <strong>{{ session_timeout_minutes or 30 }} min</strong> of inactivity
               </span>
               <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Strict Auth</span>
             </div>
