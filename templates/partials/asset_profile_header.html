@@ -57,6 +57,20 @@
     <div class="flex flex-wrap items-center justify-end gap-2" data-no-print>
       <a href="{{ url_for('assets_profile_get', asset_uid=asset.uid, print=1, autoprint=1) }}" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-dark-border bg-white dark:bg-dark-surface text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">Print</a>
       <a href="{{ url_for('assets_profile_pdf', asset_uid=asset.uid) }}" class="px-3 py-2 rounded-lg bg-ueal-gold text-white text-xs font-bold hover:opacity-90 shadow-sm">Download PDF</a>
+      <form method="post" action="{{ url_for('assets_delete', asset_uid=asset.uid) }}" class="inline-block"
+            data-confirm="delete_asset"
+            data-confirm-key="eabc_skip_confirm_delete_asset"
+            data-confirm-title="Delete Asset"
+            data-confirm-text="Are you sure you want to delete {{ asset.asset_name }} ({{ asset.asset_id }}) permanently?"
+            data-confirm-ok="Yes, delete asset">
+        <input type="hidden" name="asset_uid" value="{{ asset.uid }}">
+        <input type="hidden" name="asset_id" value="{{ asset.asset_id }}">
+        <input type="hidden" name="next" value="/assets">
+        <button type="submit" class="px-3 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-xs font-bold inline-flex items-center gap-1 transition cursor-pointer">
+          <span class="material-symbols-outlined text-sm">delete</span>
+          Delete
+        </button>
+      </form>
     </div>
     {% endif %}
     {% if header_show_image %}

@@ -260,8 +260,19 @@
 
     btnOk.addEventListener("click", () => {
       if (never.checked && pendingStorageKey) localStorage.setItem(pendingStorageKey, "1");
-      if (pendingForm) pendingForm.submit();
+      const formToSubmit = pendingForm;
       hide();
+      if (formToSubmit) {
+        try {
+          if (typeof formToSubmit.submit === "function") {
+            formToSubmit.submit();
+          } else {
+            HTMLFormElement.prototype.submit.call(formToSubmit);
+          }
+        } catch (e) {
+          HTMLFormElement.prototype.submit.call(formToSubmit);
+        }
+      }
     });
 
     document.addEventListener("keydown", (e) => {
@@ -313,6 +324,14 @@
         if(isHidden) menu.classList.remove('hidden');
         else menu.classList.add('hidden');
         e.preventDefault();
+        return;
+      }
+      // If clicking inside menu, do not prematurely hide before form submission or link click executes
+      const insideMenu = e.target.closest('[data-dd-menu]');
+      if (insideMenu) {
+        if (e.target.closest('a') || e.target.closest('button')) {
+          setTimeout(function(){ closeAll(null); }, 150);
+        }
         return;
       }
       // click outside

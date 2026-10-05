@@ -110,16 +110,38 @@
         <textarea name="technical_notes" rows="4" class="mt-2 w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg py-2.5 px-3 text-sm font-medium">{{ asset.technical_notes or '' }}</textarea>
       </div>
 
-      <div class="flex items-center justify-end gap-3 pt-2">
-        <a href="{{ url_for('assets_profile_get', asset_uid=asset.uid) }}"
-           class="px-5 py-2.5 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-sm font-bold text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700">
-          Cancel
-        </a>
-        <button type="submit"
-                class="px-5 py-2.5 rounded-lg bg-ueal-purple text-white text-sm font-bold hover:opacity-95 active:scale-95 transition">
-          Save Changes
-        </button>
+      <div class="flex items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-dark-border">
+        <div>
+          <button type="button" onclick="document.getElementById('editAssetDeleteForm').querySelector('button').click()"
+                  class="px-4 py-2.5 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:text-red-300 text-sm font-bold flex items-center gap-1.5 transition cursor-pointer">
+            <span class="material-symbols-outlined text-base">delete</span>
+            Delete Asset
+          </button>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <a href="{{ url_for('assets_profile_get', asset_uid=asset.uid) }}"
+             class="px-5 py-2.5 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-sm font-bold text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700">
+            Cancel
+          </a>
+          <button type="submit"
+                  class="px-5 py-2.5 rounded-lg bg-ueal-purple text-white text-sm font-bold hover:opacity-95 active:scale-95 transition">
+            Save Changes
+          </button>
+        </div>
       </div>
+    </form>
+
+    <form id="editAssetDeleteForm" method="post" action="{{ url_for('assets_delete', asset_uid=asset.uid) }}" class="hidden"
+          data-confirm="delete_asset"
+          data-confirm-key="eabc_skip_confirm_delete_asset"
+          data-confirm-title="Delete Asset"
+          data-confirm-text="Are you sure you want to permanently delete {{ asset.asset_name }} ({{ asset.asset_id }})?"
+          data-confirm-ok="Yes, delete asset">
+      <input type="hidden" name="asset_uid" value="{{ asset.uid }}">
+      <input type="hidden" name="asset_id" value="{{ asset.asset_id }}">
+      <input type="hidden" name="next" value="/assets">
+      <button type="submit" class="hidden"></button>
     </form>
   </div>
 </div>

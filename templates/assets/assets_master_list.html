@@ -244,7 +244,7 @@
                       {"href": url_for('assets_profile_get', asset_uid=a.uid), "icon": "visibility", "label": "Preview"},
                       {"href": url_for('assets_profile_get', asset_uid=a.uid) ~ '?print=1&autoprint=1', "icon": "print", "label": "Print"},
                       {"href": url_for('assets_edit_get', asset_uid=a.uid), "icon": "edit", "label": "Edit"},
-                      {"type": "form", "href": url_for('assets_delete', asset_uid=a.uid), "icon": "delete", "label": "Delete", "variant": "danger", "confirm": "Delete this asset permanently? This cannot be undone.", "hidden_inputs": [{"name": "next", "value": request.full_path}]}
+                      {"type": "form", "href": url_for('assets_delete', asset_uid=a.uid), "icon": "delete", "label": "Delete", "variant": "danger", "confirm": "Delete this asset permanently? This cannot be undone.", "confirm_key": "delete_asset", "confirm_title": "Delete Asset", "confirm_ok": "Yes, delete asset", "hidden_inputs": [{"name": "next", "value": request.full_path or '/assets'}, {"name": "asset_uid", "value": a.uid}, {"name": "asset_id", "value": a.asset_id}]}
                     ] %}
                     {% include 'partials/table_actions_menu.html' %}
                   </td>

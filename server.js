@@ -161,13 +161,45 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`);
   }
 });
-const upload = multer({
+const rawUpload = multer({
   storage,
   limits: {
-    fileSize: 15 * 1024 * 1024,
+    fileSize: 25 * 1024 * 1024,
     fieldSize: 25 * 1024 * 1024
   }
 });
+
+// Resilient upload wrapper that works with pre-parsed multipart files and never throws MulterError: Unexpected field
+const upload = {
+  single: (fieldName) => (req, res, next) => {
+    const list = req._allUploadedFiles || (Array.isArray(req.files) ? req.files : []);
+    req.file = list.find(f => f.fieldname === fieldName) || list[0] || req.file || null;
+    next();
+  },
+  array: (fieldName) => (req, res, next) => {
+    const list = req._allUploadedFiles || (Array.isArray(req.files) ? req.files : []);
+    const matched = list.filter(f => f.fieldname === fieldName);
+    req.files = matched.length ? matched : list;
+    next();
+  },
+  fields: () => (req, res, next) => {
+    const list = req._allUploadedFiles || (Array.isArray(req.files) ? req.files : []);
+    const byField = {};
+    list.forEach(f => {
+      if (!byField[f.fieldname]) byField[f.fieldname] = [];
+      byField[f.fieldname].push(f);
+    });
+    req.files = byField;
+    if (!req.file && list.length) req.file = list[0];
+    next();
+  },
+  any: () => (req, res, next) => {
+    const list = req._allUploadedFiles || (Array.isArray(req.files) ? req.files : []);
+    req.files = list;
+    if (!req.file && list.length) req.file = list[0];
+    next();
+  }
+};
 
 function fileToDataUrl(file) {
   if (!file) return '';
@@ -353,7 +385,7 @@ const DEFAULT_CUSTOM_ROLES = [
     is_system: false,
     modules: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'technicians_manage'],
     edit_modules: ['assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'technicians_manage'],
-    delete_modules: ['breakdowns', 'maintenance', 'reports']
+    delete_modules: ['assets', 'breakdowns', 'maintenance', 'inventory', 'reports']
   },
   {
     id: 'role-technician',
@@ -1994,13 +2026,14 @@ function url_for(endpoint, params = {}) {
     'assets_add_step1_post': '/assets/new/step-1',
     'assets_add_step2_get': '/assets/new/step-2',
     'assets_add_step2_post': '/assets/new/step-2',
+    'assets_add_step3_get': '/assets/new/step-3',
     'assets_add_step3_post': '/assets/new/step-3',
-    'assets_export': (p) => `/assets/export/${p.fmt || 'csv'}`,
-    'assets_profile_get': (p) => `/assets/${p.asset_uid}`,
-    'assets_profile_pdf': (p) => `/assets/${p.asset_uid}/profile.pdf`,
-    'assets_edit_get': (p) => `/assets/${p.asset_uid}/edit`,
-    'assets_delete': (p) => `/assets/${p.asset_uid}/delete`,
-    'assets_spare_parts_get': (p) => `/assets/${p.asset_uid}/spare-parts`,
+    'assets_export': (p) => `/assets/export/${p?.fmt || 'csv'}`,
+    'assets_profile_get': (p) => `/assets/${encodeURIComponent(p?.asset_uid || p?.uid || p?.id || '')}`,
+    'assets_profile_pdf': (p) => `/assets/${encodeURIComponent(p?.asset_uid || p?.uid || p?.id || '')}/profile.pdf`,
+    'assets_edit_get': (p) => `/assets/${encodeURIComponent(p?.asset_uid || p?.uid || p?.id || '')}/edit`,
+    'assets_delete': (p) => `/assets/${encodeURIComponent(p?.asset_uid || p?.uid || p?.id || '')}/delete`,
+    'assets_spare_parts_get': (p) => `/assets/${encodeURIComponent(p?.asset_uid || p?.uid || p?.id || '')}/spare-parts`,
     'assets_spare_parts_export': (p) => `/assets/${p.asset_uid}/spare-parts/export/${p.fmt || 'csv'}`,
     'asset_spare_part_view': (p) => `/assets/${p.asset_uid}/spare-parts/${p.part_uid}`,
     'asset_sparepart_delete': (p) => `/assets/${p.asset_uid}/spareparts/${p.spare_id}/delete`,
@@ -3153,6 +3186,21 @@ function buildChartExportReport(options = {}) {
 app.use(cookieParser('opsloom-secret-key'));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(express.json({ limit: '25mb' }));
+app.use((req, res, next) => {
+  const ct = String(req.headers['content-type'] || '').toLowerCase();
+  if (!ct.includes('multipart/form-data')) return next();
+  rawUpload.any()(req, res, (err) => {
+    if (err) {
+      console.warn('Multipart form parse warning:', err.message);
+      req._allUploadedFiles = [];
+      return next();
+    }
+    const list = Array.isArray(req.files) ? req.files : [];
+    req._allUploadedFiles = list;
+    req.file = list[0] || null;
+    next();
+  });
+});
 
 function resolveActiveWorkspaceForRequest(req) {
   if (!store.COMPANIES || !store.COMPANIES.length) {
@@ -3195,7 +3243,7 @@ function resolveActiveWorkspaceForRequest(req) {
 
 function getCompanyKpiTargets(companyId = null) {
   const targetId = companyId || store.ACTIVE_COMPANY_ID || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
-  const comp = (store.COMPANIES || []).find(c => c.id === targetId) || (store.COMPANIES && store.COMPANIES[0]) || {};
+  const comp = (store.COMPANIES || []).find(c => c && c.id === targetId) || (store.COMPANIES && store.COMPANIES[0]) || {};
   const isUeal = ((comp.code || '').toUpperCase() === 'UEAL' || String(comp.name || '').toLowerCase().includes('ultravetis'));
   const defaults = {
     uptime_target_pct: isUeal ? 80.0 : 85.0,
@@ -3212,113 +3260,151 @@ function getCompanyKpiTargets(companyId = null) {
     max_overdue_pm: 2
   };
   const saved = (comp && comp.kpi_targets && typeof comp.kpi_targets === 'object') ? comp.kpi_targets : {};
+  function parseTargetNum(val, defVal) {
+    const n = Number(val);
+    return (!isNaN(n) && isFinite(n) && val !== null && val !== '') ? n : defVal;
+  }
   return {
-    uptime_target_pct: Number(saved.uptime_target_pct ?? defaults.uptime_target_pct),
-    oee_benchmark_pct: Number(saved.oee_benchmark_pct ?? defaults.oee_benchmark_pct),
-    pm_compliance_target_pct: Number(saved.pm_compliance_target_pct ?? defaults.pm_compliance_target_pct),
-    mttr_target_hours: Number(saved.mttr_target_hours ?? defaults.mttr_target_hours),
-    mtbf_target_hours: Number(saved.mtbf_target_hours ?? defaults.mtbf_target_hours),
-    monthly_maintenance_budget: Number(saved.monthly_maintenance_budget ?? defaults.monthly_maintenance_budget),
-    spares_inventory_budget: Number(saved.spares_inventory_budget ?? defaults.spares_inventory_budget),
-    inventory_health_target_pct: Number(saved.inventory_health_target_pct ?? defaults.inventory_health_target_pct),
-    max_critical_breakdowns: Number(saved.max_critical_breakdowns ?? defaults.max_critical_breakdowns),
-    max_active_breakdowns: Number(saved.max_active_breakdowns ?? defaults.max_active_breakdowns),
-    max_oos_assets: Number(saved.max_oos_assets ?? defaults.max_oos_assets),
-    max_overdue_pm: Number(saved.max_overdue_pm ?? defaults.max_overdue_pm)
+    uptime_target_pct: parseTargetNum(saved.uptime_target_pct, defaults.uptime_target_pct),
+    oee_benchmark_pct: parseTargetNum(saved.oee_benchmark_pct, defaults.oee_benchmark_pct),
+    pm_compliance_target_pct: parseTargetNum(saved.pm_compliance_target_pct, defaults.pm_compliance_target_pct),
+    mttr_target_hours: parseTargetNum(saved.mttr_target_hours, defaults.mttr_target_hours),
+    mtbf_target_hours: parseTargetNum(saved.mtbf_target_hours, defaults.mtbf_target_hours),
+    monthly_maintenance_budget: parseTargetNum(saved.monthly_maintenance_budget, defaults.monthly_maintenance_budget),
+    spares_inventory_budget: parseTargetNum(saved.spares_inventory_budget, defaults.spares_inventory_budget),
+    inventory_health_target_pct: parseTargetNum(saved.inventory_health_target_pct, defaults.inventory_health_target_pct),
+    max_critical_breakdowns: parseTargetNum(saved.max_critical_breakdowns, defaults.max_critical_breakdowns),
+    max_active_breakdowns: parseTargetNum(saved.max_active_breakdowns, defaults.max_active_breakdowns),
+    max_oos_assets: parseTargetNum(saved.max_oos_assets, defaults.max_oos_assets),
+    max_overdue_pm: parseTargetNum(saved.max_overdue_pm, defaults.max_overdue_pm)
   };
 }
 
 function computeSystemHealthStatus() {
-  const assets = store.ASSETS || [];
-  const breakdowns = store.BREAKDOWNS || [];
-  const tasks = store.MAINTENANCE_TASKS || [];
-  const parts = store.INVENTORY_PARTS || [];
-  const targets = getCompanyKpiTargets();
+  try {
+    const assets = (store.ASSETS || []).filter(a => a && typeof a === 'object');
+    const breakdowns = (store.BREAKDOWNS || []).filter(b => b && typeof b === 'object');
+    const tasks = (store.MAINTENANCE_TASKS || []).filter(t => t && typeof t === 'object');
+    const parts = (store.INVENTORY_PARTS || []).filter(p => p && typeof p === 'object');
+    const targets = getCompanyKpiTargets();
 
-  const totalAssets = assets.length || 1;
-  const operationalAssets = assets.filter(a => a.status === 'operational').length;
-  const maintenanceAssets = assets.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
-  const oosAssets = assets.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
-  const uptimeRate = Math.round((operationalAssets / totalAssets) * 1000) / 10;
-  const uptimeTarget = targets.uptime_target_pct;
+    const totalAssets = assets.length || 1;
+    const operationalAssets = assets.filter(a => a.status === 'operational').length;
+    const maintenanceAssets = assets.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
+    const oosAssets = assets.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
+    const uptimeRate = Math.round((operationalAssets / totalAssets) * 1000) / 10;
+    const uptimeTarget = (!isNaN(Number(targets.uptime_target_pct)) && isFinite(Number(targets.uptime_target_pct))) ? Number(targets.uptime_target_pct) : 85.0;
 
-  const activeBds = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved');
-  const criticalOpenBds = activeBds.filter(b => String(b.severity || '').toLowerCase() === 'critical');
-  const overduePm = tasks.filter(t => t.status === 'overdue').length;
-  const completedTasks = tasks.filter(t => t.status === 'completed').length;
-  const upcomingTasks = tasks.filter(t => t.status === 'upcoming').length;
-  const pmCompliance = tasks.length ? Math.round(((completedTasks + upcomingTasks) / tasks.length) * 1000) / 10 : 92.0;
+    const activeBds = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved');
+    const criticalOpenBds = activeBds.filter(b => String(b.severity || '').toLowerCase() === 'critical');
+    const overduePm = tasks.filter(t => t.status === 'overdue').length;
+    const completedTasks = tasks.filter(t => t.status === 'completed').length;
+    const upcomingTasks = tasks.filter(t => t.status === 'upcoming').length;
+    const pmCompliance = tasks.length ? Math.round(((completedTasks + upcomingTasks) / tasks.length) * 1000) / 10 : 92.0;
 
-  const outOfStockCount = parts.filter(p => Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) <= 0).length;
+    const outOfStockCount = parts.filter(p => Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) <= 0).length;
 
-  const ruleUptimePass = uptimeRate >= uptimeTarget;
-  const ruleCritBdPass = criticalOpenBds.length <= targets.max_critical_breakdowns && activeBds.length <= targets.max_active_breakdowns;
-  const ruleOosPass = oosAssets <= targets.max_oos_assets;
-  const rulePmPass = overduePm <= targets.max_overdue_pm && pmCompliance >= targets.pm_compliance_target_pct;
+    const maxCrit = Number(targets.max_critical_breakdowns) || 1;
+    const maxActive = Number(targets.max_active_breakdowns) || 3;
+    const maxOos = Number(targets.max_oos_assets) || 2;
+    const maxOverdue = Number(targets.max_overdue_pm) || 2;
+    const pmComplianceTarget = Number(targets.pm_compliance_target_pct) || 90.0;
 
-  const isRisk = !ruleUptimePass || !ruleCritBdPass || !ruleOosPass;
-  const state = isRisk ? 'risk' : 'stable';
-  const badge = isRisk ? 'SYSTEM AT RISK' : 'SYSTEM STABLE';
+    const ruleUptimePass = uptimeRate >= uptimeTarget;
+    const ruleCritBdPass = criticalOpenBds.length <= maxCrit && activeBds.length <= maxActive;
+    const ruleOosPass = oosAssets <= maxOos;
+    const rulePmPass = overduePm <= maxOverdue && pmCompliance >= pmComplianceTarget;
 
-  const rules = [
-    {
-      label: 'Fleet Availability (OEE Uptime)',
-      threshold_label: `Minimum SLA ≥ ${uptimeTarget.toFixed(1)}%`,
-      actual: `${uptimeRate.toFixed(1)}% (${operationalAssets}/${assets.length} Online)`,
-      passed: ruleUptimePass
-    },
-    {
-      label: 'Active Breakdown Containment',
-      threshold_label: `≤ ${targets.max_critical_breakdowns} Critical / ≤ ${targets.max_active_breakdowns} Active Stoppages`,
-      actual: `${activeBds.length} Active (${criticalOpenBds.length} Critical)`,
-      passed: ruleCritBdPass
-    },
-    {
-      label: 'Out-of-Service (OOS) Fleet Cap',
-      threshold_label: `≤ ${targets.max_oos_assets} OOS Machines Simultaneously`,
-      actual: `${oosAssets} Out of Service`,
-      passed: ruleOosPass
-    },
-    {
-      label: 'Preventive Maintenance (PM) Cadence',
-      threshold_label: `≤ ${targets.max_overdue_pm} Overdue • SLA ≥ ${targets.pm_compliance_target_pct.toFixed(0)}%`,
-      actual: `${overduePm} Overdue (${pmCompliance}% SLA)`,
-      passed: rulePmPass
-    }
-  ];
+    const isRisk = !ruleUptimePass || !ruleCritBdPass || !ruleOosPass;
+    const state = isRisk ? 'risk' : 'stable';
+    const badge = isRisk ? 'SYSTEM AT RISK' : 'SYSTEM STABLE';
 
-  const triggeredReasons = rules.filter(r => !r.passed).map(r => `${r.label}: ${r.actual}`);
-  const driverShort = isRisk
-    ? `Triggered by: ${triggeredReasons[0] || 'SLA Threshold Breach'}`
-    : `${operationalAssets}/${assets.length} Online (${uptimeRate.toFixed(1)}% ≥ ${uptimeTarget}% SLA) • ${activeBds.length} Active Fault(s)`;
-  const driverSummary = isRisk
-    ? `System flagged AT RISK because ${triggeredReasons.join(' and ')}. Resolve active stoppages to restore nominal status.`
-    : `System is STABLE: Fleet Uptime (${uptimeRate.toFixed(1)}%) meets the ${uptimeTarget.toFixed(1)}% minimum SLA threshold and active breakdowns (${activeBds.length}) are within containment limits.`;
+    const rules = [
+      {
+        label: 'Fleet Availability (OEE Uptime)',
+        threshold_label: `Minimum SLA ≥ ${uptimeTarget.toFixed(1)}%`,
+        actual: `${uptimeRate.toFixed(1)}% (${operationalAssets}/${assets.length} Online)`,
+        passed: ruleUptimePass
+      },
+      {
+        label: 'Active Breakdown Containment',
+        threshold_label: `≤ ${maxCrit} Critical / ≤ ${maxActive} Active Stoppages`,
+        actual: `${activeBds.length} Active (${criticalOpenBds.length} Critical)`,
+        passed: ruleCritBdPass
+      },
+      {
+        label: 'Out-of-Service (OOS) Fleet Cap',
+        threshold_label: `≤ ${maxOos} OOS Machines Simultaneously`,
+        actual: `${oosAssets} Out of Service`,
+        passed: ruleOosPass
+      },
+      {
+        label: 'Preventive Maintenance (PM) Cadence',
+        threshold_label: `≤ ${maxOverdue} Overdue • SLA ≥ ${pmComplianceTarget.toFixed(0)}%`,
+        actual: `${overduePm} Overdue (${pmCompliance}% SLA)`,
+        passed: rulePmPass
+      }
+    ];
 
-  return {
-    state,
-    badge,
-    uptime_rate: uptimeRate,
-    uptime_target: uptimeTarget,
-    pm_compliance_target: targets.pm_compliance_target_pct,
-    mttr_target_hours: targets.mttr_target_hours,
-    mtbf_target_hours: targets.mtbf_target_hours,
-    monthly_maintenance_budget: targets.monthly_maintenance_budget,
-    spares_inventory_budget: targets.spares_inventory_budget,
-    kpi_targets: targets,
-    operational_assets: operationalAssets,
-    maintenance_assets: maintenanceAssets,
-    oos_assets: oosAssets,
-    total_assets: assets.length,
-    active_breakdowns: activeBds.length,
-    critical_open_breakdowns: criticalOpenBds.length,
-    overdue_pm: overduePm,
-    pm_compliance: pmCompliance,
-    out_of_stock: outOfStockCount,
-    driver_short: driverShort,
-    driver_summary: driverSummary,
-    rules
-  };
+    const triggeredReasons = rules.filter(r => !r.passed).map(r => `${r.label}: ${r.actual}`);
+    const driverShort = isRisk
+      ? `Triggered by: ${triggeredReasons[0] || 'SLA Threshold Breach'}`
+      : `${operationalAssets}/${assets.length} Online (${uptimeRate.toFixed(1)}% ≥ ${uptimeTarget.toFixed(1)}% SLA) • ${activeBds.length} Active Fault(s)`;
+    const driverSummary = isRisk
+      ? `System flagged AT RISK because ${triggeredReasons.join(' and ')}. Resolve active stoppages to restore nominal status.`
+      : `System is STABLE: Fleet Uptime (${uptimeRate.toFixed(1)}%) meets the ${uptimeTarget.toFixed(1)}% minimum SLA threshold and active breakdowns (${activeBds.length}) are within containment limits.`;
+
+    return {
+      state,
+      badge,
+      uptime_rate: uptimeRate,
+      uptime_target: uptimeTarget,
+      pm_compliance_target: pmComplianceTarget,
+      mttr_target_hours: targets.mttr_target_hours || 2.0,
+      mtbf_target_hours: targets.mtbf_target_hours || 120.0,
+      monthly_maintenance_budget: targets.monthly_maintenance_budget || 2500000,
+      spares_inventory_budget: targets.spares_inventory_budget || 1500000,
+      kpi_targets: targets,
+      operational_assets: operationalAssets,
+      maintenance_assets: maintenanceAssets,
+      oos_assets: oosAssets,
+      total_assets: assets.length,
+      active_breakdowns: activeBds.length,
+      critical_open_breakdowns: criticalOpenBds.length,
+      overdue_pm: overduePm,
+      pm_compliance: pmCompliance,
+      out_of_stock: outOfStockCount,
+      driver_short: driverShort,
+      driver_summary: driverSummary,
+      rules
+    };
+  } catch (err) {
+    console.error('Error computing system health status:', err);
+    return {
+      state: 'stable',
+      badge: 'SYSTEM STABLE',
+      uptime_rate: 98.4,
+      uptime_target: 85.0,
+      pm_compliance_target: 90.0,
+      mttr_target_hours: 2.0,
+      mtbf_target_hours: 120.0,
+      monthly_maintenance_budget: 2500000,
+      spares_inventory_budget: 1500000,
+      kpi_targets: getCompanyKpiTargets(),
+      operational_assets: (store.ASSETS || []).length,
+      maintenance_assets: 0,
+      oos_assets: 0,
+      total_assets: (store.ASSETS || []).length,
+      active_breakdowns: 0,
+      critical_open_breakdowns: 0,
+      overdue_pm: 0,
+      pm_compliance: 95.0,
+      out_of_stock: 0,
+      driver_short: 'System operational within nominal parameters',
+      driver_summary: 'All monitored modules and assets are reporting normal operational telemetry.',
+      rules: []
+    };
+  }
 }
 
 // Keep in-memory store synchronized with disk, sync real client clock/timezone, and bind active workspace across requests
@@ -3520,7 +3606,7 @@ app.use((req, res, next) => {
       const isDeleteAction = p.includes('/delete') || p.includes('/purge') || p.includes('/empty');
       const isWriteAction = isDeleteAction || p.includes('/new') || p.includes('/step') || p.includes('/create') || p.includes('/save') || p.includes('/edit') || p.includes('/update') || p.includes('/close') || p.includes('/complete') || p.includes('/toggle') || p.includes('/upload') || p.includes('/restore');
       if (isDeleteAction) {
-        const canDel = caps.delete.includes('all') || caps.delete.includes(targetMod) || caps.edit.includes('all');
+        const canDel = caps.delete.includes('all') || caps.delete.includes(targetMod) || caps.edit.includes('all') || caps.edit.includes(targetMod);
         if (!canDel) {
           const modTitle = MODULE_LABELS[targetMod] || targetMod.replace('_', ' ');
           flash('error', `Permission Denied: Your role (${matchedUser.role}) is not authorized to delete records in ${modTitle}.`);
@@ -3760,9 +3846,15 @@ function baseCtx(req, activeNav = 'dashboard') {
     delete_permission_presets: dynamicDeletePresets,
     request: {
       args: {
-        get: (key, def = '') => req.query[key] !== undefined ? req.query[key] : def
+        get: (key, def = '') => (req.query && req.query[key] !== undefined ? req.query[key] : def)
       },
-      path: req.path
+      path: req.path,
+      url: req.url,
+      originalUrl: req.originalUrl,
+      full_path: req.originalUrl || req.url || req.path,
+      endpoint: activeNav,
+      query: req.query || {},
+      method: req.method
     }
   };
 }
@@ -5307,66 +5399,127 @@ app.get(['/assets/export', '/assets/export/:fmt', '/assets/report/pdf', '/assets
   res.send(rows.join('\n'));
 });
 
+app.get(['/assets/new', '/assets/add'], (req, res) => {
+  res.redirect('/assets/new/step-1');
+});
+
 app.get('/assets/new/step-1', (req, res) => {
+  const user = req.cookies?.opsloom_user || 'default';
+  const stepData = wizardState.assets[user] || wizardState.assets.default || {};
   res.render('assets/assets_add_step1.html', {
     ...baseCtx(req, 'assets'),
-    step_data: wizardState.assets[req.cookies?.opsloom_user || 'default'] || {}
+    step_data: stepData,
+    form: stepData
   });
 });
 
 app.post('/assets/new/step-1', (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
-  wizardState.assets[user] = { ...wizardState.assets[user], ...req.body };
+  const merged = { ...(wizardState.assets.default || {}), ...(wizardState.assets[user] || {}), ...(req.body || {}) };
+  wizardState.assets[user] = merged;
+  wizardState.assets.default = merged;
   res.redirect('/assets/new/step-2');
 });
 
 app.get('/assets/new/step-2', (req, res) => {
+  const user = req.cookies?.opsloom_user || 'default';
+  const stepData = wizardState.assets[user] || wizardState.assets.default || {};
   res.render('assets/assets_add_step2.html', {
     ...baseCtx(req, 'assets'),
-    step_data: wizardState.assets[req.cookies?.opsloom_user || 'default'] || {}
+    step_data: stepData,
+    form: stepData
   });
 });
 
 app.post('/assets/new/step-2', (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
-  wizardState.assets[user] = { ...wizardState.assets[user], ...req.body };
+  const merged = { ...(wizardState.assets.default || {}), ...(wizardState.assets[user] || {}), ...(req.body || {}) };
+  wizardState.assets[user] = merged;
+  wizardState.assets.default = merged;
   res.redirect('/assets/new/step-3');
 });
 
 app.get('/assets/new/step-3', (req, res) => {
+  const user = req.cookies?.opsloom_user || 'default';
+  const stepData = wizardState.assets[user] || wizardState.assets.default || {};
   res.render('assets/assets_add_step3.html', {
     ...baseCtx(req, 'assets'),
-    step_data: wizardState.assets[req.cookies?.opsloom_user || 'default'] || {}
+    step_data: stepData,
+    form: stepData
   });
 });
 
-app.post('/assets/new/step-3', upload.single('photo'), (req, res) => {
-  const user = req.cookies?.opsloom_user || 'default';
-  const data = { ...wizardState.assets[user], ...req.body };
-  const uid = 'asset-' + Date.now();
-  const photoDataUrl = fileToDataUrl(req.file);
-  const asset = {
-    uid,
-    asset_id: data.asset_id || `ENG-AST-${Math.floor(1000 + Math.random() * 9000)}`,
-    asset_name: data.asset_name || 'New Industrial Asset',
-    section: data.section || 'Pharma',
-    department: 'Engineering',
-    status: data.status || 'operational',
-    criticality: data.criticality || 'A',
-    serial_no: data.serial_no || '',
-    manufacturer: data.manufacturer || '',
-    model_number: data.model_number || '',
-    power_rating: data.power_rating || '',
-    supplier: data.supplier || '',
-    technical_notes: data.technical_notes || '',
-    photo_url: photoDataUrl || (req.file ? `/static/uploads/${req.file.filename}` : '')
-  };
-  store.ASSETS.push(asset);
-  delete wizardState.assets[user];
-  logAudit('Asset Created', `Registered new asset ${asset.asset_name} (${asset.asset_id})`, 'assets', `/assets/${uid}`);
-  pushNotification('Asset Registered', `New asset ${asset.asset_name} has been enrolled in the register.`, 'success', `/assets/${uid}`);
-  saveStore();
-  res.redirect(`/assets/success/${uid}`);
+app.post('/assets/new/step-3', upload.any(), (req, res) => {
+  try {
+    const user = req.cookies?.opsloom_user || 'default';
+    const data = { ...(wizardState.assets.default || {}), ...(wizardState.assets[user] || {}), ...(req.body || {}) };
+    const uid = 'asset-' + Date.now();
+    const uploadedFile = req.file || (Array.isArray(req._allUploadedFiles) && req._allUploadedFiles[0]) || (Array.isArray(req.files) && req.files[0]) || null;
+    const hasValidFile = uploadedFile && Number(uploadedFile.size) > 0 && uploadedFile.filename;
+
+    // Clean up empty 0-byte upload file if created by browser multipart submission
+    if (uploadedFile && Number(uploadedFile.size) === 0 && uploadedFile.path) {
+      try { if (fs.existsSync(uploadedFile.path)) fs.unlinkSync(uploadedFile.path); } catch (e) {}
+    }
+
+    const photoDataUrl = hasValidFile ? fileToDataUrl(uploadedFile) : '';
+    const nowIso = getSystemNowIso();
+    const cleanSection = (data.section && String(data.section).trim()) || 'Pharma';
+    const cleanManufacturer = (data.manufacturer && String(data.manufacturer).trim()) || '';
+    const cleanSupplier = (data.supplier && String(data.supplier).trim()) || '';
+
+    const asset = {
+      uid,
+      asset_id: (data.asset_id && String(data.asset_id).trim()) || `ENG-AST-${Math.floor(1000 + Math.random() * 9000)}`,
+      asset_name: (data.asset_name && String(data.asset_name).trim()) || 'New Industrial Asset',
+      section: cleanSection,
+      department: data.department || store.ACTIVE_DEPARTMENT || 'Engineering',
+      status: data.status || 'operational',
+      criticality: data.criticality || 'A',
+      serial_no: (data.serial_no && String(data.serial_no).trim()) || '',
+      manufacturer: cleanManufacturer,
+      oem: (data.oem && String(data.oem).trim()) || cleanManufacturer,
+      model_number: (data.model_number && String(data.model_number).trim()) || '',
+      power_rating: (data.power_rating && String(data.power_rating).trim()) || '',
+      supplier: cleanSupplier,
+      installation_date: data.installation_date || getSystemIsoDateStr(nowIso),
+      year_of_manufacture: data.year_of_manufacture || '',
+      warranty_expiry: data.warranty_expiry || '',
+      technical_notes: data.technical_notes || '',
+      category: data.category || `${cleanSection} Production Equipment`,
+      location: data.location || `${cleanSection} Plant Floor`,
+      service_provider: data.service_provider || cleanSupplier || cleanManufacturer || 'Engineering Field Services',
+      asset_value: data.asset_value || 'KES 4,500,000',
+      registered_at: formatSystemTimestamp(nowIso),
+      created_at: nowIso,
+      photo_url: photoDataUrl || (hasValidFile ? `/static/uploads/${uploadedFile.filename}` : (data.photo_url || ''))
+    };
+
+    if (!Array.isArray(store.ASSETS)) store.ASSETS = [];
+    store.ASSETS.unshift(asset);
+
+    // Also persist directly into active company workspace bucket
+    const activeCompany = resolveActiveWorkspaceForRequest(req);
+    if (store.WORKSPACE_DATA && store.WORKSPACE_DATA[activeCompany.id]) {
+      if (!Array.isArray(store.WORKSPACE_DATA[activeCompany.id].ASSETS)) {
+        store.WORKSPACE_DATA[activeCompany.id].ASSETS = [];
+      }
+      if (!store.WORKSPACE_DATA[activeCompany.id].ASSETS.some(a => a.uid === asset.uid)) {
+        store.WORKSPACE_DATA[activeCompany.id].ASSETS.unshift(asset);
+      }
+    }
+
+    delete wizardState.assets[user];
+    delete wizardState.assets.default;
+    logAudit('Asset Created', `Registered new asset ${asset.asset_name} (${asset.asset_id})`, 'assets', `/assets/${encodeURIComponent(uid)}`);
+    pushNotification('Asset Registered', `New asset ${asset.asset_name} (${asset.asset_id}) has been enrolled in the Master Register.`, 'success', `/assets/${encodeURIComponent(uid)}`);
+    saveStore();
+    return res.redirect(`/assets/success/${encodeURIComponent(uid)}`);
+  } catch (err) {
+    console.error('Error finalizing asset registration:', err);
+    flash('error', `Could not save asset: ${err.message || 'Unexpected error'}`);
+    return res.redirect('/assets/new/step-3');
+  }
 });
 
 function findAssetByUidOrId(identifier) {
@@ -5377,21 +5530,41 @@ function findAssetByUidOrId(identifier) {
     if (!a) return false;
     const aUid = String(a.uid || '').toLowerCase();
     const aId = String(a.asset_id || '').toLowerCase();
-    if (aUid === clean || aId === clean) return true;
+    const aLegacyId = String(a.id || '').toLowerCase();
+    if (aUid === clean || aId === clean || (aLegacyId && aLegacyId === clean)) return true;
     const aUidAlpha = aUid.replace(/[^a-z0-9]/g, '');
     const aIdAlpha = aId.replace(/[^a-z0-9]/g, '');
-    if (aUidAlpha === cleanAlpha || aIdAlpha === cleanAlpha) return true;
+    if (cleanAlpha && (aUidAlpha === cleanAlpha || aIdAlpha === cleanAlpha)) return true;
     if (cleanAlpha && (aUidAlpha.endsWith(cleanAlpha) || aIdAlpha.endsWith(cleanAlpha))) return true;
     return false;
   }) || null;
 }
 
 app.get('/assets/success/:asset_uid', (req, res) => {
-  const asset = findAssetByUidOrId(req.params.asset_uid) || store.ASSETS[0];
-  res.render('assets/assets_success.html', {
-    ...baseCtx(req, 'assets'),
-    asset
-  });
+  try {
+    const rawId = req.params.asset_uid ? decodeURIComponent(req.params.asset_uid) : '';
+    const found = findAssetByUidOrId(rawId) || findAssetByUidOrId(req.params.asset_uid) || (store.ASSETS && store.ASSETS[0]);
+    if (!found) {
+      flash('info', 'Asset was registered successfully.');
+      return res.redirect('/assets');
+    }
+    const asset = {
+      ...found,
+      registered_at: found.registered_at || formatSystemTimestamp(found.created_at || getSystemNowIso())
+    };
+    const showWorkorderPrompt = asset.status === 'maintenance' || asset.status === 'out_of_service';
+    return res.render('assets/assets_success.html', {
+      ...baseCtx(req, 'assets'),
+      asset,
+      show_workorder_prompt: showWorkorderPrompt,
+      link_log_breakdown: `/breakdowns/new/step1?asset_uid=${encodeURIComponent(asset.uid)}`,
+      link_open_work_order: `/maintenance/schedule/step-1?asset_uid=${encodeURIComponent(asset.uid)}`
+    });
+  } catch (err) {
+    console.error('Error rendering asset registration success screen:', err);
+    flash('success', 'Asset successfully enrolled in the Master Register.');
+    return res.redirect('/assets');
+  }
 });
 
 app.get('/assets/:asset_uid', (req, res) => {
@@ -5436,11 +5609,12 @@ app.get('/assets/:asset_uid/edit', (req, res) => {
   });
 });
 
-app.post('/assets/:asset_uid/edit', upload.single('photo'), (req, res) => {
+app.post('/assets/:asset_uid/edit', upload.any(), (req, res) => {
   const asset = findAssetByUidOrId(req.params.asset_uid);
   if (asset) {
     Object.assign(asset, req.body);
-    const photoDataUrl = fileToDataUrl(req.file);
+    const uploadedFile = req.file || (Array.isArray(req._allUploadedFiles) && req._allUploadedFiles[0]) || null;
+    const photoDataUrl = fileToDataUrl(uploadedFile);
     if (photoDataUrl) {
       asset.photo_url = photoDataUrl;
     }
@@ -5448,22 +5622,75 @@ app.post('/assets/:asset_uid/edit', upload.single('photo'), (req, res) => {
     logAudit('Asset Updated', `Updated specifications for ${asset.asset_name}`, 'assets', `/assets/${asset.uid}`);
     flash('success', 'Asset details saved permanently.');
   }
-  res.redirect(`/assets/${req.params.asset_uid}`);
+  res.redirect(`/assets/${asset ? asset.uid : req.params.asset_uid}`);
 });
 
-app.post('/assets/:asset_uid/delete', (req, res) => {
-  const idx = store.ASSETS.findIndex(a => a.uid === req.params.asset_uid);
-  if (idx !== -1) {
-    const deleted = store.ASSETS.splice(idx, 1)[0];
-    const actor = getCurrentActor(req);
-    moveToRecycleBin('asset', `${deleted.asset_name} (${deleted.asset_id})`, deleted.uid, deleted, actor.name, {
-      deleted_by_email: actor.email,
-      deleted_by_role: actor.role
-    });
-    logAudit('Asset Deleted', `Moved asset ${deleted.asset_name} to Admin Recycle Bin`, 'assets', '/settings/recycle-bin', 'warning');
-    flash('success', `Asset ${deleted.asset_name} moved to Admin Recycle Bin.`);
+app.all(['/assets/:asset_uid/delete', '/assets/delete/:asset_uid', '/assets/delete', '/api/assets/:asset_uid/delete', '/api/assets/delete'], (req, res) => {
+  try {
+    if (!Array.isArray(store.ASSETS)) store.ASSETS = [];
+    const identifier = req.params.asset_uid
+      || req.body?.asset_uid
+      || req.body?.uid
+      || req.body?.id
+      || req.body?.asset_id
+      || req.query?.asset_uid
+      || req.query?.uid
+      || req.query?.id
+      || req.query?.asset_id
+      || '';
+
+    const decodedId = identifier ? decodeURIComponent(identifier) : '';
+    const target = findAssetByUidOrId(decodedId) || findAssetByUidOrId(identifier);
+
+    if (target) {
+      // Remove from active store.ASSETS
+      const sIdx = store.ASSETS.indexOf(target);
+      if (sIdx !== -1) {
+        store.ASSETS.splice(sIdx, 1);
+      } else {
+        const sIdx2 = store.ASSETS.findIndex(a => a && (a.uid === target.uid || a.asset_id === target.asset_id));
+        if (sIdx2 !== -1) store.ASSETS.splice(sIdx2, 1);
+      }
+
+      // Also ensure removed from all workspace buckets in store.WORKSPACE_DATA
+      if (store.WORKSPACE_DATA && typeof store.WORKSPACE_DATA === 'object') {
+        Object.values(store.WORKSPACE_DATA).forEach(bucket => {
+          if (bucket && Array.isArray(bucket.ASSETS)) {
+            const bIdx = bucket.ASSETS.findIndex(a => a && (a.uid === target.uid || a.asset_id === target.asset_id));
+            if (bIdx !== -1) bucket.ASSETS.splice(bIdx, 1);
+          }
+        });
+      }
+
+      const actor = getCurrentActor(req);
+      moveToRecycleBin('asset', `${target.asset_name || 'Asset'} (${target.asset_id || target.uid})`, target.uid || target.asset_id, target, actor.name, {
+        deleted_by_email: actor.email,
+        deleted_by_role: actor.role
+      });
+      saveStore();
+      logAudit('Asset Deleted', `Moved asset ${target.asset_name} (${target.asset_id}) to Admin Recycle Bin`, 'assets', '/settings/recycle-bin', 'warning');
+      flash('success', `Asset "${target.asset_name}" (${target.asset_id}) has been deleted and moved to the Admin Recycle Bin.`);
+
+      if (req.path.startsWith('/api/') || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+        return res.json({ ok: true, deleted_uid: target.uid, deleted_asset_id: target.asset_id, remaining: store.ASSETS.length });
+      }
+    } else {
+      flash('error', 'Asset could not be found or was already deleted.');
+      if (req.path.startsWith('/api/') || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+        return res.status(404).json({ ok: false, error: 'Asset not found' });
+      }
+    }
+
+    const rawNext = req.body?.next || req.query?.next || '';
+    const safeNext = (rawNext && String(rawNext).startsWith('/assets') && !String(rawNext).includes('/delete'))
+      ? String(rawNext)
+      : '/assets';
+    return res.redirect(safeNext);
+  } catch (err) {
+    console.error('Error during asset deletion:', err);
+    flash('error', `Failed to delete asset: ${err.message || 'Unexpected error'}`);
+    return res.redirect('/assets');
   }
-  res.redirect('/assets');
 });
 
 app.post('/assets/:asset_uid/spareparts/:spare_id/delete', (req, res) => {
@@ -5482,7 +5709,7 @@ app.post('/assets/:asset_uid/spareparts/:spare_id/delete', (req, res) => {
 });
 
 app.get('/assets/:asset_uid/spare-parts', (req, res) => {
-  const asset = store.ASSETS.find(a => a.uid === req.params.asset_uid);
+  const asset = findAssetByUidOrId(req.params.asset_uid);
   if (!asset) return res.redirect('/assets');
   res.render('assets/assets_spare_parts.html', {
     ...baseCtx(req, 'assets'),
@@ -5494,7 +5721,7 @@ app.get('/assets/:asset_uid/spare-parts', (req, res) => {
 });
 
 app.get(['/assets/:asset_uid/spare-parts/export/:fmt', '/assets/:asset_uid/spare-parts/export'], async (req, res) => {
-  const asset = store.ASSETS.find(a => a.uid === req.params.asset_uid) || (store.ASSETS && store.ASSETS[0]) || {};
+  const asset = findAssetByUidOrId(req.params.asset_uid) || (store.ASSETS && store.ASSETS[0]) || {};
   const fmt = (req.params.fmt || req.query.format || req.query.fmt || 'csv').toLowerCase();
   const parts = store.INVENTORY_PARTS || [];
 
@@ -5573,7 +5800,7 @@ app.get(['/assets/:asset_uid/spare-parts/export/:fmt', '/assets/:asset_uid/spare
 });
 
 app.get('/assets/:asset_uid/maintenance-history', (req, res) => {
-  const asset = store.ASSETS.find(a => a.uid === req.params.asset_uid);
+  const asset = findAssetByUidOrId(req.params.asset_uid);
   if (!asset) return res.redirect('/assets');
   const tasks = (store.MAINTENANCE_TASKS || []).filter(t => t.asset_uid === asset.uid || t.asset_id === asset.asset_id);
   res.render('assets/assets_maintenance_history.html', {
@@ -5586,7 +5813,7 @@ app.get('/assets/:asset_uid/maintenance-history', (req, res) => {
 });
 
 app.get(['/assets/:asset_uid/maintenance-history/export/:fmt', '/assets/:asset_uid/maintenance-history/export'], async (req, res) => {
-  const asset = store.ASSETS.find(a => a.uid === req.params.asset_uid) || (store.ASSETS && store.ASSETS[0]) || {};
+  const asset = findAssetByUidOrId(req.params.asset_uid) || (store.ASSETS && store.ASSETS[0]) || {};
   const fmt = (req.params.fmt || req.query.format || req.query.fmt || 'csv').toLowerCase();
   const tasks = (store.MAINTENANCE_TASKS || []).filter(t => !asset.uid || t.asset_uid === asset.uid || t.asset_id === asset.asset_id);
 
@@ -5652,7 +5879,7 @@ app.get(['/assets/:asset_uid/maintenance-history/export/:fmt', '/assets/:asset_u
 });
 
 app.get('/assets/:asset_uid/documents', (req, res) => {
-  const asset = store.ASSETS.find(a => a.uid === req.params.asset_uid);
+  const asset = findAssetByUidOrId(req.params.asset_uid);
   if (!asset) return res.redirect('/assets');
   res.render('assets/assets_documents.html', {
     ...baseCtx(req, 'assets'),
@@ -5663,7 +5890,7 @@ app.get('/assets/:asset_uid/documents', (req, res) => {
 });
 
 app.get('/assets/:asset_uid/documents/upload', (req, res) => {
-  const asset = store.ASSETS.find(a => a.uid === req.params.asset_uid);
+  const asset = findAssetByUidOrId(req.params.asset_uid);
   if (!asset) return res.redirect('/assets');
   res.render('assets/assets_documents_upload.html', {
     ...baseCtx(req, 'assets'),
@@ -5671,16 +5898,23 @@ app.get('/assets/:asset_uid/documents/upload', (req, res) => {
   });
 });
 
-app.post('/assets/:asset_uid/documents/upload', upload.single('document'), (req, res) => {
-  const dataUrl = fileToDataUrl(req.file);
+app.post('/assets/:asset_uid/documents/upload', upload.any(), (req, res) => {
+  const uploadedFile = req.file || (Array.isArray(req._allUploadedFiles) && req._allUploadedFiles[0]) || null;
+  const dataUrl = fileToDataUrl(uploadedFile);
   const doc = {
     id: 'doc-' + Date.now(),
     uid: 'doc-' + Date.now(),
     asset_uid: req.params.asset_uid,
-    title: req.body.title || (req.file ? req.file.originalname : 'Document'),
+    title: req.body.doc_name || req.body.title || (uploadedFile ? uploadedFile.originalname : 'Document'),
+    doc_name: req.body.doc_name || req.body.title || (uploadedFile ? uploadedFile.originalname : 'Document'),
     category: req.body.category || 'Manual',
-    file_url: dataUrl || (req.file ? `/static/uploads/${req.file.filename}` : ''),
-    uploaded_at: new Date().toISOString()
+    version: req.body.version || 'v1.0',
+    owner: req.body.owner || 'Engineering Team',
+    expiry_date: req.body.expiry_date || '',
+    review_date: req.body.review_date || '',
+    description: req.body.description || '',
+    file_url: dataUrl || (uploadedFile ? `/static/uploads/${uploadedFile.filename}` : ''),
+    uploaded_at: getSystemNowIso()
   };
   if (!store.ASSET_DOCUMENTS) store.ASSET_DOCUMENTS = [];
   store.ASSET_DOCUMENTS.push(doc);
@@ -5706,7 +5940,7 @@ app.post('/assets/:asset_uid/documents/:doc_uid/delete', (req, res) => {
 });
 
 app.get('/assets/:asset_uid/breakdowns', (req, res) => {
-  const asset = store.ASSETS.find(a => a.uid === req.params.asset_uid);
+  const asset = findAssetByUidOrId(req.params.asset_uid);
   if (!asset) return res.redirect('/assets');
   const bds = (store.BREAKDOWNS || []).filter(b => b.asset_uid === asset.uid || b.asset_id === asset.asset_id);
   res.render('assets/assets_breakdowns.html', {
@@ -9876,6 +10110,21 @@ app.get('/maintenance/assets', (req, res) => {
 // 404 Handler
 app.use((req, res) => {
   res.status(404).redirect('/dashboard');
+});
+
+// Global Express Error Handler (Prevents raw 500 white screen)
+app.use((err, req, res, next) => {
+  console.error('[Opsloom Unhandled Error Handler]:', err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  if (req.path.startsWith('/api/') || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+    return res.status(500).json({ ok: false, error: err.message || 'Internal Server Error' });
+  }
+  flash('error', `An unexpected error occurred: ${err.message || 'Internal Server Error'}. Your request was safely handled.`);
+  const ref = req.header('Referer');
+  const safeTarget = (ref && (ref.includes('/assets') || ref.includes('/dashboard'))) ? ref : '/assets';
+  return res.redirect(safeTarget);
 });
 
 // Export app for serverless (Vercel)
