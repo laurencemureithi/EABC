@@ -1,13 +1,8 @@
 {
+  "version": 2,
   "functions": {
     "api/index.js": {
-      "includeFiles": [
-        "templates/**",
-        "data/**",
-        "static/**",
-        "public/**",
-        "database/**"
-      ],
+      "includeFiles": "templates/**,data/**,static/**",
       "maxDuration": 30
     }
   },

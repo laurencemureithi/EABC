@@ -3278,21 +3278,13 @@ function buildChartExportReport(options = {}) {
 // Middleware
 // Serverless URL normalization (Vercel, AWS Lambda, Cloud Run proxy rewrites)
 app.use((req, res, next) => {
-  let url = req.url || '/';
-  const forwardedUri = req.headers['x-forwarded-uri'] || req.headers['x-original-uri'];
-  const matchedPath = req.headers['x-matched-path'];
-
-  if (forwardedUri && !forwardedUri.startsWith('/api/index') && forwardedUri !== '/api' && forwardedUri !== '/api/') {
-    req.url = forwardedUri;
-  } else if (matchedPath && !matchedPath.startsWith('/api/index') && matchedPath !== '/api' && matchedPath !== '/api/') {
-    const qIdx = url.indexOf('?');
-    const queryStr = qIdx !== -1 ? url.slice(qIdx) : '';
+  const matchedPath = req.headers['x-matched-path'] || req.headers['x-forwarded-uri'] || req.headers['x-now-route-matches'];
+  if (matchedPath && (req.url === '/api/index.js' || req.url === '/api' || req.url.startsWith('/api/index.js?') || req.url.startsWith('/api?'))) {
+    const qIdx = req.url.indexOf('?');
+    const queryStr = qIdx !== -1 ? req.url.slice(qIdx) : '';
     req.url = matchedPath + (matchedPath.includes('?') ? '' : queryStr);
-  } else if (url === '/api/index.js' || url === '/api/index' || url === '/api' || url === '/api/') {
+  } else if (req.url === '/api/index.js' || req.url === '/api' || req.url === '/api/') {
     req.url = '/dashboard';
-  } else if (url.startsWith('/api/index.js?') || url.startsWith('/api/index?') || url.startsWith('/api?')) {
-    const qIdx = url.indexOf('?');
-    req.url = '/dashboard' + (qIdx !== -1 ? url.slice(qIdx) : '');
   }
   next();
 });
@@ -3679,9 +3671,6 @@ app.use((req, res, next) => {
   const isCompanyBrandSaveApi = p === '/api/companies/save-logo' || p === '/api/companies/save' || p === '/settings/companies/save';
 
   if (!uid && !isCompanyBrandSaveApi) {
-    if (p === '/api/index.js' || p === '/api/index' || p === '/api' || p === '/api/') {
-      return res.redirect('/login');
-    }
     if (p.startsWith('/api/')) {
       return res.status(401).json({ error: 'Authentication required', redirect: '/login' });
     }
@@ -3994,7 +3983,7 @@ const wizardState = {
 // -------------------------
 // AUTH ROUTES
 // -------------------------
-app.get(['/', '/api/index.js', '/api/index', '/api'], (req, res) => {
+app.get('/', (req, res) => {
   res.redirect('/dashboard');
 });
 
