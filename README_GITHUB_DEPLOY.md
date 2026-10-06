@@ -19,7 +19,12 @@ The repository is configured for modern Vercel Serverless deployments via `verce
 2. **Framework Preset**: Select **Other** (Zero Configuration).
 3. **Build Command**: `echo 'Build successful'` (or leave default).
 4. **Output Directory**: Leave empty.
-5. Click **Deploy**. Your Vercel deployment link will work immediately.
+5. Click **Deploy**. Your Vercel deployment link will load immediately.
+
+### Default Admin Credentials:
+- **Email**: `opsloom.ke@gmail.com`
+- **Password**: `Admin@123`
+- **Role**: System Administrator (Full System access across all company workspaces)
 
 ---
 
