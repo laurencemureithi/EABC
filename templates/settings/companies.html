@@ -137,7 +137,7 @@
               </button>
             {% endif %}
             {% if companies.length > 1 %}
-              <form method="post" action="/settings/companies/{{ comp.id }}/delete" data-confirm="delete_workspace" data-confirm-title="Remove Company Workspace" data-confirm-text="Move workspace {{ comp.name }} to the Admin Recycle Bin?" data-confirm-ok="Move to Recycle Bin">
+              <form method="post" action="/settings/companies/{{ comp.id }}/delete" data-confirm="delete_workspace" data-confirm-title="Remove Company Workspace" data-confirm-text="Move workspace {{ comp.name }} to the Admin Recycle Bin?" data-confirm-ok="Move to Recycle Bin" onsubmit="try { localStorage.removeItem('opsloom_ws_brand_{{ comp.id }}'); var s = localStorage.getItem('opsloom_master_state_v1'); if (s) { var p = JSON.parse(s); if (p.COMPANIES) { p.COMPANIES = p.COMPANIES.filter(function(x){ return x.id !== '{{ comp.id }}'; }); localStorage.setItem('opsloom_master_state_v1', JSON.stringify(p)); } } } catch(e){}">
                 <button type="submit" class="p-1.5 rounded-lg text-slate-400 hover:text-red-500 transition" title="Delete Workspace">
                   <span class="material-symbols-outlined text-sm">delete</span>
                 </button>

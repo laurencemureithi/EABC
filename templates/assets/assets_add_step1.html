@@ -42,23 +42,32 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
             <div class="space-y-1.5">
-              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Asset Name <span class="text-red-500">*</span></label>
-              <input name="asset_name" value="{{ form.asset_name if form else '' }}"
+              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                <span>Asset Name <span class="text-red-500 font-bold">*</span></span>
+                <span class="text-[10px] uppercase font-bold text-red-500 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded">Mandatory</span>
+              </label>
+              <input name="asset_name" value="{{ form.asset_name if form else '' }}" required
                      class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
                      placeholder="e.g. Induction Sealer 500W" type="text"/>
             </div>
 
             <div class="space-y-1.5">
-              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Asset ID <span class="text-red-500">*</span></label>
-              <input name="asset_id" value="{{ form.asset_id if form else '' }}"
+              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                <span>Asset ID <span class="text-red-500 font-bold">*</span></span>
+                <span class="text-[10px] uppercase font-bold text-red-500 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded">Mandatory</span>
+              </label>
+              <input name="asset_id" value="{{ form.asset_id if form else '' }}" required
                      class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm font-mono focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
-                     placeholder="e.g. UEAL/HQ/P/001" type="text"/>
+                     placeholder="e.g. ENG-AST-0105 or UEAL/HQ/P/001" type="text"/>
             </div>
 
             <div class="space-y-1.5">
-              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Section <span class="text-red-500">*</span></label>
+              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                <span>Section <span class="text-red-500 font-bold">*</span></span>
+                <span class="text-[10px] uppercase font-bold text-red-500 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded">Mandatory</span>
+              </label>
               <div class="relative">
-                <select name="section"
+                <select name="section" required
                         class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white appearance-none cursor-pointer">
                   <option disabled value="" {% if not form or not form.section %}selected{% endif %}>Select Section</option>
                   {% for s in sections %}

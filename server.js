@@ -1691,10 +1691,12 @@ function syncStoreFromDisk() {
       const stat = fs.statSync(targetPath);
       if (stat.mtimeMs > lastDiskMtimeMs) {
         const raw = fs.readFileSync(targetPath, 'utf-8');
+        if (!raw || !raw.trim()) return;
         const parsed = JSON.parse(raw);
         const currentRev = Number(store.revision) || 0;
         const diskRev = Number(parsed.revision) || 0;
-        if (lastDiskMtimeMs === 0 || diskRev >= currentRev) {
+        // Only adopt from disk if this is first load or the disk revision is strictly newer
+        if (lastDiskMtimeMs === 0 || diskRev > currentRev) {
           store = { ...store, ...parsed, initialized: true };
           if (!Array.isArray(store.ADMIN_USERS) || store.ADMIN_USERS.length === 0) {
             seedInitialDataIfEmpty();
@@ -1778,16 +1780,31 @@ function saveStore() {
     store.saved_at = getSystemNowIso();
     store.saved_at_ms = Date.now();
     const payload = JSON.stringify(store, null, 2);
-    fs.writeFileSync(DATASTORE_PATH, payload, 'utf-8');
+
+    // Atomic write to prevent file corruption or half-reads during high-throughput requests
+    const tmpPath = `${DATASTORE_PATH}.tmp.${process.pid}.${Date.now()}`;
+    fs.writeFileSync(tmpPath, payload, 'utf-8');
+    fs.renameSync(tmpPath, DATASTORE_PATH);
     const stat = fs.statSync(DATASTORE_PATH);
     lastDiskMtimeMs = stat.mtimeMs;
-    // If not on Vercel and DATASTORE_PATH differs from repo data/datastore.json, keep both in sync
+
     const repoPath = path.join(__dirname, 'data', 'datastore.json');
     if (!isVercel && DATASTORE_PATH !== repoPath) {
-      fs.writeFileSync(repoPath, payload, 'utf-8');
+      try {
+        const repoTmp = `${repoPath}.tmp.${process.pid}.${Date.now()}`;
+        fs.writeFileSync(repoTmp, payload, 'utf-8');
+        fs.renameSync(repoTmp, repoPath);
+      } catch (e) {}
     }
+
+    // Rolling automated backup for data safety
+    try {
+      const backupDir = path.join(__dirname, 'data', 'backups');
+      if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+      fs.writeFileSync(path.join(backupDir, 'datastore_latest.json'), payload, 'utf-8');
+    } catch (e) {}
   } catch (err) {
-    console.warn('Failed to write datastore.json (ephemeral in serverless):', err.message);
+    console.warn('Failed to write datastore.json:', err.message);
   }
 }
 
@@ -1796,9 +1813,15 @@ function hydrateStoreFromClientSnapshot(rawSnap) {
     const snap = typeof rawSnap === 'string' ? JSON.parse(rawSnap) : rawSnap;
     if (!snap || typeof snap !== 'object') return false;
 
-    // Server datastore on disk is authoritative. Never overwrite if server already has initialized assets and companies
+    // Server datastore on disk is authoritative. Never overwrite if server already has initialized assets or companies
     const serverHasData = Array.isArray(store.ASSETS) && store.ASSETS.length > 0 && Array.isArray(store.COMPANIES) && store.COMPANIES.length > 0;
-    if (serverHasData && !isVercel) {
+    if (serverHasData) {
+      return false;
+    }
+
+    const currentRev = Number(store.revision) || 0;
+    const snapRev = Number(snap.revision) || 0;
+    if (snapRev > 0 && snapRev < currentRev) {
       return false;
     }
 
@@ -1810,24 +1833,37 @@ function hydrateStoreFromClientSnapshot(rawSnap) {
     });
     const serverAdminLoginPass = store.SYSTEM_SETTINGS?.admin_login_password;
 
+    // Build set of recycled/deleted company IDs to prevent resurrecting deleted workplaces
+    const recycledCompanyIds = new Set(
+      (store.RECYCLE_BIN || [])
+        .filter(b => b && b.entity_type === 'company')
+        .map(b => b.primary_id || b.identifier || (b.record && b.record.id))
+        .filter(Boolean)
+    );
+
     if (Array.isArray(snap.COMPANIES) && snap.COMPANIES.length) {
-      snap.COMPANIES.forEach(inc => {
-        const existing = (store.COMPANIES || []).find(c => c.id === inc.id);
-        if (existing) {
-          // Never overwrite a custom uploaded logo with a default or older URL
-          if (existing.custom_logo_updated_at || String(existing.logo_light_url || '').startsWith('data:image/') || String(existing.logo_light_url || '').startsWith('/static/uploads/')) {
-            inc.logo_light_url = existing.logo_light_url;
-            inc.logo_dark_url = existing.logo_dark_url;
-            inc.print_logo_url = existing.print_logo_url;
-            inc.logo_height = existing.logo_height;
-            inc.logo_width_pct = existing.logo_width_pct;
-            inc.logo_alignment = existing.logo_alignment;
-            inc.logo_fit = existing.logo_fit;
-            inc.custom_logo_updated_at = existing.custom_logo_updated_at;
+      // Filter out any company that was explicitly deleted and moved to the Recycle Bin
+      const validIncoming = snap.COMPANIES.filter(c => c && c.id && !recycledCompanyIds.has(c.id));
+      if (!Array.isArray(store.COMPANIES) || store.COMPANIES.length === 0) {
+        store.COMPANIES = validIncoming;
+      } else {
+        // Only update branding for existing active companies; never re-add deleted ones
+        validIncoming.forEach(inc => {
+          const existing = store.COMPANIES.find(c => c.id === inc.id);
+          if (existing) {
+            if (existing.custom_logo_updated_at || String(existing.logo_light_url || '').startsWith('data:image/') || String(existing.logo_light_url || '').startsWith('/static/uploads/')) {
+              inc.logo_light_url = existing.logo_light_url;
+              inc.logo_dark_url = existing.logo_dark_url;
+              inc.print_logo_url = existing.print_logo_url;
+              inc.logo_height = existing.logo_height;
+              inc.logo_width_pct = existing.logo_width_pct;
+              inc.logo_alignment = existing.logo_alignment;
+              inc.logo_fit = existing.logo_fit;
+              inc.custom_logo_updated_at = existing.custom_logo_updated_at;
+            }
           }
-        }
-      });
-      store.COMPANIES = snap.COMPANIES;
+        });
+      }
     }
 
     if (Array.isArray(snap.CUSTOM_ROLES) && snap.CUSTOM_ROLES.length) {
@@ -1895,13 +1931,25 @@ function buildClientSyncSnapshot() {
     saved_at_ms: Number(store.saved_at_ms) || Date.now(),
     saved_at: store.saved_at || getSystemNowIso(),
     ACTIVE_COMPANY_ID: store.ACTIVE_COMPANY_ID || 'comp-001',
-    COMPANIES: store.COMPANIES || [],
+    COMPANIES: (store.COMPANIES || []).map(c => ({
+      id: c.id,
+      name: c.name,
+      code: c.code,
+      primary_color: c.primary_color,
+      secondary_color: c.secondary_color,
+      logo_light_url: c.logo_light_url,
+      logo_dark_url: c.logo_dark_url,
+      logo_height: c.logo_height,
+      logo_width_pct: c.logo_width_pct,
+      logo_alignment: c.logo_alignment,
+      logo_fit: c.logo_fit,
+      show_name_next_to_logo: c.show_name_next_to_logo
+    })),
     CUSTOM_ROLES: store.CUSTOM_ROLES || [],
     ADMIN_USERS: sanitizedUsers,
     SYSTEM_SETTINGS: sanitizedSettings,
-    INTERNAL_MESSAGES: (store.INTERNAL_MESSAGES || []).slice(0, 40),
-    SYSTEM_NOTIFICATIONS: (store.SYSTEM_NOTIFICATIONS || []).slice(0, 30),
-    WORKSPACE_DATA: store.WORKSPACE_DATA || {}
+    INTERNAL_MESSAGES: (store.INTERNAL_MESSAGES || []).slice(0, 20),
+    SYSTEM_NOTIFICATIONS: (store.SYSTEM_NOTIFICATIONS || []).slice(0, 15)
   };
 }
 
@@ -4569,7 +4617,8 @@ app.post(['/settings/companies/save', '/api/companies/save'], upload.fields([
   res.redirect('/settings/companies');
 });
 
-app.post('/settings/companies/:id/delete', (req, res) => {
+app.all(['/settings/companies/:id/delete', '/api/companies/:id/delete'], (req, res) => {
+  const isJson = req.path.startsWith('/api/') || (req.headers.accept && req.headers.accept.includes('application/json'));
   if (store.COMPANIES && store.COMPANIES.length > 1) {
     const idx = store.COMPANIES.findIndex(c => c.id === req.params.id);
     if (idx !== -1) {
@@ -4580,15 +4629,32 @@ app.post('/settings/companies/:id/delete', (req, res) => {
         deleted_by_role: actor.role,
         summary: `Workspace Brand • Code: ${removed.code} • Theme: ${removed.primary_color}`
       });
-      if (store.ACTIVE_COMPANY_ID === removed.id && store.COMPANIES[0]) {
-        store.ACTIVE_COMPANY_ID = store.COMPANIES[0].id;
-        setSafeCookie(req, res, 'opsloom_ws_id', store.COMPANIES[0].id);
+
+      // Switch active and bound company to the first remaining company if the removed one was selected
+      const nextCompany = store.COMPANIES[0];
+      const wasActive = store.ACTIVE_COMPANY_ID === removed.id || store._BOUND_COMPANY_ID === removed.id || (req.cookies && req.cookies.opsloom_ws_id === removed.id);
+      if (wasActive && nextCompany) {
+        store.ACTIVE_COMPANY_ID = nextCompany.id;
+        store._BOUND_COMPANY_ID = nextCompany.id;
+        activateWorkspaceBucket(nextCompany.id);
+        setSafeCookie(req, res, 'opsloom_ws_id', nextCompany.id);
+      } else {
+        activateWorkspaceBucket(store.ACTIVE_COMPANY_ID || nextCompany.id);
       }
+
       saveStore();
       logAudit('Company Workspace Deleted', `Moved company workspace ${removed.name} to Admin Recycle Bin`, 'settings', '/settings/recycle-bin', 'warning');
+
+      if (isJson) {
+        return res.json({ ok: true, deleted_id: removed.id, active_company_id: store.ACTIVE_COMPANY_ID });
+      }
       flash('success', `Company workspace ${removed.name} moved to Admin Recycle Bin.`);
+    } else {
+      if (isJson) return res.status(404).json({ ok: false, error: 'Company workspace not found.' });
+      flash('error', 'Company workspace not found.');
     }
   } else {
+    if (isJson) return res.status(400).json({ ok: false, error: 'Cannot delete the only remaining company workspace.' });
     flash('error', 'Cannot delete the only remaining company workspace.');
   }
   res.redirect('/settings/companies');
@@ -5462,7 +5528,13 @@ app.post('/assets/new/step-3', upload.any(), (req, res) => {
       try { if (fs.existsSync(uploadedFile.path)) fs.unlinkSync(uploadedFile.path); } catch (e) {}
     }
 
-    const photoDataUrl = hasValidFile ? fileToDataUrl(uploadedFile) : '';
+    // Prefer static uploaded file path over heavy base64 strings to keep datastore lean and fast
+    let resolvedPhotoUrl = data.photo_url || '';
+    if (hasValidFile) {
+      resolvedPhotoUrl = `/static/uploads/${uploadedFile.filename}`;
+    } else if (data.photo_url && String(data.photo_url).trim()) {
+      resolvedPhotoUrl = String(data.photo_url).trim();
+    }
     const nowIso = getSystemNowIso();
     const cleanSection = (data.section && String(data.section).trim()) || 'Pharma';
     const cleanManufacturer = (data.manufacturer && String(data.manufacturer).trim()) || '';
@@ -5492,7 +5564,7 @@ app.post('/assets/new/step-3', upload.any(), (req, res) => {
       asset_value: data.asset_value || 'KES 4,500,000',
       registered_at: formatSystemTimestamp(nowIso),
       created_at: nowIso,
-      photo_url: photoDataUrl || (hasValidFile ? `/static/uploads/${uploadedFile.filename}` : (data.photo_url || ''))
+      photo_url: resolvedPhotoUrl
     };
 
     if (!Array.isArray(store.ASSETS)) store.ASSETS = [];
