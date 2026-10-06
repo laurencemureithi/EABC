@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "saved_at": "2026-10-06T08:36:02.429Z",
+  "saved_at": "2026-10-06T11:11:20.612Z",
   "COMPANIES": [
     {
       "id": "comp-001",
@@ -52,6 +52,32 @@
     }
   ],
   "ASSETS": [
+    {
+      "uid": "asset-1791285095841",
+      "asset_id": "ENG-AST-0199",
+      "asset_name": "New Industrial Asset",
+      "section": "Pharma",
+      "department": "Engineering",
+      "status": "operational",
+      "criticality": "high",
+      "serial_no": "",
+      "manufacturer": "Bosch Packaging",
+      "oem": "Bosch Packaging",
+      "model_number": "",
+      "power_rating": "",
+      "supplier": "",
+      "installation_date": "2026-10-06",
+      "year_of_manufacture": "",
+      "warranty_expiry": "2028-01-15",
+      "technical_notes": "",
+      "category": "Packaging",
+      "location": "Packaging Hall 2",
+      "service_provider": "Bosch Packaging",
+      "asset_value": "KES 4,500,000",
+      "registered_at": "06 Oct 2026, 14:11",
+      "created_at": "2026-10-06T11:11:20.598Z",
+      "photo_url": ""
+    },
     {
       "uid": "asset-1791274040970",
       "asset_id": "ENG-AST-8822",
@@ -643,6 +669,32 @@
     }
   ],
   "AUDIT_TRAIL": [
+    {
+      "id": "bef4d205f2c245f98cd81974b05615ad",
+      "action": "Asset Created",
+      "detail": "Registered new asset New Industrial Asset (ENG-AST-0199)",
+      "module": "assets",
+      "severity": "info",
+      "href": "/assets/asset-1791285095841",
+      "created_at": "2026-10-06T11:11:20.600Z",
+      "time_display": "06 Oct 2026, 14:11:20",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "ef408fb2840343e8a3cec0e8592b37ce",
+      "action": "User Login",
+      "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-10-06T11:10:35.925Z",
+      "time_display": "06 Oct 2026, 14:10:35",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
     {
       "id": "b43fd80d3a4d496e8a91fcba6a3c68c2",
       "action": "User Login",
@@ -1488,6 +1540,17 @@
   },
   "SYSTEM_NOTIFICATIONS": [
     {
+      "id": "notif-1791285095849",
+      "title": "Asset Registered",
+      "message": "New asset New Industrial Asset (ENG-AST-0199) has been enrolled in the Master Register.",
+      "kind": "success",
+      "created_at": "2026-10-06T11:11:20.606Z",
+      "created_display": "06 Oct 2026, 14:11",
+      "is_read": false,
+      "href": "/assets/asset-1791285095841",
+      "should_toast": false
+    },
+    {
       "id": "notif-1791274040977",
       "title": "Asset Registered",
       "message": "New asset High Vacuum Condenser HV-20 (ENG-AST-8822) has been enrolled in the Master Register.",
@@ -1853,7 +1916,7 @@
       "signature_style": "formal",
       "signature_image_url": "",
       "profile_image_url": "",
-      "last_login_at": "06 Oct 2026, 11:29",
+      "last_login_at": "06 Oct 2026, 14:10",
       "password": "Admin@123"
     },
     {
@@ -2446,6 +2509,32 @@
   "WORKSPACE_DATA": {
     "comp-001": {
       "ASSETS": [
+        {
+          "uid": "asset-1791285095841",
+          "asset_id": "ENG-AST-0199",
+          "asset_name": "New Industrial Asset",
+          "section": "Pharma",
+          "department": "Engineering",
+          "status": "operational",
+          "criticality": "high",
+          "serial_no": "",
+          "manufacturer": "Bosch Packaging",
+          "oem": "Bosch Packaging",
+          "model_number": "",
+          "power_rating": "",
+          "supplier": "",
+          "installation_date": "2026-10-06",
+          "year_of_manufacture": "",
+          "warranty_expiry": "2028-01-15",
+          "technical_notes": "",
+          "category": "Packaging",
+          "location": "Packaging Hall 2",
+          "service_provider": "Bosch Packaging",
+          "asset_value": "KES 4,500,000",
+          "registered_at": "06 Oct 2026, 14:11",
+          "created_at": "2026-10-06T11:11:20.598Z",
+          "photo_url": ""
+        },
         {
           "uid": "asset-1791274040970",
           "asset_id": "ENG-AST-8822",
@@ -3073,6 +3162,32 @@
         }
       ],
       "AUDIT_TRAIL": [
+        {
+          "id": "bef4d205f2c245f98cd81974b05615ad",
+          "action": "Asset Created",
+          "detail": "Registered new asset New Industrial Asset (ENG-AST-0199)",
+          "module": "assets",
+          "severity": "info",
+          "href": "/assets/asset-1791285095841",
+          "created_at": "2026-10-06T11:11:20.600Z",
+          "time_display": "06 Oct 2026, 14:11:20",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "ef408fb2840343e8a3cec0e8592b37ce",
+          "action": "User Login",
+          "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+          "module": "security",
+          "severity": "info",
+          "href": "/dashboard",
+          "created_at": "2026-10-06T11:10:35.925Z",
+          "time_display": "06 Oct 2026, 14:10:35",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
         {
           "id": "b43fd80d3a4d496e8a91fcba6a3c68c2",
           "action": "User Login",
@@ -9099,8 +9214,8 @@
     }
   },
   "_BOUND_COMPANY_ID": "comp-001",
-  "revision": 370,
-  "saved_at_ms": 1791275777672,
+  "revision": 383,
+  "saved_at_ms": 1791285095855,
   "PASSWORD_RESET_REQUESTS": [
     {
       "id": "msg-reset-1790927897598",

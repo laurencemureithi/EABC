@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Purchase Order Management Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#5b13ec",
+                        "gold-accent": "#D97706",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#161022",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .filled {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-[#131118] dark:text-white min-h-screen">
+<div class="flex flex-col h-screen overflow-hidden">
+<!-- Top Navigation -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-[#e5e7eb] dark:border-[#302a3d] bg-white dark:bg-background-dark px-10 py-3 z-20">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-4 text-[#131118] dark:text-white">
+<div class="size-8 bg-primary rounded-lg flex items-center justify-center text-white">
+<span class="material-symbols-outlined filled">factory</span>
+</div>
+<h2 class="text-lg font-bold leading-tight tracking-[-0.015em]">Opsloom Platform</h2>
+</div>
+<div class="flex items-center gap-6">
+<a class="text-[#6f6189] dark:text-gray-400 hover:text-primary text-sm font-medium leading-normal transition-colors" href="#">Maintenance</a>
+<a class="text-primary dark:text-white border-b-2 border-primary text-sm font-semibold leading-normal h-10 flex items-center" href="#">Inventory</a>
+<a class="text-[#6f6189] dark:text-gray-400 hover:text-primary text-sm font-medium leading-normal transition-colors" href="#">Assets</a>
+<a class="text-[#6f6189] dark:text-gray-400 hover:text-primary text-sm font-medium leading-normal transition-colors" href="#">Analytics</a>
+</div>
+</div>
+<div class="flex flex-1 justify-end gap-6">
+<label class="flex flex-col min-w-40 h-10 max-w-64">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full bg-[#f2f0f4] dark:bg-[#251f33]">
+<div class="text-[#6f6189] flex items-center justify-center pl-4">
+<span class="material-symbols-outlined text-xl">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 border-none bg-transparent focus:outline-0 focus:ring-0 text-sm placeholder:text-[#6f6189]" placeholder="Global Search" value=""/>
+</div>
+</label>
+<div class="flex gap-2">
+<button class="flex items-center justify-center rounded-lg h-10 w-10 bg-[#f2f0f4] dark:bg-[#251f33] text-[#131118] dark:text-white">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="flex items-center justify-center rounded-lg h-10 w-10 bg-[#f2f0f4] dark:bg-[#251f33] text-[#131118] dark:text-white">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border-2 border-primary/20" data-alt="Profile photo of the user" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCg-NSMScG3xA4g9OGRxeRZomdA-NhQmlwtER_EYMDVnOlo7viBFNlYnHmtgcIH0rT5A30gBRgqf00SF7TUhkWJVH7Jpgdpwxe2iAUWoEl6CwVgRThzkWNtWS1DDcuWqjyzOg5D-abqVvbQPYT2lVohBPHXMpV8koYs6syz8AJlqmcIbGbnPFKodb8XCsui-Y3U8jQzPL12XsECLj74ROyUqc6zy-db51MFpL-j7eSBCxorea-xz-U-LdkGTE2I_hPaUAFHh8jotQ");'></div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<!-- Sidebar -->
+<aside class="w-64 border-r border-[#e5e7eb] dark:border-[#302a3d] bg-white dark:bg-background-dark flex flex-col justify-between p-4 z-10">
+<div class="flex flex-col gap-4">
+<div class="flex flex-col mb-4">
+<h1 class="text-[#131118] dark:text-white text-base font-bold leading-normal">Engineering Asset Core</h1>
+<p class="text-[#6f6189] dark:text-gray-400 text-xs font-normal leading-normal uppercase tracking-wider">Management System</p>
+</div>
+<nav class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 text-[#6f6189] dark:text-gray-400 hover:bg-[#f2f0f4] dark:hover:bg-[#251f33] rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<p class="text-sm font-medium">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#6f6189] dark:text-gray-400 hover:bg-[#f2f0f4] dark:hover:bg-[#251f33] rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<p class="text-sm font-medium">Stock Levels</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary dark:text-white" href="#">
+<span class="material-symbols-outlined filled">shopping_cart</span>
+<p class="text-sm font-bold">Purchase Orders</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#6f6189] dark:text-gray-400 hover:bg-[#f2f0f4] dark:hover:bg-[#251f33] rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">local_shipping</span>
+<p class="text-sm font-medium">Suppliers</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#6f6189] dark:text-gray-400 hover:bg-[#f2f0f4] dark:hover:bg-[#251f33] rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<p class="text-sm font-medium">Reports</p>
+</a>
+</nav>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col overflow-y-auto bg-background-light dark:bg-[#110c1a]">
+<!-- KPI Row -->
+<div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-background-dark border border-[#e5e7eb] dark:border-[#302a3d] shadow-sm">
+<div class="flex justify-between items-start">
+<p class="text-[#6f6189] dark:text-gray-400 text-sm font-medium uppercase tracking-tight">Total Open POs</p>
+<span class="material-symbols-outlined text-primary">order_play</span>
+</div>
+<p class="text-[#131118] dark:text-white text-3xl font-bold leading-tight">14</p>
+<p class="text-[#078845] text-xs font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">trending_up</span> +2% from last week
+                        </p>
+</div>
+<div class="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-background-dark border-l-4 border-amber-500 border-t border-r border-b border-[#e5e7eb] dark:border-[#302a3d] shadow-sm">
+<div class="flex justify-between items-start">
+<p class="text-[#6f6189] dark:text-gray-400 text-sm font-medium uppercase tracking-tight">Awaiting Approval</p>
+<span class="material-symbols-outlined text-amber-500">pending_actions</span>
+</div>
+<p class="text-[#131118] dark:text-white text-3xl font-bold leading-tight">4</p>
+<p class="text-amber-600 text-xs font-semibold uppercase">Amber Alert: Action Required</p>
+</div>
+<div class="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-background-dark border border-[#e5e7eb] dark:border-[#302a3d] shadow-sm">
+<div class="flex justify-between items-start">
+<p class="text-[#6f6189] dark:text-gray-400 text-sm font-medium uppercase tracking-tight">Pending Delivery</p>
+<span class="material-symbols-outlined text-blue-500">local_shipping</span>
+</div>
+<p class="text-[#131118] dark:text-white text-3xl font-bold leading-tight">10</p>
+<p class="text-blue-500 text-xs font-semibold">Active Shipments Tracking</p>
+</div>
+<div class="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-background-dark border border-[#e5e7eb] dark:border-[#302a3d] shadow-sm">
+<div class="flex justify-between items-start">
+<p class="text-[#6f6189] dark:text-gray-400 text-sm font-medium uppercase tracking-tight">Monthly Spend</p>
+<span class="material-symbols-outlined text-green-600">payments</span>
+</div>
+<p class="text-[#131118] dark:text-white text-3xl font-bold leading-tight">$18,450</p>
+<p class="text-[#078845] text-xs font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">trending_up</span> +5% vs budget
+                        </p>
+</div>
+</div>
+<!-- Action Bar & Table Container -->
+<div class="px-6 pb-6 flex-1 flex flex-col min-h-0">
+<div class="bg-white dark:bg-background-dark rounded-xl border border-[#e5e7eb] dark:border-[#302a3d] shadow-sm flex flex-col flex-1 overflow-hidden">
+<!-- Toolbar -->
+<div class="flex flex-wrap items-center justify-between gap-4 p-4 border-b border-[#e5e7eb] dark:border-[#302a3d]">
+<div class="flex items-center gap-4 flex-1">
+<label class="flex flex-col w-full max-w-md h-10">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full bg-[#f2f0f4] dark:bg-[#251f33]">
+<div class="text-[#6f6189] flex items-center justify-center pl-4">
+<span class="material-symbols-outlined text-xl">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 border-none bg-transparent focus:outline-0 focus:ring-0 text-sm placeholder:text-[#6f6189]" placeholder="Search by PO#, Supplier, or Part..." value=""/>
+</div>
+</label>
+<button class="flex items-center gap-2 px-3 py-2 border border-[#e5e7eb] dark:border-[#302a3d] rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-[#251f33] transition-colors">
+<span class="material-symbols-outlined text-lg">filter_list</span>
+                                    Filter by Status
+                                    <span class="material-symbols-outlined text-lg">expand_more</span>
+</button>
+</div>
+<button class="flex cursor-pointer items-center justify-center rounded-lg h-10 bg-gold-accent text-white gap-2 text-sm font-bold px-5 hover:bg-[#B45309] transition-colors shadow-md shadow-gold-accent/20">
+<span class="material-symbols-outlined">add</span>
+<span class="truncate">Create New PO</span>
+</button>
+</div>
+<!-- Data Table -->
+<div class="overflow-x-auto flex-1">
+<table class="w-full text-left border-collapse">
+<thead class="bg-[#f9fafb] dark:bg-[#1c1629] sticky top-0 z-10">
+<tr class="text-[#6f6189] dark:text-gray-400 text-xs font-semibold uppercase tracking-wider">
+<th class="px-6 py-4 border-b border-[#e5e7eb] dark:border-[#302a3d]">PO Number</th>
+<th class="px-6 py-4 border-b border-[#e5e7eb] dark:border-[#302a3d]">Supplier</th>
+<th class="px-6 py-4 border-b border-[#e5e7eb] dark:border-[#302a3d]">Date Issued</th>
+<th class="px-6 py-4 border-b border-[#e5e7eb] dark:border-[#302a3d]">Items</th>
+<th class="px-6 py-4 border-b border-[#e5e7eb] dark:border-[#302a3d]">Total Value</th>
+<th class="px-6 py-4 border-b border-[#e5e7eb] dark:border-[#302a3d]">Exp. Delivery</th>
+<th class="px-6 py-4 border-b border-[#e5e7eb] dark:border-[#302a3d]">Status</th>
+<th class="px-6 py-4 border-b border-[#e5e7eb] dark:border-[#302a3d] text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-[#e5e7eb] dark:divide-[#302a3d]">
+<tr class="hover:bg-gray-50 dark:hover:bg-[#251f33] transition-colors group">
+<td class="px-6 py-4 text-sm font-bold text-primary dark:text-white">PO-2024-089</td>
+<td class="px-6 py-4 text-sm text-[#131118] dark:text-gray-300">InductoTherm GmbH</td>
+<td class="px-6 py-4 text-sm text-[#6f6189] dark:text-gray-400">Oct 24, 2024</td>
+<td class="px-6 py-4 text-sm text-[#131118] dark:text-gray-300">12</td>
+<td class="px-6 py-4 text-sm font-semibold text-[#131118] dark:text-gray-300">$4,250.00</td>
+<td class="px-6 py-4 text-sm text-[#6f6189] dark:text-gray-400">Oct 28, 2024</td>
+<td class="px-6 py-4 text-sm">
+<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 uppercase">Awaiting Approval</span>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-primary font-bold text-xs hover:underline">View Details</button>
+<button class="text-[#078845] font-bold text-xs hover:underline">Receive</button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-gray-50 dark:hover:bg-[#251f33] transition-colors group">
+<td class="px-6 py-4 text-sm font-bold text-primary dark:text-white">PO-2024-085</td>
+<td class="px-6 py-4 text-sm text-[#131118] dark:text-gray-300">Precision Parts Inc</td>
+<td class="px-6 py-4 text-sm text-[#6f6189] dark:text-gray-400">Oct 22, 2024</td>
+<td class="px-6 py-4 text-sm text-[#131118] dark:text-gray-300">5</td>
+<td class="px-6 py-4 text-sm font-semibold text-[#131118] dark:text-gray-300">$1,120.50</td>
+<td class="px-6 py-4 text-sm text-blue-500 font-medium">Tomorrow</td>
+<td class="px-6 py-4 text-sm">
+<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 uppercase">Sent</span>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-primary font-bold text-xs hover:underline">View Details</button>
+<button class="text-[#078845] font-bold text-xs hover:underline">Receive</button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-gray-50 dark:hover:bg-[#251f33] transition-colors group">
+<td class="px-6 py-4 text-sm font-bold text-primary dark:text-white">PO-2024-082</td>
+<td class="px-6 py-4 text-sm text-[#131118] dark:text-gray-300">Hydraulic Force Ltd</td>
+<td class="px-6 py-4 text-sm text-[#6f6189] dark:text-gray-400">Oct 20, 2024</td>
+<td class="px-6 py-4 text-sm text-[#131118] dark:text-gray-300">8</td>
+<td class="px-6 py-4 text-sm font-semibold text-[#131118] dark:text-gray-300">$8,400.00</td>
+<td class="px-6 py-4 text-sm text-[#6f6189] dark:text-gray-400">Oct 22, 2024</td>
+<td class="px-6 py-4 text-sm">
+<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 uppercase">Partially Received</span>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-primary font-bold text-xs hover:underline">View Details</button>
+<button class="text-[#078845] font-bold text-xs hover:underline">Receive Remaining</button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-gray-50 dark:hover:bg-[#251f33] transition-colors group">
+<td class="px-6 py-4 text-sm font-bold text-primary dark:text-white">PO-2024-079</td>
+<td class="px-6 py-4 text-sm text-[#131118] dark:text-gray-300">Metals &amp; Co</td>
+<td class="px-6 py-4 text-sm text-[#6f6189] dark:text-gray-400">Oct 15, 2024</td>
+<td class="px-6 py-4 text-sm text-[#131118] dark:text-gray-300">22</td>
+<td class="px-6 py-4 text-sm font-semibold text-[#131118] dark:text-gray-300">$2,440.00</td>
+<td class="px-6 py-4 text-sm text-[#6f6189] dark:text-gray-400">Oct 19, 2024</td>
+<td class="px-6 py-4 text-sm">
+<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 uppercase">Completed</span>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="text-primary font-bold text-xs hover:underline">View Details</button>
+<button class="text-gray-400 font-bold text-xs cursor-default">Archived</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Footer Pagination -->
+<div class="px-6 py-4 border-t border-[#e5e7eb] dark:border-[#302a3d] flex items-center justify-between">
+<p class="text-sm text-[#6f6189] dark:text-gray-400">Showing 4 of 14 Purchase Orders</p>
+<div class="flex gap-2">
+<button class="px-4 py-2 border border-[#e5e7eb] dark:border-[#302a3d] rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-[#251f33]">Previous</button>
+<button class="px-4 py-2 border border-[#e5e7eb] dark:border-[#302a3d] rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-[#251f33]">Next</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Right Sidebar (Contextual Snapshot) -->
+<aside class="w-80 border-l border-[#e5e7eb] dark:border-[#302a3d] bg-white dark:bg-background-dark flex flex-col gap-6 p-6 overflow-y-auto">
+<!-- Supplier Performance -->
+<section>
+<h3 class="text-[#131118] dark:text-white text-sm font-bold uppercase tracking-wider mb-4">Supplier Performance</h3>
+<div class="flex flex-col gap-4">
+<div class="space-y-2">
+<div class="flex justify-between text-xs">
+<span class="font-medium">InductoTherm</span>
+<span class="text-[#078845] font-bold">98% On-time</span>
+</div>
+<div class="w-full bg-gray-100 dark:bg-[#251f33] rounded-full h-2 overflow-hidden">
+<div class="bg-[#078845] h-full" style="width: 98%"></div>
+</div>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-xs">
+<span class="font-medium">Precision Parts</span>
+<span class="text-amber-600 font-bold">82% On-time</span>
+</div>
+<div class="w-full bg-gray-100 dark:bg-[#251f33] rounded-full h-2 overflow-hidden">
+<div class="bg-amber-500 h-full" style="width: 82%"></div>
+</div>
+</div>
+</div>
+</section>
+<hr class="border-[#e5e7eb] dark:border-[#302a3d]"/>
+<!-- Recent Shipments -->
+<section>
+<h3 class="text-[#131118] dark:text-white text-sm font-bold uppercase tracking-wider mb-4">Recent Shipments</h3>
+<div class="space-y-4">
+<div class="flex gap-3 relative before:content-[''] before:absolute before:left-[11px] before:top-6 before:bottom-[-20px] before:w-[2px] before:bg-[#e5e7eb] dark:before:bg-[#302a3d]">
+<div class="size-6 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-[14px] text-blue-600">local_shipping</span>
+</div>
+<div>
+<p class="text-xs font-bold">PO-2024-075</p>
+<p class="text-[11px] text-[#6f6189] dark:text-gray-400">Arrived at local hub - 2:30 PM</p>
+</div>
+</div>
+<div class="flex gap-3">
+<div class="size-6 rounded-full bg-gray-100 dark:bg-[#251f33] flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-[14px] text-[#6f6189]">box</span>
+</div>
+<div>
+<p class="text-xs font-bold">PO-2024-068</p>
+<p class="text-[11px] text-[#6f6189] dark:text-gray-400">Delivered &amp; Signed - Oct 23</p>
+</div>
+</div>
+</div>
+</section>
+<hr class="border-[#e5e7eb] dark:border-[#302a3d]"/>
+<!-- Urgent Requests -->
+<section>
+<h3 class="text-red-600 text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">warning</span>
+                        Urgent Requests
+                    </h3>
+<div class="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-lg p-3 space-y-3">
+<div>
+<p class="text-xs font-bold text-red-700 dark:text-red-400">Part #4421 - Filter Kit</p>
+<div class="flex justify-between items-center mt-1">
+<span class="text-[10px] text-red-600/70 dark:text-red-400/70">Linked Asset: CNC-04</span>
+<span class="text-[10px] font-bold bg-red-600 text-white px-1.5 py-0.5 rounded">DOWN</span>
+</div>
+</div>
+<button class="w-full py-2 bg-red-600 text-white text-[11px] font-bold rounded-md hover:bg-red-700 transition-colors uppercase tracking-tight">Expedite Follow-up</button>
+</div>
+</section>
+<div class="mt-auto">
+<div class="p-4 bg-primary/5 dark:bg-primary/10 rounded-xl border border-primary/20">
+<p class="text-xs font-bold text-primary dark:text-white mb-2">Need Help?</p>
+<p class="text-[11px] text-[#6f6189] dark:text-gray-400 leading-relaxed mb-3">Contact central procurement for bulk order approvals or supplier disputes.</p>
+<button class="text-xs font-bold text-primary flex items-center gap-1 hover:underline">
+                            Open Support Desk <span class="material-symbols-outlined text-sm">arrow_right_alt</span>
+</button>
+</div>
+</div>
+</aside>
+</div>
+</div>
+</body></html>

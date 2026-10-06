@@ -1,0 +1,83 @@
+{% set scope_mode_label = (export.scope_mode or 'department')|replace('_',' ')|title %}
+{% set report_department = export.department or current_department %}
+{% set report_department_label = report_department_display(report_department) %}
+{% set scope_target = export.scope_target or export.generated_for or export.scope_section or scope_unit_display(report_department) or '—' %}
+{% if (export.scope_mode or 'department') == 'department' and (scope_target == report_department_label or scope_target == scope_unit_display(report_department)) %}{% set scope_target = (scope_unit_display(report_department) ~ ' unit scope') if scope_unit_display(report_department) else (report_department_label ~ ' department scope') %}{% endif %}
+{% set created_by = export.user_name or analysis.reported_by or current_user_name %}
+<div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_22rem] gap-4 mb-8 items-start">
+  <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm p-5">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div>
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Scope</p>
+        <p class="mt-2 text-sm font-bold text-slate-900 dark:text-white">{{ scope_mode_label }}</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Scope Target</p>
+        <p class="mt-2 text-sm font-bold text-slate-900 dark:text-white break-words">{{ scope_target }}</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Department</p>
+        <p class="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{{ report_department_label }}</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Reported By</p>
+        <p class="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{{ created_by }}</p>
+      </div>
+    </div>
+
+    <div class="mt-5 pt-5 border-t border-slate-100 dark:border-slate-700">
+      <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-3">Selected Metrics</p>
+      <div class="flex flex-wrap gap-2">
+        {% for card in analysis.selected_metric_cards %}
+          <div class="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/60 px-3 py-2">
+            <span class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-300">{{ card.label }}</span>
+            <span class="text-xs font-black text-slate-900 dark:text-white">{{ card.value }}</span>
+          </div>
+        {% else %}
+          {% for label in export.metric_labels or [] %}
+            <div class="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/60 px-3 py-2">
+              <span class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-300">{{ label }}</span>
+            </div>
+          {% else %}
+            <p class="text-sm text-slate-500 dark:text-slate-400">No metrics selected.</p>
+          {% endfor %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm p-5">
+    <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Report Control</p>
+    <div class="mt-3 space-y-3 text-sm">
+      <div class="flex items-start justify-between gap-4">
+        <span class="text-slate-500 dark:text-slate-300">Status</span>
+        <span class="font-bold text-slate-900 dark:text-white">{{ export.status or 'READY' }}</span>
+      </div>
+      <div class="flex items-start justify-between gap-4">
+        <span class="text-slate-500 dark:text-slate-300">Format</span>
+        <span class="font-bold text-slate-900 dark:text-white">{{ (export.format or 'pdf')|upper }}</span>
+      </div>
+      <div class="flex items-start justify-between gap-4">
+        <span class="text-slate-500 dark:text-slate-300">Generated</span>
+        <span class="font-bold text-slate-900 dark:text-white">{{ export.generated_label }}</span>
+      </div>
+      {% if export.filename %}
+      <div class="pt-3 border-t border-slate-100 dark:border-slate-700">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">File Name</p>
+        <p class="text-sm font-semibold text-slate-700 dark:text-slate-200 break-all">{{ export.filename }}</p>
+      </div>
+      {% endif %}
+      <div class="pt-3 border-t border-slate-100 dark:border-slate-700">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Cost & VAT</p>
+        <div class="space-y-2">
+          <div class="flex items-start justify-between gap-4"><span class="text-slate-500 dark:text-slate-300">Amount Before VAT</span><span class="font-bold text-slate-900 dark:text-white">{{ (analysis.kpis.combined_cost_subtotal or 0)|kes2 }}</span></div>
+          <div class="flex items-start justify-between gap-4"><span class="text-slate-500 dark:text-slate-300">Maintenance VAT</span><span class="font-bold text-slate-900 dark:text-white">{{ (analysis.kpis.maintenance_vat_total or 0)|kes2 }}</span></div>
+          <div class="flex items-start justify-between gap-4"><span class="text-slate-500 dark:text-slate-300">Breakdown VAT</span><span class="font-bold text-slate-900 dark:text-white">{{ (analysis.kpis.breakdown_vat_total or 0)|kes2 }}</span></div>
+          <div class="flex items-start justify-between gap-4"><span class="text-slate-500 dark:text-slate-300">VAT Rate(s)</span><span class="font-bold text-slate-900 dark:text-white">{{ analysis.kpis.vat_rate_label or 'No VAT applied' }}</span></div>
+          <div class="flex items-start justify-between gap-4"><span class="text-slate-500 dark:text-slate-300">Total VAT</span><span class="font-bold text-slate-900 dark:text-white">{{ (analysis.kpis.combined_vat_total or 0)|kes2 }}</span></div>
+          <div class="flex items-start justify-between gap-4"><span class="text-slate-500 dark:text-slate-300">Total Cost</span><span class="font-bold text-slate-900 dark:text-white">{{ (analysis.kpis.combined_cost_total or 0)|kes2 }}</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

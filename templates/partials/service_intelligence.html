@@ -1,0 +1,58 @@
+{# templates/partials/service_intelligence.html #}
+<div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+  <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border">
+    <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2 uppercase tracking-wide">
+      <span class="material-symbols-outlined text-ueal-gold text-lg">psychology</span>
+      Service Intelligence
+    </h3>
+  </div>
+
+  <div class="p-6">
+    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-6">Monthly Service Hours</p>
+
+    <div class="flex items-end gap-3 h-32 mb-6">
+      {% if monthly_bars and monthly_bars|length > 0 %}
+        {% for b in monthly_bars %}
+          <div class="flex-1 flex flex-col gap-1 items-center">
+            <div class="w-full flex flex-col-reverse items-center gap-0.5">
+              <div class="w-4 rounded-t-sm bg-ueal-purple" style="height: {{ b.preventive_pct|default(0) }}%;"></div>
+              <div class="w-4 rounded-b-sm bg-ueal-gold" style="height: {{ b.corrective_pct|default(0) }}%;"></div>
+            </div>
+            <span class="text-[9px] text-slate-500 dark:text-slate-300 font-bold">{{ b.label|default("—") }}</span>
+          </div>
+        {% endfor %}
+      {% else %}
+        {# fallback empty bars so UI still matches #}
+        {% for m in ["AUG","SEP","OCT","NOV","DEC"] %}
+          <div class="flex-1 flex flex-col gap-1 items-center opacity-60">
+            <div class="w-4 h-20 rounded bg-slate-100 dark:bg-white/5"></div>
+            <span class="text-[9px] text-slate-500 dark:text-slate-300 font-bold">{{ m }}</span>
+          </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+
+    <div class="flex items-center gap-6 mb-8 text-[10px] font-bold">
+      <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-300">
+        <div class="w-2.5 h-2.5 bg-ueal-purple rounded-full"></div> Preventive
+      </div>
+      <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-300">
+        <div class="w-2.5 h-2.5 bg-ueal-gold rounded-full"></div> Corrective
+      </div>
+    </div>
+
+    {% if technician_note %}
+      <div class="bg-ueal-purple/5 dark:bg-ueal-gold/10 p-4 rounded-xl border border-ueal-purple/10 dark:border-ueal-gold/20">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="material-symbols-outlined text-ueal-purple dark:text-ueal-gold text-sm">note</span>
+          <p class="text-[11px] font-bold text-ueal-purple dark:text-ueal-gold mt-3 text-right">
+  — Lead Technician
+</p>
+        </div>
+        <p class="text-xs text-slate-600 dark:text-slate-200 italic leading-relaxed">
+          "{{ technician_note }}"
+        </p>
+      </div>
+    {% endif %}
+  </div>
+</div>

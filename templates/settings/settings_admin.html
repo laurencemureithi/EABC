@@ -1,0 +1,304 @@
+{% extends "layouts/base.html" %}
+{% block title %}Settings & Admin • Opsloom{% endblock %}
+{% block content %}
+{% set page_title = "Settings & Admin" %}
+{% set title_icon = "settings" %}
+{% set page_subtitle = "Control system communications, signatures, SMTP delivery, alerts, recycle bin governance, and administrative tools from one hub." %}
+{% set show_system_badge = true %}
+{% set breadcrumbs = [{"label":"Settings / Admin"}] %}
+{% include "partials/title_block.html" %}
+
+<div class="max-w-7xl mx-auto space-y-6">
+  <!-- Systems & Admin Governance KPI Cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+    <a href="{{ url_for('admin_users_page') }}" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-ueal-purple rounded-xl p-5 shadow-sm transition group">
+      <div class="flex items-center justify-between">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Admin &amp; Access Users</p>
+        <span class="material-symbols-outlined text-lg text-ueal-purple dark:text-ueal-gold">manage_accounts</span>
+      </div>
+      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ users_count or 1 }}</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ active_users_count or users_count or 1 }} active • {{ companies_count or 2 }} workspaces</p>
+    </a>
+
+    <a href="{{ url_for('technicians_management') }}" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-ueal-purple rounded-xl p-5 shadow-sm transition group">
+      <div class="flex items-center justify-between">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Technicians Roster</p>
+        <span class="material-symbols-outlined text-lg text-emerald-500">engineering</span>
+      </div>
+      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ technicians_count or 4 }}</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ active_technicians or technicians_count or 4 }} active • Field &amp; shift leads</p>
+    </a>
+
+    <a href="{{ url_for('audit_trail_page') }}" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-ueal-purple rounded-xl p-5 shadow-sm transition group">
+      <div class="flex items-center justify-between">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Security Audit Log</p>
+        <span class="material-symbols-outlined text-lg text-amber-500">policy</span>
+      </div>
+      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ audit_count or 0 }}</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ security_events_count or 0 }} security/admin • Verified trail</p>
+    </a>
+
+    <a href="{{ url_for('messages_center') }}" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-ueal-purple rounded-xl p-5 shadow-sm transition group">
+      <div class="flex items-center justify-between">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Comms &amp; SMTP Hub</p>
+        <span class="material-symbols-outlined text-lg text-indigo-500">forward_to_inbox</span>
+      </div>
+      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ total_messages_count or 1 }}</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ unread_messages_count or 0 }} unread • {{ recipients_count or 1 }} report recipient(s)</p>
+    </a>
+
+    <a href="/settings/recycle-bin" class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-rose-500 rounded-xl p-5 shadow-sm transition group">
+      <div class="flex items-center justify-between">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Admin Recycle Bin</p>
+        <span class="material-symbols-outlined text-lg text-rose-600">restore_from_trash</span>
+      </div>
+      <p class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ recycle_bin_count or 0 }}</p>
+      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Recoverable deleted records</p>
+    </a>
+  </div>
+
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <div class="xl:col-span-2 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-slate-800/40">
+        <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-100">Communication, Signature &amp; Email Delivery</h2>
+      </div>
+      <form method="post" action="{{ url_for('settings_admin_save') }}" class="p-6 space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Default Signature Name</label><input name="mail_signature_name" value="{{ settings.mail_signature_name or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+          <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Default Signature Title</label><input name="mail_signature_title" value="{{ settings.mail_signature_title or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+          <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Signature Font</label><input name="mail_signature_font" value="{{ settings.mail_signature_font or 'Inter' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+          <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Signature Colour</label><input type="color" name="mail_signature_color" value="{{ settings.mail_signature_color or '#7E22CE' }}" class="w-full h-12 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-2 py-2"></div>
+          <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Signature Style</label><select name="mail_signature_style" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"><option value="formal" {% if (settings.mail_signature_style or '') == 'formal' %}selected{% endif %}>Formal</option><option value="modern" {% if (settings.mail_signature_style or '') == 'modern' %}selected{% endif %}>Modern</option><option value="bold" {% if (settings.mail_signature_style or '') == 'bold' %}selected{% endif %}>Bold</option></select></div>
+          <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Signature Image URL</label><input name="mail_signature_image_url" value="{{ settings.mail_signature_image_url or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+          <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Company Email</label><input name="company_contact_email" value="{{ settings.company_contact_email or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+          <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Company Phone</label><input name="company_contact_phone" value="{{ settings.company_contact_phone or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+          <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">SMTP Host</label><input name="smtp_host" value="{{ settings.smtp_host or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+          <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">SMTP Port</label><input name="smtp_port" value="{{ settings.smtp_port or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+          <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">SMTP User</label><input name="smtp_user" value="{{ settings.smtp_user or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+          <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">SMTP From</label><input name="smtp_from" value="{{ settings.smtp_from or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+        </div>
+        <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">SMTP Password</label><input type="password" name="smtp_pass" value="{{ settings.smtp_pass or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+        <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Default Report Recipients</label><input name="default_report_recipients" value="{{ (settings.default_report_recipients or [])|join(', ') if (settings.default_report_recipients is iterable and settings.default_report_recipients is not string) else (settings.default_report_recipients or '') }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm" placeholder="qa@company.com, ceo@company.com"></div>
+        <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Signature Footer / Email Signoff</label><textarea name="mail_signature_footer" rows="3" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm">{{ settings.mail_signature_footer or '' }}</textarea></div>
+        <div><label class="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Report Watermark</label><input name="report_watermark" value="{{ settings.report_watermark or '' }}" class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-4 py-3 text-sm"></div>
+
+        <div class="pt-5 border-t border-slate-200 dark:border-dark-border">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="material-symbols-outlined text-amber-500 text-lg shrink-0">security</span>
+              <h3 class="text-xs font-black uppercase tracking-[0.16em] text-slate-700 dark:text-slate-100 leading-snug">Session Timeout, Admin Password &amp; Device Security</h3>
+            </div>
+            <span class="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[11px] font-black uppercase tracking-wider shrink-0">
+              Active Policy: {{ (settings.session_timeout_minutes or session_timeout_minutes or 30)|int }} Mins
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <div class="min-w-0 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-slate-900/40 p-4 flex flex-col justify-between">
+              <div>
+                <label class="block text-[11px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 mb-2">Auto-Logout / Inactivity Timeout (Minutes)</label>
+                {% set cur_timeout = (settings.session_timeout_minutes or session_timeout_minutes or 30)|int %}
+                <div class="flex flex-col sm:flex-row gap-2.5">
+                  <div class="flex-1 min-w-0">
+                    <select id="sessionTimeoutPresetSelect" name="session_timeout_minutes" onchange="document.getElementById('customSessionTimeoutMinutes').value = this.value;" class="w-full min-w-0 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      <option value="1" {% if cur_timeout == 1 %}selected{% endif %}>1 Min (Rapid Lock Test)</option>
+                      <option value="2" {% if cur_timeout == 2 %}selected{% endif %}>2 Minutes</option>
+                      <option value="5" {% if cur_timeout == 5 %}selected{% endif %}>5 Mins (Strict Security)</option>
+                      <option value="10" {% if cur_timeout == 10 %}selected{% endif %}>10 Minutes</option>
+                      <option value="15" {% if cur_timeout == 15 %}selected{% endif %}>15 Mins (High Security)</option>
+                      <option value="30" {% if cur_timeout == 30 %}selected{% endif %}>30 Mins (Recommended)</option>
+                      <option value="45" {% if cur_timeout == 45 %}selected{% endif %}>45 Minutes</option>
+                      <option value="60" {% if cur_timeout == 60 %}selected{% endif %}>60 Mins (1 Hour Shift)</option>
+                      <option value="120" {% if cur_timeout == 120 %}selected{% endif %}>120 Mins (2 Hours Shift)</option>
+                      <option value="240" {% if cur_timeout == 240 %}selected{% endif %}>240 Mins (4 Hours Shift)</option>
+                      <option value="480" {% if cur_timeout == 480 %}selected{% endif %}>480 Mins (8 Hours Shift)</option>
+                      {% if cur_timeout not in [1, 2, 5, 10, 15, 30, 45, 60, 120, 240, 480] %}
+                      <option value="{{ cur_timeout }}" selected>Custom ({{ cur_timeout }} Mins)</option>
+                      {% endif %}
+                    </select>
+                  </div>
+                  <div class="w-full sm:w-32 relative shrink-0">
+                    <input type="number" id="customSessionTimeoutMinutes" name="custom_session_timeout_minutes" min="1" max="1440" value="{{ cur_timeout }}" class="w-full min-w-0 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 pl-3 pr-10 py-2.5 text-sm font-black text-slate-900 dark:text-white" title="Enter any exact session duration in minutes (1-1440)">
+                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400 pointer-events-none">min</span>
+                  </div>
+                </div>
+              </div>
+              <p class="mt-2.5 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Select a preset or enter any custom duration (1–1440 min). Enforced on login &amp; active sessions.</p>
+            </div>
+
+            <div class="min-w-0 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/70 dark:bg-slate-900/40 p-4 flex flex-col justify-between">
+              <div>
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <label class="block text-[11px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 truncate">Update Admin Login Password ({{ current_user_email }})</label>
+                  <button type="button" onclick="var el=document.getElementById('adminNewPasswordInput'); el.type = el.type === 'password' ? 'text' : 'password';" class="text-[10px] font-extrabold uppercase text-ueal-purple dark:text-ueal-gold hover:underline cursor-pointer shrink-0">Show / Hide</button>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-2.5">
+                  <div class="flex-1 min-w-0">
+                    <input id="adminNewPasswordInput" type="password" name="admin_new_password" autocomplete="new-password" placeholder="New password (blank to keep current)" class="w-full min-w-0 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  </div>
+                  <div class="w-full sm:w-auto shrink-0">
+                    <button type="submit" class="w-full sm:w-auto h-full min-h-[42px] px-4 py-2.5 rounded-lg bg-ueal-purple hover:opacity-95 text-white text-xs font-black uppercase tracking-wider cursor-pointer whitespace-nowrap flex items-center justify-center text-center">Update Password</button>
+                  </div>
+                </div>
+              </div>
+              <p class="mt-2.5 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">Immediately updates your sign-in password and invalidates the previous password.</p>
+            </div>
+          </div>
+
+          <div class="mt-4 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-900/60 p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-extrabold text-slate-800 dark:text-slate-100">Immediate Session Lock &amp; Role Governance</p>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">Lock this device immediately (saving any password/timeout changes) or manage custom user roles &amp; KPI target privileges.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+              <a href="{{ url_for('admin_users_page') }}" class="px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 transition whitespace-nowrap">
+                <span class="material-symbols-outlined text-sm">admin_panel_settings</span>
+                <span>Define Roles &amp; Permissions</span>
+              </a>
+              <button type="submit" name="lock_after_save" value="1" class="px-3.5 py-2.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap">
+                <span class="material-symbols-outlined text-sm">lock</span>
+                <span>Save &amp; Lock Now</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end pt-2"><button type="submit" class="px-5 py-3 rounded-lg bg-ueal-gold text-white text-sm font-black shadow cursor-pointer hover:opacity-95 transition">Save System &amp; Security Settings</button></div>
+      </form>
+
+      <!-- Company KPI Targets, Attainment Thresholds & Maintenance Budgets -->
+      <div id="kpiTargetsGovernanceSection" class="mt-8 pt-6 border-t border-slate-200 dark:border-dark-border">
+        {% set kpi_t = company_kpi_targets or {} %}
+        <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-ueal-purple dark:text-ueal-gold text-xl">tune</span>
+              <h2 class="text-base font-black text-slate-900 dark:text-white">Company KPI Attainment Targets, Budgets &amp; SLA Percentages</h2>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Customize KPI attainment percentages, MTTR/MTBF targets, and maintenance budgets for <span class="font-bold text-slate-800 dark:text-slate-200">{{ active_company.name if active_company else 'Active Workspace' }} ({{ active_company.code if active_company else 'OPS' }})</span>. Different companies maintain independent targets.
+            </p>
+          </div>
+          {% if can_adjust_kpi_targets %}
+          <span class="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-sm">verified_user</span>
+            KPI &amp; Budget Target Privilege Active
+          </span>
+          {% else %}
+          <span class="px-3 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-sm">lock</span>
+            Requires "KPI Targets, Budgets &amp; Attainment" Privilege
+          </span>
+          {% endif %}
+        </div>
+
+        <form method="post" action="/settings/kpi-targets/save" class="rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50/60 dark:bg-slate-900/50 p-5 space-y-5">
+          <input type="hidden" name="redirect_to" value="/settings/admin#kpiTargetsGovernanceSection">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="sm:col-span-2 lg:col-span-4">
+              <label class="block text-[11px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 mb-1.5">Target Company Workspace</label>
+              <select name="company_id" {% if not can_adjust_kpi_targets %}disabled{% endif %} class="w-full sm:w-80 rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-bold text-slate-800 dark:text-slate-100">
+                {% for comp in companies %}
+                <option value="{{ comp.id }}" {% if active_company and comp.id == active_company.id %}selected{% endif %}>{{ comp.name }} ({{ comp.code }})</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 mb-1.5">Min Fleet Uptime SLA (%)</label>
+              <input type="number" step="0.1" min="1" max="100" name="uptime_target_pct" value="{{ kpi_t.uptime_target_pct if kpi_t.uptime_target_pct is defined else 80.0 }}" {% if not can_adjust_kpi_targets %}readonly{% endif %} class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-black text-slate-900 dark:text-white">
+            </div>
+            <div>
+              <label class="block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 mb-1.5">OEE Attainment Target (%)</label>
+              <input type="number" step="0.1" min="1" max="100" name="oee_benchmark_pct" value="{{ kpi_t.oee_benchmark_pct if kpi_t.oee_benchmark_pct is defined else 92.0 }}" {% if not can_adjust_kpi_targets %}readonly{% endif %} class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-black text-slate-900 dark:text-white">
+            </div>
+            <div>
+              <label class="block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 mb-1.5">PM Compliance Target (%)</label>
+              <input type="number" step="0.1" min="1" max="100" name="pm_compliance_target_pct" value="{{ kpi_t.pm_compliance_target_pct if kpi_t.pm_compliance_target_pct is defined else 90.0 }}" {% if not can_adjust_kpi_targets %}readonly{% endif %} class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-black text-slate-900 dark:text-white">
+            </div>
+            <div>
+              <label class="block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 mb-1.5">Inventory Health Target (%)</label>
+              <input type="number" step="0.1" min="1" max="100" name="inventory_health_target_pct" value="{{ kpi_t.inventory_health_target_pct if kpi_t.inventory_health_target_pct is defined else 85.0 }}" {% if not can_adjust_kpi_targets %}readonly{% endif %} class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-black text-slate-900 dark:text-white">
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 mb-1.5">MTTR Target Ceiling (Hours)</label>
+              <input type="number" step="0.1" min="0.1" max="720" name="mttr_target_hours" value="{{ kpi_t.mttr_target_hours if kpi_t.mttr_target_hours is defined else 2.0 }}" {% if not can_adjust_kpi_targets %}readonly{% endif %} class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-black text-slate-900 dark:text-white">
+            </div>
+            <div>
+              <label class="block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 mb-1.5">MTBF Target Floor (Hours)</label>
+              <input type="number" step="1" min="1" max="10000" name="mtbf_target_hours" value="{{ kpi_t.mtbf_target_hours if kpi_t.mtbf_target_hours is defined else 120 }}" {% if not can_adjust_kpi_targets %}readonly{% endif %} class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-black text-slate-900 dark:text-white">
+            </div>
+            <div>
+              <label class="block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 mb-1.5">Monthly Maint. Budget (KES)</label>
+              <input type="number" step="1000" min="0" name="monthly_maintenance_budget" value="{{ kpi_t.monthly_maintenance_budget if kpi_t.monthly_maintenance_budget is defined else 2500000 }}" {% if not can_adjust_kpi_targets %}readonly{% endif %} class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-black text-slate-900 dark:text-white">
+            </div>
+            <div>
+              <label class="block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 mb-1.5">Spares Inventory Budget (KES)</label>
+              <input type="number" step="1000" min="0" name="spares_inventory_budget" value="{{ kpi_t.spares_inventory_budget if kpi_t.spares_inventory_budget is defined else 1500000 }}" {% if not can_adjust_kpi_targets %}readonly{% endif %} class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-black text-slate-900 dark:text-white">
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 mb-1.5">Max Critical Open Breakdowns</label>
+              <input type="number" step="1" min="0" max="100" name="max_critical_breakdowns" value="{{ kpi_t.max_critical_breakdowns if kpi_t.max_critical_breakdowns is defined else 1 }}" {% if not can_adjust_kpi_targets %}readonly{% endif %} class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-black text-slate-900 dark:text-white">
+            </div>
+            <div>
+              <label class="block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 mb-1.5">Max Active Breakdowns Cap</label>
+              <input type="number" step="1" min="0" max="200" name="max_active_breakdowns" value="{{ kpi_t.max_active_breakdowns if kpi_t.max_active_breakdowns is defined else 3 }}" {% if not can_adjust_kpi_targets %}readonly{% endif %} class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-black text-slate-900 dark:text-white">
+            </div>
+            <div>
+              <label class="block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 mb-1.5">Max Out-of-Service Machines</label>
+              <input type="number" step="1" min="0" max="200" name="max_oos_assets" value="{{ kpi_t.max_oos_assets if kpi_t.max_oos_assets is defined else 2 }}" {% if not can_adjust_kpi_targets %}readonly{% endif %} class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-black text-slate-900 dark:text-white">
+            </div>
+            <div>
+              <label class="block text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 mb-1.5">Max Overdue PM Work Orders</label>
+              <input type="number" step="1" min="0" max="200" name="max_overdue_pm" value="{{ kpi_t.max_overdue_pm if kpi_t.max_overdue_pm is defined else 2 }}" {% if not can_adjust_kpi_targets %}readonly{% endif %} class="w-full rounded-lg border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-900 px-3.5 py-2.5 text-sm font-black text-slate-900 dark:text-white">
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200 dark:border-dark-border">
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              Assign the <span class="font-bold text-slate-700 dark:text-slate-200">"Adjust KPI Targets, Budgets &amp; Attainment Levels"</span> rule to any user or role in <a href="{{ url_for('admin_users_page') }}" class="text-ueal-purple dark:text-ueal-gold font-bold underline">Admin Credentials &amp; Users</a>.
+            </p>
+            {% if can_adjust_kpi_targets %}
+            <button type="submit" class="px-5 py-2.5 rounded-lg bg-ueal-purple hover:opacity-95 text-white text-xs font-black uppercase tracking-wider shadow cursor-pointer flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-sm">save</span>
+              <span>Save Company KPI Targets &amp; Budgets</span>
+            </button>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="space-y-6">
+      <div class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-sm p-5">
+        <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-100">Admin Governance &amp; Tools</h2>
+        <div class="mt-4 space-y-2.5">
+          <a href="{{ url_for('technicians_management') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><span class="font-semibold text-sm flex items-center gap-2.5"><span class="material-symbols-outlined text-slate-400 text-lg">engineering</span> Technicians Directory ({{ active_technicians or 4 }})</span><span class="material-symbols-outlined text-slate-400">chevron_right</span></a>
+          <a href="{{ url_for('admin_users_page') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><span class="font-semibold text-sm flex items-center gap-2.5"><span class="material-symbols-outlined text-slate-400 text-lg">manage_accounts</span> Admin Credentials &amp; Users ({{ total_users or 1 }})</span><span class="material-symbols-outlined text-slate-400">chevron_right</span></a>
+          <a href="/settings/recycle-bin" class="flex items-center justify-between rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/20 px-4 py-3 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition"><span class="font-bold text-sm text-rose-700 dark:text-rose-300 flex items-center gap-2.5"><span class="material-symbols-outlined text-rose-500 text-lg">restore_from_trash</span> Admin Recycle Bin ({{ recycle_bin_count or 0 }})</span><span class="material-symbols-outlined text-rose-400">chevron_right</span></a>
+          <a href="{{ url_for('notifications') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><span class="font-semibold text-sm flex items-center gap-2.5"><span class="material-symbols-outlined text-slate-400 text-lg">notifications</span> Notifications Center</span><span class="material-symbols-outlined text-slate-400">chevron_right</span></a>
+          <a href="{{ url_for('messages_center') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><span class="font-semibold text-sm flex items-center gap-2.5"><span class="material-symbols-outlined text-slate-400 text-lg">mail</span> Internal Messages Center</span><span class="material-symbols-outlined text-slate-400">chevron_right</span></a>
+          <a href="{{ url_for('audit_trail_page') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><span class="font-semibold text-sm flex items-center gap-2.5"><span class="material-symbols-outlined text-slate-400 text-lg">policy</span> Security Audit Trail</span><span class="material-symbols-outlined text-slate-400">chevron_right</span></a>
+          <a href="{{ url_for('help_page') }}" class="flex items-center justify-between rounded-lg border border-slate-200 dark:border-dark-border px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><span class="font-semibold text-sm flex items-center gap-2.5"><span class="material-symbols-outlined text-slate-400 text-lg">help</span> System Guide &amp; Help Desk</span><span class="material-symbols-outlined text-slate-400">chevron_right</span></a>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-sm p-5">
+        <h2 class="text-sm font-black uppercase tracking-[0.18em] text-slate-700 dark:text-slate-100">Mail Signature Preview</h2>
+        <div class="mt-4 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-900 p-4 text-sm text-slate-700 dark:text-slate-200">
+          <p>Dear Recipient,</p>
+          <p class="mt-3">Please find the requested engineering report attached for your review.</p>
+          <div class="mt-4" style="font-family: {{ settings.mail_signature_font or 'Inter' }}; color: {{ settings.mail_signature_color or '#7E22CE' }};">
+            <p class="font-bold">{{ settings.mail_signature_name or 'Engineering Reliability Office' }}</p>
+            <p>{{ settings.mail_signature_title or 'Opsloom Reports Automation' }}</p>
+            <p class="text-slate-500 dark:text-slate-300">{{ settings.mail_signature_footer or 'Opsloom' }}</p>
+            {% if settings.mail_signature_image_url %}<img src="{{ settings.mail_signature_image_url }}" alt="signature" class="mt-3 max-h-14 object-contain">{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

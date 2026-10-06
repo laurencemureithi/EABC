@@ -1,0 +1,29 @@
+{% extends "reports/reports_generate_step2.html" %}
+
+{% block title %}Asset Reliability • Configuration • Opsloom{% endblock %}
+
+{% block metrics_options %}
+  {% set selected_metrics = selected_metrics or ['mtbf','mttr','availability','downtime'] %}
+  {% set metric_rows = [
+    ('mtbf','Mean Time Between Failures (MTBF)','Reliability interval between unplanned stops.'),
+    ('mttr','Mean Time To Repair (MTTR)','Maintainability and repair cycle efficiency.'),
+    ('availability','Operational Availability %','Uptime vs planned production time.'),
+    ('downtime','Unscheduled Downtime (hrs)','Total downtime impact for the period.'),
+    ('failure_rate','Failure Rate','Breakdowns per 100 run-hours (normalized).'),
+    ('health_score','Asset Health Score','Composite score for quick executive scanning.')
+  ] %}
+
+  {% for key, title, desc in metric_rows %}
+    <label class="flex items-center gap-3 p-3 bg-white dark:bg-dark-surface rounded-lg
+                  border border-slate-200 dark:border-dark-border cursor-pointer
+                  hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+      <input class="rounded text-ueal-gold focus:ring-ueal-gold h-4 w-4"
+             type="checkbox" name="metrics" value="{{ key }}"
+             {% if key in selected_metrics %}checked{% endif %}/>
+      <div class="flex flex-col">
+        <span class="text-xs font-bold text-slate-800 dark:text-white">{{ title }}</span>
+        <span class="text-[10px] text-slate-500 dark:text-slate-300">{{ desc }}</span>
+      </div>
+    </label>
+  {% endfor %}
+{% endblock %}

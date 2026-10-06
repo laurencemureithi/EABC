@@ -1,0 +1,152 @@
+{% extends "layouts/base.html" %}
+{% block title %}RCA {{ breakdown_id }} • Opsloom{% endblock %}
+
+{% block content %}
+  {% set page_title = "Root Cause Analysis: " ~ ((incident_title or asset_name) or breakdown_id) %}
+  {% set breadcrumbs = [
+    {"label":"Breakdowns", "href": url_for("breakdowns")},
+    {"label": breakdown_id, "href": url_for("breakdowns_view", breakdown_id=breakdown_id)},
+    {"label":"RCA"}
+  ] %}
+  {% include "partials/title_block.html" %}
+
+  <div class="max-w-4xl mx-auto">
+    <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+      <form method="post">
+        <div class="p-8 border-b border-slate-100 dark:border-dark-border">
+          <div class="flex items-center gap-2 mb-6">
+            <span class="material-symbols-outlined text-ueal-purple text-xl">category</span>
+            <h2 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Failure Categorization</h2>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+            <div class="space-y-2">
+              <label class="text-[11px] uppercase font-bold text-slate-500 block">Primary Root Cause</label>
+              <select name="primary_root_cause"
+                      class="w-full rounded-lg border-slate-200 dark:border-dark-border dark:bg-slate-800 text-sm focus:border-ueal-purple focus:ring-ueal-purple">
+                <option value="" {% if not rca.primary_root_cause %}selected{% endif %}>Select category...</option>
+                <option value="mechanical" {% if rca.primary_root_cause=="mechanical" %}selected{% endif %}>Mechanical Failure</option>
+                <option value="electrical" {% if rca.primary_root_cause=="electrical" %}selected{% endif %}>Electrical Surge/Fault</option>
+                <option value="human_error" {% if rca.primary_root_cause=="human_error" %}selected{% endif %}>Human Error (Operational)</option>
+                <option value="fatigue" {% if rca.primary_root_cause=="fatigue" %}selected{% endif %}>Component Fatigue</option>
+                <option value="maintenance" {% if rca.primary_root_cause=="maintenance" %}selected{% endif %}>Maintenance Oversight</option>
+                <option value="environmental" {% if rca.primary_root_cause=="environmental" %}selected{% endif %}>Environmental Factors</option>
+              </select>
+            </div>
+
+            <div class="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-100 dark:border-dark-border">
+              <div>
+                <p class="text-sm font-bold text-slate-700 dark:text-slate-300">Severity Re-evaluation</p>
+                <p class="text-[10px] text-slate-500 uppercase">Use if findings increased risk</p>
+              </div>
+              <label class="inline-flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-300">
+                <input type="checkbox" name="sev_upgrade" class="rounded border-slate-300 dark:border-dark-border">
+                Upgrade severity
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-8 border-b border-slate-100 dark:border-dark-border bg-slate-50/30 dark:bg-slate-900/10">
+          <div class="flex items-center gap-2 mb-6">
+            <span class="material-symbols-outlined text-ueal-purple text-xl">psychology</span>
+            <h2 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">The 5 Whys Analysis</h2>
+          </div>
+
+          {% set whys = rca.five_whys if rca and rca.five_whys else ["","","","",""] %}
+          <div class="space-y-4">
+            <div class="space-y-2">
+              <label class="text-[10px] uppercase font-bold text-slate-400 block">Why 1</label>
+              <input name="why1" value="{{ whys[0] }}"
+                     class="w-full rounded-lg border-slate-200 dark:border-dark-border dark:bg-slate-800 text-sm focus:border-ueal-purple focus:ring-ueal-purple"
+                     placeholder="Why did the failure happen?"/>
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] uppercase font-bold text-slate-400 block">Why 2</label>
+              <input name="why2" value="{{ whys[1] }}"
+                     class="w-full rounded-lg border-slate-200 dark:border-dark-border dark:bg-slate-800 text-sm focus:border-ueal-purple focus:ring-ueal-purple"
+                     placeholder="Why did that occur?"/>
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] uppercase font-bold text-slate-400 block">Why 3</label>
+              <input name="why3" value="{{ whys[2] }}"
+                     class="w-full rounded-lg border-slate-200 dark:border-dark-border dark:bg-slate-800 text-sm focus:border-ueal-purple focus:ring-ueal-purple"
+                     placeholder="Why did it happen again?"/>
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] uppercase font-bold text-slate-400 block">Why 4</label>
+              <input name="why4" value="{{ whys[3] }}"
+                     class="w-full rounded-lg border-slate-200 dark:border-dark-border dark:bg-slate-800 text-sm focus:border-ueal-purple focus:ring-ueal-purple"
+                     placeholder="Why did the condition exist?"/>
+            </div>
+            <div class="space-y-2 border-l-4 border-ueal-gold pl-4">
+              <label class="text-[10px] uppercase font-bold text-ueal-gold block">Why 5 / Root Cause</label>
+              <input name="why5" value="{{ whys[4] }}"
+                     class="w-full rounded-lg border-ueal-gold/40 dark:border-ueal-gold/30 dark:bg-slate-800 text-sm focus:border-ueal-gold focus:ring-ueal-gold"
+                     placeholder="Identified root cause..."/>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-8 border-b border-slate-100 dark:border-dark-border">
+          <div class="flex items-center gap-2 mb-6">
+            <span class="material-symbols-outlined text-ueal-purple text-2xl">verified</span>
+            <h2 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Corrective &amp; Preventive Actions (CAPA)</h2>
+          </div>
+
+          <div class="space-y-6">
+            <div class="space-y-2">
+              <label class="text-[11px] uppercase font-bold text-slate-500 block">Immediate Corrective Action</label>
+              <textarea name="corrective" rows="3"
+                        class="w-full rounded-lg border-slate-200 dark:border-dark-border dark:bg-slate-800 text-sm focus:border-ueal-purple focus:ring-ueal-purple"
+                        placeholder="What was done immediately to restore function?">{{ rca.corrective or "" }}</textarea>
+            </div>
+            <div class="space-y-2">
+              <label class="text-[11px] uppercase font-bold text-slate-500 block">Long-term Preventive Action</label>
+              <textarea name="preventive" rows="3"
+                        class="w-full rounded-lg border-slate-200 dark:border-dark-border dark:bg-slate-800 text-sm focus:border-ueal-purple focus:ring-ueal-purple"
+                        placeholder="How will we prevent this from happening again?">{{ rca.preventive or "" }}</textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-8">
+          <div class="flex items-center gap-2 mb-6">
+            <span class="material-symbols-outlined text-ueal-purple text-xl">assignment_turned_in</span>
+            <h2 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Validation &amp; Sign-off</h2>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-2">
+              <label class="text-[11px] uppercase font-bold text-slate-500 block">Verified By</label>
+              <input name="verified_by"
+                     value="{{ rca.verified_by or '' }}"
+                     class="w-full rounded-lg border-slate-200 dark:border-dark-border dark:bg-slate-800 text-sm focus:border-ueal-purple focus:ring-ueal-purple"
+                     placeholder="Engineer/Manager name...">
+            </div>
+
+            <div class="space-y-2">
+              <label class="text-[11px] uppercase font-bold text-slate-500 block">Date of Closure</label>
+              <input name="closure_date" type="date"
+                     value="{{ rca.closure_date or '' }}"
+                     class="w-full rounded-lg border-slate-200 dark:border-dark-border dark:bg-slate-800 text-sm focus:border-ueal-purple focus:ring-ueal-purple">
+              <p class="text-[10px] text-slate-400 italic">If you set this, the incident will be marked Resolved.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="px-8 py-6 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-end gap-4 border-t border-slate-100 dark:border-dark-border">
+          <a href="{{ url_for('breakdowns_view', breakdown_id=breakdown_id) }}"
+             class="px-6 py-2.5 rounded-lg border border-slate-300 dark:border-dark-border text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-colors uppercase">
+            Cancel
+          </a>
+          <button type="submit"
+                  class="px-8 py-2.5 rounded-lg bg-ueal-gold text-white text-sm font-bold flex items-center gap-2 hover:brightness-105 shadow-md shadow-ueal-gold/20 transition-all active:scale-95 uppercase">
+            <span class="material-symbols-outlined text-lg">fact_check</span>
+            Submit RCA
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

@@ -3279,12 +3279,18 @@ function buildChartExportReport(options = {}) {
 // Serverless URL normalization (Vercel, AWS Lambda, Cloud Run proxy rewrites)
 app.use((req, res, next) => {
   const matchedPath = req.headers['x-matched-path'] || req.headers['x-forwarded-uri'] || req.headers['x-now-route-matches'];
-  if (matchedPath && (req.url === '/api/index.js' || req.url === '/api' || req.url.startsWith('/api/index.js?') || req.url.startsWith('/api?'))) {
-    const qIdx = req.url.indexOf('?');
-    const queryStr = qIdx !== -1 ? req.url.slice(qIdx) : '';
-    req.url = matchedPath + (matchedPath.includes('?') ? '' : queryStr);
-  } else if (req.url === '/api/index.js' || req.url === '/api' || req.url === '/api/') {
-    req.url = '/dashboard';
+  const isWrapperUrl = (u) => !u || u === '/api/index.js' || u === '/api/index' || u === '/api' || u === '/api/' || u.startsWith('/api/index.js?') || u.startsWith('/api?');
+
+  if (isWrapperUrl(req.url)) {
+    if (matchedPath && !isWrapperUrl(matchedPath)) {
+      const qIdx = req.url.indexOf('?');
+      const queryStr = (qIdx !== -1 && !matchedPath.includes('?')) ? req.url.slice(qIdx) : '';
+      req.url = matchedPath + queryStr;
+    } else {
+      const qIdx = req.url.indexOf('?');
+      const queryStr = qIdx !== -1 ? req.url.slice(qIdx) : '';
+      req.url = '/' + queryStr;
+    }
   }
   next();
 });
@@ -3671,6 +3677,9 @@ app.use((req, res, next) => {
   const isCompanyBrandSaveApi = p === '/api/companies/save-logo' || p === '/api/companies/save' || p === '/settings/companies/save';
 
   if (!uid && !isCompanyBrandSaveApi) {
+    if (p === '/api/index.js' || p === '/api/index' || p === '/api' || p === '/api/') {
+      return res.redirect('/login');
+    }
     if (p.startsWith('/api/')) {
       return res.status(401).json({ error: 'Authentication required', redirect: '/login' });
     }
@@ -3983,7 +3992,7 @@ const wizardState = {
 // -------------------------
 // AUTH ROUTES
 // -------------------------
-app.get('/', (req, res) => {
+app.all(['/', '/api/index.js', '/api/index', '/api'], (req, res) => {
   res.redirect('/dashboard');
 });
 

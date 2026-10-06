@@ -1,0 +1,29 @@
+{% extends "reports/reports_generate_step2.html" %}
+
+{% block title %}Maintenance Compliance • Configuration • Opsloom{% endblock %}
+
+{% block metrics_options %}
+  {% set selected_metrics = selected_metrics or ['pm_adherence','audit_readiness','sop_validation'] %}
+  {% set metric_rows = [
+    ('pm_adherence','PM Schedule Adherence','Scheduled vs completed PM tasks and adherence %.'),
+    ('sop_validation','SOP Validation Score','Document completion and sign-off compliance.'),
+    ('audit_readiness','Audit Readiness','Readiness index for ISO/GMP audits.'),
+    ('technician_ranking','Technician Compliance Ranking','Completion, on-time and quality by technician.'),
+    ('critical_gaps','Critical Audit Gaps','Checklist of items requiring action before audit.'),
+    ('late_tasks','Late/Overdue PM Tasks','Backlog exposure and risk highlights.')
+  ] %}
+
+  {% for key, title, desc in metric_rows %}
+    <label class="flex items-center gap-3 p-3 bg-white dark:bg-dark-surface rounded-lg
+                  border border-slate-200 dark:border-dark-border cursor-pointer
+                  hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+      <input class="rounded text-ueal-gold focus:ring-ueal-gold h-4 w-4"
+             type="checkbox" name="metrics" value="{{ key }}"
+             {% if key in selected_metrics %}checked{% endif %}/>
+      <div class="flex flex-col">
+        <span class="text-xs font-bold text-slate-800 dark:text-white">{{ title }}</span>
+        <span class="text-[10px] text-slate-500 dark:text-slate-300">{{ desc }}</span>
+      </div>
+    </label>
+  {% endfor %}
+{% endblock %}

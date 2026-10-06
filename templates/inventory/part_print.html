@@ -1,0 +1,51 @@
+{% extends "layouts/base.html" %}
+{% block title %}Inventory Part Print • {{ part.part_name }} • Opsloom{% endblock %}
+{% block content %}
+<div class="business-print-shell max-w-5xl mx-auto">
+  {% set document_department = current_department %}
+  {% include "partials/report_document_header.html" %}
+  <div class="business-print-header">
+    <div>
+      <p class="text-[11px] font-black uppercase tracking-[0.25em] text-slate-500">Spare Part Master Record</p>
+      <h1 class="mt-2 text-3xl font-black text-slate-900">{{ part.part_name or 'Part Record' }}</h1>
+      <p class="mt-1 text-sm text-slate-600">Formal inventory printout for audit, procurement, and stock control review.</p>
+    </div>
+    <div class="business-print-meta">
+      <div><span>SKU</span><strong>{{ part.sku or '—' }}</strong></div>
+      <div><span>Category</span><strong>{{ part.category or '—' }}</strong></div>
+      <div><span>Stock state</span><strong>{{ stock_state|replace('_',' ')|title }}</strong></div>
+      <div><span>Critical</span><strong>{{ 'Yes' if part.is_critical else 'No' }}</strong></div>
+    </div>
+  </div>
+
+  <div class="business-print-kpis">
+    <div class="business-print-kpi"><span>Part</span><strong>{{ part.part_name or '—' }}</strong><small>{{ part.uid or part.id or '—' }}</small></div>
+    <div class="business-print-kpi"><span>Current stock</span><strong>{{ part.qty or 0 }}</strong><small>Min {{ min_qty }} / Target {{ target_qty }}</small></div>
+    <div class="business-print-kpi"><span>Unit price</span><strong>{{ (part.unit_price or 0)|kes2 }}</strong><small>Estimated carrying value</small></div>
+    <div class="business-print-kpi"><span>Supplier</span><strong>{{ part.supplier or part.vendor or '—' }}</strong><small>{{ part.lead_time_days or '—' }} day lead time</small></div>
+  </div>
+
+  <div class="business-print-grid">
+    <section class="business-print-card">
+      <h2>Part Record</h2>
+      <table class="business-print-table"><tbody>
+        <tr><th>Storage location</th><td>{{ part.storage_location or '—' }}</td></tr>
+        <tr><th>Manufacturer</th><td>{{ part.manufacturer or '—' }}</td></tr>
+        <tr><th>Model number</th><td>{{ part.model_number or '—' }}</td></tr>
+        <tr><th>Compatible assets</th><td>{{ linked_assets|map(attribute='asset_name')|join(', ') if linked_assets else '—' }}</td></tr>
+        <tr><th>Technical specs</th><td>{{ part.tech_specs or '—' }}</td></tr>
+      </tbody></table>
+    </section>
+    <section class="business-print-card">
+      <h2>Replenishment View</h2>
+      <table class="business-print-table"><tbody>
+        <tr><th>Quantity on hand</th><td>{{ part.qty or 0 }}</td></tr>
+        <tr><th>Minimum qty</th><td>{{ min_qty }}</td></tr>
+        <tr><th>Target qty</th><td>{{ target_qty }}</td></tr>
+        <tr><th>Stock coverage</th><td>{{ stock_percent }}%</td></tr>
+        <tr><th>Reorder need</th><td>{% if (part.qty or 0) <= min_qty %}Immediate action{% else %}Within tolerance{% endif %}</td></tr>
+      </tbody></table>
+    </section>
+  </div>
+</div>
+{% endblock %}

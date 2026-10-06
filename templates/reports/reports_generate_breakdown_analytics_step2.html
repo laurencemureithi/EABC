@@ -1,0 +1,29 @@
+{% extends "reports/reports_generate_step2.html" %}
+
+{% block title %}Breakdown Analytics • Configuration • Opsloom{% endblock %}
+
+{% block metrics_options %}
+  {% set selected_metrics = selected_metrics or ['incidents','downtime','mttr','loss_estimate'] %}
+  {% set metric_rows = [
+    ('incidents','Total Incidents','Count of breakdown events logged in the period.'),
+    ('downtime','Total Downtime (hrs)','Sum of downtime hours across incidents.'),
+    ('mttr','Mean Time To Repair (MTTR)','Average repair time from start to restore.'),
+    ('loss_estimate','Estimated Production Loss','Cost impact estimation from throughput and rates.'),
+    ('root_cause','Root Cause Distribution','Pareto view of categories and contributors.'),
+    ('heatmap','Breakdown Heatmap','When/where incidents cluster by line/zone and day.')
+  ] %}
+
+  {% for key, title, desc in metric_rows %}
+    <label class="flex items-center gap-3 p-3 bg-white dark:bg-dark-surface rounded-lg
+                  border border-slate-200 dark:border-dark-border cursor-pointer
+                  hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+      <input class="rounded text-ueal-gold focus:ring-ueal-gold h-4 w-4"
+             type="checkbox" name="metrics" value="{{ key }}"
+             {% if key in selected_metrics %}checked{% endif %}/>
+      <div class="flex flex-col">
+        <span class="text-xs font-bold text-slate-800 dark:text-white">{{ title }}</span>
+        <span class="text-[10px] text-slate-500 dark:text-slate-300">{{ desc }}</span>
+      </div>
+    </label>
+  {% endfor %}
+{% endblock %}

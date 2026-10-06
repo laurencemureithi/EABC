@@ -1,0 +1,241 @@
+{# ========================= 
+   reports_generate_step1.html
+   - Dark mode safe
+   - Category selection persists
+   - Next disabled until selection
+   ========================= #}
+
+{% extends "layouts/base.html" %}
+
+{% block title %}Generate New Report • Opsloom{% endblock %}
+
+{% block page_styles %}
+<style>
+  .material-symbols-outlined { line-height: 1; vertical-align: middle; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+
+  <!-- Header + Breadcrumb -->
+  {% set page_title = "Generate New Report" %}
+{% set title_icon = "assessment" %}
+{% set page_subtitle = "Choose a reporting category, then continue to scope, metrics, and export settings." %}
+{% set show_system_badge = true %}
+{% set breadcrumbs = [{"label":"Reports", "href": url_for("reports_center")}, {"label":"Generate"}] %}
+{% include "partials/title_block.html" %}
+
+  <!-- Stepper -->
+  <div class="mb-10 flex items-center justify-between max-w-4xl mx-auto">
+    <div class="flex flex-col items-center gap-2">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2
+                  bg-ueal-gold border-ueal-gold text-white shadow-lg shadow-ueal-gold/20">
+        1
+      </div>
+      <span class="text-[10px] font-black text-ueal-purple uppercase tracking-widest">1. Report Type</span>
+    </div>
+
+    <div class="flex-1 h-0.5 bg-slate-200 dark:bg-white/10 mx-4"></div>
+
+    <div class="flex flex-col items-center gap-2">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2
+                  bg-white dark:bg-dark-surface border-slate-200 dark:border-dark-border
+                  text-slate-400">
+        2
+      </div>
+      <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">2. Configuration</span>
+    </div>
+
+    <div class="flex-1 h-0.5 bg-slate-200 dark:bg-white/10 mx-4"></div>
+
+    <div class="flex flex-col items-center gap-2">
+      <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2
+                  bg-white dark:bg-dark-surface border-slate-200 dark:border-dark-border
+                  text-slate-400">
+        3
+      </div>
+      <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">3. Finalize</span>
+    </div>
+  </div>
+
+  {% set card_shell = "bg-white dark:bg-dark-surface rounded-2xl border border-slate-200 dark:border-dark-border shadow-xl overflow-hidden" %}
+  {% set inner_pad  = "p-8 sm:p-10" %}
+  {% set select_btn = "w-full rounded-xl border-2 border-slate-200/60 dark:border-dark-border p-6 transition-all cursor-pointer flex flex-col items-center text-center focus:outline-none focus:ring-2 focus:ring-ueal-purple/20 bg-white dark:bg-dark-surface hover:border-ueal-gold/50 dark:hover:border-ueal-gold/60" %}
+  {% set icon_wrap  = "w-14 h-14 rounded-2xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center mb-5 transition-all" %}
+
+  <section class="{{ card_shell }}">
+    <div class="{{ inner_pad }}">
+
+      <div class="text-center mb-10">
+        <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mb-2">
+          Select Report Category
+        </h2>
+        <p class="text-slate-500 dark:text-slate-300 font-medium">
+          Choose the data domain you want to analyze.
+        </p>
+      </div>
+
+      <form method="post" action="{{ url_for('reports_generate_step1_post') }}" id="reportTypeForm" novalidate>
+        <input type="hidden" name="category" id="selectedCategory" value="{{ selected_category or '' }}"/>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="categoryGrid">
+
+          <button type="button" data-cat="asset_reliability" class="{{ select_btn }}" aria-pressed="false">
+            <div class="{{ icon_wrap }} text-ueal-purple">
+              <span class="material-symbols-outlined text-3xl">analytics</span>
+            </div>
+            <h3 class="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider mb-2">
+              Asset Reliability
+            </h3>
+            <p class="text-xs text-slate-500 dark:text-slate-300 leading-relaxed">
+              Analysis of MTBF, MTTR, and asset health trends.
+            </p>
+          </button>
+
+          <button type="button" data-cat="breakdown_analytics" class="{{ select_btn }}" aria-pressed="false">
+            <div class="{{ icon_wrap }} text-ueal-purple">
+              <span class="material-symbols-outlined text-3xl">troubleshoot</span>
+            </div>
+            <h3 class="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider mb-2">
+              Breakdown Analytics
+            </h3>
+            <p class="text-xs text-slate-500 dark:text-slate-300 leading-relaxed">
+              Incident history and root cause frequency mapping.
+            </p>
+          </button>
+
+          <button type="button" data-cat="maintenance_compliance" class="{{ select_btn }}" aria-pressed="false">
+            <div class="{{ icon_wrap }} text-ueal-purple">
+              <span class="material-symbols-outlined text-3xl">verified</span>
+            </div>
+            <h3 class="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider mb-2">
+              Maintenance Compliance
+            </h3>
+            <p class="text-xs text-slate-500 dark:text-slate-300 leading-relaxed">
+              PM schedule adherence and technician logs.
+            </p>
+          </button>
+
+          <button type="button" data-cat="inventory_spares" class="{{ select_btn }}" aria-pressed="false">
+            <div class="{{ icon_wrap }} text-ueal-purple">
+              <span class="material-symbols-outlined text-3xl">inventory_2</span>
+            </div>
+            <h3 class="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider mb-2">
+              Inventory &amp; Spares
+            </h3>
+            <p class="text-xs text-slate-500 dark:text-slate-300 leading-relaxed">
+              Stock valuation and consumption trends.
+            </p>
+          </button>
+
+          <button type="button" data-cat="strategic_roi" class="{{ select_btn }}" aria-pressed="false">
+            <div class="{{ icon_wrap }} text-ueal-purple">
+              <span class="material-symbols-outlined text-3xl">payments</span>
+            </div>
+            <h3 class="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider mb-2">
+              Strategic ROI
+            </h3>
+            <p class="text-xs text-slate-500 dark:text-slate-300 leading-relaxed">
+              Financial impact and project performance tracking.
+            </p>
+          </button>
+
+        </div>
+
+        <div id="inlineError"
+             class="mt-6 hidden bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/40
+                    text-red-700 dark:text-red-200 text-xs font-semibold rounded-xl px-4 py-3">
+          Please select a report category to continue.
+        </div>
+
+        {% if error %}
+          <div class="mt-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/40
+                      text-red-700 dark:text-red-200 text-xs font-semibold rounded-xl px-4 py-3">
+            {{ error }}
+          </div>
+        {% endif %}
+
+        <div class="-mx-8 sm:-mx-10 mt-10 px-8 sm:px-10 py-6
+                    bg-slate-50 dark:bg-slate-900/40 border-t border-slate-100 dark:border-dark-border
+                    flex items-center justify-between gap-3">
+          <a href="{{ url_for('reports_center') }}"
+             class="px-6 py-2.5 rounded-lg border border-slate-300 dark:border-dark-border
+                    bg-white dark:bg-dark-surface text-slate-600 dark:text-slate-200
+                    text-xs font-black hover:bg-slate-100 dark:hover:bg-slate-800 transition-all uppercase tracking-widest">
+            Cancel
+          </a>
+
+          <button type="submit" id="nextBtn" disabled
+                  class="px-6 py-2.5 rounded-lg bg-ueal-gold text-white
+                         text-xs font-black hover:brightness-110 transition-all
+                         shadow-lg shadow-ueal-gold/20 flex items-center gap-2 uppercase tracking-widest
+                         disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100">
+            Next: Configuration
+            <span class="material-symbols-outlined text-base">arrow_forward</span>
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </section>
+
+  <footer class="mt-12 mb-2 text-center">
+    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">
+      © 2024 Opsloom. Opsloom Intelligence Unit
+    </p>
+    <p class="text-[9px] text-slate-300 uppercase tracking-widest mt-1">
+      Opsloom Operations Intelligence System - Wizard v2.1
+    </p>
+  </footer>
+
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+  (function () {
+    const cards = Array.from(document.querySelectorAll("[data-cat]"));
+    const hidden = document.getElementById("selectedCategory");
+    const form = document.getElementById("reportTypeForm");
+    const nextBtn = document.getElementById("nextBtn");
+    const inlineError = document.getElementById("inlineError");
+
+    const ACTIVE_CLASSES = [
+      "border-ueal-gold",
+      "bg-ueal-gold/5",
+      "ring-4",
+      "ring-ueal-gold/10"
+    ];
+
+    function updateNextState() {
+      const ok = !!(hidden.value || "").trim();
+      nextBtn.disabled = !ok;
+      if (ok) inlineError.classList.add("hidden");
+    }
+
+    function setActive(cat) {
+      hidden.value = cat || "";
+      cards.forEach((c) => {
+        const isActive = c.dataset.cat === cat;
+        ACTIVE_CLASSES.forEach((cls) => c.classList.toggle(cls, isActive));
+        c.setAttribute("aria-pressed", isActive ? "true" : "false");
+      });
+      updateNextState();
+    }
+
+    if (hidden.value) setActive(hidden.value);
+    else updateNextState();
+
+    cards.forEach((btn) => btn.addEventListener("click", () => setActive(btn.dataset.cat)));
+
+    form.addEventListener("submit", (e) => {
+      if (!((hidden.value || "").trim())) {
+        e.preventDefault();
+        inlineError.classList.remove("hidden");
+        document.getElementById("categoryGrid")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,871 @@
+{# templates/assets/assets_documents.html #}
+{% extends "layouts/base.html" %}
+{% block title %}Documents • Opsloom{% endblock %}
+
+{% block page_styles %}
+<style>
+  /* Actions popover + modals (do not push table) */
+  .doc-popover-shadow { box-shadow: 0 18px 50px rgba(2,6,23,.18); }
+  .doc-backdrop { background: rgba(15,23,42,.55); }
+
+  /* Make sure overlays never block clicks when hidden */
+  #docActionsMenu.hidden,
+  #docViewer.hidden,
+  #docDeleteModal.hidden { display:none !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set page = page|default(request.args.get('page', 1)|int) %}
+{% set per_page = per_page|default(request.args.get('per_page', 10)|int) %}
+
+{% set breadcrumbs = [
+  {"label":"Asset Register", "href": url_for("assets_master_list")},
+  {"label": asset.asset_name, "href": url_for("assets_profile_get", asset_uid=asset.uid) if asset and asset.uid else None},
+  {"label":"Documents"}
+] %}
+
+<div class="max-w-6xl mx-auto">
+
+  {% set header_show_image = true %}
+  {% include "partials/asset_profile_header.html" %}
+
+  {% set current_tab = "documents" %}
+  {% include "partials/asset_profile_tabs.html" %}
+
+  {% set docs_all = (documents if documents is defined and documents else []) %}
+
+  {% set total_documents = (kpis.total_documents if kpis is defined and kpis.total_documents is defined else (docs_all|length)) %}
+  {% set oem_manuals = (kpis.oem_manuals if kpis is defined and kpis.oem_manuals is defined else (docs_all|selectattr('category','equalto','OEM MANUAL')|list|length)) %}
+  {% set drawings = (kpis.drawings if kpis is defined and kpis.drawings is defined else (docs_all|selectattr('category','equalto','DRAWING')|list|length)) %}
+  {% set certifications = (kpis.certifications if kpis is defined and kpis.certifications is defined else (docs_all|selectattr('category','equalto','CERTIFICATION')|list|length)) %}
+  {% set internal_sops = (kpis.internal_sops if kpis is defined and kpis.internal_sops is defined else (docs_all|selectattr('category','equalto','INTERNAL SOP')|list|length)) %}
+
+  <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8 mt-6">
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-200 shrink-0">
+        <span class="material-symbols-outlined text-xl">folder</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Documents</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">{{ total_documents }}</p>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-ueal-gold/10 rounded-lg flex items-center justify-center text-ueal-gold shrink-0">
+        <span class="material-symbols-outlined text-xl">menu_book</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">OEM Manuals</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">{{ oem_manuals }}</p>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center text-blue-600 dark:text-blue-200 shrink-0">
+        <span class="material-symbols-outlined text-xl">architecture</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Drawings</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">{{ drawings }}</p>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center text-green-600 dark:text-green-200 shrink-0">
+        <span class="material-symbols-outlined text-xl">verified</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Certifications</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">{{ certifications }}</p>
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-slate-200 dark:border-dark-border shadow-sm flex items-center gap-4">
+      <div class="w-10 h-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center text-purple-600 dark:text-purple-200 shrink-0">
+        <span class="material-symbols-outlined text-xl">assignment</span>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Internal SOPs</p>
+        <p class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-none mt-1">{{ internal_sops }}</p>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="grid grid-cols-12 gap-8">
+
+    {# LEFT: Repository table #}
+    <div class="col-span-12 lg:col-span-8">
+      <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border flex flex-col md:flex-row md:items-center justify-between bg-slate-50/50 dark:bg-slate-800/30 gap-4">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-ueal-purple dark:text-ueal-gold text-lg">folder_open</span>
+            <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm uppercase tracking-wide">
+              Asset Document Repository
+            </h3>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <form method="get" class="relative">
+              <input
+                class="pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-ueal-gold focus:border-ueal-gold transition-all w-64"
+                placeholder="Search documents..."
+                type="text"
+                name="q"
+                value="{{ request.args.get('q','') }}"
+              />
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+            </form>
+
+            <a
+              href="{{ (documents_upload_url if documents_upload_url is defined else (url_for('assets_documents_upload_get', asset_uid=asset.uid) if asset and asset.uid else '#')) }}"
+              class="flex items-center gap-2 px-4 py-2 bg-ueal-gold text-white rounded-lg text-sm font-bold shadow-md hover:bg-opacity-90 transition-all"
+            >
+              <span class="material-symbols-outlined text-sm">add</span>
+              Upload Document
+            </a>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left">
+            <thead>
+              <tr class="bg-white dark:bg-dark-surface text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold tracking-wider border-b border-slate-100 dark:border-dark-border">
+                <th class="px-6 py-4">Document Name</th>
+                <th class="px-6 py-4">Category</th>
+                <th class="px-6 py-4 text-center">Version</th>
+                <th class="px-6 py-4">Last Updated</th>
+                <th class="px-6 py-4">Status</th>
+                <th class="px-6 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+
+            <tbody class="divide-y divide-slate-100 dark:divide-dark-border">
+              {% if docs_all|length > 0 %}
+                {% for d in docs_all %}
+                  {% set dname = d.name if d.name is defined else (d.title if d.title is defined else (d.get('name') if d.get is defined else (d.get('title') if d.get is defined else 'Document'))) %}
+                  {% set doc_uid = (d.uid if d.uid is defined else (d.get('uid') if d.get is defined else '')) %}
+                  {% set cat = (d.category if d.category is defined else (d.get('category') if d.get is defined else 'GENERAL')) %}
+                  {% set ver = (d.version if d.version is defined else (d.get('version') if d.get is defined else '—')) %}
+                  {% set status_raw = (d.status if d.status is defined else (d.get('status') if d.get is defined else 'draft')) %}
+                  {% set status = (status_raw|string)|lower %}
+                  {% set updated = (d.updated_at if d.updated_at is defined else (d.uploaded_at if d.uploaded_at is defined else (d.get('updated_at') if d.get is defined else (d.get('uploaded_at') if d.get is defined else '—')))) %}
+                  {% set by = (d.uploaded_by if d.uploaded_by is defined else (d.get('uploaded_by') if d.get is defined else '—')) %}
+                  {% set size = (d.size_label if d.size_label is defined else (d.get('size_label') if d.get is defined else (d.get('size') if d.get is defined else ''))) %}
+                  {% set ext = (d.file_ext if d.file_ext is defined else (d.get('file_ext') if d.get is defined else ''))|lower %}
+                  {% set fp = (d.file_path if d.file_path is defined else (d.get('file_path') if d.get is defined else '')) %}
+                  {% set file_url = (fp if fp.startswith('/') else ('/' ~ fp)) if fp else '' %}
+                  {% set delete_url = (url_for('assets_document_delete', asset_uid=asset.uid, doc_uid=doc_uid) if asset and asset.uid and doc_uid else '') %}
+
+                  {% set icon_bg = "bg-blue-50 dark:bg-blue-900/20" %}
+                  {% set icon_fg = "text-blue-500 dark:text-blue-200" %}
+                  {% set icon = "description" %}
+                  {% if ext in ["pdf"] %}
+                    {% set icon_bg = "bg-red-50 dark:bg-red-900/20" %}
+                    {% set icon_fg = "text-red-500 dark:text-red-200" %}
+                    {% set icon = "picture_as_pdf" %}
+                  {% elif ext in ["doc", "docx"] %}
+                    {% set icon_bg = "bg-purple-50 dark:bg-purple-900/20" %}
+                    {% set icon_fg = "text-purple-500 dark:text-purple-200" %}
+                    {% set icon = "article" %}
+                  {% elif ext in ["dwg", "dxf"] %}
+                    {% set icon_bg = "bg-blue-50 dark:bg-blue-900/20" %}
+                    {% set icon_fg = "text-blue-500 dark:text-blue-200" %}
+                    {% set icon = "architecture" %}
+                  {% elif ext in ["jpg","jpeg","png","webp"] %}
+                    {% set icon_bg = "bg-indigo-50 dark:bg-indigo-900/20" %}
+                    {% set icon_fg = "text-indigo-600 dark:text-indigo-200" %}
+                    {% set icon = "image" %}
+                  {% endif %}
+
+                  <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                    <td class="px-6 py-4">
+                      <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded {{ icon_bg }} flex items-center justify-center {{ icon_fg }} shrink-0">
+                          <span class="material-symbols-outlined text-lg">{{ icon }}</span>
+                        </div>
+
+                        <div class="min-w-0">
+                          {% if file_url %}
+                            <button
+                              type="button"
+                              class="doc-open-btn text-left text-sm font-semibold text-ueal-purple dark:text-ueal-gold hover:underline leading-tight truncate"
+                              title="View document"
+                              data-doc-name="{{ dname|e }}"
+                              data-doc-category="{{ cat|e }}"
+                              data-doc-version="{{ ver|e }}"
+                              data-doc-updated="{{ updated|e }}"
+                              data-doc-by="{{ by|e }}"
+                              data-doc-size="{{ size|e }}"
+                              data-doc-ext="{{ ext|e }}"
+                              data-doc-url="{{ file_url|e }}"
+                            >{{ dname }}</button>
+                          {% else %}
+                            <p class="text-sm font-semibold text-slate-700 dark:text-slate-100 leading-tight">{{ dname }}</p>
+                          {% endif %}
+
+                          {% if size %}
+                            <p class="text-[10px] text-slate-400 truncate">{{ size }}</p>
+                          {% endif %}
+                        </div>
+                      </div>
+                    </td>
+
+                    <td class="px-6 py-4">
+                      <span class="px-2 py-1 rounded bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-200 text-[10px] font-bold uppercase tracking-tight">
+                        {{ cat }}
+                      </span>
+                    </td>
+
+                    <td class="px-6 py-4 text-center">
+                      <p class="text-xs font-medium text-slate-700 dark:text-slate-100">{{ ver }}</p>
+                    </td>
+
+                    <td class="px-6 py-4">
+                      <div class="flex flex-col">
+                        <p class="text-sm font-medium text-slate-700 dark:text-slate-100">{{ updated }}</p>
+                        <p class="text-[10px] text-slate-400">By {{ by }}</p>
+                      </div>
+                    </td>
+
+                    <td class="px-6 py-4">
+                      {% if status in ["approved", "active"] %}
+                        <span class="px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-200 text-[10px] font-bold uppercase">Approved</span>
+                      {% elif status in ["expired"] %}
+                        <span class="px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-200 text-[10px] font-bold uppercase">Expired</span>
+                      {% else %}
+                        <span class="px-2.5 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-200 text-[10px] font-bold uppercase">Draft</span>
+                      {% endif %}
+                    </td>
+
+                    <td class="px-6 py-4 text-right">
+                      <button
+                        type="button"
+                        class="doc-actions-btn inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 dark:border-dark-border hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                        title="Actions"
+                        aria-haspopup="menu"
+                        aria-expanded="false"
+                        data-doc-name="{{ dname|e }}"
+                        data-doc-category="{{ cat|e }}"
+                        data-doc-version="{{ ver|e }}"
+                        data-doc-updated="{{ updated|e }}"
+                        data-doc-by="{{ by|e }}"
+                        data-doc-size="{{ size|e }}"
+                        data-doc-ext="{{ ext|e }}"
+                        data-doc-url="{{ file_url|e }}"
+                        data-delete-url="{{ delete_url|e }}"
+                      >
+                        <span class="material-symbols-outlined text-slate-500 dark:text-slate-300">more_vert</span>
+                      </button>
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="6" class="px-6 py-8 text-sm text-slate-500 dark:text-slate-400">
+                    No documents uploaded for this asset yet.
+                  </td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+
+        {% set total = total|default(docs_all|length) %}
+        {% set showing_from = showing_from|default(0 if total == 0 else 1) %}
+        {% set showing_to = showing_to|default(total if total < per_page else per_page) %}
+
+        <div class="px-6 py-4 border-t border-slate-100 dark:border-dark-border bg-slate-50/30 dark:bg-slate-800/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">
+            Showing {{ showing_from }} to {{ showing_to }} of {{ total }} records
+          </span>
+
+          <div class="flex items-center gap-4 sm:gap-6 justify-between sm:justify-end">
+            <form method="get" class="flex items-center gap-2">
+              <input type="hidden" name="page" value="1"/>
+              {% if request.args.get('q') %}
+                <input type="hidden" name="q" value="{{ request.args.get('q') }}"/>
+              {% endif %}
+              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap" for="rows-per-page">
+                Rows per page
+              </label>
+              <div class="relative">
+                <select
+                  class="appearance-none bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded text-xs font-bold text-slate-700 dark:text-slate-200 px-3 py-1 pr-8 focus:ring-ueal-gold focus:border-ueal-gold transition-all cursor-pointer"
+                  id="rows-per-page"
+                  name="per_page"
+                  onchange="this.form.submit()"
+                >
+                  {% for n in [5,10,20,50] %}
+                    <option value="{{ n }}" {% if per_page == n %}selected{% endif %}>{{ n }}</option>
+                  {% endfor %}
+                </select>
+                <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-sm">expand_more</span>
+              </div>
+            </form>
+
+            {% set total_pages = total_pages|default(1) %}
+            {% set pages = pages|default([1]) %}
+            {% set prev_page = 1 if page <= 1 else page - 1 %}
+            {% set next_page = total_pages if page >= total_pages else page + 1 %}
+
+            <div class="flex gap-1">
+              <a class="px-3 py-1 border border-slate-200 dark:border-dark-border rounded text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-white dark:hover:bg-white/5 transition-colors {% if page <= 1 %}pointer-events-none opacity-50{% endif %}"
+                 href="{{ url_for('assets_documents_get', asset_uid=asset.uid, page=prev_page, per_page=per_page, q=request.args.get('q','')) }}">
+                Prev
+              </a>
+
+              {% for pnum in pages %}
+                {% if pnum == "…" %}
+                  <span class="px-3 py-1 text-xs font-bold text-slate-400">…</span>
+                {% elif pnum == page %}
+                  <span class="px-3 py-1 bg-ueal-purple text-white rounded text-xs font-bold shadow-sm">{{ pnum }}</span>
+                {% else %}
+                  <a class="px-3 py-1 border border-slate-200 dark:border-dark-border rounded text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-white dark:hover:bg-white/5 transition-colors"
+                     href="{{ url_for('assets_documents_get', asset_uid=asset.uid, page=pnum, per_page=per_page, q=request.args.get('q','')) }}">
+                    {{ pnum }}
+                  </a>
+                {% endif %}
+              {% endfor %}
+
+              <a class="px-3 py-1 border border-slate-200 dark:border-dark-border rounded text-xs font-bold text-slate-600 dark:text-slate-200 hover:bg-white dark:hover:bg-white/5 transition-colors {% if page >= total_pages %}pointer-events-none opacity-50{% endif %}"
+                 href="{{ url_for('assets_documents_get', asset_uid=asset.uid, page=next_page, per_page=per_page, q=request.args.get('q','')) }}">
+                Next
+              </a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    {# RIGHT: Repository Insights + Critical Alerts + Note #}
+    <div class="col-span-12 lg:col-span-4 space-y-6">
+
+      {% set donut_total = (donut.total if donut is defined and donut.total is defined else total_documents) %}
+      {% set approved_pct = (donut.approved_pct if donut is defined and donut.approved_pct is defined else 0) %}
+      {% set draft_pct = (donut.draft_pct if donut is defined and donut.draft_pct is defined else 0) %}
+      {% set expired_pct = (donut.expired_pct if donut is defined and donut.expired_pct is defined else 0) %}
+
+      <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border">
+          <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2 uppercase tracking-wide">
+            <span class="material-symbols-outlined text-ueal-gold text-lg">analytics</span>
+            Repository Insights
+          </h3>
+        </div>
+
+        <div class="p-6 text-center">
+          <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-6 text-left">Compliance Status</p>
+
+          <div class="relative inline-flex items-center justify-center mb-6">
+            <svg class="w-40 h-40" viewBox="0 0 36 36">
+              <circle class="text-slate-100 dark:text-slate-800" cx="18" cy="18" fill="none" r="15.91549430918954" stroke="currentColor" stroke-width="4"></circle>
+
+              <circle class="text-green-500 donut-segment" cx="18" cy="18" fill="none" r="15.91549430918954"
+                      stroke="currentColor" stroke-dasharray="{{ approved_pct }} {{ 100 - approved_pct }}" stroke-dashoffset="25" stroke-width="4"></circle>
+
+              <circle class="text-yellow-500 donut-segment" cx="18" cy="18" fill="none" r="15.91549430918954"
+                      stroke="currentColor" stroke-dasharray="{{ draft_pct }} {{ 100 - draft_pct }}" stroke-dashoffset="{{ 25 + approved_pct }}" stroke-width="4"></circle>
+
+              <circle class="text-red-500 donut-segment" cx="18" cy="18" fill="none" r="15.91549430918954"
+                      stroke="currentColor" stroke-dasharray="{{ expired_pct }} {{ 100 - expired_pct }}" stroke-dashoffset="{{ 25 + approved_pct + draft_pct }}" stroke-width="4"></circle>
+            </svg>
+
+            <div class="absolute flex flex-col items-center">
+              <span class="text-xl font-bold text-slate-800 dark:text-slate-100">{{ donut_total }}</span>
+              <span class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Total</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-2 text-left">
+            <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
+              <div class="flex items-center gap-2">
+                <div class="w-2.5 h-2.5 rounded-full bg-green-500"></div>
+                <span class="text-[11px] font-semibold text-slate-600 dark:text-slate-300">Approved</span>
+              </div>
+              <span class="text-xs font-bold text-slate-800 dark:text-slate-100">{{ approved_pct }}%</span>
+            </div>
+
+            <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
+              <div class="flex items-center gap-2">
+                <div class="w-2.5 h-2.5 rounded-full bg-yellow-500"></div>
+                <span class="text-[11px] font-semibold text-slate-600 dark:text-slate-300">In Draft</span>
+              </div>
+              <span class="text-xs font-bold text-slate-800 dark:text-slate-100">{{ draft_pct }}%</span>
+            </div>
+
+            <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40">
+              <div class="flex items-center gap-2">
+                <div class="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+                <span class="text-[11px] font-semibold text-slate-600 dark:text-slate-300">Expired</span>
+              </div>
+              <span class="text-xs font-bold text-slate-800 dark:text-slate-100">{{ expired_pct }}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {% set alerts_list = (alerts if alerts is defined and alerts else []) %}
+      {% set alerts_count = (alerts_count if alerts_count is defined else (alerts_list|length)) %}
+
+      <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border flex items-center justify-between">
+          <h3 class="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2 uppercase tracking-wide">
+            <span class="material-symbols-outlined text-red-500 text-lg">notification_important</span>
+            Critical Alerts
+          </h3>
+          <span class="inline-flex items-center justify-center min-w-[22px] h-[22px] px-2 rounded-full bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-200 text-[11px] font-extrabold">
+            {{ alerts_count }}
+          </span>
+        </div>
+
+        <div class="p-4 space-y-3">
+          {% if alerts_list|length > 0 %}
+            {% for a in alerts_list %}
+              {% set severity = (a.severity if a.severity is defined else (a.get('severity') if a.get is defined else 'reminder'))|lower %}
+              <div class="p-3 rounded-xl border-l-4
+                {% if severity in ['urgent','high'] %}
+                  bg-red-50 dark:bg-red-900/20 border-red-500
+                {% else %}
+                  bg-amber-50 dark:bg-amber-900/20 border-amber-500
+                {% endif %}
+              ">
+                <div class="flex justify-between items-start mb-1 gap-3">
+                  <p class="text-xs font-bold {% if severity in ['urgent','high'] %}text-red-700 dark:text-red-200{% else %}text-amber-700 dark:text-amber-200{% endif %}">
+                    {{ a.title if a.title is defined else (a.get('title') if a.get is defined else 'Document Alert') }}
+                  </p>
+                  <span class="text-[9px] font-bold {% if severity in ['urgent','high'] %}text-red-400{% else %}text-amber-400{% endif %}">
+                    {{ (a.label if a.label is defined else (a.get('label') if a.get is defined else ( 'URGENT' if severity in ['urgent','high'] else 'REMINDER'))) }}
+                  </span>
+                </div>
+
+                <p class="text-[11px] leading-relaxed {% if severity in ['urgent','high'] %}text-red-600/80 dark:text-red-200/80{% else %}text-amber-600/80 dark:text-amber-200/80{% endif %}">
+                  {{ a.message if a.message is defined else (a.get('message') if a.get is defined else 'Review this document and take action.') }}
+                </p>
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="text-sm text-slate-500 dark:text-slate-400 px-2 py-4">
+              No critical alerts right now.
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="bg-ueal-purple text-white rounded-xl shadow-lg p-6 relative overflow-hidden">
+        <div class="absolute -right-4 -top-4 opacity-10">
+          <span class="material-symbols-outlined text-8xl">info</span>
+        </div>
+
+        <div class="flex items-center gap-2 mb-3">
+          <span class="material-symbols-outlined text-ueal-gold text-lg">tips_and_updates</span>
+          <h4 class="text-xs font-bold uppercase tracking-widest">Repository Note</h4>
+        </div>
+
+        <p class="text-xs leading-relaxed text-indigo-50/90 italic">
+          {{ (note if note is defined else '"Ensure all OEM documentation is watermarked Controlled Copy before distributing physical prints. The repository remains the master source of truth."') }}
+        </p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{# ------- Fixed-position actions popover ------- #}
+<div id="docActionsMenu" class="hidden" style="position:fixed; z-index:99999;">
+  <div class="w-44 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl doc-popover-shadow overflow-hidden">
+    <button id="docActionView" type="button"
+      class="w-full px-4 py-3 text-left text-sm font-bold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-white/5 flex items-center gap-2">
+      <span class="material-symbols-outlined text-base">visibility</span> View
+    </button>
+    <button id="docActionDelete" type="button"
+      class="w-full px-4 py-3 text-left text-sm font-bold text-red-700 dark:text-red-200 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 border-t border-slate-100 dark:border-dark-border">
+      <span class="material-symbols-outlined text-base">delete</span> Delete
+    </button>
+  </div>
+</div>
+
+{# ------- Viewer modal ------- #}
+<div id="docViewer" class="hidden fixed inset-0" style="z-index:100000;">
+  <div class="absolute inset-0 doc-backdrop" data-close-viewer="1"></div>
+
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="w-full max-w-5xl bg-white dark:bg-dark-surface rounded-2xl border border-slate-200 dark:border-dark-border shadow-2xl overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-100 dark:border-dark-border flex items-center justify-between">
+        <div class="min-w-0">
+          <p id="dvTitle" class="text-sm font-extrabold text-slate-900 dark:text-slate-100 truncate">Document</p>
+          <p id="dvMeta" class="text-[11px] text-slate-500 dark:text-slate-300 truncate"></p>
+        </div>
+        <div class="flex items-center gap-2">
+          <a id="dvDownload" href="#" download class="px-3 py-2 rounded-lg bg-ueal-gold text-white text-xs font-extrabold shadow hover:bg-opacity-90 transition-all flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-sm">download</span> Download
+          </a>
+          <button type="button" id="dvPrint"
+            class="px-3 py-2 rounded-lg border border-slate-200 dark:border-dark-border text-xs font-extrabold text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-white/5 transition-all flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-sm">print</span> Print
+          </button>
+          <button type="button" data-close-viewer="1" class="p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 transition-all" aria-label="Close">
+            <span class="material-symbols-outlined text-slate-500 dark:text-slate-300">close</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-slate-50 dark:bg-slate-900/30">
+        <div id="dvBody" class="h-[72vh] w-full flex items-center justify-center">
+          <div class="text-sm text-slate-500 dark:text-slate-300 p-10">Loading…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ------- Delete confirm modal ------- #}
+<div id="docDeleteModal" class="hidden fixed inset-0" style="z-index:100001;">
+  <div class="absolute inset-0 doc-backdrop" data-close-delete="1"></div>
+
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white dark:bg-dark-surface rounded-2xl border border-slate-200 dark:border-dark-border shadow-2xl overflow-hidden">
+      <div class="px-6 py-5 border-b border-slate-100 dark:border-dark-border flex items-start gap-3">
+        <div class="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-600 dark:text-red-200 shrink-0">
+          <span class="material-symbols-outlined">delete_forever</span>
+        </div>
+        <div class="min-w-0">
+          <p class="text-sm font-extrabold text-slate-900 dark:text-slate-100">Delete document?</p>
+          <p id="ddText" class="text-xs text-slate-500 dark:text-slate-300 mt-1"></p>
+        </div>
+      </div>
+
+      <div class="px-6 py-5 flex items-center justify-end gap-3 bg-slate-50 dark:bg-slate-900/30">
+        <button type="button" data-close-delete="1" class="px-4 py-2 rounded-lg border border-slate-200 dark:border-dark-border text-xs font-extrabold text-slate-700 dark:text-slate-100 hover:bg-white/60 dark:hover:bg-white/5 transition-all">
+          Cancel
+        </button>
+
+        <form id="ddForm" method="post" action="#">
+          <button type="submit" class="px-4 py-2 rounded-lg bg-red-600 text-white text-xs font-extrabold shadow hover:bg-red-700 transition-all">
+            Yes, delete
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // matches/closest polyfills
+  (function () {
+    if (!Element.prototype.matches) {
+      Element.prototype.matches =
+        Element.prototype.msMatchesSelector ||
+        Element.prototype.webkitMatchesSelector ||
+        function (s) {
+          var m = (this.document || this.ownerDocument).querySelectorAll(s), i = m.length;
+          while (--i >= 0 && m.item(i) !== this) {}
+          return i > -1;
+        };
+    }
+    if (!Element.prototype.closest) {
+      Element.prototype.closest = function (s) {
+        var el = this;
+        while (el && el.nodeType === 1) {
+          if (el.matches(s)) return el;
+          el = el.parentElement || el.parentNode;
+        }
+        return null;
+      };
+    }
+  })();
+
+  function $(id){ return document.getElementById(id); }
+
+  var menu = $("docActionsMenu");
+  var btnView = $("docActionView");
+  var btnDelete = $("docActionDelete");
+
+  var current = null;
+  var currentAnchorBtn = null;
+
+  function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+  function payloadFrom(el) {
+    return {
+      name: el.getAttribute('data-doc-name') || 'Document',
+      category: el.getAttribute('data-doc-category') || '',
+      version: el.getAttribute('data-doc-version') || '',
+      updated: el.getAttribute('data-doc-updated') || '',
+      by: el.getAttribute('data-doc-by') || '',
+      size: el.getAttribute('data-doc-size') || '',
+      ext: (el.getAttribute('data-doc-ext') || '').toLowerCase(),
+      url: el.getAttribute('data-doc-url') || '',
+      deleteUrl: el.getAttribute('data-delete-url') || ''
+    };
+  }
+
+  function showMenuAtButton(btn) {
+    if (!menu) return;
+    if (menu.parentNode !== document.body) document.body.appendChild(menu);
+
+    var r = btn.getBoundingClientRect();
+    var menuW = 176;
+    var menuH = 96;
+    var pad = 8;
+
+    var top = clamp(r.bottom + 8, pad, window.innerHeight - menuH - pad);
+    var left = clamp(r.right - menuW, pad, window.innerWidth - menuW - pad);
+
+    menu.style.top = top + "px";
+    menu.style.left = left + "px";
+    menu.classList.remove("hidden");
+    menu.style.display = "block";
+  }
+
+  function hideMenu() {
+    if (!menu) return;
+    menu.classList.add("hidden");
+    menu.style.display = "none";
+    if (currentAnchorBtn) currentAnchorBtn.setAttribute("aria-expanded", "false");
+    current = null;
+    currentAnchorBtn = null;
+  }
+
+  function openDocViewer(payload) {
+    var viewer = $("docViewer");
+    var title = $("dvTitle");
+    var meta = $("dvMeta");
+    var body = $("dvBody");
+    var dl = $("dvDownload");
+    var printBtn = $("dvPrint");
+
+    if (!viewer || !title || !meta || !body || !dl) return;
+
+    title.textContent = payload.name || "Document";
+    meta.textContent = [payload.category, payload.version, payload.updated ? ("Updated: " + payload.updated) : "", payload.by ? ("By: " + payload.by) : ""]
+      .filter(Boolean).join(" • ");
+
+    dl.href = payload.url || "#";
+    if (printBtn) {
+      // Always enabled. If browser can’t print PDF inline, we print via new window.
+      printBtn.disabled = false;
+      printBtn.style.opacity = "1";
+      printBtn.style.pointerEvents = "auto";
+      printBtn.title = "Print";
+      printBtn.setAttribute("data-print-url", payload.url || "");
+      printBtn.setAttribute("data-print-ext", (payload.ext || "").toLowerCase());
+      printBtn.setAttribute("data-print-name", payload.name || "Document");
+    }
+
+    var ext = (payload.ext || "").toLowerCase();
+    var url = payload.url || "";
+
+    body.innerHTML = "";
+
+    if (!url) {
+      body.innerHTML = '<div class="text-sm text-slate-500 dark:text-slate-300 p-10">No file linked to this record.</div>';
+    } else if (ext === "pdf") {
+      // PDF preview
+      var iframe = document.createElement("iframe");
+      iframe.id = "dvFrame";
+      iframe.src = url;
+      iframe.className = "w-full h-[72vh]";
+      iframe.setAttribute("title", payload.name || "Document");
+      body.appendChild(iframe);
+    } else if (["png","jpg","jpeg","webp","gif"].indexOf(ext) >= 0) {
+      // Image preview
+      var wrap = document.createElement("div");
+      wrap.className = "w-full h-[72vh] overflow-auto p-6";
+      var img = document.createElement("img");
+      img.id = "dvImage";
+      img.src = url;
+      img.alt = payload.name || "Document";
+      img.className = "max-w-full mx-auto rounded-xl border border-slate-200 dark:border-dark-border shadow-sm";
+      wrap.appendChild(img);
+      body.appendChild(wrap);
+    } else {
+      body.innerHTML =
+        '<div class="p-10 text-center">' +
+        '  <p class="text-sm font-bold text-slate-800 dark:text-slate-100">Preview not available for this file type.</p>' +
+        '  <p class="text-xs text-slate-500 dark:text-slate-300 mt-2">Use <b>Download</b> to open it locally, then print from your PC.</p>' +
+        '</div>';
+    }
+
+    viewer.classList.remove("hidden");
+    viewer.style.display = "block";
+  }
+
+  function closeDocViewer() {
+    var viewer = $("docViewer");
+    var body = $("dvBody");
+    if (body) body.innerHTML = '<div class="text-sm text-slate-500 dark:text-slate-300 p-10">Loading…</div>';
+    if (viewer) {
+      viewer.classList.add("hidden");
+      viewer.style.display = "none";
+    }
+  }
+
+  function openDeleteModal(payload) {
+    var modal = $("docDeleteModal");
+    var txt = $("ddText");
+    var form = $("ddForm");
+    if (!modal || !txt || !form) return;
+
+    txt.textContent = 'This will permanently remove "' + (payload.name || 'this document') + '" from the repository.';
+    form.action = payload.deleteUrl || "#";
+
+    modal.classList.remove("hidden");
+    modal.style.display = "block";
+  }
+
+  function closeDeleteModal() {
+    var modal = $("docDeleteModal");
+    if (modal) {
+      modal.classList.add("hidden");
+      modal.style.display = "none";
+    }
+  }
+
+  function printViaNewWindow(fileUrl, ext, title) {
+    if (!fileUrl) return;
+
+    var w = window.open("", "_blank");
+    if (!w) return;
+
+    var safeTitle = (title || "Print").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    var u = fileUrl;
+
+    // For PDF: embed/object prints the actual document, not the site
+    if ((ext || "").toLowerCase() === "pdf") {
+      w.document.open();
+      w.document.write(
+        '<!doctype html><html><head><title>' + safeTitle + '</title>' +
+        '<style>html,body{margin:0;height:100%}embed,iframe{width:100%;height:100%;border:0}</style>' +
+        '</head><body>' +
+        '<embed src="' + u + '" type="application/pdf" />' +
+        '<script>setTimeout(function(){window.focus(); window.print();}, 600);<\/script>' +
+        '</body></html>'
+      );
+      w.document.close();
+      return;
+    }
+
+    // Images
+    if (["png","jpg","jpeg","webp","gif"].indexOf((ext || "").toLowerCase()) >= 0) {
+      w.document.open();
+      w.document.write(
+        '<!doctype html><html><head><title>' + safeTitle + '</title>' +
+        '<style>html,body{margin:0;padding:0}img{max-width:100%;}</style>' +
+        '</head><body>' +
+        '<img src="' + u + '" onload="window.focus(); window.print(); setTimeout(function(){window.close();}, 250);" />' +
+        '</body></html>'
+      );
+      w.document.close();
+      return;
+    }
+
+    // Other types: open direct and let user print from their app/browser handler
+    w.location.href = u;
+  }
+
+  // delegated click handler
+  document.addEventListener("click", function(e){
+    var target = e.target;
+
+    // Actions button
+    var actionsBtn = target.closest ? target.closest(".doc-actions-btn") : null;
+    if (actionsBtn) {
+      if (menu && !menu.classList.contains("hidden") && currentAnchorBtn === actionsBtn) {
+        hideMenu();
+        e.preventDefault();
+        return;
+      }
+
+      current = payloadFrom(actionsBtn);
+      currentAnchorBtn = actionsBtn;
+      actionsBtn.setAttribute("aria-expanded", "true");
+
+      showMenuAtButton(actionsBtn);
+
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    // Document name open button
+    var openBtn = target.closest ? target.closest(".doc-open-btn") : null;
+    if (openBtn) {
+      hideMenu();
+      openDocViewer(payloadFrom(openBtn));
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    // Click on menu buttons
+    if (menu && !menu.classList.contains("hidden")) {
+      if (btnView && (target === btnView || (target.closest && target.closest("#docActionView")))) {
+        if (current) openDocViewer(current);
+        hideMenu();
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      if (btnDelete && (target === btnDelete || (target.closest && target.closest("#docActionDelete")))) {
+        var snap = current;
+        hideMenu();
+        if (snap) openDeleteModal(snap);
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      if (!menu.contains(target)) hideMenu();
+    }
+  }, false);
+
+  // CLOSE handlers (hit inner <span> too)
+  document.addEventListener("click", function(e){
+    var t = e.target;
+
+    var cv = t && t.closest ? t.closest("[data-close-viewer]") : null;
+    if (cv) { closeDocViewer(); e.preventDefault(); e.stopPropagation(); return; }
+
+    var cd = t && t.closest ? t.closest("[data-close-delete]") : null;
+    if (cd) { closeDeleteModal(); e.preventDefault(); e.stopPropagation(); return; }
+  }, false);
+
+  // Print button (always enabled, prints the actual document via new window)
+  var printBtn = $("dvPrint");
+  if (printBtn) {
+    printBtn.addEventListener("click", function(e){
+      e.stopPropagation();
+      var url = printBtn.getAttribute("data-print-url") || "";
+      var ext = printBtn.getAttribute("data-print-ext") || "";
+      var name = printBtn.getAttribute("data-print-name") || "Print";
+      if (!url) return;
+      printViaNewWindow(url, ext, name);
+    });
+  }
+
+  // Esc closes everything
+  document.addEventListener("keydown", function(e){
+    if (e.key !== "Escape") return;
+    hideMenu();
+    closeDocViewer();
+    closeDeleteModal();
+  });
+
+  // Safety: hide menu on scroll/resize
+  window.addEventListener("scroll", function(){ hideMenu(); }, true);
+  window.addEventListener("resize", function(){ hideMenu(); }, true);
+
+  // Defensive initial state
+  if (menu) { menu.style.display = "none"; }
+  var v = $("docViewer"); if (v) { v.style.display = "none"; }
+  var dm = $("docDeleteModal"); if (dm) { dm.style.display = "none"; }
+})();
+</script>
+
+{% endblock %}

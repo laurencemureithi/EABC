@@ -1,0 +1,77 @@
+{% extends "layouts/print.html" %}
+{% block title %}Breakdown Print • {{ breakdown_id }} • Opsloom{% endblock %}
+{% block preview_title %}Breakdown {{ breakdown_id }}{% endblock %}
+{% block content %}
+<div class="business-print-shell max-w-5xl mx-auto">
+  {% set document_department = current_department %}
+  {% include "partials/report_document_header.html" %}
+  <div class="business-print-header">
+    <div>
+      <p class="text-[11px] font-black uppercase tracking-[0.25em] text-slate-500">Breakdown Incident Report</p>
+      <h1 class="mt-2 text-3xl font-black text-slate-900">{{ incident_title or breakdown_id }}</h1>
+      <p class="mt-1 text-sm text-slate-600">Formal incident printout for operations review, engineering sign-off, and audit filing.</p>
+    </div>
+    <div class="business-print-meta">
+      <div><span>Incident ID</span><strong>{{ breakdown_id }}</strong></div>
+      <div><span>Status</span><strong>{{ status_label }}</strong></div>
+      <div><span>Severity</span><strong>{{ severity|upper }}</strong></div>
+      <div><span>Record date</span><strong>{{ reported_date }}</strong></div>
+    </div>
+  </div>
+
+  <div class="business-print-kpis">
+    <div class="business-print-kpi"><span>Asset</span><strong>{{ asset_name or '—' }}</strong><small>{{ asset_id or '—' }}</small></div>
+    <div class="business-print-kpi"><span>Section</span><strong>{{ section or '—' }}</strong><small>Operational area</small></div>
+    <div class="business-print-kpi"><span>Downtime</span><strong>{{ downtime_display_label }}</strong><small>{% if resolved_dt_iso %}Closed incident{% else %}Live at print time{% endif %}</small></div>
+    <div class="business-print-kpi"><span>Amount Before VAT</span><strong>{{ (cost_subtotal or 0)|kes2 }}</strong><small>Incident base cost</small></div>
+    <div class="business-print-kpi"><span>Total Cost</span><strong>{{ (cost_total or 0)|kes2 }}</strong><small>Incident cost incl. VAT</small></div>
+  </div>
+
+  <div class="business-print-grid">
+    <section class="business-print-card">
+      <h2>Incident Summary</h2>
+      <table class="business-print-table">
+        <tbody>
+          <tr><th>Failure category</th><td>{{ failure_category or '—' }}</td></tr>
+          <tr><th>Technician</th><td>{{ technician_name or 'Unassigned' }}</td></tr>
+          <tr><th>Asset serial</th><td>{{ asset_serial_no or '—' }}</td></tr>
+          <tr><th>Reported at</th><td>{{ reported_date }} {{ reported_time }}</td></tr>
+          <tr><th>Closed at</th><td>{% if resolved_dt_iso %}{{ resolved_date }} {{ resolved_time }}{% else %}Open incident{% endif %}</td></tr>
+          <tr><th>Amount before VAT</th><td>{{ (cost_subtotal or 0)|kes2 }}</td></tr>
+          <tr><th>VAT rate</th><td>{{ (cost_vat_pct or 0) }}%</td></tr>
+          <tr><th>VAT amount</th><td>{{ (cost_vat_amount or 0)|kes2 }}</td></tr>
+          <tr><th>Total cost</th><td>{{ (cost_total or 0)|kes2 }}</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="business-print-card">
+      <h2>Symptoms & Initial Notes</h2>
+      <p class="text-sm leading-6 text-slate-700 whitespace-pre-wrap">{{ symptoms or '—' }}</p>
+      <div class="mt-4 pt-4 border-t border-slate-200">
+        <p class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">Initial diagnosis / notes</p>
+        <p class="text-sm leading-6 text-slate-700 whitespace-pre-wrap">{{ notes or '—' }}</p>
+      </div>
+    </section>
+  </div>
+
+  <section class="business-print-card mt-6">
+    <h2>Progress Log</h2>
+    <table class="business-print-table">
+      <thead><tr><th>Timestamp</th><th>Status</th><th>Work Log</th><th>Findings</th></tr></thead>
+      <tbody>
+        {% for item in progress_log %}
+          <tr>
+            <td>{{ item.ts or '—' }}</td>
+            <td>{{ (item.status or '—')|replace('_',' ')|title }}</td>
+            <td>{{ item.work_log or '—' }}</td>
+            <td>{{ item.findings or '—' }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4">No progress updates logged.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,395 @@
+<aside id="appSidebar" class="app-sidebar sidebar-bg w-64 flex-shrink-0 flex flex-col text-white relative">
+  <!-- Brand & Configurable Workspace Logo -->
+  {% set raw_light_logo = active_company.logo_light_url if active_company and active_company.logo_light_url else url_for('static', filename='brand/opsloom_wordmark_light.png') %}
+  {% set raw_dark_logo = active_company.logo_dark_url if active_company and active_company.logo_dark_url else raw_light_logo %}
+  {% set safe_light_logo = raw_light_logo %}
+  {% set safe_dark_logo = raw_dark_logo %}
+  {% set logo_h = (active_company.logo_height | int(48)) if active_company and active_company.logo_height else 48 %}
+  {% set logo_w = (active_company.logo_width_pct | int(100)) if active_company and active_company.logo_width_pct else 100 %}
+  {% set logo_align = active_company.logo_alignment if active_company and active_company.logo_alignment else 'left' %}
+  {% set logo_fit = active_company.logo_fit if active_company and active_company.logo_fit else 'contain' %}
+  {% set logo_obj_pos = 'center center' if logo_align == 'center' else ('right center' if logo_align == 'right' else 'left center') %}
+  {% set show_name_beside = true if (active_company and active_company.show_name_next_to_logo and active_company.user_explicit_show_name) else false %}
+  {% set brand_box_min_h = [logo_h + 20, 68]|max %}
+  <div id="sidebarBrandContainer"
+       data-workspace-id="{{ active_company.id if active_company else 'comp-001' }}"
+       data-logo-updated-at="{{ active_company.custom_logo_updated_at if active_company and active_company.custom_logo_updated_at else '' }}"
+       class="app-sidebar-brand px-4 py-3 flex items-center justify-between gap-2.5 border-b border-white/10 shrink-0 overflow-hidden"
+       style="min-height: {{ brand_box_min_h }}px; height: {{ brand_box_min_h }}px;">
+    <div id="sidebarBrandWrap" class="min-w-0 flex-1 flex items-center gap-2.5 {% if logo_align == 'center' %}justify-center{% elif logo_align == 'right' %}justify-end{% else %}justify-start{% endif %}">
+      <!-- Light Theme Logo Image (shown on dark sidebar when app is in light mode) -->
+      <img id="sidebarLogoLight"
+           src="{{ safe_light_logo }}"
+           onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_light.png';"
+           alt="{{ active_company.name if active_company else 'Opsloom' }}"
+           class="block dark:hidden shrink-0"
+           style="height: {{ logo_h }}px; max-height: {{ logo_h }}px; width: {{ 'auto' if show_name_beside else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: {{ logo_fit }}; object-position: {{ logo_obj_pos }}; transition: none !important;" />
+      <!-- Dark Theme Logo Image (shown on dark sidebar when app is in dark mode) -->
+      <img id="sidebarLogoDark"
+           src="{{ safe_dark_logo }}"
+           onerror="this.onerror=null;this.src='/static/brand/opsloom_wordmark_light.png';"
+           alt="{{ active_company.name if active_company else 'Opsloom' }}"
+           class="hidden dark:block shrink-0"
+           style="height: {{ logo_h }}px; max-height: {{ logo_h }}px; width: {{ 'auto' if show_name_beside else (logo_w ~ '%') }}; max-width: {{ logo_w }}%; object-fit: {{ logo_fit }}; object-position: {{ logo_obj_pos }}; transition: none !important;" />
+
+      <div id="sidebarBrandNameBox" class="{% if show_name_beside %}flex{% else %}hidden{% endif %} flex-col min-w-0">
+        <span id="sidebarBrandNameText" class="font-black text-sm text-white tracking-tight truncate leading-tight">{{ active_company.name if active_company else '' }}</span>
+        <span id="sidebarBrandCodeText" class="text-[10px] font-black uppercase tracking-wider text-ueal-gold">{{ active_company.code if active_company and active_company.code else 'WORKSPACE' }}</span>
+      </div>
+    </div>
+    <button type="button" class="app-mobile-only w-9 h-9 rounded-lg border border-white/10 bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition shrink-0" onclick="closeAppSidebar()" aria-label="Close navigation">
+      <span class="material-symbols-outlined text-lg">close</span>
+    </button>
+  </div>
+  <script>
+    (function() {
+      try {
+        var box = document.getElementById('sidebarBrandContainer');
+        if (!box) return;
+        var wsId = box.getAttribute('data-workspace-id') || '';
+        if (!wsId) return;
+        var raw = localStorage.getItem('opsloom_ws_brand_' + wsId);
+        if (!raw) return;
+        var cached = JSON.parse(raw);
+        if (!cached || !cached.logo_light_url) return;
+        var serverUpdated = box.getAttribute('data-logo-updated-at') || '';
+        var serverMs = serverUpdated ? Date.parse(serverUpdated) : 0;
+        var cachedMs = Number(cached.updated_at_ms || 0);
+        // Apply cached workspace brand state immediately before paint so logo & size never shift between modules
+        if (cachedMs >= serverMs - 5000) {
+          var sLight = document.getElementById('sidebarLogoLight');
+          var sDark = document.getElementById('sidebarLogoDark');
+          var wrap = document.getElementById('sidebarBrandWrap');
+          var nameBox = document.getElementById('sidebarBrandNameBox');
+          var h = parseInt(cached.logo_height, 10) || 48;
+          var w = parseInt(cached.logo_width_pct, 10) || 100;
+          var align = cached.logo_alignment || 'left';
+          var fit = cached.logo_fit || 'contain';
+          var showName = Boolean(cached.show_name_next_to_logo);
+          var objPos = align === 'center' ? 'center center' : (align === 'right' ? 'right center' : 'left center');
+          var minH = Math.max(h + 20, 68);
+          box.style.minHeight = minH + 'px';
+          box.style.height = minH + 'px';
+          if (sLight) {
+            sLight.src = cached.logo_light_url;
+            sLight.style.height = h + 'px';
+            sLight.style.maxHeight = h + 'px';
+            sLight.style.width = showName ? 'auto' : (w + '%');
+            sLight.style.maxWidth = w + '%';
+            sLight.style.objectFit = fit;
+            sLight.style.objectPosition = objPos;
+          }
+          if (sDark) {
+            sDark.src = cached.logo_dark_url || cached.logo_light_url;
+            sDark.style.height = h + 'px';
+            sDark.style.maxHeight = h + 'px';
+            sDark.style.width = showName ? 'auto' : (w + '%');
+            sDark.style.maxWidth = w + '%';
+            sDark.style.objectFit = fit;
+            sDark.style.objectPosition = objPos;
+          }
+          if (wrap) {
+            wrap.className = 'min-w-0 flex-1 flex items-center gap-2.5 ' + (align === 'center' ? 'justify-center' : (align === 'right' ? 'justify-end' : 'justify-start'));
+          }
+          if (nameBox) {
+            if (showName) {
+              nameBox.classList.remove('hidden');
+              nameBox.classList.add('flex');
+            } else {
+              nameBox.classList.add('hidden');
+              nameBox.classList.remove('flex');
+            }
+          }
+          // If the user navigated between modules while an upload POST was still in flight, finish syncing to server
+          if (cached.pending_sync) {
+            fetch('/api/companies/save-logo', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+              credentials: 'same-origin',
+              keepalive: true,
+              body: JSON.stringify({
+                id: wsId,
+                mode: 'both',
+                logo_data_url: cached.logo_light_url,
+                logo_light_data_url: cached.logo_light_url,
+                logo_dark_data_url: cached.logo_dark_url || cached.logo_light_url,
+                logo_height: h,
+                logo_width_pct: w,
+                logo_alignment: align,
+                logo_fit: fit,
+                show_name_next_to_logo: showName ? '1' : '0'
+              })
+            }).then(function(r) { return r.json(); }).then(function(d) {
+              if (d && d.ok) {
+                cached.pending_sync = false;
+                localStorage.setItem('opsloom_ws_brand_' + wsId, JSON.stringify(cached));
+              }
+            }).catch(function() {});
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <!-- Nav -->
+  <nav class="app-sidebar-nav flex-1 min-h-0 overflow-y-auto px-3.5 py-3 space-y-1">
+    {% set perms = current_user_permissions or [] %}
+    {% if 'dashboard' in perms or 'settings_manage' in perms %}
+    <a
+      class="app-sidebar-link flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition-colors
+        {% if active_nav=='dashboard' %} bg-ueal-gold text-white shadow-lg shadow-black/20 {% else %} text-white/75 hover:bg-white/10 hover:text-white {% endif %}"
+      href="{{ url_for('dashboard') }}"
+    >
+      <span class="material-symbols-outlined text-[21px] shrink-0">dashboard</span>
+      <span class="font-semibold text-[14px]">Dashboard</span>
+    </a>
+    {% endif %}
+
+    {% if 'assets' in perms or 'settings_manage' in perms %}
+    <a
+      class="app-sidebar-link flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition-colors
+        {% if active_nav=='assets' %} bg-ueal-gold text-white shadow-lg shadow-black/20 {% else %} text-white/75 hover:bg-white/10 hover:text-white {% endif %}"
+      href="{{ url_for('assets_master_list') }}"
+    >
+      <span class="material-symbols-outlined text-[21px] shrink-0">inventory</span>
+      <span class="font-semibold text-[14px]">Asset Register</span>
+    </a>
+    {% endif %}
+
+    {% if 'breakdowns' in perms or 'settings_manage' in perms %}
+    <a
+      class="app-sidebar-link flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition-colors
+        {% if active_nav=='breakdowns' %} bg-ueal-gold text-white shadow-lg shadow-black/20 {% else %} text-white/75 hover:bg-white/10 hover:text-white {% endif %}"
+      href="{{ url_for('breakdowns') }}"
+    >
+      <span class="material-symbols-outlined text-[21px] shrink-0">error_outline</span>
+      <span class="font-semibold text-[14px]">Breakdowns</span>
+    </a>
+    {% endif %}
+
+    {% if 'maintenance' in perms or 'settings_manage' in perms %}
+    <a
+      class="app-sidebar-link flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition-colors
+        {% if active_nav=='maintenance' %} bg-ueal-gold text-white shadow-lg shadow-black/20
+        {% else %} text-white/75 hover:bg-white/10 hover:text-white {% endif %}"
+      href="{{ url_for('maintenance_management') }}"
+    >
+      <span class="material-symbols-outlined text-[21px] shrink-0">build</span>
+      <span class="font-semibold text-[14px]">Maintenance</span>
+    </a>
+    {% endif %}
+
+    {% if 'inventory' in perms or 'settings_manage' in perms %}
+    <a
+      class="app-sidebar-link flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition-colors
+        {% if active_nav=='inventory' %} bg-ueal-gold text-white shadow-lg shadow-black/20
+        {% else %} text-white/75 hover:bg-white/10 hover:text-white {% endif %}"
+      href="{{ url_for('inventory_management') }}"
+    >
+      <span class="material-symbols-outlined text-[21px] shrink-0">inventory_2</span>
+      <span class="font-semibold text-[14px]">Inventory</span>
+    </a>
+    {% endif %}
+
+    {% if 'reports' in perms or 'settings_manage' in perms %}
+    <a
+      class="app-sidebar-link flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition-colors
+        {% if active_nav=='reports' %} bg-ueal-gold text-white shadow-lg shadow-black/20 {% else %} text-white/75 hover:bg-white/10 hover:text-white {% endif %}"
+      href="{{ url_for('reports_center') }}"
+    >
+      <span class="material-symbols-outlined text-[21px] shrink-0">assessment</span>
+      <span class="font-semibold text-[14px]">Reports</span>
+    </a>
+    {% endif %}
+
+    {% if 'companies' in perms or 'settings_manage' in perms or 'all' in perms %}
+    <a
+      class="app-sidebar-link flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition-colors
+        {% if active_nav=='companies' %} bg-ueal-gold text-white shadow-lg shadow-black/20 {% else %} text-white/75 hover:bg-white/10 hover:text-white {% endif %}"
+      href="/settings/companies"
+    >
+      <span class="material-symbols-outlined text-[21px] shrink-0">domain</span>
+      <span class="font-semibold text-[14px]">Workspaces / Brand</span>
+    </a>
+    {% endif %}
+
+    {% if 'settings_manage' in perms or 'users_manage' in perms or 'technicians_manage' in perms or 'all' in perms %}
+    <a
+      class="app-sidebar-link flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition-colors
+        {% if active_nav=='settings' %} bg-ueal-gold text-white shadow-lg shadow-black/20 {% else %} text-white/75 hover:bg-white/10 hover:text-white {% endif %}"
+      href="{{ url_for('settings_admin') }}"
+    >
+      <span class="material-symbols-outlined text-[21px] shrink-0">settings</span>
+      <span class="font-semibold text-[14px]">Settings / Admin</span>
+    </a>
+    {% endif %}
+
+    {% if 'recycle_bin' in perms or 'settings_manage' in perms or 'all' in perms %}
+    <a
+      class="app-sidebar-link flex items-center justify-between gap-3.5 px-3.5 py-2.5 rounded-xl transition-colors
+        {% if active_nav=='recycle_bin' %} bg-ueal-gold text-white shadow-lg shadow-black/20 {% else %} text-white/75 hover:bg-white/10 hover:text-white {% endif %}"
+      href="/settings/recycle-bin"
+    >
+      <span class="flex items-center gap-3.5">
+        <span class="material-symbols-outlined text-[21px] shrink-0">restore_from_trash</span>
+        <span class="font-semibold text-[14px]">Recycle Bin</span>
+      </span>
+      {% if recycle_bin_count and recycle_bin_count > 0 %}
+      <span class="px-2 py-0.5 rounded-full bg-rose-500/80 text-white text-[11px] font-black">{{ recycle_bin_count }}</span>
+      {% endif %}
+    </a>
+    {% endif %}
+  </nav>
+
+  <!-- Footer: Opsloom AI Copilot & Logout -->
+  <div class="app-sidebar-footer px-3.5 pb-2.5 pt-1.5 shrink-0 space-y-2">
+    <button
+      type="button"
+      onclick="openOpsloomAiModal()"
+      class="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl transition-colors text-purple-200 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/30 text-left group cursor-pointer"
+    >
+      <span class="material-symbols-outlined text-amber-400 text-[19px]">auto_awesome</span>
+      <span class="font-bold text-[13px] text-purple-100 group-hover:text-white">Opsloom AI</span>
+      <span class="ml-auto text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-amber-400/20 text-amber-300">COPILOT</span>
+    </button>
+
+    <div class="grid grid-cols-2 gap-2">
+      <a
+        class="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 transition-all text-amber-300 hover:text-amber-200 border border-amber-500/20"
+        href="/lock?next={{ request.path }}"
+        title="Lock session now"
+      >
+        <span class="material-symbols-outlined text-[18px]">lock</span>
+        <span class="font-bold text-[13px]">Lock</span>
+      </a>
+      <a
+        class="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 transition-all text-red-300 hover:text-red-200 border border-red-500/20"
+        href="{{ url_for('logout') }}"
+      >
+        <span class="material-symbols-outlined text-[18px]">logout</span>
+        <span class="font-bold text-[13px]">Logout</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- Department Context -->
+  <div class="app-sidebar-context px-3.5 py-3 border-t border-white/10 relative shrink-0" id="deptDropdownRoot">
+    <label class="text-[10px] text-white/50 uppercase font-bold tracking-wider mb-1.5 block px-1">
+      Current Context
+    </label>
+
+    <button
+      id="deptToggleBtn"
+      type="button"
+      class="w-full bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl py-2.5 px-3 flex items-center justify-between transition-all group"
+      aria-haspopup="menu"
+      aria-expanded="false"
+    >
+      <div class="flex flex-col items-start overflow-hidden text-left min-w-0">
+        <span class="text-[13px] font-bold text-white truncate w-full">
+          {{ current_department_display }}
+        </span>
+        {% if current_department_parent %}<span class="text-[10px] text-ueal-gold uppercase tracking-tight">{{ current_department_parent }} Department</span>{% else %}<span class="text-[10px] text-ueal-gold uppercase tracking-tight">Active Department</span>{% endif %}
+      </div>
+      <span class="material-symbols-outlined text-white/60 group-hover:text-ueal-gold text-xl">unfold_more</span>
+    </button>
+
+    <!-- Menu (ALWAYS pops up without pushing layout) -->
+    <div
+      id="deptMenu"
+      role="menu"
+      class="hidden bg-white dark:bg-dark-surface rounded-xl shadow-2xl py-2 border border-slate-200 dark:border-dark-border max-h-72 overflow-auto"
+      style="position: fixed; display: none; z-index: 9999;"
+    >
+      <div class="px-3 py-2 border-b border-slate-50 dark:border-dark-border mb-1">
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Select Work Context</p>
+      </div>
+
+      {% for dep in departments %}
+        <a
+          role="menuitem"
+          class="flex items-center px-4 py-2.5 text-sm transition-colors
+            {% if dep==current_department %}
+              text-ueal-purple dark:text-ueal-gold bg-ueal-gold/5 font-bold border-l-4 border-ueal-gold
+            {% else %}
+              text-slate-700 dark:text-slate-300 hover:bg-ueal-gold/10 hover:text-ueal-purple dark:hover:text-ueal-gold
+            {% endif %}"
+          href="{{ url_for('set_department', department=dep) }}"
+        >
+          <span class="w-2 h-2 rounded-full mr-3 {% if dep==current_department %} bg-ueal-gold {% else %} bg-slate-300 {% endif %}"></span>
+          {{ dep }}
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Dropdown Script -->
+  <script>
+    (function () {
+      const root = document.getElementById("deptDropdownRoot");
+      const btn = document.getElementById("deptToggleBtn");
+      const menu = document.getElementById("deptMenu");
+      if (!root || !btn || !menu) return;
+
+      function isOpen() {
+        return menu.style.display === "block";
+      }
+
+      function placeMenuAbove() {
+        const r = btn.getBoundingClientRect();
+        const gap = 10;
+
+        // Temporarily show to measure height
+        menu.style.display = "block";
+        menu.classList.remove("hidden");
+
+        // Width align with button
+        const width = Math.max(240, r.width);
+        menu.style.width = width + "px";
+        menu.style.left = r.left + "px";
+
+        const menuHeight = menu.offsetHeight;
+        let top = r.top - menuHeight - gap;
+        if (top < 8) top = 8;
+
+        menu.style.top = top + "px";
+      }
+
+      function openMenu() {
+        placeMenuAbove();
+        btn.setAttribute("aria-expanded", "true");
+      }
+
+      function closeMenu() {
+        menu.style.display = "none";
+        menu.classList.add("hidden");
+        btn.setAttribute("aria-expanded", "false");
+      }
+
+      function toggleMenu() {
+        if (isOpen()) closeMenu();
+        else openMenu();
+      }
+
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        toggleMenu();
+      });
+
+      document.addEventListener("click", function (e) {
+        if (!root.contains(e.target) && !menu.contains(e.target)) closeMenu();
+      });
+
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") closeMenu();
+      });
+
+      window.addEventListener("resize", function () {
+        if (isOpen()) placeMenuAbove();
+      });
+      window.addEventListener("scroll", function () {
+        if (isOpen()) placeMenuAbove();
+      }, true);
+    })();
+  </script>
+</aside>

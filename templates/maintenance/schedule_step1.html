@@ -1,0 +1,259 @@
+{% extends "layouts/base.html" %}
+{% block title %}Schedule New Maintenance - Step 1 • Opsloom{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+  <div class="flex justify-between items-end mb-8">
+    <div>
+      <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Schedule New Maintenance</h1>
+      <nav class="flex items-center gap-2 mt-2 text-[13px] text-slate-500 font-medium">
+        <a href="{{ url_for('maintenance_management') }}" class="hover:text-ueal-purple transition-colors">Maintenance</a>
+        <span class="material-symbols-outlined text-base text-slate-400">chevron_right</span>
+        <span class="text-slate-900 dark:text-slate-300">Schedule New Task</span>
+      </nav>
+    </div>
+    <div class="hidden lg:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm">
+      <span class="w-2 h-2 rounded-full bg-green-500"></span>
+      <span class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">SYSTEM STABLE</span>
+    </div>
+  </div>
+
+  {% if error %}
+  <div class="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm font-medium">
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <form method="POST" action="{{ url_for('maintenance_schedule_step1_post') }}"
+        class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm mb-6">
+    <div class="flex border-b border-slate-100 dark:border-slate-800">
+      <div class="flex-1 flex items-center justify-center py-4 gap-3 text-ueal-gold border-b-[3px] border-ueal-gold">
+        <span class="w-7 h-7 rounded-full bg-ueal-gold text-white flex items-center justify-center text-xs font-bold">1</span>
+        <span class="text-sm font-bold">Asset &amp; Task Details</span>
+      </div>
+      <div class="flex-1 flex items-center justify-center py-4 gap-3 text-slate-400">
+        <span class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold">2</span>
+        <span class="text-sm font-medium">Frequency &amp; Priority</span>
+      </div>
+      <div class="flex-1 flex items-center justify-center py-4 gap-3 text-slate-400">
+        <span class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold">3</span>
+        <span class="text-sm font-medium">Assignment</span>
+      </div>
+    </div>
+
+    <div class="p-8 space-y-8">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <!-- Section -->
+        <div class="space-y-3">
+          <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Select Section</label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">category</span>
+            <select id="sectionSelect" name="section"
+              class="w-full pl-10 pr-10 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none transition-all text-sm appearance-none"
+              required>
+              <option value="">Select a Section...</option>
+              {% for s in sections %}
+                <option value="{{ s }}" {% if (form.section or '') == s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+            <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+          </div>
+          <p class="text-[11px] text-slate-400 italic">Sections match your Asset Register</p>
+        </div>
+
+        <!-- Search Machine (typeahead) -->
+        <div class="space-y-3">
+          <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Search Machine</label>
+
+          <!-- hidden real input -->
+          <input type="hidden" id="assetUid" name="asset_uid" value="{{ (form.asset_uid or '') }}"/>
+
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+            <input id="assetSearch" type="text"
+              class="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none transition-all text-sm"
+              placeholder="Type name or ID to filter..." autocomplete="off"/>
+
+            <!-- dropdown results -->
+            <div id="results"
+                 class="hidden absolute left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden z-20">
+              <div id="resultsList" class="max-h-64 overflow-auto"></div>
+              <div id="resultsEmpty" class="hidden px-4 py-3 text-sm text-slate-500">No matches</div>
+            </div>
+          </div>
+
+          <p class="text-[11px] text-slate-400 italic">Machines load from the selected section</p>
+        </div>
+      </div>
+
+      <!-- Maintenance type -->
+      <div class="space-y-2">
+        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Maintenance Type</label>
+        <input type="hidden" name="maintenance_type" id="maintenance_type" value="{{ form.maintenance_type or 'PM' }}"/>
+
+        <div class="flex gap-3">
+          <button type="button" data-type="PM"
+            class="maint-type flex-1 flex flex-col items-center justify-center gap-2 p-4 border-2 rounded-xl transition-all
+                   {% if (form.maintenance_type or 'PM') == 'PM' %}border-ueal-purple bg-ueal-purple/5{% else %}border-slate-200 dark:border-slate-700 hover:border-slate-300{% endif %}">
+            <span class="material-symbols-outlined {% if (form.maintenance_type or 'PM') == 'PM' %}text-ueal-purple{% else %}text-slate-400{% endif %}">shield</span>
+            <span class="text-sm font-bold {% if (form.maintenance_type or 'PM') == 'PM' %}text-ueal-purple{% else %}text-slate-600 dark:text-slate-300{% endif %}">Preventive (PM)</span>
+          </button>
+
+          <button type="button" data-type="CM"
+            class="maint-type flex-1 flex flex-col items-center justify-center gap-2 p-4 border-2 rounded-xl transition-all
+                   {% if (form.maintenance_type or 'PM') == 'CM' %}border-ueal-purple bg-ueal-purple/5{% else %}border-slate-200 dark:border-slate-700 hover:border-slate-300{% endif %}">
+            <span class="material-symbols-outlined {% if (form.maintenance_type or 'PM') == 'CM' %}text-ueal-purple{% else %}text-slate-400{% endif %}">build_circle</span>
+            <span class="text-sm font-bold {% if (form.maintenance_type or 'PM') == 'CM' %}text-ueal-purple{% else %}text-slate-600 dark:text-slate-300{% endif %}">Corrective (CM)</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Task Title</label>
+        <input
+          name="task_title"
+          value="{{ form.task_title or '' }}"
+          class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none transition-all text-sm"
+          placeholder="e.g. Quarterly Burner Inspection" type="text" required />
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Procedure / Description</label>
+        <textarea
+          name="task_description"
+          class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-ueal-purple/20 focus:border-ueal-purple outline-none transition-all text-sm resize-none"
+          placeholder="Provide SOP steps or task instructions..." rows="6" required>{{ form.task_description or '' }}</textarea>
+      </div>
+    </div>
+
+    <div class="p-6 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+      <a href="{{ url_for('maintenance_management') }}"
+         class="px-6 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+        Cancel
+      </a>
+      <button type="submit"
+         class="px-8 py-2.5 bg-ueal-gold text-white rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-ueal-gold/90 transition-all shadow-md">
+        Next: Schedule Frequency
+        <span class="material-symbols-outlined text-sm">arrow_forward</span>
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+  // maintenance type toggle
+  document.querySelectorAll('.maint-type').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('maintenance_type').value = btn.dataset.type;
+      document.querySelectorAll('.maint-type').forEach(b => {
+        b.classList.remove('border-ueal-purple','bg-ueal-purple/5');
+        b.querySelector('.material-symbols-outlined')?.classList.remove('text-ueal-purple');
+      });
+      btn.classList.add('border-ueal-purple','bg-ueal-purple/5');
+    });
+  });
+
+  const sectionSelect = document.getElementById('sectionSelect');
+  const assetSearch = document.getElementById('assetSearch');
+  const assetUid = document.getElementById('assetUid');
+
+  const results = document.getElementById('results');
+  const resultsList = document.getElementById('resultsList');
+  const resultsEmpty = document.getElementById('resultsEmpty');
+
+  let assetsCache = []; // {uid, asset_name, asset_id}
+
+  async function loadAssets(section) {
+    assetsCache = [];
+    assetUid.value = '';
+    assetSearch.value = '';
+    hideResults();
+
+    if (!section) return;
+
+    const res = await fetch(`/maintenance/assets?section=${encodeURIComponent(section)}`);
+    const data = await res.json();
+    assetsCache = (data.assets || []);
+  }
+
+  function showResults(){ results.classList.remove('hidden'); }
+  function hideResults(){ results.classList.add('hidden'); resultsList.innerHTML=''; resultsEmpty.classList.add('hidden'); }
+
+  function renderResults(items) {
+    resultsList.innerHTML = '';
+    resultsEmpty.classList.add('hidden');
+
+    if (!items.length) {
+      resultsEmpty.classList.remove('hidden');
+      showResults();
+      return;
+    }
+
+    items.slice(0, 12).forEach(a => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors';
+      btn.innerHTML = `
+        <div class="text-sm font-bold text-slate-900 dark:text-white">${escapeHtml(a.asset_name || '')}</div>
+        <div class="text-xs text-slate-500">ID: ${escapeHtml(a.asset_id || '')}</div>
+      `;
+      btn.addEventListener('click', () => {
+        assetUid.value = a.uid;
+        assetSearch.value = `${a.asset_name} (${a.asset_id})`;
+        hideResults();
+      });
+      resultsList.appendChild(btn);
+    });
+
+    showResults();
+  }
+
+  function escapeHtml(s){
+    return (s || '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#039;");
+  }
+
+  assetSearch.addEventListener('input', () => {
+    const q = (assetSearch.value || '').toLowerCase().trim();
+    assetUid.value = ''; // typing again clears selection
+    if (!q) { hideResults(); return; }
+
+    const matches = assetsCache.filter(a => {
+      const label = `${a.asset_name || ''} ${a.asset_id || ''}`.toLowerCase();
+      return label.includes(q);
+    });
+
+    renderResults(matches);
+  });
+
+  assetSearch.addEventListener('focus', () => {
+    const q = (assetSearch.value || '').toLowerCase().trim();
+    if (!q) return;
+    const matches = assetsCache.filter(a => (`${a.asset_name||''} ${a.asset_id||''}`).toLowerCase().includes(q));
+    renderResults(matches);
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!results) return;
+    if (results.contains(e.target) || assetSearch.contains(e.target)) return;
+    hideResults();
+  });
+
+  sectionSelect.addEventListener('change', async () => {
+    await loadAssets(sectionSelect.value);
+  });
+
+  // init (returning with validation errors)
+  (async function init(){
+    const section = sectionSelect.value;
+    if (!section) return;
+    await loadAssets(section);
+
+    // if returning with selected asset_uid, restore display label
+    const currentUid = assetUid.value;
+    if (currentUid) {
+      const found = assetsCache.find(x => x.uid === currentUid);
+      if (found) assetSearch.value = `${found.asset_name} (${found.asset_id})`;
+    }
+  })();
+</script>
+{% endblock %}
