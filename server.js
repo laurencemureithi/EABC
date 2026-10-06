@@ -260,13 +260,24 @@ function checkIsHttps(req) {
 
 function setSafeCookie(req, res, name, val, customMaxAgeMs = null) {
   const isHttps = checkIsHttps(req);
-  res.cookie(name, val, {
+  const isCrossSiteIframe = String(req?.headers?.['sec-fetch-dest'] || '').toLowerCase() === 'iframe' ||
+    String(req?.headers?.['sec-fetch-site'] || '').toLowerCase() === 'cross-site';
+
+  // Standard first-party web apps on Vercel or custom domains must use SameSite=Lax.
+  // SameSite=None is reserved only for cross-site iframe embedding.
+  const sameSiteMode = (isCrossSiteIframe && isHttps) ? 'none' : 'lax';
+
+  const cookieOpts = {
     path: '/',
     maxAge: customMaxAgeMs || (365 * 24 * 60 * 60 * 1000),
-    sameSite: isHttps ? 'none' : 'lax',
-    secure: isHttps,
-    partitioned: isHttps
-  });
+    sameSite: sameSiteMode,
+    secure: isHttps
+  };
+  if (isCrossSiteIframe && isHttps) {
+    cookieOpts.partitioned = true;
+  }
+
+  res.cookie(name, val, cookieOpts);
 }
 
 function clearSafeCookie(req, res, name) {
@@ -274,9 +285,8 @@ function clearSafeCookie(req, res, name) {
   res.clearCookie(name, { path: '/' });
   res.clearCookie(name, {
     path: '/',
-    sameSite: isHttps ? 'none' : 'lax',
-    secure: isHttps,
-    partitioned: isHttps
+    sameSite: 'lax',
+    secure: isHttps
   });
 }
 
@@ -3278,19 +3288,33 @@ function buildChartExportReport(options = {}) {
 // Middleware
 // Serverless URL normalization (Vercel, AWS Lambda, Cloud Run proxy rewrites)
 app.use((req, res, next) => {
-  const matchedPath = req.headers['x-matched-path'] || req.headers['x-forwarded-uri'] || req.headers['x-now-route-matches'];
-  const isWrapperUrl = (u) => !u || u === '/api/index.js' || u === '/api/index' || u === '/api' || u === '/api/' || u.startsWith('/api/index.js?') || u.startsWith('/api?');
-
-  if (isWrapperUrl(req.url)) {
-    if (matchedPath && !isWrapperUrl(matchedPath)) {
-      const qIdx = req.url.indexOf('?');
-      const queryStr = (qIdx !== -1 && !matchedPath.includes('?')) ? req.url.slice(qIdx) : '';
-      req.url = matchedPath + queryStr;
+  try {
+    const rawUrl = req.url || '/';
+    if (rawUrl.includes('__vpath=')) {
+      const qIdx = rawUrl.indexOf('?');
+      const searchStr = qIdx !== -1 ? rawUrl.slice(qIdx + 1) : '';
+      const params = new URLSearchParams(searchStr);
+      let vpath = params.get('__vpath') || '/';
+      params.delete('__vpath');
+      if (!vpath.startsWith('/')) vpath = '/' + vpath;
+      const rest = params.toString();
+      req.url = vpath + (rest ? ('?' + rest) : '');
     } else {
-      const qIdx = req.url.indexOf('?');
-      const queryStr = qIdx !== -1 ? req.url.slice(qIdx) : '';
-      req.url = '/' + queryStr;
+      const matchedPath = req.headers['x-matched-path'] || req.headers['x-forwarded-uri'] || req.headers['x-now-route-matches'];
+      const isWrapperUrl = (u) => !u || u === '/api/index.js' || u === '/api/index' || u === '/api' || u === '/api/' || u.startsWith('/api/index.js?') || u.startsWith('/api?');
+
+      if (isWrapperUrl(req.url)) {
+        if (matchedPath && !isWrapperUrl(matchedPath)) {
+          const qIdx = req.url.indexOf('?');
+          const queryStr = (qIdx !== -1 && !matchedPath.includes('?')) ? req.url.slice(qIdx) : '';
+          req.url = matchedPath + queryStr;
+        } else {
+          req.url = '/dashboard';
+        }
+      }
     }
+  } catch (err) {
+    console.warn('[Serverless URL normalization warning]:', err.message);
   }
   next();
 });
@@ -3683,7 +3707,9 @@ app.use((req, res, next) => {
     if (p.startsWith('/api/')) {
       return res.status(401).json({ error: 'Authentication required', redirect: '/login' });
     }
-    const nextUrl = req.originalUrl && req.originalUrl !== '/' ? `?next=${encodeURIComponent(req.originalUrl)}` : '';
+    const nextUrl = req.originalUrl && req.originalUrl !== '/' && !req.originalUrl.startsWith('/login')
+      ? `?next=${encodeURIComponent(req.originalUrl)}`
+      : '';
     return res.redirect(`/login${nextUrl}`);
   }
 
@@ -3993,7 +4019,10 @@ const wizardState = {
 // AUTH ROUTES
 // -------------------------
 app.all(['/', '/api/index.js', '/api/index', '/api'], (req, res) => {
-  res.redirect('/dashboard');
+  if (req.cookies?.opsloom_user) {
+    return res.redirect('/dashboard');
+  }
+  return res.redirect('/login');
 });
 
 app.get('/login', (req, res) => {
@@ -4123,7 +4152,7 @@ app.post('/login', (req, res) => {
   const { email, password, next: nextTarget } = req.body;
   const cleanEmail = (email || '').trim().toLowerCase();
   const rawPass = String(password || '');
-  const safeNext = (nextTarget && String(nextTarget).startsWith('/') && !String(nextTarget).startsWith('//') && !String(nextTarget).startsWith('/login'))
+  const safeNext = (nextTarget && String(nextTarget).startsWith('/') && !String(nextTarget).startsWith('//') && !String(nextTarget).startsWith('/login') && String(nextTarget) !== '/')
     ? String(nextTarget)
     : '/dashboard';
   const nowFmt = formatSystemTimestamp(getSystemNowIso());
@@ -10257,7 +10286,7 @@ app.use((req, res) => {
   res.status(404).redirect('/dashboard');
 });
 
-// Global Express Error Handler (Prevents raw 500 white screen)
+// Global Express Error Handler (Prevents raw 500 white screen and infinite redirect loops)
 app.use((err, req, res, next) => {
   console.error('[Opsloom Unhandled Error Handler]:', err);
   if (res.headersSent) {
@@ -10266,10 +10295,30 @@ app.use((err, req, res, next) => {
   if (req.path.startsWith('/api/') || (req.headers.accept && req.headers.accept.includes('application/json'))) {
     return res.status(500).json({ ok: false, error: err.message || 'Internal Server Error' });
   }
-  flash('error', `An unexpected error occurred: ${err.message || 'Internal Server Error'}. Your request was safely handled.`);
-  const ref = req.header('Referer');
-  const safeTarget = (ref && (ref.includes('/assets') || ref.includes('/dashboard'))) ? ref : '/assets';
-  return res.redirect(safeTarget);
+  // Deliver a clean user-facing HTML notice instead of repeating redirects that cause ERR_TOO_MANY_REDIRECTS
+  return res.status(500).send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Application Notice • Opsloom</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/vendor/tailwind/tailwind.min.css">
+  <link rel="stylesheet" href="/static/vendor/inter/inter.css">
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center p-6 font-sans">
+  <div class="max-w-md w-full bg-slate-800 border border-slate-700 rounded-2xl p-8 text-center shadow-2xl">
+    <div class="w-12 h-12 rounded-full bg-purple-500/20 text-purple-400 mx-auto flex items-center justify-center mb-4">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+    </div>
+    <h1 class="text-xl font-bold text-white mb-2">Workspace Request Notice</h1>
+    <p class="text-sm text-slate-400 mb-6">${err?.message ? String(err.message).replace(/</g, '&lt;') : 'An issue was encountered while processing your request.'}</p>
+    <div class="flex gap-3 justify-center">
+      <a href="/dashboard" class="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold transition">Return to Dashboard</a>
+      <a href="/login" class="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm font-semibold transition">Sign In Again</a>
+    </div>
+  </div>
+</body>
+</html>`);
 });
 
 // Export app for serverless (Vercel)
