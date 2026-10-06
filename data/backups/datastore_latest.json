@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "saved_at": "2026-10-06T11:24:45.912Z",
+  "saved_at": "2026-10-06T12:10:01.010Z",
   "COMPANIES": [
     {
       "id": "comp-001",
@@ -669,6 +669,32 @@
     }
   ],
   "AUDIT_TRAIL": [
+    {
+      "id": "c062bf42cdd84248af6561167b83650b",
+      "action": "User Login",
+      "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-10-06T12:10:01.009Z",
+      "time_display": "06 Oct 2026, 15:10:01",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "25a128a43ffd46f7a1a4262977570a30",
+      "action": "User Login",
+      "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-10-06T12:09:07.301Z",
+      "time_display": "06 Oct 2026, 15:09:07",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
     {
       "id": "f3667706a6c04e4d870a29ae0fc7d762",
       "action": "User Login",
@@ -1942,7 +1968,7 @@
       "signature_style": "formal",
       "signature_image_url": "",
       "profile_image_url": "",
-      "last_login_at": "06 Oct 2026, 14:24",
+      "last_login_at": "06 Oct 2026, 15:10",
       "password": "Admin@123"
     },
     {
@@ -3188,6 +3214,32 @@
         }
       ],
       "AUDIT_TRAIL": [
+        {
+          "id": "c062bf42cdd84248af6561167b83650b",
+          "action": "User Login",
+          "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+          "module": "security",
+          "severity": "info",
+          "href": "/dashboard",
+          "created_at": "2026-10-06T12:10:01.009Z",
+          "time_display": "06 Oct 2026, 15:10:01",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "25a128a43ffd46f7a1a4262977570a30",
+          "action": "User Login",
+          "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+          "module": "security",
+          "severity": "info",
+          "href": "/dashboard",
+          "created_at": "2026-10-06T12:09:07.301Z",
+          "time_display": "06 Oct 2026, 15:09:07",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
         {
           "id": "f3667706a6c04e4d870a29ae0fc7d762",
           "action": "User Login",
@@ -9266,8 +9318,8 @@
     }
   },
   "_BOUND_COMPANY_ID": "comp-001",
-  "revision": 391,
-  "saved_at_ms": 1791288969963,
+  "revision": 397,
+  "saved_at_ms": 1791291685061,
   "PASSWORD_RESET_REQUESTS": [
     {
       "id": "msg-reset-1790927897598",

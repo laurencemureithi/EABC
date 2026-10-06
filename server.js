@@ -3702,7 +3702,7 @@ app.use((req, res, next) => {
 
   if (!uid && !isCompanyBrandSaveApi) {
     if (p === '/api/index.js' || p === '/api/index' || p === '/api' || p === '/api/') {
-      return res.redirect('/login');
+      return res.redirect(303, '/login');
     }
     if (p.startsWith('/api/')) {
       return res.status(401).json({ error: 'Authentication required', redirect: '/login' });
@@ -3710,7 +3710,7 @@ app.use((req, res, next) => {
     const nextUrl = req.originalUrl && req.originalUrl !== '/' && !req.originalUrl.startsWith('/login')
       ? `?next=${encodeURIComponent(req.originalUrl)}`
       : '';
-    return res.redirect(`/login${nextUrl}`);
+    return res.redirect(303, `/login${nextUrl}`);
   }
 
   // Verify user account still exists and is active
@@ -4020,9 +4020,9 @@ const wizardState = {
 // -------------------------
 app.all(['/', '/api/index.js', '/api/index', '/api'], (req, res) => {
   if (req.cookies?.opsloom_user) {
-    return res.redirect('/dashboard');
+    return res.redirect(303, '/dashboard');
   }
-  return res.redirect('/login');
+  return res.redirect(303, '/login');
 });
 
 app.get('/login', (req, res) => {
@@ -4213,7 +4213,7 @@ app.post('/login', (req, res) => {
   }
 
   logAudit('User Login', `${user.name} (${user.role}) authenticated with ${timeoutMins}m session policy.`, 'security', '/dashboard');
-  return res.redirect(safeNext);
+  return res.redirect(303, safeNext);
 });
 
 app.get('/login/google', (req, res) => {
@@ -4785,7 +4785,7 @@ app.all('/set-company', (req, res) => {
 // -------------------------
 // DASHBOARD
 // -------------------------
-app.get('/dashboard', (req, res) => {
+app.all('/dashboard', (req, res) => {
   const assets = store.ASSETS || [];
   const breakdowns = store.BREAKDOWNS || [];
   const tasks = store.MAINTENANCE_TASKS || [];
@@ -10283,7 +10283,11 @@ app.get('/maintenance/assets', (req, res) => {
 
 // 404 Handler
 app.use((req, res) => {
-  res.status(404).redirect('/dashboard');
+  const p = req.path || '';
+  if (p === '/dashboard' || p === '/login' || p.startsWith('/dashboard') || p.startsWith('/login')) {
+    return res.status(404).send('Not Found');
+  }
+  return res.redirect(303, '/dashboard');
 });
 
 // Global Express Error Handler (Prevents raw 500 white screen and infinite redirect loops)
