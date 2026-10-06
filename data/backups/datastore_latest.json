@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "saved_at": "2026-10-06T08:07:12.248Z",
+  "saved_at": "2026-10-06T08:36:02.429Z",
   "COMPANIES": [
     {
       "id": "comp-001",
@@ -643,6 +643,32 @@
     }
   ],
   "AUDIT_TRAIL": [
+    {
+      "id": "b43fd80d3a4d496e8a91fcba6a3c68c2",
+      "action": "User Login",
+      "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-10-06T08:29:07.447Z",
+      "time_display": "06 Oct 2026, 11:29:07",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
+    {
+      "id": "03b2f049a2534093a875d4baa013eb1f",
+      "action": "User Login",
+      "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+      "module": "security",
+      "severity": "info",
+      "href": "/dashboard",
+      "created_at": "2026-10-06T08:27:26.899Z",
+      "time_display": "06 Oct 2026, 11:27:26",
+      "user_name": "Laurence Magondu",
+      "user_email": "opsloom.ke@gmail.com",
+      "department": "Engineering"
+    },
     {
       "id": "24ca7f82925f4a2892d7439b88eb2bb7",
       "action": "Asset Created",
@@ -1457,7 +1483,7 @@
     "password_reset_help": "Contact Opsloom support or your system administrator to reset your password.",
     "session_timeout_minutes": 30,
     "admin_login_password": "Admin@123",
-    "client_clock_offset_ms": -8735,
+    "client_clock_offset_ms": -15243,
     "timezone": "Africa/Nairobi"
   },
   "SYSTEM_NOTIFICATIONS": [
@@ -1827,7 +1853,7 @@
       "signature_style": "formal",
       "signature_image_url": "",
       "profile_image_url": "",
-      "last_login_at": "06 Oct 2026, 10:16",
+      "last_login_at": "06 Oct 2026, 11:29",
       "password": "Admin@123"
     },
     {
@@ -3047,6 +3073,32 @@
         }
       ],
       "AUDIT_TRAIL": [
+        {
+          "id": "b43fd80d3a4d496e8a91fcba6a3c68c2",
+          "action": "User Login",
+          "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+          "module": "security",
+          "severity": "info",
+          "href": "/dashboard",
+          "created_at": "2026-10-06T08:29:07.447Z",
+          "time_display": "06 Oct 2026, 11:29:07",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
+        {
+          "id": "03b2f049a2534093a875d4baa013eb1f",
+          "action": "User Login",
+          "detail": "Laurence Magondu (Administrator) authenticated with 30m session policy.",
+          "module": "security",
+          "severity": "info",
+          "href": "/dashboard",
+          "created_at": "2026-10-06T08:27:26.899Z",
+          "time_display": "06 Oct 2026, 11:27:26",
+          "user_name": "Laurence Magondu",
+          "user_email": "opsloom.ke@gmail.com",
+          "department": "Engineering"
+        },
         {
           "id": "24ca7f82925f4a2892d7439b88eb2bb7",
           "action": "Asset Created",
@@ -9047,8 +9099,8 @@
     }
   },
   "_BOUND_COMPANY_ID": "comp-001",
-  "revision": 363,
-  "saved_at_ms": 1791274040983,
+  "revision": 370,
+  "saved_at_ms": 1791275777672,
   "PASSWORD_RESET_REQUESTS": [
     {
       "id": "msg-reset-1790927897598",

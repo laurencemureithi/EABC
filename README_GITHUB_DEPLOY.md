@@ -1,30 +1,92 @@
-# Opsloom GitHub and deployment guide
+# Opsloom Production Deployment Guide
 
-## What GitHub is for
-Use GitHub to store and version the code. Use a private repository if you do not want the source files to be publicly readable.
+Opsloom is a production-grade Node.js / Express engineering asset, breakdown management, and preventive maintenance application.
 
-## What to deploy
-This is a Flask application. Deploy the repository to a Python host such as Render, Railway, Fly.io, or your own VPS. GitHub alone will not run the app for users.
+---
 
-## Safe structure
-- Keep the GitHub repository private
-- Add only the collaborators who should access the code
-- Keep secrets in environment variables, not hard-coded in the repository
-- Keep the public app behind the system login so only approved users can enter
+## 1. Deploying on Vercel
 
-## Recommended repo files already included
-- requirements.txt
-- Procfile
-- .gitignore
+The repository is configured for modern Vercel Serverless deployments via `vercel.json` and `api/index.js`.
 
-## Local multi-device access
-Run the app and open it from your phone using your computer's local IP, for example:
-- http://192.168.x.x:5000
+### How It Works on Vercel:
+1. **Serverless Entrypoint**: `api/index.js` handles routing transparently, normalizing any internal rewrite paths (`x-matched-path` / `x-forwarded-uri`) so Express routes resolve properly.
+2. **Asset & Template Bundling**: `vercel.json` includes `templates/**`, `data/**`, and `static/**` in the serverless bundle.
+3. **Writable Datastore**: In serverless environments, Opsloom seeds and maintains state in `/tmp/opsloom_datastore.json`.
+4. **HTTPS & Cookie Compatibility**: Cookies and sessions automatically adapt to HTTPS headers (`x-forwarded-proto`).
 
-The app entrypoint is already set to bind to 0.0.0.0 by default when started with python app.py.
+### Deploy Steps on Vercel:
+1. Connect your GitHub repository to Vercel.
+2. **Framework Preset**: Select **Other** (Zero Configuration).
+3. **Build Command**: `echo 'Build successful'` (or leave default).
+4. **Output Directory**: Leave empty.
+5. Click **Deploy**. Your Vercel deployment link will work immediately.
 
-## Before pushing
-1. Review data/datastore.json and keep only demo-safe data
-2. Make sure instance database files are not committed if you want a clean demo
-3. Set FLASK_SECRET_KEY on the deployment target
-4. Set debug off in production
+---
+
+## 2. Deploying on a Company Server (VPS / Dedicated Server / Docker)
+
+For organizational deployment on an internal company server (Ubuntu, Debian, RHEL, or Docker):
+
+### Option A: Direct Node.js / PM2 Process Manager
+```bash
+# 1. Clone the repository and install dependencies
+git clone <your-repo-url> opsloom
+cd opsloom
+npm install --production
+
+# 2. Run with PM2 for production reliability and auto-restart
+npm install -g pm2
+pm2 start server.js --name "opsloom"
+pm2 save
+pm2 startup
+```
+
+The application binds to `0.0.0.0:3000` (or the port specified by `PORT=80` in your environment variables).
+
+### Option B: Systemd Service (Linux)
+Create `/etc/systemd/system/opsloom.service`:
+```ini
+[Unit]
+Description=Opsloom Asset Management
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/opsloom
+ExecStart=/usr/bin/node /var/www/opsloom/server.js
+Restart=always
+Environment=NODE_ENV=production PORT=3000
+
+[Install]
+WantedBy=multi-user.target
+```
+Enable and start the service:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now opsloom
+```
+
+### Option C: Reverse Proxy with Nginx (Recommended for Production)
+```nginx
+server {
+    listen 80;
+    server_name maintenance.yourcompany.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+### Data Persistence on Company Server:
+- All assets, work orders, breakdown tickets, inventory, audit logs, and organization branding persist in `./data/datastore.json`.
+- Automatic rolling backups are written to `./data/backups/datastore_latest.json`.
+

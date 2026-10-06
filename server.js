@@ -140,10 +140,29 @@ function getSystemTimeHM(rawVal) {
   }
 }
 
-// Serverless-resilient directory paths
+// Serverless and VPS resilient directory paths
+const candidateDataDirs = [
+  path.join(__dirname, 'data'),
+  path.join(process.cwd(), 'data'),
+  path.join(__dirname, '..', 'data'),
+  path.join(process.cwd(), '..', 'data')
+];
+const bundledDatastorePath = candidateDataDirs.map(d => path.join(d, 'datastore.json')).find(p => {
+  try { return fs.existsSync(p); } catch (e) { return false; }
+}) || path.join(__dirname, 'data', 'datastore.json');
+
 const DATA_DIR = isVercel ? '/tmp/data' : path.join(__dirname, 'data');
 const DATASTORE_PATH = isVercel ? '/tmp/opsloom_datastore.json' : path.join(DATA_DIR, 'datastore.json');
-const STATIC_DIR = path.join(__dirname, 'static');
+
+const candidateStaticDirs = [
+  path.join(__dirname, 'static'),
+  path.join(process.cwd(), 'static'),
+  path.join(__dirname, '..', 'static'),
+  path.join(process.cwd(), '..', 'static')
+];
+const STATIC_DIR = candidateStaticDirs.find(d => {
+  try { return fs.existsSync(d) && fs.statSync(d).isDirectory(); } catch (e) { return false; }
+}) || path.join(__dirname, 'static');
 const UPLOADS_DIR = isVercel ? '/tmp/uploads' : path.join(STATIC_DIR, 'uploads');
 
 try {
@@ -151,6 +170,13 @@ try {
 } catch (e) {}
 try {
   if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+} catch (e) {}
+
+// On Vercel cold boot, seed /tmp datastore from packaged repository datastore if not already created
+try {
+  if (isVercel && !fs.existsSync(DATASTORE_PATH) && fs.existsSync(bundledDatastorePath)) {
+    fs.copyFileSync(bundledDatastorePath, DATASTORE_PATH);
+  }
 } catch (e) {}
 
 // Multer upload config
@@ -221,9 +247,19 @@ function fileToDataUrl(file) {
   }
 }
 
+function checkIsHttps(req) {
+  if (isVercel) return true;
+  try {
+    const protoHeader = String(req?.headers?.['x-forwarded-proto'] || '').toLowerCase();
+    if (protoHeader.includes('https')) return true;
+    if (req?.connection?.encrypted || req?.socket?.encrypted) return true;
+    if (req?.protocol === 'https') return true;
+  } catch (e) {}
+  return false;
+}
+
 function setSafeCookie(req, res, name, val, customMaxAgeMs = null) {
-  const protoHeader = String(req.headers['x-forwarded-proto'] || '').toLowerCase();
-  const isHttps = Boolean(req.secure || protoHeader.includes('https') || isVercel);
+  const isHttps = checkIsHttps(req);
   res.cookie(name, val, {
     path: '/',
     maxAge: customMaxAgeMs || (365 * 24 * 60 * 60 * 1000),
@@ -234,8 +270,7 @@ function setSafeCookie(req, res, name, val, customMaxAgeMs = null) {
 }
 
 function clearSafeCookie(req, res, name) {
-  const protoHeader = String(req.headers['x-forwarded-proto'] || '').toLowerCase();
-  const isHttps = Boolean(req.secure || protoHeader.includes('https') || isVercel);
+  const isHttps = checkIsHttps(req);
   res.clearCookie(name, { path: '/' });
   res.clearCookie(name, {
     path: '/',
@@ -2047,8 +2082,18 @@ function moveToRecycleBin(entity_type, entity_label, primary_id, record, deleted
   return entry;
 }
 
-// Configure Nunjucks
-const nunjucksEnv = nunjucks.configure('templates', {
+// Configure Nunjucks with candidate template directory resolution for serverless & VPS deployments
+const candidateTemplateDirs = [
+  path.join(__dirname, 'templates'),
+  path.join(process.cwd(), 'templates'),
+  path.join(__dirname, '..', 'templates'),
+  path.join(process.cwd(), '..', 'templates'),
+  'templates'
+];
+const templateDirs = candidateTemplateDirs.filter(d => {
+  try { return fs.existsSync(d) && fs.statSync(d).isDirectory(); } catch (e) { return false; }
+});
+const nunjucksEnv = nunjucks.configure(templateDirs.length ? templateDirs : ['templates'], {
   autoescape: true,
   express: app,
   noCache: true
@@ -3231,6 +3276,19 @@ function buildChartExportReport(options = {}) {
 }
 
 // Middleware
+// Serverless URL normalization (Vercel, AWS Lambda, Cloud Run proxy rewrites)
+app.use((req, res, next) => {
+  const matchedPath = req.headers['x-matched-path'] || req.headers['x-forwarded-uri'] || req.headers['x-now-route-matches'];
+  if (matchedPath && (req.url === '/api/index.js' || req.url === '/api' || req.url.startsWith('/api/index.js?') || req.url.startsWith('/api?'))) {
+    const qIdx = req.url.indexOf('?');
+    const queryStr = qIdx !== -1 ? req.url.slice(qIdx) : '';
+    req.url = matchedPath + (matchedPath.includes('?') ? '' : queryStr);
+  } else if (req.url === '/api/index.js' || req.url === '/api' || req.url === '/api/') {
+    req.url = '/dashboard';
+  }
+  next();
+});
+
 app.use(cookieParser('opsloom-secret-key'));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(express.json({ limit: '25mb' }));
@@ -3519,10 +3577,16 @@ app.post('/api/system/clock-sync', (req, res) => {
   });
 });
 
-// Serve static assets
-app.use('/static', express.static(STATIC_DIR));
+// Serve static assets with multi-path resolution
+candidateStaticDirs.forEach(d => {
+  try {
+    if (fs.existsSync(d) && fs.statSync(d).isDirectory()) {
+      app.use('/static', express.static(d));
+      app.use(express.static(d));
+    }
+  } catch (e) {}
+});
 app.use('/static/uploads', express.static(UPLOADS_DIR));
-app.use(express.static(STATIC_DIR));
 
 function getSessionTimeoutMinutes() {
   const raw = Number(store.SYSTEM_SETTINGS?.session_timeout_minutes);
