@@ -7,6 +7,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const PptxGenJS = require('pptxgenjs');
 const { GoogleGenAI } = require('@google/genai');
+const nodemailer = require('nodemailer');
 
 function getAiClient() {
   if (!process.env.GEMINI_API_KEY) return null;
@@ -237,9 +238,17 @@ function fileToDataUrl(file) {
     if (!mime || mime === 'application/octet-stream') {
       if (ext === '.svg') mime = 'image/svg+xml';
       else if (ext === '.jpg' || ext === '.jpeg') mime = 'image/jpeg';
+      else if (ext === '.png') mime = 'image/png';
       else if (ext === '.webp') mime = 'image/webp';
       else if (ext === '.gif') mime = 'image/gif';
-      else mime = 'image/png';
+      else if (ext === '.pdf') mime = 'application/pdf';
+      else if (ext === '.csv') mime = 'text/csv';
+      else if (ext === '.txt') mime = 'text/plain';
+      else if (ext === '.json') mime = 'application/json';
+      else if (ext === '.docx' || ext === '.doc') mime = 'application/msword';
+      else if (ext === '.xlsx' || ext === '.xls') mime = 'application/vnd.ms-excel';
+      else if (ext === '.pptx' || ext === '.ppt') mime = 'application/vnd.ms-powerpoint';
+      else mime = 'application/octet-stream';
     }
     return `data:${mime};base64,${buf.toString('base64')}`;
   } catch (e) {
@@ -339,34 +348,8 @@ let store = {
     password_reset_help: 'Contact Opsloom support or your system administrator to reset your password.',
     session_timeout_minutes: 30
   },
-  SYSTEM_NOTIFICATIONS: [
-    {
-      id: 'notif-system-stable',
-      title: 'System stable',
-      message: 'All core Opsloom modules are available and responsive.',
-      kind: 'success',
-      created_at: new Date().toISOString(),
-      is_read: false,
-      href: '/dashboard',
-      should_toast: false
-    },
-    {
-      id: 'notif-low-stock-review',
-      title: 'Review low stock parts',
-      message: 'Inventory alerts are available for immediate replenishment decisions.',
-      kind: 'warning',
-      created_at: new Date(Date.now() - 7200000).toISOString(),
-      is_read: false,
-      href: '/inventory',
-      should_toast: true
-    }
-  ],
-  TECHNICIAN_DIRECTORY: [
-    { id: 'TECH-001', name: 'David Kimani', role: 'Mechanical Technician', discipline: 'Mechanical', phone: '+254700000101', email: 'david.kimani@opsloom.co.ke', active: true },
-    { id: 'TECH-002', name: 'Sarah Njeri', role: 'Electrical Technician', discipline: 'Electrical', phone: '+254700000102', email: 'sarah.njeri@opsloom.co.ke', active: true },
-    { id: 'TECH-003', name: 'James Omondi', role: 'Utilities Specialist', discipline: 'Utility', phone: '+254700000103', email: 'james.omondi@opsloom.co.ke', active: true },
-    { id: 'TECH-004', name: 'Faith Mumbua', role: 'Automation Engineer', discipline: 'Control System', phone: '+254700000104', email: 'faith.mumbua@opsloom.co.ke', active: true }
-  ],
+  SYSTEM_NOTIFICATIONS: [],
+  TECHNICIAN_DIRECTORY: [],
   ADMIN_USERS: [
     {
       id: 'USR-001',
@@ -388,23 +371,7 @@ let store = {
       profile_image_url: ''
     }
   ],
-  INTERNAL_MESSAGES: [
-    {
-      id: 'msg-welcome-admin',
-      thread_id: 'thread-welcome-admin',
-      sender_email: 'opsloom.ke@gmail.com',
-      sender_name: 'Opsloom System',
-      recipient_emails: ['opsloom.ke@gmail.com'],
-      subject: 'Welcome to the Opsloom workspace',
-      body: 'Your administrator workspace is ready. Use Admin Credentials & Users to control access, messages, and audit visibility.',
-      attachments: [],
-      created_at: new Date().toISOString(),
-      is_read_by: [],
-      forwarded_from: '',
-      delivery_status: 'sent',
-      sent_at: new Date().toISOString()
-    }
-  ],
+  INTERNAL_MESSAGES: [],
   DRAFT_MESSAGES: [],
   OUTBOX_MESSAGES: [],
   RECYCLE_BIN: [],
@@ -568,9 +535,9 @@ function seedInitialDataIfEmpty() {
       company_id: 'comp-001',
       active: true,
       last_login_at: 'Active Session',
-      permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'settings', 'admin', 'companies', 'recycle_bin', 'all'],
-      edit_permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'companies', 'recycle_bin', 'all'],
-      delete_permissions: ['assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'users_manage', 'technicians_manage', 'recycle_bin', 'all'],
+      permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'settings', 'admin', 'companies', 'recycle_bin', 'kpi_targets_manage', 'all'],
+      edit_permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'settings_manage', 'users_manage', 'notifications_manage', 'technicians_manage', 'companies', 'recycle_bin', 'kpi_targets_manage', 'all'],
+      delete_permissions: ['assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'users_manage', 'technicians_manage', 'recycle_bin', 'kpi_targets_manage', 'all'],
       signature_name: 'Laurence Magondu',
       signature_title: 'Chief Engineering & System Administrator',
       signature_font: 'Inter',
@@ -584,55 +551,8 @@ function seedInitialDataIfEmpty() {
   } else if (store.SYSTEM_SETTINGS?.admin_login_password && primaryAdmin.password !== store.SYSTEM_SETTINGS.admin_login_password) {
     primaryAdmin.password = store.SYSTEM_SETTINGS.admin_login_password;
   }
-  if (store.ADMIN_USERS.length === 1 && !store.seeded_default_team_users) {
-    store.ADMIN_USERS.push(
-      {
-        id: 'USR-002',
-        name: 'Eng. Grace Wanjiku',
-        email: 'grace.wanjiku@opsloom.co.ke',
-        password: 'Admin@123',
-        role: 'Manager',
-        access_scope: 'Department',
-        department: 'Engineering',
-        company_id: 'comp-001',
-        active: true,
-        last_login_at: '29 Sep 2026, 16:40',
-        permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'technicians_manage'],
-        edit_permissions: ['assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'technicians_manage'],
-        delete_permissions: ['breakdowns', 'maintenance', 'reports'],
-        signature_name: 'Eng. Grace Wanjiku',
-        signature_title: 'Plant Reliability Manager',
-        signature_font: 'Inter',
-        signature_color: '#1554FF',
-        signature_style: 'modern',
-        signature_image_url: ''
-      },
-      {
-        id: 'USR-003',
-        name: 'David Kimani',
-        email: 'david.kimani@opsloom.co.ke',
-        password: 'Admin@123',
-        role: 'Technician',
-        access_scope: 'Section',
-        department: 'Engineering',
-        company_id: 'comp-001',
-        active: true,
-        last_login_at: '30 Sep 2026, 08:15',
-        permissions: ['dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory'],
-        edit_permissions: ['breakdowns', 'maintenance'],
-        delete_permissions: [],
-        signature_name: 'David Kimani',
-        signature_title: 'Senior Mechanical Technician',
-        signature_font: 'Inter',
-        signature_color: '#0EA5E9',
-        signature_style: 'formal',
-        signature_image_url: ''
-      }
-    );
-    store.seeded_default_team_users = true;
-  }
 
-  if (!store.COMPANIES || store.COMPANIES.length === 0) {
+  if (!store.COMPANIES || !Array.isArray(store.COMPANIES) || store.COMPANIES.length === 0) {
     store.COMPANIES = [
       {
         id: 'comp-001',
@@ -656,734 +576,20 @@ function seedInitialDataIfEmpty() {
   }
   (store.COMPANIES || []).forEach(ensureCompanyDesignation);
 
-  const defaultAssets = [
-    {
-      uid: 'asset-001',
-      asset_id: 'ENG-AST-0101',
-      asset_name: 'High-Speed Rotary Filler RFC-80',
-      section: 'Pharma',
-      department: 'Engineering',
-      status: 'operational',
-      criticality: 'A',
-      serial_no: 'RFC-2022-9841',
-      manufacturer: 'Bosch Packaging',
-      model_number: 'RFC-80X',
-      installation_date: '2022-03-15',
-      power_rating: '45 kW',
-      supplier: 'Bosch Kenya Ltd',
-      technical_notes: 'Primary sterile vial packaging filler. Maintenance cycle 30 days.'
-    },
-    {
-      uid: 'asset-002',
-      asset_id: 'ENG-AST-0102',
-      asset_name: 'Steam Boiler Unit SB-02',
-      section: 'Premises',
-      department: 'Engineering',
-      status: 'operational',
-      criticality: 'A',
-      serial_no: 'SB-400-K09',
-      manufacturer: 'Thermax Limited',
-      model_number: 'CPX-400',
-      installation_date: '2020-08-20',
-      power_rating: '250 kW',
-      supplier: 'Energy Solutions Africa',
-      technical_notes: 'High pressure steam utility generator for sterilization and jackets.'
-    },
-    {
-      uid: 'asset-003',
-      asset_id: 'ENG-AST-0103',
-      asset_name: 'Centrifugal Slurry Pump CP-04',
-      section: 'Acaricide',
-      department: 'Engineering',
-      status: 'degraded',
-      criticality: 'B',
-      serial_no: 'CP-4028-21',
-      manufacturer: 'Grundfos',
-      model_number: 'NBG-65-40',
-      installation_date: '2021-06-11',
-      power_rating: '18.5 kW',
-      supplier: 'Davis & Shirtliff',
-      technical_notes: 'Secondary transfer line pump. Mild impeller cavitation detected.'
-    },
-    {
-      uid: 'asset-004',
-      asset_id: 'ENG-AST-0104',
-      asset_name: 'Granulation Fluid Bed Dryer FBD-01',
-      section: 'Nutraceuticals',
-      department: 'Engineering',
-      status: 'breakdown',
-      criticality: 'A',
-      serial_no: 'FBD-150-19',
-      manufacturer: 'Glatt Systems',
-      model_number: 'WSG-150',
-      installation_date: '2019-11-04',
-      power_rating: '35 kW',
-      supplier: 'PharmaTech East Africa',
-      technical_notes: 'Fluidized bed drying chamber with pneumatic air delivery.'
-    },
-    {
-      uid: 'asset-005',
-      asset_id: 'ENG-AST-0105',
-      asset_name: 'Rotary Tablet Press RTP-33',
-      section: 'Pharma',
-      department: 'Engineering',
-      status: 'operational',
-      criticality: 'A',
-      serial_no: 'RTP-2023-1120',
-      manufacturer: 'Fette Compacting',
-      model_number: 'FE55',
-      installation_date: '2023-01-19',
-      power_rating: '28 kW',
-      supplier: 'PharmaTech East Africa',
-      technical_notes: 'High-speed double-sided rotary tablet press with force feeder.'
-    },
-    {
-      uid: 'asset-006',
-      asset_id: 'ENG-AST-0106',
-      asset_name: 'Acaricide Emulsion Mixer EM-02',
-      section: 'Acaricide',
-      department: 'Engineering',
-      status: 'operational',
-      criticality: 'A',
-      serial_no: 'EM-2021-553',
-      manufacturer: 'Silverson Machines',
-      model_number: 'FX600',
-      installation_date: '2021-09-12',
-      power_rating: '37 kW',
-      supplier: 'Process Industrial EA',
-      technical_notes: 'High-shear batch homogenizer for EC acaricide formulations.'
-    },
-    {
-      uid: 'asset-007',
-      asset_id: 'ENG-AST-0107',
-      asset_name: 'Automated Seed Coating Drum SCD-01',
-      section: 'Seeds',
-      department: 'Engineering',
-      status: 'operational',
-      criticality: 'B',
-      serial_no: 'SCD-2022-884',
-      manufacturer: 'Cimbria',
-      model_number: 'CC-250',
-      installation_date: '2022-05-14',
-      power_rating: '22 kW',
-      supplier: 'AgriEquip Kenya',
-      technical_notes: 'Continuous rotary seed treater with peristaltic dosing pumps.'
-    },
-    {
-      uid: 'asset-008',
-      asset_id: 'ENG-AST-0108',
-      asset_name: 'Optical Seed Sorter & Grader OSG-03',
-      section: 'Seeds',
-      department: 'Engineering',
-      status: 'operational',
-      criticality: 'C',
-      serial_no: 'OSG-2023-309',
-      manufacturer: 'Buhler Sortex',
-      model_number: 'Sortex A',
-      installation_date: '2023-04-02',
-      power_rating: '12 kW',
-      supplier: 'Buhler East Africa',
-      technical_notes: 'Multi-chromatic optical camera sorter with pneumatic ejectors.'
-    },
-    {
-      uid: 'asset-009',
-      asset_id: 'ENG-AST-0109',
-      asset_name: 'Blister Packaging Line BPL-04',
-      section: 'Nutraceuticals',
-      department: 'Engineering',
-      status: 'operational',
-      criticality: 'B',
-      serial_no: 'BPL-2021-771',
-      manufacturer: 'Uhlmann',
-      model_number: 'BEC-300',
-      installation_date: '2021-11-28',
-      power_rating: '30 kW',
-      supplier: 'Bosch Kenya Ltd',
-      technical_notes: 'Thermoforming blister packager and integrated cartoner.'
-    },
-    {
-      uid: 'asset-010',
-      asset_id: 'ENG-AST-0110',
-      asset_name: 'Standby Diesel Generator 750kVA DG-01',
-      section: 'Premises',
-      department: 'Engineering',
-      status: 'operational',
-      criticality: 'A',
-      serial_no: 'CAT-750-8821',
-      manufacturer: 'Caterpillar',
-      model_number: 'C27-750',
-      installation_date: '2019-07-01',
-      power_rating: '600 kW',
-      supplier: 'Mantrac Kenya',
-      technical_notes: 'Prime backup power generator with automatic transfer switch (ATS).'
-    },
-    {
-      uid: 'asset-011',
-      asset_id: 'ENG-AST-0111',
-      asset_name: 'Reverse Osmosis Water Purification RO-01',
-      section: 'Pharma',
-      department: 'Engineering',
-      status: 'operational',
-      criticality: 'A',
-      serial_no: 'RO-2022-410',
-      manufacturer: 'Veolia Water Tech',
-      model_number: 'Orion-4000',
-      installation_date: '2022-02-10',
-      power_rating: '15 kW',
-      supplier: 'Davis & Shirtliff',
-      technical_notes: 'USP purified water loop with EDI and UV sanitization.'
-    },
-    {
-      uid: 'asset-012',
-      asset_id: 'ENG-AST-0112',
-      asset_name: 'Rotary Screw Air Compressor SAC-02',
-      section: 'Premises',
-      department: 'Engineering',
-      status: 'degraded',
-      criticality: 'B',
-      serial_no: 'AC-GA55-992',
-      manufacturer: 'Atlas Copco',
-      model_number: 'GA-55VSD+',
-      installation_date: '2020-10-15',
-      power_rating: '55 kW',
-      supplier: 'Atlas Copco Eastern Africa',
-      technical_notes: 'Plant-wide instrument air supply. Scheduled separator element change.'
-    }
-  ];
-  if (!store.initialized && (!store.ASSETS || store.ASSETS.length === 0)) {
-    const existingUids = new Set((store.ASSETS || []).map(a => a.uid));
-    store.ASSETS = [...(store.ASSETS || []), ...defaultAssets.filter(a => !existingUids.has(a.uid))];
-  }
-
-  const defaultBreakdowns = [
-    {
-      breakdown_id: 'BD-2026-001',
-      asset_uid: 'asset-004',
-      asset_id: 'ENG-AST-0104',
-      asset_name: 'Granulation Fluid Bed Dryer FBD-01',
-      section: 'Nutraceuticals',
-      department: 'Engineering',
-      incident_title: 'Blower Motor Overheating and V-Belt Slip',
-      severity: 'critical',
-      failure_category: 'Mechanical',
-      status: 'open',
-      technician_name: 'David Kimani',
-      reported_dt: '2026-09-28 08:30',
-      reported_date: '2026-09-28',
-      reported_time: '08:30',
-      duration_mins: 240,
-      downtime_hours: 4.0,
-      cost_subtotal: 38000,
-      cost_vat_amount: 6080,
-      cost_total: 44080,
-      symptoms: 'Loud squealing noise followed by high temperature alarm (85°C) on blower drive.',
-      notes: 'Initial inspection revealed worn belts and motor bearing play. Spare belts requested.',
-      created_at: '2026-09-28T08:30:00'
-    },
-    {
-      breakdown_id: 'BD-2026-002',
-      asset_uid: 'asset-003',
-      asset_id: 'ENG-AST-0103',
-      asset_name: 'Centrifugal Slurry Pump CP-04',
-      section: 'Acaricide',
-      department: 'Engineering',
-      incident_title: 'Mechanical Seal Weeping and Pressure Drop',
-      severity: 'medium',
-      failure_category: 'Mechanical',
-      status: 'in_progress',
-      technician_name: 'Sarah Njeri',
-      reported_dt: '2026-09-27 14:15',
-      reported_date: '2026-09-27',
-      reported_time: '14:15',
-      duration_mins: 180,
-      downtime_hours: 3.0,
-      cost_subtotal: 24000,
-      cost_vat_amount: 3840,
-      cost_total: 27840,
-      symptoms: 'Minor slurry weeping from primary seal gland. Pressure output dropped by 1.2 bar.',
-      notes: 'Replaced gland packing temporary seal, awaiting permanent silicon carbide face ring.',
-      created_at: '2026-09-27T14:15:00'
-    },
-    {
-      breakdown_id: 'BD-2026-003',
-      asset_uid: 'asset-001',
-      asset_id: 'ENG-AST-0101',
-      asset_name: 'High-Speed Rotary Filler RFC-80',
-      section: 'Pharma',
-      department: 'Engineering',
-      incident_title: 'Vial Indexing Starwheel Sensor Fault',
-      severity: 'high',
-      failure_category: 'Electrical',
-      status: 'resolved',
-      technician_name: 'James Omondi',
-      reported_dt: '2026-09-24 10:20',
-      reported_date: '2026-09-24',
-      reported_time: '10:20',
-      resolved_date: '2026-09-24',
-      resolved_time: '12:50',
-      duration_mins: 150,
-      downtime_hours: 2.5,
-      cost_subtotal: 18500,
-      cost_vat_amount: 2960,
-      cost_total: 21460,
-      symptoms: 'Intermittent false rejects on vial indexing starwheel optical sensor.',
-      notes: 'Replaced 24VDC opto-electronic sensor and recalibrated PLC timing cam.',
-      created_at: '2026-09-24T10:20:00'
-    },
-    {
-      breakdown_id: 'BD-2026-004',
-      asset_uid: 'asset-007',
-      asset_id: 'ENG-AST-0107',
-      asset_name: 'Automated Seed Coating Drum SCD-01',
-      section: 'Seeds',
-      department: 'Engineering',
-      incident_title: 'Dosing Peristaltic Hose Rupture',
-      severity: 'medium',
-      failure_category: 'Hydraulic / Pneumatic',
-      status: 'resolved',
-      technician_name: 'Peter Njoroge',
-      reported_dt: '2026-09-21 15:00',
-      reported_date: '2026-09-21',
-      reported_time: '15:00',
-      resolved_date: '2026-09-21',
-      resolved_time: '17:12',
-      duration_mins: 132,
-      downtime_hours: 2.2,
-      cost_subtotal: 14000,
-      cost_vat_amount: 2240,
-      cost_total: 16240,
-      symptoms: 'Uneven polymer coating flow rate alarm on line 1.',
-      notes: 'Installed new reinforced Santoprene peristaltic tube and verified flow meter.',
-      created_at: '2026-09-21T15:00:00'
-    },
-    {
-      breakdown_id: 'BD-2026-005',
-      asset_uid: 'asset-012',
-      asset_id: 'ENG-AST-0112',
-      asset_name: 'Rotary Screw Air Compressor SAC-02',
-      section: 'Premises',
-      department: 'Engineering',
-      incident_title: 'Unloader Solenoid Valve Sticking',
-      severity: 'medium',
-      failure_category: 'Pneumatic',
-      status: 'resolved',
-      technician_name: 'David Kimani',
-      reported_dt: '2026-09-18 09:10',
-      reported_date: '2026-09-18',
-      reported_time: '09:10',
-      resolved_date: '2026-09-18',
-      resolved_time: '11:40',
-      duration_mins: 150,
-      downtime_hours: 2.5,
-      cost_subtotal: 21000,
-      cost_vat_amount: 3360,
-      cost_total: 24360,
-      symptoms: 'Compressor failing to transition smoothly from load to unload cycle at 7.5 bar.',
-      notes: 'Overhauled intake unloader valve assembly and replaced solenoid coil.',
-      created_at: '2026-09-18T09:10:00'
-    }
-  ];
-  if (!store.initialized && (!store.BREAKDOWNS || store.BREAKDOWNS.length === 0)) {
-    const existingIds = new Set((store.BREAKDOWNS || []).map(b => b.breakdown_id));
-    store.BREAKDOWNS = [...(store.BREAKDOWNS || []), ...defaultBreakdowns.filter(b => !existingIds.has(b.breakdown_id))];
-  }
-
-  const defaultTasks = [
-    {
-      task_id: 'TASK-2026-001',
-      task_title: 'Monthly Turret Lubrication & Vacuum Inspection',
-      asset_uid: 'asset-001',
-      asset_id: 'ENG-AST-0101',
-      asset_name: 'High-Speed Rotary Filler RFC-80',
-      section: 'Pharma',
-      department: 'Engineering',
-      maintenance_type: 'PM',
-      frequency: 'Monthly',
-      technician: 'David Kimani',
-      task_description: 'Full lubrication of rotary turret bearings, seal ring inspection, and vacuum check.',
-      due_date: '2026-10-05',
-      scheduled_date: '2026-10-05',
-      status: 'upcoming',
-      priority: 'high',
-      cost: 25000,
-      cost_total: 25000,
-      created_at: '2026-09-20T10:00:00'
-    },
-    {
-      task_id: 'TASK-2026-002',
-      task_title: 'Quarterly Boiler Safety Valve Pop Test',
-      asset_uid: 'asset-002',
-      asset_id: 'ENG-AST-0102',
-      asset_name: 'Steam Boiler Unit SB-02',
-      section: 'Premises',
-      department: 'Engineering',
-      maintenance_type: 'PM',
-      frequency: 'Quarterly',
-      technician: 'James Omondi',
-      task_description: 'Safety pressure valve pop test, water level gauge blowdown, and burner calibration.',
-      due_date: '2026-10-12',
-      scheduled_date: '2026-10-12',
-      status: 'in_progress',
-      priority: 'urgent',
-      cost: 45000,
-      cost_total: 45000,
-      created_at: '2026-09-22T09:00:00'
-    },
-    {
-      task_id: 'TASK-2026-003',
-      task_title: 'Weekly Nozzle Alignment & Calibration',
-      asset_uid: 'asset-001',
-      asset_id: 'ENG-AST-0101',
-      asset_name: 'High-Speed Rotary Filler RFC-80',
-      section: 'Pharma',
-      department: 'Engineering',
-      maintenance_type: 'PM',
-      frequency: 'Weekly',
-      technician: 'Sarah Njeri',
-      task_description: 'Nozzle alignment calibration and optical sensor wipe-down.',
-      due_date: '2026-09-25',
-      scheduled_date: '2026-09-25',
-      status: 'completed',
-      priority: 'medium',
-      cost: 12000,
-      cost_total: 12000,
-      completed_at: '2026-09-25 11:30',
-      completion_notes: 'Sensors calibrated within ±0.2mm tolerance.',
-      created_at: '2026-09-18T11:00:00'
-    },
-    {
-      task_id: 'TASK-2026-004',
-      task_title: 'Blower Drive Belt & Bearing Replacement',
-      asset_uid: 'asset-004',
-      asset_id: 'ENG-AST-0104',
-      asset_name: 'Granulation Fluid Bed Dryer FBD-01',
-      section: 'Nutraceuticals',
-      department: 'Engineering',
-      maintenance_type: 'CM',
-      frequency: 'Monthly',
-      technician: 'David Kimani',
-      task_description: 'Replace SPA-1250 matched belt set and laser-align motor sheave.',
-      due_date: '2026-09-26',
-      scheduled_date: '2026-09-26',
-      status: 'overdue',
-      priority: 'urgent',
-      cost: 32000,
-      cost_total: 32000,
-      created_at: '2026-09-20T14:00:00'
-    },
-    {
-      task_id: 'TASK-2026-005',
-      task_title: 'High-Shear Homogenizer Stator Inspection',
-      asset_uid: 'asset-006',
-      asset_id: 'ENG-AST-0106',
-      asset_name: 'Acaricide Emulsion Mixer EM-02',
-      section: 'Acaricide',
-      department: 'Engineering',
-      maintenance_type: 'PM',
-      frequency: 'Monthly',
-      technician: 'Peter Njoroge',
-      task_description: 'Inspect rotor-stator clearance, shaft runout, and mechanical seal flush.',
-      due_date: '2026-10-08',
-      scheduled_date: '2026-10-08',
-      status: 'upcoming',
-      priority: 'high',
-      cost: 28000,
-      cost_total: 28000,
-      created_at: '2026-09-25T08:30:00'
-    },
-    {
-      task_id: 'TASK-2026-006',
-      task_title: 'Seed Coating Dosing Pump Calibration',
-      asset_uid: 'asset-007',
-      asset_id: 'ENG-AST-0107',
-      asset_name: 'Automated Seed Coating Drum SCD-01',
-      section: 'Seeds',
-      department: 'Engineering',
-      maintenance_type: 'PM',
-      frequency: 'Monthly',
-      technician: 'Grace Wanjiku',
-      task_description: 'Calibrate peristaltic dosing pumps and clean atomizing spinner disc.',
-      due_date: '2026-09-22',
-      scheduled_date: '2026-09-22',
-      status: 'completed',
-      priority: 'medium',
-      cost: 18000,
-      cost_total: 18000,
-      completed_at: '2026-09-22 16:00',
-      completion_notes: 'Flow rate verified within 0.5% accuracy across all 3 nozzles.',
-      created_at: '2026-09-15T09:00:00'
-    }
-  ];
-  if (!store.initialized && (!store.MAINTENANCE_TASKS || store.MAINTENANCE_TASKS.length === 0)) {
-    const existingTaskIds = new Set((store.MAINTENANCE_TASKS || []).map(t => t.task_id));
-    store.MAINTENANCE_TASKS = [...(store.MAINTENANCE_TASKS || []), ...defaultTasks.filter(t => !existingTaskIds.has(t.task_id))];
-  }
-
-  const defaultParts = [
-    {
-      uid: 'part-001',
-      part_name: 'High-Temp Silicon Carbide Seal Ring 45mm',
-      sku: 'SKU-SEAL-45SC',
-      category: 'Mechanical',
-      qty: 14,
-      min_qty: 5,
-      target_qty: 20,
-      storage_location: 'Bin M-12',
-      unit_price: 8500,
-      supplier: 'SealTech Kenya',
-      is_critical: true,
-      lead_time_days: 7,
-      created_at: '2026-08-01T08:00:00'
-    },
-    {
-      uid: 'part-002',
-      part_name: 'Opto-Electronic Vial Sensor 24VDC',
-      sku: 'SKU-SENS-24OP',
-      category: 'Control',
-      qty: 4,
-      min_qty: 6,
-      target_qty: 12,
-      storage_location: 'Cabinet E-03',
-      unit_price: 12000,
-      supplier: 'Industrial Sensors Africa',
-      is_critical: true,
-      lead_time_days: 14,
-      created_at: '2026-08-05T08:00:00'
-    },
-    {
-      uid: 'part-003',
-      part_name: 'Industrial SPA V-Belt 1250mm',
-      sku: 'SKU-BELT-SPA125',
-      category: 'Power Transmission',
-      qty: 22,
-      min_qty: 10,
-      target_qty: 30,
-      storage_location: 'Rack P-04',
-      unit_price: 2400,
-      supplier: 'DriveLine Systems',
-      is_critical: false,
-      lead_time_days: 3,
-      created_at: '2026-08-10T08:00:00'
-    },
-    {
-      uid: 'part-004',
-      part_name: 'Pneumatic Cylinder DNC-40-100-PPV',
-      sku: 'SKU-PNEU-CYL40',
-      category: 'Pneumatic',
-      qty: 2,
-      min_qty: 4,
-      target_qty: 8,
-      storage_location: 'Bin N-08',
-      unit_price: 18500,
-      supplier: 'Festo East Africa Ltd',
-      is_critical: true,
-      lead_time_days: 21,
-      created_at: '2026-08-15T08:00:00'
-    },
-    {
-      uid: 'part-005',
-      part_name: 'Solid State Relay 40A 240VAC',
-      sku: 'SKU-ELEC-SSR40',
-      category: 'Electrical',
-      qty: 0,
-      min_qty: 3,
-      target_qty: 6,
-      storage_location: 'Cabinet E-01',
-      unit_price: 4200,
-      supplier: 'Schneider Electric EA',
-      is_critical: true,
-      lead_time_days: 5,
-      created_at: '2026-08-20T08:00:00'
-    },
-    {
-      uid: 'part-006',
-      part_name: 'SKF Deep Groove Ball Bearing 6309-2RS1',
-      sku: 'SKU-BRG-6309',
-      category: 'Bearings',
-      qty: 12,
-      min_qty: 6,
-      target_qty: 16,
-      storage_location: 'Bin B-02',
-      unit_price: 6800,
-      supplier: 'SKF Authorized Kenya',
-      is_critical: true,
-      lead_time_days: 4,
-      created_at: '2026-08-22T08:00:00'
-    },
-    {
-      uid: 'part-007',
-      part_name: 'Food-Grade Synthetic Gear Oil ISO VG 220 (20L)',
-      sku: 'SKU-LUB-VG220',
-      category: 'Lubricants',
-      qty: 8,
-      min_qty: 4,
-      target_qty: 10,
-      storage_location: 'Lubricant Store L-01',
-      unit_price: 24500,
-      supplier: 'TotalEnergies Marketing Kenya',
-      is_critical: false,
-      lead_time_days: 3,
-      created_at: '2026-08-25T08:00:00'
-    },
-    {
-      uid: 'part-008',
-      part_name: 'PTFE Diaphragm Repair Kit 2-Inch',
-      sku: 'SKU-KIT-PTFE2',
-      category: 'Mechanical',
-      qty: 3,
-      min_qty: 4,
-      target_qty: 8,
-      storage_location: 'Bin M-19',
-      unit_price: 15200,
-      supplier: 'Davis & Shirtliff',
-      is_critical: true,
-      lead_time_days: 10,
-      created_at: '2026-08-28T08:00:00'
-    }
-  ];
-  if (!store.initialized && (!store.INVENTORY_PARTS || store.INVENTORY_PARTS.length === 0)) {
-    const existingPartUids = new Set((store.INVENTORY_PARTS || []).map(p => p.uid));
-    store.INVENTORY_PARTS = [...(store.INVENTORY_PARTS || []), ...defaultParts.filter(p => !existingPartUids.has(p.uid))];
-  }
-
-  const defaultReports = [
-    {
-      id: 'rep-2026-001',
-      name: 'Q3 2026 Executive Strategic & Financial ROI • 2026-09-01 to 2026-09-30',
-      report_title: 'Q3 2026 Executive Strategic & Financial ROI',
-      category: 'Strategic & Financial ROI',
-      category_key: 'strategic_roi',
-      department: 'Engineering',
-      scope_mode: 'department',
-      start_date: '2026-09-01',
-      end_date: '2026-09-30',
-      period: '2026-09-01 → 2026-09-30',
-      format: 'PDF',
-      status: 'READY',
-      created_at: '2026-09-29T14:20:00.000Z',
-      created_at_fmt: '29 Sep 2026',
-      generated_label: '29 Sep 2026',
-      user_name: 'Laurence Magondu'
-    },
-    {
-      id: 'rep-2026-002',
-      name: 'September 2026 Breakdown & Root Cause Analytics • 2026-09-01 to 2026-09-30',
-      report_title: 'September 2026 Breakdown & Root Cause Analytics',
-      category: 'Breakdown Analytics',
-      category_key: 'breakdown_analytics',
-      department: 'Engineering',
-      scope_mode: 'department',
-      start_date: '2026-09-01',
-      end_date: '2026-09-30',
-      period: '2026-09-01 → 2026-09-30',
-      format: 'PPTX',
-      status: 'READY',
-      created_at: '2026-09-28T16:45:00.000Z',
-      created_at_fmt: '28 Sep 2026',
-      generated_label: '28 Sep 2026',
-      user_name: 'Laurence Magondu'
-    },
-    {
-      id: 'rep-2026-003',
-      name: 'Plant Asset Reliability & OEE Benchmark • 2026-09-01 to 2026-09-30',
-      report_title: 'Plant Asset Reliability & OEE Benchmark',
-      category: 'Asset Reliability',
-      category_key: 'asset_reliability',
-      department: 'Engineering',
-      scope_mode: 'department',
-      start_date: '2026-09-01',
-      end_date: '2026-09-30',
-      period: '2026-09-01 → 2026-09-30',
-      format: 'PDF',
-      status: 'READY',
-      created_at: '2026-09-27T11:10:00.000Z',
-      created_at_fmt: '27 Sep 2026',
-      generated_label: '27 Sep 2026',
-      user_name: 'Laurence Magondu'
-    },
-    {
-      id: 'rep-2026-004',
-      name: 'Preventive Maintenance SLA Compliance • 2026-09-01 to 2026-09-30',
-      report_title: 'Preventive Maintenance SLA Compliance',
-      category: 'Maintenance Compliance',
-      category_key: 'maintenance_compliance',
-      department: 'Engineering',
-      scope_mode: 'department',
-      start_date: '2026-09-01',
-      end_date: '2026-09-30',
-      period: '2026-09-01 → 2026-09-30',
-      format: 'XLSX',
-      status: 'READY',
-      created_at: '2026-09-26T09:30:00.000Z',
-      created_at_fmt: '26 Sep 2026',
-      generated_label: '26 Sep 2026',
-      user_name: 'Laurence Magondu'
-    },
-    {
-      id: 'rep-2026-005',
-      name: 'Engineering Spares Valuation & Reorder Audit • 2026-09-01 to 2026-09-30',
-      report_title: 'Engineering Spares Valuation & Reorder Audit',
-      category: 'Inventory & Spares',
-      category_key: 'inventory_spares',
-      department: 'Engineering',
-      scope_mode: 'department',
-      start_date: '2026-09-01',
-      end_date: '2026-09-30',
-      period: '2026-09-01 → 2026-09-30',
-      format: 'PDF',
-      status: 'READY',
-      created_at: '2026-09-25T15:00:00.000Z',
-      created_at_fmt: '25 Sep 2026',
-      generated_label: '25 Sep 2026',
-      user_name: 'Laurence Magondu'
-    }
-  ];
-  if (!store.initialized && (!store.REPORT_EXPORTS || store.REPORT_EXPORTS.length === 0)) {
-    const existingRepIds = new Set((store.REPORT_EXPORTS || []).map(r => r.id));
-    store.REPORT_EXPORTS = [...(store.REPORT_EXPORTS || []), ...defaultReports.filter(r => !existingRepIds.has(r.id))];
-  }
-
   store.initialized = true;
-
+  if (!store.ASSETS) store.ASSETS = [];
+  if (!store.BREAKDOWNS) store.BREAKDOWNS = [];
+  if (!store.MAINTENANCE_TASKS) store.MAINTENANCE_TASKS = [];
+  if (!store.INVENTORY_PARTS) store.INVENTORY_PARTS = [];
+  if (!store.REPORT_EXPORTS) store.REPORT_EXPORTS = [];
+  if (!store.TECHNICIAN_DIRECTORY) store.TECHNICIAN_DIRECTORY = [];
+  if (!store.AUDIT_TRAIL) store.AUDIT_TRAIL = [];
+  if (!store.SYSTEM_NOTIFICATIONS) store.SYSTEM_NOTIFICATIONS = [];
+  if (!store.INTERNAL_MESSAGES) store.INTERNAL_MESSAGES = [];
+  if (!store.DRAFT_MESSAGES) store.DRAFT_MESSAGES = [];
+  if (!store.OUTBOX_MESSAGES) store.OUTBOX_MESSAGES = [];
   if (!store.RECYCLE_BIN) store.RECYCLE_BIN = [];
-  if (!store.AI_CHATS || store.AI_CHATS.length === 0) {
-    store.AI_CHATS = [
-      {
-        id: 'chat-seed-001',
-        title: 'Plant Health & Seal Wear Audit',
-        updated_at: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
-        messages: [
-          {
-            role: 'user',
-            text: 'Run a full Plant Health & OEE Audit across all sections',
-            time: '09:15'
-          },
-          {
-            role: 'ai',
-            title: 'Plant Health & OEE Audit',
-            structured: {
-              summary: 'Fleet reliability stands at 83.3% operational readiness across 12 registered industrial assets, with 2 active corrective work orders in Pharma and Nutraceuticals.',
-              metrics: [
-                { label: 'Fleet Availability', value: '94.2%' },
-                { label: 'PM Compliance', value: '87.5%' },
-                { label: 'Mean Time To Repair', value: '1.8 hrs' }
-              ],
-              findings: [
-                'High-Speed Rotary Filler RFC-80 and Steam Boiler SB-02 are operating within nominal thermal and vibration envelopes.',
-                'Granulation Fluid Bed Dryer FBD-01 requires pneumatic actuator seal replacement to restore full batch cycle pressure.',
-                'Centrifugal Slurry Pump CP-04 exhibits mild impeller cavitation; scheduled bearing & seal kit overhaul is staged.'
-              ],
-              recommendations: [
-                'Prioritize closure of BD-2026-001 on Granulation Fluid Bed Dryer FBD-01 before afternoon shift handover.',
-                'Replenish Solid State Relay 40A (SKU-ELEC-SSR40) and Pneumatic Cylinder DNC-40 (SKU-PNEU-CYL40) to restore safety buffer stock.'
-              ]
-            },
-            time: '09:15'
-          }
-        ]
-      }
-    ];
-  }
+  if (!store.AI_CHATS) store.AI_CHATS = [];
 }
 
 const WORKSPACE_COLLECTION_KEYS = [
@@ -1391,263 +597,58 @@ const WORKSPACE_COLLECTION_KEYS = [
   'BREAKDOWNS',
   'MAINTENANCE_TASKS',
   'INVENTORY_PARTS',
+  'SPARE_PARTS',
+  'ASSET_DOCUMENTS',
   'REPORT_EXPORTS',
   'TECHNICIAN_DIRECTORY',
   'AUDIT_TRAIL',
   'RECYCLE_BIN',
   'AI_CHATS',
-  'ASSET_DOCUMENTS'
+  'SYSTEM_NOTIFICATIONS',
+  'INTERNAL_MESSAGES',
+  'DRAFT_MESSAGES',
+  'OUTBOX_MESSAGES'
 ];
 
-function buildOpsloomWorkspaceSeed(comp = {}) {
+function createEmptyWorkspaceBucket(comp = {}) {
   const code = (comp.code || 'OPS').toUpperCase();
-  const name = comp.name || 'Opsloom Kenya';
+  const name = comp.name || 'Workspace';
+  const nowIso = getSystemNowIso();
   return {
-    ASSETS: [
-      { uid: `${code.toLowerCase()}-ast-001`, asset_id: `${code}-AST-001`, asset_name: 'Automated Bottling & Capping Line B1', section: 'Packaging', department: 'Engineering', category: 'Packaging Machinery', model_no: 'Krones-BL400', serial_no: 'SN-OPS-88101', manufacturer: 'Krones AG', year_of_manufacture: 2023, installation_date: '2023-05-12', status: 'operational', criticality: 'A', power_rating: '32 kW', operating_pressure: '6.5 Bar', capacity: '18,000 BPH', last_service_date: '2026-09-14', next_service_date: '2026-10-14' },
-      { uid: `${code.toLowerCase()}-ast-002`, asset_id: `${code}-AST-002`, asset_name: 'Industrial Steam Boiler 4-Ton', section: 'Liquid', department: 'Engineering', category: 'Thermal Utilities', model_no: 'Bosch-UL-S4000', serial_no: 'SN-OPS-88102', manufacturer: 'Bosch Industrial', year_of_manufacture: 2022, installation_date: '2022-08-20', status: 'operational', criticality: 'A', power_rating: '45 kW', operating_pressure: '10.0 Bar', capacity: '4,000 kg/hr', last_service_date: '2026-09-02', next_service_date: '2026-10-02' },
-      { uid: `${code.toLowerCase()}-ast-003`, asset_id: `${code}-AST-003`, asset_name: 'High-Speed Shrink Tunnel Wrapper', section: 'Packaging', department: 'Engineering', category: 'Secondary Packaging', model_no: 'SMI-SK450', serial_no: 'SN-OPS-88103', manufacturer: 'SMI Pack', year_of_manufacture: 2023, installation_date: '2023-07-10', status: 'maintenance', criticality: 'B', power_rating: '22 kW', operating_pressure: '6.0 Bar', capacity: '45 packs/min', last_service_date: '2026-08-28', next_service_date: '2026-09-28' },
-      { uid: `${code.toLowerCase()}-ast-004`, asset_id: `${code}-AST-004`, asset_name: 'Rotary Screw Air Compressor 75kW', section: 'Pharma', department: 'Engineering', category: 'Pneumatic Utilities', model_no: 'GA-75VSD+', serial_no: 'SN-OPS-88104', manufacturer: 'Atlas Copco', year_of_manufacture: 2022, installation_date: '2022-04-15', status: 'operational', criticality: 'A', power_rating: '75 kW', operating_pressure: '8.5 Bar', capacity: '14.2 m³/min', last_service_date: '2026-09-10', next_service_date: '2026-10-10' },
-      { uid: `${code.toLowerCase()}-ast-005`, asset_id: `${code}-AST-005`, asset_name: 'Reverse Osmosis Water Purification Skid', section: 'Liquid', department: 'Engineering', category: 'Water Treatment', model_no: 'Veolia-RO-5000', serial_no: 'SN-OPS-88105', manufacturer: 'Veolia Water Tech', year_of_manufacture: 2024, installation_date: '2024-01-18', status: 'operational', criticality: 'A', power_rating: '18.5 kW', operating_pressure: '12.0 Bar', capacity: '5,000 L/hr', last_service_date: '2026-09-18', next_service_date: '2026-10-18' },
-      { uid: `${code.toLowerCase()}-ast-006`, asset_id: `${code}-AST-006`, asset_name: 'Robotic Pallet Stretch Wrapper', section: 'Packaging', department: 'Engineering', category: 'End-of-Line Automation', model_no: 'Robopac-Helix-3', serial_no: 'SN-OPS-88106', manufacturer: 'Robopac', year_of_manufacture: 2023, installation_date: '2023-11-05', status: 'operational', criticality: 'B', power_rating: '7.5 kW', operating_pressure: '5.5 Bar', capacity: '65 pallets/hr', last_service_date: '2026-09-12', next_service_date: '2026-10-12' },
-      { uid: `${code.toLowerCase()}-ast-007`, asset_id: `${code}-AST-007`, asset_name: 'Precision Powder Auger Filler PF-02', section: 'Powder', department: 'Engineering', category: 'Powder Dosing', model_no: 'AllFill-SHA-200', serial_no: 'SN-OPS-88107', manufacturer: 'All-Fill Inc.', year_of_manufacture: 2022, installation_date: '2022-09-22', status: 'operational', criticality: 'A', power_rating: '11 kW', operating_pressure: '6.0 Bar', capacity: '90 containers/min', last_service_date: '2026-09-08', next_service_date: '2026-10-08' },
-      { uid: `${code.toLowerCase()}-ast-008`, asset_id: `${code}-AST-008`, asset_name: 'Continuous Inkjet Batch Laser Coder', section: 'Packaging', department: 'Engineering', category: 'Coding & Marking', model_no: 'Videojet-1880', serial_no: 'SN-OPS-88108', manufacturer: 'Videojet', year_of_manufacture: 2024, installation_date: '2024-03-01', status: 'operational', criticality: 'B', power_rating: '1.2 kW', operating_pressure: '4.0 Bar', capacity: '300 m/min', last_service_date: '2026-09-20', next_service_date: '2026-10-20' }
-    ],
-    BREAKDOWNS: [
-      {
-        breakdown_id: `${code}-BD-2026-001`,
-        incident_title: 'Shrink Tunnel Heating Bank Contactor Trip',
-        asset_uid: `${code.toLowerCase()}-ast-003`,
-        asset_id: `${code}-AST-003`,
-        asset_name: 'High-Speed Shrink Tunnel Wrapper',
-        section: 'Packaging',
-        department: 'Engineering',
-        severity: 'Medium',
-        status: 'in_progress',
-        failure_category: 'Electrical',
-        reported_by: 'Laurence Magondu',
-        technician_name: 'Kelvin Mwangi',
-        reported_date: '2026-09-28',
-        reported_time: '10:15',
-        reported_dt: '2026-09-28 10:15',
-        downtime_hours: 2.2,
-        cost_subtotal: 18000,
-        cost_vat_pct: 16,
-        cost_vat_amount: 2880,
-        cost_total: 20880,
-        cost: 20880,
-        description: `Thermal overload relay tripped on Zone 2 heater bank inside ${name} packaging bay.`,
-        corrective_action: 'Replacing 40A solid state contactor and verifying thermocouple calibration.'
-      },
-      {
-        breakdown_id: `${code}-BD-2026-002`,
-        incident_title: 'Capping Head Torque Clutch Slip',
-        asset_uid: `${code.toLowerCase()}-ast-001`,
-        asset_id: `${code}-AST-001`,
-        asset_name: 'Automated Bottling & Capping Line B1',
-        section: 'Packaging',
-        department: 'Engineering',
-        severity: 'Low',
-        status: 'resolved',
-        failure_category: 'Mechanical',
-        reported_by: 'Grace Wanjiku',
-        technician_name: 'Brian Ochieng',
-        reported_date: '2026-09-22',
-        reported_time: '14:20',
-        reported_dt: '2026-09-22 14:20',
-        resolved_at: '2026-09-22T15:50:00Z',
-        downtime_hours: 1.5,
-        cost_subtotal: 12500,
-        cost_vat_pct: 16,
-        cost_vat_amount: 2000,
-        cost_total: 14500,
-        cost: 14500,
-        description: 'Magnetic capping head #3 exhibited inconsistent closure torque during 500ml bottle run.',
-        corrective_action: 'Recalibrated magnetic clutch ring and replaced worn drive collet.'
-      }
-    ],
-    MAINTENANCE_TASKS: [
-      {
-        task_id: `${code}-TASK-2026-101`,
-        task_title: 'Monthly Capping Turret & Starwheel Alignment',
-        task_description: 'Inspect starwheel pockets, lubricate cam followers, and verify cap torque across all 8 heads.',
-        asset_uid: `${code.toLowerCase()}-ast-001`,
-        asset_id: `${code}-AST-001`,
-        asset_name: 'Automated Bottling & Capping Line B1',
-        section: 'Packaging',
-        department: 'Engineering',
-        maintenance_type: 'PM',
-        frequency: 'Monthly',
-        due_date: '2026-10-05',
-        scheduled_date: '2026-10-05',
-        status: 'upcoming',
-        priority: 'high',
-        technician: 'Kelvin Mwangi',
-        cost_subtotal: 15000,
-        cost_vat_pct: 16,
-        cost_vat_amount: 2400,
-        cost_total: 17400,
-        cost: 17400
-      },
-      {
-        task_id: `${code}-TASK-2026-102`,
-        task_title: 'Steam Boiler Safety Valve & Blowdown Test',
-        task_description: 'Verify boiler water TDS, test dual safety relief valves, and inspect burner flame eye sensor.',
-        asset_uid: `${code.toLowerCase()}-ast-002`,
-        asset_id: `${code}-AST-002`,
-        asset_name: 'Industrial Steam Boiler 4-Ton',
-        section: 'Liquid',
-        department: 'Engineering',
-        maintenance_type: 'PM',
-        frequency: 'Monthly',
-        due_date: '2026-09-25',
-        scheduled_date: '2026-09-25',
-        completed_at: '2026-09-25 16:00',
-        status: 'completed',
-        priority: 'high',
-        technician: 'Brian Ochieng',
-        cost_subtotal: 22000,
-        cost_vat_pct: 16,
-        cost_vat_amount: 3520,
-        cost_total: 25520,
-        cost: 25520
-      },
-      {
-        task_id: `${code}-TASK-2026-103`,
-        task_title: 'RO Membrane CIP & High-Pressure Pump Seal Check',
-        task_description: 'Perform clean-in-place sanitization on RO stages 1 & 2 and inspect cartridge pre-filters.',
-        asset_uid: `${code.toLowerCase()}-ast-005`,
-        asset_id: `${code}-AST-005`,
-        asset_name: 'Reverse Osmosis Water Purification Skid',
-        section: 'Liquid',
-        department: 'Engineering',
-        maintenance_type: 'PM',
-        frequency: 'Quarterly',
-        due_date: '2026-09-18',
-        scheduled_date: '2026-09-18',
-        completed_at: '2026-09-18 14:30',
-        status: 'completed',
-        priority: 'medium',
-        technician: 'Kelvin Mwangi',
-        cost_subtotal: 19500,
-        cost_vat_pct: 16,
-        cost_vat_amount: 3120,
-        cost_total: 22620,
-        cost: 22620
-      },
-      {
-        task_id: `${code}-TASK-2026-104`,
-        task_title: 'Air Compressor Oil Separator & Intake Filter Service',
-        task_description: 'Replace air intake element, check VSD inverter heatsink fans, and sample synthetic rotary oil.',
-        asset_uid: `${code.toLowerCase()}-ast-004`,
-        asset_id: `${code}-AST-004`,
-        asset_name: 'Rotary Screw Air Compressor 75kW',
-        section: 'Pharma',
-        department: 'Engineering',
-        maintenance_type: 'PM',
-        frequency: 'Quarterly',
-        due_date: '2026-10-10',
-        scheduled_date: '2026-10-10',
-        status: 'upcoming',
-        priority: 'medium',
-        technician: 'Brian Ochieng',
-        cost_subtotal: 28000,
-        cost_vat_pct: 16,
-        cost_vat_amount: 4480,
-        cost_total: 32480,
-        cost: 32480
-      }
-    ],
-    INVENTORY_PARTS: [
-      { uid: `${code.toLowerCase()}-part-001`, sku: `${code}-SKU-CAP-01`, part_name: 'Magnetic Capping Clutch Head Assembly', category: 'Mechanical', qty: 6, min_qty: 2, unit_price: 24500, storage_location: 'Rack OPS-A1', supplier: 'Krones East Africa', is_critical: true, lead_time_days: 7 },
-      { uid: `${code.toLowerCase()}-part-002`, sku: `${code}-SKU-HTR-40`, part_name: 'Shrink Tunnel Quartz Fin Heater 2.5kW', category: 'Electrical', qty: 8, min_qty: 4, unit_price: 8500, storage_location: 'Rack OPS-B2', supplier: 'Schneider Electric Kenya', is_critical: true, lead_time_days: 5 },
-      { uid: `${code.toLowerCase()}-part-003`, sku: `${code}-SKU-RO-4040`, part_name: 'Brackish Water RO Membrane 4040', category: 'Filtration & Process', qty: 4, min_qty: 2, unit_price: 38000, storage_location: 'Rack OPS-C1', supplier: 'Davis & Shirtliff Industrial', is_critical: true, lead_time_days: 10 },
-      { uid: `${code.toLowerCase()}-part-004`, sku: `${code}-SKU-CMP-SEP`, part_name: 'Atlas Copco GA75 Air-Oil Separator Kit', category: 'Pneumatics', qty: 3, min_qty: 2, unit_price: 42000, storage_location: 'Rack OPS-A3', supplier: 'Atlas Copco Eastern Africa', is_critical: true, lead_time_days: 7 },
-      { uid: `${code.toLowerCase()}-part-005`, sku: `${code}-SKU-SNS-opt`, part_name: 'SICK Retro-Reflective Photoelectric Sensor', category: 'Automation & PLC', qty: 2, min_qty: 3, unit_price: 11200, storage_location: 'Rack OPS-D1', supplier: 'Automation Supplies Ltd', is_critical: false, lead_time_days: 4 }
-    ],
-    REPORT_EXPORTS: [
-      {
-        id: `${code.toLowerCase()}-rep-001`,
-        name: `${code} Q3 2026 Strategic & Financial ROI Executive Brief`,
-        report_title: `${name} (${code}) Strategic & Financial ROI Intelligence`,
-        category: 'Strategic & Financial ROI',
-        category_key: 'strategic_roi',
-        department: 'Engineering',
-        scope_mode: 'department',
-        scope_target: 'Engineering',
-        start_date: '2026-09-01',
-        end_date: '2026-09-30',
-        period: '01 Sep 2026 → 30 Sep 2026',
-        format: 'PDF',
-        status: 'READY',
-        created_at: '2026-09-30T08:30:00Z',
-        created_at_fmt: '30 Sep 2026',
-        generated_label: '30 Sep 2026',
-        user_name: 'Laurence Magondu'
-      },
-      {
-        id: `${code.toLowerCase()}-rep-002`,
-        name: `${code} Packaging & Utilities Breakdown Analytics`,
-        report_title: `${name} (${code}) Breakdown & Root Cause Analytics`,
-        category: 'Breakdown Analytics',
-        category_key: 'breakdown_analytics',
-        department: 'Engineering',
-        scope_mode: 'department',
-        scope_target: 'Engineering',
-        start_date: '2026-09-01',
-        end_date: '2026-09-30',
-        period: '01 Sep 2026 → 30 Sep 2026',
-        format: 'PPTX',
-        status: 'READY',
-        created_at: '2026-09-29T14:15:00Z',
-        created_at_fmt: '29 Sep 2026',
-        generated_label: '29 Sep 2026',
-        user_name: 'Laurence Magondu'
-      },
-      {
-        id: `${code.toLowerCase()}-rep-003`,
-        name: `${code} Fleet Availability & OEE Reliability Report`,
-        report_title: `${name} (${code}) Asset Fleet Reliability Report`,
-        category: 'Asset Reliability',
-        category_key: 'asset_reliability',
-        department: 'Engineering',
-        scope_mode: 'department',
-        scope_target: 'Engineering',
-        start_date: '2026-09-01',
-        end_date: '2026-09-30',
-        period: '01 Sep 2026 → 30 Sep 2026',
-        format: 'PDF',
-        status: 'READY',
-        created_at: '2026-09-28T11:00:00Z',
-        created_at_fmt: '28 Sep 2026',
-        generated_label: '28 Sep 2026',
-        user_name: 'Laurence Magondu'
-      }
-    ],
-    TECHNICIAN_DIRECTORY: [
-      { id: `${code.toLowerCase()}-tech-001`, name: 'Kelvin Mwangi', role: 'Lead Packaging & Automation Engineer', discipline: 'Automation & PLC', section: 'Packaging', email: 'kelvin.mwangi@opsloom.co.ke', phone: '+254 722 410 890', shift: 'Day Shift (07:00 - 16:00)', active: true, certifications: 'Siemens TIA Portal, Krones Bottling Systems' },
-      { id: `${code.toLowerCase()}-tech-002`, name: 'Brian Ochieng', role: 'Utilities & Mechanical Reliability Technician', discipline: 'Mechanical & Utilities', section: 'Liquid', email: 'brian.ochieng@opsloom.co.ke', phone: '+254 733 512 304', shift: 'Day Shift (07:00 - 16:00)', active: true, certifications: 'Bosch Steam Boilers, Atlas Copco Pneumatics' },
-      { id: `${code.toLowerCase()}-tech-003`, name: 'Sylvia Chebet', role: 'Electrical & Instrumentation Specialist', discipline: 'Electrical', section: 'Pharma', email: 'sylvia.chebet@opsloom.co.ke', phone: '+254 711 890 221', shift: 'Rotating Shift', active: true, certifications: 'EPRA Class B1, VFD & Servo Drives' }
-    ],
+    ASSETS: [],
+    BREAKDOWNS: [],
+    MAINTENANCE_TASKS: [],
+    INVENTORY_PARTS: [],
+    SPARE_PARTS: [],
+    ASSET_DOCUMENTS: [],
+    REPORT_EXPORTS: [],
+    TECHNICIAN_DIRECTORY: [],
     AUDIT_TRAIL: [
       {
-        id: `${code.toLowerCase()}-aud-001`,
+        id: `${code.toLowerCase()}-aud-` + Date.now(),
         action: 'Workspace Initialized',
         detail: `Dedicated organization workspace initialized for ${name} (${code}).`,
-        module: 'settings',
-        href: '/dashboard',
+        module: 'companies',
+        href: '/settings/companies',
         severity: 'info',
         user_name: 'Laurence Magondu',
         user_email: 'opsloom.ke@gmail.com',
         user_role: 'Administrator',
-        created_at: '2026-09-30T08:00:00Z',
-        time_display: '30/09/2026, 08:00:00'
+        created_at: nowIso,
+        time_display: formatSystemTimestamp(nowIso)
       }
     ],
     RECYCLE_BIN: [],
     AI_CHATS: [],
-    ASSET_DOCUMENTS: []
+    SYSTEM_NOTIFICATIONS: [],
+    INTERNAL_MESSAGES: [],
+    DRAFT_MESSAGES: [],
+    OUTBOX_MESSAGES: []
   };
+}
+
+function buildOpsloomWorkspaceSeed(comp = {}) {
+  return createEmptyWorkspaceBucket(comp);
 }
 
 function ensureWorkspaceBuckets() {
@@ -1655,37 +656,19 @@ function ensureWorkspaceBuckets() {
     store.WORKSPACE_DATA = {};
   }
   const companies = Array.isArray(store.COMPANIES) ? store.COMPANIES : [];
-  const hasExplicitUeal = companies.some(
-    c => c && ((c.code || '').toUpperCase() === 'UEAL' || String(c.name || '').toLowerCase().includes('ultravetis'))
-  );
-  companies.forEach((comp, idx) => {
+  // Clean up any stale workspace buckets for companies that were deleted
+  const validCompanyIds = new Set(companies.map(c => c && c.id).filter(Boolean));
+  Object.keys(store.WORKSPACE_DATA).forEach(bucketId => {
+    if (!validCompanyIds.has(bucketId)) {
+      delete store.WORKSPACE_DATA[bucketId];
+    }
+  });
+
+  companies.forEach(comp => {
     if (!comp || !comp.id) return;
-    const isPrimaryUeal = ((comp.code || '').toUpperCase() === 'UEAL' || String(comp.name || '').toLowerCase().includes('ultravetis'))
-      || (!hasExplicitUeal && idx === 0);
-
-    const existingBucket = store.WORKSPACE_DATA[comp.id];
-
-    if (!existingBucket || typeof existingBucket !== 'object') {
-      if (isPrimaryUeal) {
-        // Bind primary Ultravetis plant dataset to Ultravetis workspace
-        store.WORKSPACE_DATA[comp.id] = {
-          ASSETS: Array.isArray(store.ASSETS) ? JSON.parse(JSON.stringify(store.ASSETS)) : [],
-          BREAKDOWNS: Array.isArray(store.BREAKDOWNS) ? JSON.parse(JSON.stringify(store.BREAKDOWNS)) : [],
-          MAINTENANCE_TASKS: Array.isArray(store.MAINTENANCE_TASKS) ? JSON.parse(JSON.stringify(store.MAINTENANCE_TASKS)) : [],
-          INVENTORY_PARTS: Array.isArray(store.INVENTORY_PARTS) ? JSON.parse(JSON.stringify(store.INVENTORY_PARTS)) : [],
-          REPORT_EXPORTS: Array.isArray(store.REPORT_EXPORTS) ? JSON.parse(JSON.stringify(store.REPORT_EXPORTS)) : [],
-          TECHNICIAN_DIRECTORY: Array.isArray(store.TECHNICIAN_DIRECTORY) ? JSON.parse(JSON.stringify(store.TECHNICIAN_DIRECTORY)) : [],
-          AUDIT_TRAIL: Array.isArray(store.AUDIT_TRAIL) ? JSON.parse(JSON.stringify(store.AUDIT_TRAIL)) : [],
-          RECYCLE_BIN: Array.isArray(store.RECYCLE_BIN) ? JSON.parse(JSON.stringify(store.RECYCLE_BIN)) : [],
-          AI_CHATS: Array.isArray(store.AI_CHATS) ? JSON.parse(JSON.stringify(store.AI_CHATS)) : [],
-          ASSET_DOCUMENTS: Array.isArray(store.ASSET_DOCUMENTS) ? JSON.parse(JSON.stringify(store.ASSET_DOCUMENTS)) : []
-        };
-      } else {
-        // Seed dedicated independent organization dataset for Opsloom Kenya or any other company workspace
-        store.WORKSPACE_DATA[comp.id] = buildOpsloomWorkspaceSeed(comp);
-      }
+    if (!store.WORKSPACE_DATA[comp.id] || typeof store.WORKSPACE_DATA[comp.id] !== 'object') {
+      store.WORKSPACE_DATA[comp.id] = createEmptyWorkspaceBucket(comp);
     } else {
-      // Ensure all collection arrays exist inside the bucket without overwriting any user edits or deletions
       const bucket = store.WORKSPACE_DATA[comp.id];
       WORKSPACE_COLLECTION_KEYS.forEach(k => {
         if (!Array.isArray(bucket[k])) {
@@ -1714,7 +697,7 @@ function activateWorkspaceBucket(companyId) {
   const comp = (store.COMPANIES || []).find(c => c.id === targetId) || (store.COMPANIES && store.COMPANIES[0]);
   const effectiveId = comp ? comp.id : targetId;
   if (!store.WORKSPACE_DATA[effectiveId]) {
-    store.WORKSPACE_DATA[effectiveId] = buildOpsloomWorkspaceSeed(comp || { id: effectiveId, name: 'Workspace', code: 'WKS' });
+    store.WORKSPACE_DATA[effectiveId] = createEmptyWorkspaceBucket(comp || { id: effectiveId, name: 'Workspace', code: 'WKS' });
   }
   const bucket = store.WORKSPACE_DATA[effectiveId];
   WORKSPACE_COLLECTION_KEYS.forEach(k => {
@@ -1722,6 +705,7 @@ function activateWorkspaceBucket(companyId) {
     store[k] = bucket[k];
   });
   store._BOUND_COMPANY_ID = effectiveId;
+  store.ACTIVE_COMPANY_ID = effectiveId;
   return bucket;
 }
 
@@ -2016,43 +1000,160 @@ function calculateDowntimeHours(b) {
   return 2.5;
 }
 
-function logAudit(action, detail, module = 'general', href = '/dashboard', severity = 'info') {
+function logAudit(action, detail, module = 'general', href = '/dashboard', severity = 'info', actorOrReq = null) {
   const nowIso = getSystemNowIso();
+  let userName = 'System Administrator';
+  let userEmail = 'opsloom.ke@gmail.com';
+  let userRole = 'Administrator';
+  let userDept = 'Engineering';
+
+  if (actorOrReq) {
+    if (actorOrReq.cookies || actorOrReq.headers) {
+      const actor = getCurrentActor(actorOrReq);
+      if (actor) {
+        userName = actor.name || userName;
+        userEmail = actor.email || userEmail;
+        userRole = actor.role || userRole;
+        userDept = actor.department || userDept;
+      }
+    } else {
+      userName = actorOrReq.name || userName;
+      userEmail = actorOrReq.email || userEmail;
+      userRole = actorOrReq.role || userRole;
+      userDept = actorOrReq.department || userDept;
+    }
+  } else if (store._CURRENT_ACTOR) {
+    userName = store._CURRENT_ACTOR.name || userName;
+    userEmail = store._CURRENT_ACTOR.email || userEmail;
+    userRole = store._CURRENT_ACTOR.role || userRole;
+    userDept = store._CURRENT_ACTOR.department || userDept;
+  }
+
+  const activeCompId = store._BOUND_COMPANY_ID || store.ACTIVE_COMPANY_ID || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
+
   const item = {
-    id: crypto.randomUUID().replace(/-/g, ''),
+    id: 'aud-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
     action,
     detail,
     module,
     severity,
     href,
+    workspace_id: activeCompId,
     created_at: nowIso,
     time_display: formatSystemTimestamp(nowIso, true),
-    user_name: 'Laurence Magondu',
-    user_email: 'opsloom.ke@gmail.com',
-    department: 'Engineering'
+    user_name: userName,
+    user_email: userEmail,
+    user_role: userRole,
+    department: userDept
   };
-  if (!store.AUDIT_TRAIL) store.AUDIT_TRAIL = [];
+
+  if (!Array.isArray(store.AUDIT_TRAIL)) store.AUDIT_TRAIL = [];
   store.AUDIT_TRAIL.unshift(item);
-  if (store.AUDIT_TRAIL.length > 200) store.AUDIT_TRAIL.pop();
+  if (store.AUDIT_TRAIL.length > 500) store.AUDIT_TRAIL.pop();
+
+  if (store.WORKSPACE_DATA && store.WORKSPACE_DATA[activeCompId]) {
+    if (!Array.isArray(store.WORKSPACE_DATA[activeCompId].AUDIT_TRAIL)) {
+      store.WORKSPACE_DATA[activeCompId].AUDIT_TRAIL = [];
+    }
+    if (!store.WORKSPACE_DATA[activeCompId].AUDIT_TRAIL.some(a => a.id === item.id)) {
+      store.WORKSPACE_DATA[activeCompId].AUDIT_TRAIL.unshift(item);
+    }
+    if (store.WORKSPACE_DATA[activeCompId].AUDIT_TRAIL.length > 500) {
+      store.WORKSPACE_DATA[activeCompId].AUDIT_TRAIL.pop();
+    }
+  }
   saveStore();
 }
 
-function pushNotification(title, message, kind = 'info', href = '/dashboard', should_toast = false) {
+function createSystemNotification(options = {}) {
+  const {
+    title,
+    message,
+    kind = 'info',
+    href = '/dashboard',
+    recipient_email = null,
+    should_toast = false,
+    company_id = null
+  } = options;
+  const targetCompId = company_id || store._BOUND_COMPANY_ID || store.ACTIVE_COMPANY_ID || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
   const nowIso = getSystemNowIso();
   const notif = {
-    id: 'notif-' + Date.now(),
+    id: 'notif-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+    workspace_id: targetCompId,
     title,
     message,
     kind,
     created_at: nowIso,
     created_display: formatSystemTimestamp(nowIso),
     is_read: false,
+    recipient_email: recipient_email ? String(recipient_email).toLowerCase().trim() : null,
     href,
-    should_toast
+    should_toast: Boolean(should_toast)
   };
-  if (!store.SYSTEM_NOTIFICATIONS) store.SYSTEM_NOTIFICATIONS = [];
+  if (!Array.isArray(store.SYSTEM_NOTIFICATIONS)) store.SYSTEM_NOTIFICATIONS = [];
   store.SYSTEM_NOTIFICATIONS.unshift(notif);
+  if (store.WORKSPACE_DATA && store.WORKSPACE_DATA[targetCompId]) {
+    if (!Array.isArray(store.WORKSPACE_DATA[targetCompId].SYSTEM_NOTIFICATIONS)) {
+      store.WORKSPACE_DATA[targetCompId].SYSTEM_NOTIFICATIONS = [];
+    }
+    if (!store.WORKSPACE_DATA[targetCompId].SYSTEM_NOTIFICATIONS.some(n => n.id === notif.id)) {
+      store.WORKSPACE_DATA[targetCompId].SYSTEM_NOTIFICATIONS.unshift(notif);
+    }
+  }
   saveStore();
+  return notif;
+}
+
+function pushNotification(title, message, kind = 'info', href = '/dashboard', should_toast = false, recipient_email = null) {
+  return createSystemNotification({ title, message, kind, href, should_toast, recipient_email });
+}
+
+async function sendEmailDelivery({ to, cc, subject, text, html, attachments = [] }) {
+  const sys = store.SYSTEM_SETTINGS || {};
+  const host = sys.smtp_host || process.env.SMTP_HOST || '';
+  const port = parseInt(sys.smtp_port || process.env.SMTP_PORT || '587', 10);
+  const user = sys.smtp_user || process.env.SMTP_USER || '';
+  const pass = sys.smtp_pass || process.env.SMTP_PASS || '';
+  const from = sys.smtp_from || process.env.SMTP_FROM || sys.company_contact_email || 'noreply@opsloom.co.ke';
+
+  if (!host || !user) {
+    return {
+      ok: false,
+      error: 'SMTP email server is not configured in System Settings (requires SMTP Host and User).'
+    };
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: {
+        user,
+        pass
+      },
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
+
+    const mailOptions = {
+      from,
+      to: Array.isArray(to) ? to.join(', ') : to,
+      cc: Array.isArray(cc) ? cc.join(', ') : cc,
+      subject,
+      text: text || '',
+      html: html || undefined,
+      attachments
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    logAudit('Email Sent', 'Dispatched email "' + subject + '" to ' + mailOptions.to, 'system', '/settings/admin', 'success');
+    return { ok: true, messageId: info.messageId, response: info.response };
+  } catch (err) {
+    logAudit('Email Failed', 'Failed sending email "' + subject + '": ' + err.message, 'system', '/settings/admin', 'warning');
+    return { ok: false, error: err.message };
+  }
 }
 
 function moveToRecycleBin(entity_type, entity_label, primary_id, record, deleted_by = 'Laurence Magondu', extra = {}) {
@@ -3424,11 +2525,11 @@ function computeSystemHealthStatus() {
     const parts = (store.INVENTORY_PARTS || []).filter(p => p && typeof p === 'object');
     const targets = getCompanyKpiTargets();
 
-    const totalAssets = assets.length || 1;
+    const totalAssets = assets.length;
     const operationalAssets = assets.filter(a => a.status === 'operational').length;
     const maintenanceAssets = assets.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
     const oosAssets = assets.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
-    const uptimeRate = Math.round((operationalAssets / totalAssets) * 1000) / 10;
+    const uptimeRate = totalAssets > 0 ? Math.round((operationalAssets / totalAssets) * 1000) / 10 : 100.0;
     const uptimeTarget = (!isNaN(Number(targets.uptime_target_pct)) && isFinite(Number(targets.uptime_target_pct))) ? Number(targets.uptime_target_pct) : 85.0;
 
     const activeBds = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved');
@@ -3436,7 +2537,7 @@ function computeSystemHealthStatus() {
     const overduePm = tasks.filter(t => t.status === 'overdue').length;
     const completedTasks = tasks.filter(t => t.status === 'completed').length;
     const upcomingTasks = tasks.filter(t => t.status === 'upcoming').length;
-    const pmCompliance = tasks.length ? Math.round(((completedTasks + upcomingTasks) / tasks.length) * 1000) / 10 : 92.0;
+    const pmCompliance = tasks.length ? Math.round(((completedTasks + upcomingTasks) / tasks.length) * 1000) / 10 : 100.0;
 
     const outOfStockCount = parts.filter(p => Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) <= 0).length;
 
@@ -3658,18 +2759,22 @@ function resolveUserCapabilities(actor) {
 }
 
 function resolvePathModule(p) {
-  if (p === '/dashboard' || p.startsWith('/dashboard/')) return 'dashboard';
-  if (p === '/assets' || p.startsWith('/assets/')) return 'assets';
-  if (p === '/breakdowns' || p.startsWith('/breakdowns/')) return 'breakdowns';
-  if (p === '/maintenance' || p.startsWith('/maintenance/')) return 'maintenance';
-  if (p === '/inventory' || p.startsWith('/inventory/')) return 'inventory';
-  if (p === '/reports' || p.startsWith('/reports/')) return 'reports';
-  if (p.startsWith('/settings/companies') || p === '/companies' || p.startsWith('/admin/companies')) return 'companies';
-  if (p.startsWith('/settings/admin-users')) return 'users_manage';
-  if (p.startsWith('/settings/technicians')) return 'technicians_manage';
-  if (p.startsWith('/settings/recycle-bin')) return 'recycle_bin';
-  if (p.startsWith('/settings/kpi-targets') || p.startsWith('/api/kpi-targets') || p.startsWith('/settings/admin/kpi-targets')) return 'kpi_targets_manage';
-  if (p === '/settings' || p === '/settings/admin' || p.startsWith('/settings/admin/')) return 'settings_manage';
+  if (!p) return null;
+  const clean = p.toLowerCase();
+  if (clean === '/dashboard' || clean.startsWith('/dashboard/')) return 'dashboard';
+  if (clean === '/assets' || clean.startsWith('/assets/') || clean.startsWith('/api/assets')) return 'assets';
+  if (clean === '/breakdowns' || clean.startsWith('/breakdowns/') || clean.startsWith('/api/breakdowns')) return 'breakdowns';
+  if (clean === '/maintenance' || clean.startsWith('/maintenance/') || clean.startsWith('/api/maintenance')) return 'maintenance';
+  if (clean === '/inventory' || clean.startsWith('/inventory/') || clean.startsWith('/api/inventory')) return 'inventory';
+  if (clean === '/reports' || clean.startsWith('/reports/') || clean.startsWith('/api/reports')) return 'reports';
+  if (clean.startsWith('/settings/companies') || clean === '/companies' || clean.startsWith('/admin/companies') || clean.startsWith('/api/companies')) return 'companies';
+  if (clean.startsWith('/settings/admin-users') || clean.startsWith('/settings/roles') || clean.startsWith('/api/roles') || clean.startsWith('/api/users') || clean.startsWith('/api/admin-users')) return 'users_manage';
+  if (clean.startsWith('/settings/technicians') || clean.startsWith('/api/technicians')) return 'technicians_manage';
+  if (clean.startsWith('/settings/recycle-bin') || clean.startsWith('/api/recycle-bin')) return 'recycle_bin';
+  if (clean.startsWith('/settings/notifications') || clean.startsWith('/notifications') || clean.startsWith('/api/notifications')) return 'notifications_manage';
+  if (clean.startsWith('/settings/messages') || clean.startsWith('/messages') || clean.startsWith('/api/messages')) return 'messages';
+  if (clean.startsWith('/settings/kpi-targets') || clean.startsWith('/api/kpi-targets') || clean.startsWith('/settings/admin/kpi-targets')) return 'kpi_targets_manage';
+  if (clean === '/settings' || clean === '/settings/admin' || clean.startsWith('/settings/admin/')) return 'settings_manage';
   return null;
 }
 
@@ -3708,14 +2813,15 @@ app.use((req, res, next) => {
       return res.status(401).json({ error: 'Authentication required', redirect: '/login' });
     }
     const nextUrl = req.originalUrl && req.originalUrl !== '/' && !req.originalUrl.startsWith('/login')
-      ? `?next=${encodeURIComponent(req.originalUrl)}`
+      ? '?next=' + encodeURIComponent(req.originalUrl)
       : '';
-    return res.redirect(303, `/login${nextUrl}`);
+    return res.redirect(303, '/login' + nextUrl);
   }
 
   // Verify user account still exists and is active
-  const matchedUser = (store.ADMIN_USERS || []).find(u => u.id === uid || (u.email && u.email.toLowerCase() === String(uid).toLowerCase()))
+  const matchedUser = (store.ADMIN_USERS || []).find(u => u && (u.id === uid || (u.email && u.email.toLowerCase() === String(uid).toLowerCase())))
     || (isCompanyBrandSaveApi ? ((store.ADMIN_USERS || [])[0] || { id: 'USR-001', role: 'Administrator', active: true, permissions: ['all'], edit_permissions: ['all'], delete_permissions: ['all'] }) : null);
+
   if (!matchedUser || matchedUser.active === false) {
     res.clearCookie('opsloom_user', { path: '/' });
     res.clearCookie('opsloom_role', { path: '/' });
@@ -3732,38 +2838,74 @@ app.use((req, res, next) => {
     if (p.startsWith('/api/')) {
       return res.status(401).json({ error: 'Session timed out due to inactivity', redirect: '/login?timeout=1' });
     }
-    flash('error', `Your session timed out after ${timeoutMins} minute(s) of inactivity for security. Please sign in again.`);
-    const nextUrl = req.originalUrl && req.originalUrl !== '/' ? `&next=${encodeURIComponent(req.originalUrl)}` : '';
-    return res.redirect(`/login?timeout=1${nextUrl}`);
+    flash('error', 'Your session timed out after ' + timeoutMins + ' minute(s) of inactivity for security. Please sign in again.');
+    const nextUrl = req.originalUrl && req.originalUrl !== '/' ? '&next=' + encodeURIComponent(req.originalUrl) : '';
+    return res.redirect('/login?timeout=1' + nextUrl);
   }
+
+  // Strictly enforce workspace isolation per request
+  const isAdminUser = (matchedUser.role || '').toLowerCase() === 'administrator' || (Array.isArray(matchedUser.permissions) && (matchedUser.permissions.includes('all') || matchedUser.permissions.includes('companies')));
+  
+  let targetWsId = req.query?.company_id || req.cookies?.opsloom_ws_id;
+  if (!isAdminUser) {
+    // Non-admin user is STRICTLY locked to their assigned company
+    targetWsId = matchedUser.company_id || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
+  } else {
+    if (!targetWsId || !store.COMPANIES.some(c => c && c.id === targetWsId)) {
+      targetWsId = matchedUser.company_id || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
+    }
+  }
+
+  const activeComp = (store.COMPANIES || []).find(c => c && c.id === targetWsId) || (store.COMPANIES && store.COMPANIES[0]);
+  if (activeComp) {
+    activateWorkspaceBucket(activeComp.id);
+    setSafeCookie(req, res, 'opsloom_ws_id', activeComp.id);
+    req.activeCompany = activeComp;
+    req.workspaceId = activeComp.id;
+  }
+  store._CURRENT_ACTOR = matchedUser;
 
   // Enforce Role-Based Module Access & Edit/Delete Restrictions
   const targetMod = resolvePathModule(p);
+  const isJsonReq = p.startsWith('/api/') || (req.headers.accept && req.headers.accept.includes('application/json'));
+
   if (targetMod) {
     const caps = resolveUserCapabilities(matchedUser);
     const hasAll = caps.view.includes('all');
     const canView = hasAll || caps.view.includes(targetMod) || (targetMod === 'settings_manage' && caps.view.includes('settings'));
+
     if (!canView && targetMod !== 'dashboard') {
       const modTitle = MODULE_LABELS[targetMod] || targetMod.replace('_', ' ');
-      flash('error', `Access Restricted: Your role (${matchedUser.role}) does not have permission to access ${modTitle}.`);
+      if (isJsonReq) {
+        return res.status(403).json({ ok: false, error: 'Access Denied: Your role (' + matchedUser.role + ') does not have permission to access ' + modTitle + '.' });
+      }
+      flash('error', 'Access Restricted: Your role (' + matchedUser.role + ') does not have permission to access ' + modTitle + '.');
       return res.redirect('/dashboard');
     }
 
-    if (req.method === 'POST' && !p.startsWith('/api/session')) {
-      const isDeleteAction = p.includes('/delete') || p.includes('/purge') || p.includes('/empty');
-      const isWriteAction = isDeleteAction || p.includes('/new') || p.includes('/step') || p.includes('/create') || p.includes('/save') || p.includes('/edit') || p.includes('/update') || p.includes('/close') || p.includes('/complete') || p.includes('/toggle') || p.includes('/upload') || p.includes('/restore');
+    const isMutationMethod = req.method === 'POST' || req.method === 'PUT' || req.method === 'DELETE' || req.method === 'PATCH';
+    if (isMutationMethod && !p.startsWith('/api/session')) {
+      const isDeleteAction = req.method === 'DELETE' || p.includes('/delete') || p.includes('/purge') || p.includes('/empty');
+      const isWriteAction = isDeleteAction || req.method === 'PUT' || req.method === 'PATCH' || p.includes('/new') || p.includes('/step') || p.includes('/create') || p.includes('/save') || p.includes('/edit') || p.includes('/update') || p.includes('/close') || p.includes('/complete') || p.includes('/toggle') || p.includes('/upload') || p.includes('/restore');
+
       if (isDeleteAction) {
-        const canDel = caps.delete.includes('all') || caps.delete.includes(targetMod) || caps.edit.includes('all') || caps.edit.includes(targetMod);
+        const canDel = caps.delete.includes('all') || caps.delete.includes(targetMod);
         if (!canDel) {
           const modTitle = MODULE_LABELS[targetMod] || targetMod.replace('_', ' ');
-          flash('error', `Permission Denied: Your role (${matchedUser.role}) is not authorized to delete records in ${modTitle}.`);
+          if (isJsonReq) {
+            return res.status(403).json({ ok: false, error: 'Permission Denied: Your role (' + matchedUser.role + ') is not authorized to delete records in ' + modTitle + '.' });
+          }
+          flash('error', 'Permission Denied: Your role (' + matchedUser.role + ') is not authorized to delete records in ' + modTitle + '.');
           return res.redirect(req.header('Referer') || '/dashboard');
         }
       } else if (isWriteAction) {
         const canEd = caps.edit.includes('all') || caps.edit.includes(targetMod);
         if (!canEd) {
           const modTitle = MODULE_LABELS[targetMod] || targetMod.replace('_', ' ');
-          flash('error', `Read-Only Access: Your role (${matchedUser.role}) can view ${modTitle} but is not permitted to create or edit records.`);
+          if (isJsonReq) {
+            return res.status(403).json({ ok: false, error: 'Read-Only Access: Your role (' + matchedUser.role + ') can view ' + modTitle + ' but is not permitted to create or edit records.' });
+          }
+          flash('error', 'Read-Only Access: Your role (' + matchedUser.role + ') can view ' + modTitle + ' but is not permitted to create or edit records.');
           return res.redirect(req.header('Referer') || '/dashboard');
         }
       }
@@ -3777,9 +2919,7 @@ app.use((req, res, next) => {
   if (req.cookies?.current_company_id) {
     res.clearCookie('current_company_id', { path: '/' });
   }
-  if (store.ACTIVE_COMPANY_ID) {
-    setSafeCookie(req, res, 'opsloom_ws_id', store.ACTIVE_COMPANY_ID);
-  }
+
   next();
 });
 
@@ -3891,9 +3031,9 @@ function baseCtx(req, activeNav = 'dashboard') {
   }
 
   const printCompanyAddressLines = [
-    activeCompany.designation_line_1 || `${activeCompany.name || 'Opsloom Kenya'} (${compCodeUpper})`,
-    activeCompany.designation_line_2 || (isUltravetisComp ? 'Industrial Area, Shanghai Road • P.O. Box 00100, Nairobi, Kenya' : 'Shanghai Road, Nairobi, Kenya • Zip Code 00100'),
-    activeCompany.designation_line_3 || (isUltravetisComp ? 'Veterinary, Agro-Inputs & Manufacturing Operations • Email: info@ultravetis.com' : `Email: ${activeCompany.contact_email || store.SYSTEM_SETTINGS?.company_contact_email || 'opsloom.ke@gmail.com'}`)
+    activeCompany.designation_line_1 || `${activeCompany.name || 'Opsloom'} (${compCodeUpper})`,
+    activeCompany.designation_line_2 || (isUltravetisComp ? 'Industrial Area, Shanghai Road • P.O. Box 00100, Nairobi, Kenya' : (activeCompany.location || 'Headquarters & Plant Operations')),
+    activeCompany.designation_line_3 || (isUltravetisComp ? 'Veterinary, Agro-Inputs & Manufacturing Operations • Email: info@ultravetis.com' : `Email: ${activeCompany.contact_email || store.SYSTEM_SETTINGS?.company_contact_email || 'info@company.com'}`)
   ].filter(Boolean);
 
   const customRoles = Array.isArray(store.CUSTOM_ROLES) && store.CUSTOM_ROLES.length ? store.CUSTOM_ROLES : DEFAULT_CUSTOM_ROLES;
@@ -3906,9 +3046,19 @@ function baseCtx(req, activeNav = 'dashboard') {
     dynamicDeletePresets[r.name] = r.delete_modules || [];
   });
 
-  const unreadNotifs = (store.SYSTEM_NOTIFICATIONS || []).filter(n => !n.is_read).length;
-  const unreadMsgs = (store.INTERNAL_MESSAGES || []).filter(m => !m.is_read_by?.includes('opsloom.ke@gmail.com')).length;
-  const latestUnread = (store.SYSTEM_NOTIFICATIONS || []).find(n => !n.is_read && n.should_toast);
+  const userEmail = (actor.email || 'opsloom.ke@gmail.com').toLowerCase().trim();
+  const userNotifs = (store.SYSTEM_NOTIFICATIONS || []).filter(n => {
+    if (!n) return false;
+    if (n.recipient_email && n.recipient_email.toLowerCase().trim() !== userEmail) return false;
+    return true;
+  });
+  const unreadNotifs = userNotifs.filter(n => !n.is_read).length;
+  const unreadMsgs = (store.INTERNAL_MESSAGES || []).filter(m => {
+    const recs = (m.recipient_emails || []).map(e => String(e).toLowerCase().trim());
+    return (recs.includes(userEmail) || (m.recipient_email && m.recipient_email.toLowerCase().trim() === userEmail)) &&
+      !(m.is_read_by || []).map(e => String(e).toLowerCase().trim()).includes(userEmail);
+  }).length;
+  const latestUnread = userNotifs.find(n => !n.is_read && n.should_toast);
   if (latestUnread && req.method === 'GET' && !req.path.startsWith('/api/')) {
     // Consume the one-time toast flag so it displays once and never forces a popup on subsequent page refreshes
     latestUnread.should_toast = false;
@@ -4722,7 +3872,7 @@ app.post(['/settings/companies/save', '/api/companies/save'], upload.fields([
 app.all(['/settings/companies/:id/delete', '/api/companies/:id/delete'], (req, res) => {
   const isJson = req.path.startsWith('/api/') || (req.headers.accept && req.headers.accept.includes('application/json'));
   if (store.COMPANIES && store.COMPANIES.length > 1) {
-    const idx = store.COMPANIES.findIndex(c => c.id === req.params.id);
+    const idx = store.COMPANIES.findIndex(c => c && c.id === req.params.id);
     if (idx !== -1) {
       const removed = store.COMPANIES.splice(idx, 1)[0];
       const actor = getCurrentActor(req);
@@ -4732,54 +3882,76 @@ app.all(['/settings/companies/:id/delete', '/api/companies/:id/delete'], (req, r
         summary: `Workspace Brand • Code: ${removed.code} • Theme: ${removed.primary_color}`
       });
 
-      // Switch active and bound company to the first remaining company if the removed one was selected
-      const nextCompany = store.COMPANIES[0];
-      const wasActive = store.ACTIVE_COMPANY_ID === removed.id || store._BOUND_COMPANY_ID === removed.id || (req.cookies && req.cookies.opsloom_ws_id === removed.id);
-      if (wasActive && nextCompany) {
-        store.ACTIVE_COMPANY_ID = nextCompany.id;
-        store._BOUND_COMPANY_ID = nextCompany.id;
-        activateWorkspaceBucket(nextCompany.id);
-        setSafeCookie(req, res, 'opsloom_ws_id', nextCompany.id);
-      } else {
-        activateWorkspaceBucket(store.ACTIVE_COMPANY_ID || nextCompany.id);
+      // Permanently remove deleted company bucket from store.WORKSPACE_DATA
+      if (store.WORKSPACE_DATA && store.WORKSPACE_DATA[removed.id]) {
+        delete store.WORKSPACE_DATA[removed.id];
       }
 
+      // Reassign users of deleted company to the primary remaining company
+      const nextCompany = store.COMPANIES[0];
+      (store.ADMIN_USERS || []).forEach(u => {
+        if (u && u.company_id === removed.id) {
+          u.company_id = nextCompany.id;
+        }
+      });
+
+      // Switch active and bound company to the first remaining company
+      store.ACTIVE_COMPANY_ID = nextCompany.id;
+      store._BOUND_COMPANY_ID = nextCompany.id;
+      activateWorkspaceBucket(nextCompany.id);
+      setSafeCookie(req, res, 'opsloom_ws_id', nextCompany.id);
+
       saveStore();
-      logAudit('Company Workspace Deleted', `Moved company workspace ${removed.name} to Admin Recycle Bin`, 'settings', '/settings/recycle-bin', 'warning');
+      logAudit('Company Workspace Deleted', `Deleted company workspace ${removed.name} (${removed.code})`, 'companies', '/settings/companies', 'warning', actor);
+      createSystemNotification({
+        title: 'Workspace Deleted',
+        message: `Workspace ${removed.name} (${removed.code}) was removed by ${actor.name}.`,
+        kind: 'warning',
+        href: '/settings/companies'
+      });
 
       if (isJson) {
         return res.json({ ok: true, deleted_id: removed.id, active_company_id: store.ACTIVE_COMPANY_ID });
       }
-      flash('success', `Company workspace ${removed.name} moved to Admin Recycle Bin.`);
+      flash('success', `Company workspace ${removed.name} deleted successfully.`);
+      return res.redirect('/settings/companies');
     } else {
       if (isJson) return res.status(404).json({ ok: false, error: 'Company workspace not found.' });
       flash('error', 'Company workspace not found.');
+      return res.redirect('/settings/companies');
     }
   } else {
     if (isJson) return res.status(400).json({ ok: false, error: 'Cannot delete the only remaining company workspace.' });
     flash('error', 'Cannot delete the only remaining company workspace.');
+    return res.redirect('/settings/companies');
   }
-  res.redirect('/settings/companies');
 });
 
 app.all('/set-company', (req, res) => {
   const companyId = req.query?.company_id || req.body?.company_id;
-  const company = (store.COMPANIES || []).find(c => c.id === companyId);
+  const actor = getCurrentActor(req);
+  const isAdmin = (actor.role || '').toLowerCase() === 'administrator' || (Array.isArray(actor.permissions) && (actor.permissions.includes('all') || actor.permissions.includes('companies')));
+
+  if (!isAdmin && actor.company_id && actor.company_id !== companyId) {
+    flash('error', 'Unauthorized: You are only permitted to access your assigned organization workspace.');
+    return res.redirect('/dashboard');
+  }
+
+  const company = (store.COMPANIES || []).find(c => c && c.id === companyId);
   if (company) {
     store.ACTIVE_COMPANY_ID = company.id;
     activateWorkspaceBucket(company.id);
-    const actor = getCurrentActor(req);
-    if (actor) {
+    if (isAdmin) {
       actor.company_id = company.id;
     }
     saveStore();
     setSafeCookie(req, res, 'opsloom_ws_id', company.id);
     res.clearCookie('current_company_id', { path: '/' });
-    logAudit('Workspace Switched', `Switched active organization workspace to ${company.name} (${company.code})`, 'settings', '/settings/companies');
-    flash('success', `Switched active workspace to ${company.name} (${company.code}). All modules, reports, prints, and PowerPoints are now scoped to ${company.name}.`);
+    logAudit('Workspace Switched', `Switched active organization workspace to ${company.name} (${company.code})`, 'companies', '/settings/companies', 'info', actor);
+    flash('success', `Switched active workspace to ${company.name} (${company.code}).`);
   }
-  const next = req.query?.next || req.body?.next || req.header('Referer') || '/dashboard';
-  res.redirect(next);
+  const nextTarget = req.query?.next || req.body?.next || req.header('Referer') || '/dashboard';
+  res.redirect(nextTarget.startsWith('/login') ? '/dashboard' : nextTarget);
 });
 
 // -------------------------
@@ -4790,21 +3962,21 @@ app.all('/dashboard', (req, res) => {
   const breakdowns = store.BREAKDOWNS || [];
   const tasks = store.MAINTENANCE_TASKS || [];
   const parts = store.INVENTORY_PARTS || [];
-  const totalAssets = assets.length || 1;
+  const totalAssets = assets.length;
   const operationalAssets = assets.filter(a => a.status === 'operational').length;
   const maintenanceAssets = assets.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
   const oosAssets = assets.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
-  const kpiUptimeRate = Math.round((operationalAssets / totalAssets) * 1000) / 10;
+  const kpiUptimeRate = totalAssets > 0 ? Math.round((operationalAssets / totalAssets) * 1000) / 10 : 100.0;
 
   const activeBds = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved');
   const totalDowntime = Math.round(breakdowns.reduce((sum, b) => sum + calculateDowntimeHours(b), 0) * 10) / 10;
   const avgMttr = breakdowns.length
     ? Math.round((totalDowntime / breakdowns.length) * 10) / 10
-    : 1.8;
+    : 0.0;
   const completedTasks = tasks.filter(t => t.status === 'completed').length;
   const upcomingTasks = tasks.filter(t => t.status === 'upcoming').length;
   const overduePm = tasks.filter(t => t.status === 'overdue').length;
-  const pmCompliance = tasks.length ? Math.round(((completedTasks + upcomingTasks) / tasks.length) * 1000) / 10 : 92.0;
+  const pmCompliance = tasks.length ? Math.round(((completedTasks + upcomingTasks) / tasks.length) * 1000) / 10 : 100.0;
 
   const normalizedParts = parts.map(p => ({
     ...p,
@@ -4859,7 +4031,7 @@ app.all('/dashboard', (req, res) => {
   const pmCmSections = SECTIONS;
   const pm_cm = {
     labels: pmCmSections,
-    pm: pmCmSections.map(s => tasks.filter(t => t.section === s && (t.maintenance_type || 'PM') === 'PM').length || 1),
+    pm: pmCmSections.map(s => tasks.filter(t => t.section === s && (t.maintenance_type || 'PM') === 'PM').length),
     cm: pmCmSections.map(s => breakdowns.filter(b => b.section === s).length)
   };
 
@@ -4934,7 +4106,7 @@ app.all('/dashboard', (req, res) => {
     kpi_monthly_budget: companyTargets.monthly_maintenance_budget,
     kpi_spares_budget: companyTargets.spares_inventory_budget,
     kpi_budget_utilization_pct: budgetUtilizationPct,
-    kpi_uptime_delta: 1.4,
+    kpi_uptime_delta: 0.0,
     kpi_active_breakdowns: activeBds.length,
     active_breakdowns_count: activeBds.length,
     kpi_active_delta: activeBds.length,
@@ -5826,14 +4998,11 @@ app.all(['/assets/:asset_uid/delete', '/assets/delete/:asset_uid', '/assets/dele
         if (sIdx2 !== -1) store.ASSETS.splice(sIdx2, 1);
       }
 
-      // Also ensure removed from all workspace buckets in store.WORKSPACE_DATA
-      if (store.WORKSPACE_DATA && typeof store.WORKSPACE_DATA === 'object') {
-        Object.values(store.WORKSPACE_DATA).forEach(bucket => {
-          if (bucket && Array.isArray(bucket.ASSETS)) {
-            const bIdx = bucket.ASSETS.findIndex(a => a && (a.uid === target.uid || a.asset_id === target.asset_id));
-            if (bIdx !== -1) bucket.ASSETS.splice(bIdx, 1);
-          }
-        });
+      // Remove strictly from current active workspace bucket
+      const activeWsId = store._BOUND_COMPANY_ID || store.ACTIVE_COMPANY_ID || 'comp-001';
+      if (store.WORKSPACE_DATA && store.WORKSPACE_DATA[activeWsId] && Array.isArray(store.WORKSPACE_DATA[activeWsId].ASSETS)) {
+        const bIdx = store.WORKSPACE_DATA[activeWsId].ASSETS.findIndex(a => a && (a.uid === target.uid || a.asset_id === target.asset_id));
+        if (bIdx !== -1) store.WORKSPACE_DATA[activeWsId].ASSETS.splice(bIdx, 1);
       }
 
       const actor = getCurrentActor(req);
@@ -7681,8 +6850,8 @@ app.get('/reports', (req, res) => {
   const tasks = store.MAINTENANCE_TASKS || [];
   const breakdowns = store.BREAKDOWNS || [];
   const totalDowntime = Math.round(breakdowns.reduce((sum, b) => sum + calculateDowntimeHours(b), 0) * 10) / 10;
-  const avgMttr = breakdowns.length ? Math.round((totalDowntime / breakdowns.length) * 10) / 10 : 1.8;
-  const mtdSpendVal = tasks.reduce((s, t) => s + Number(t.cost_total || t.cost || 0), 0) + breakdowns.reduce((s, b) => s + Number(b.cost_total || b.cost || 0), 0) || 441000;
+  const avgMttr = breakdowns.length ? Math.round((totalDowntime / breakdowns.length) * 10) / 10 : 0.0;
+  const mtdSpendVal = tasks.reduce((s, t) => s + Number(t.cost_total || t.cost || 0), 0) + breakdowns.reduce((s, b) => s + Number(b.cost_total || b.cost || 0), 0);
   const budgetCap = Math.max(1, companyTargets.monthly_maintenance_budget || 2500000);
   const budgetPct = Math.round((mtdSpendVal / budgetCap) * 1000) / 10;
 
@@ -9154,37 +8323,52 @@ app.post('/settings/admin-users/:user_id/delete', (req, res) => {
 });
 
 app.get('/settings/messages', (req, res) => {
-  const currentUserEmail = 'opsloom.ke@gmail.com';
-  const allMsgs = (store.INTERNAL_MESSAGES || []).map(m => ({
-    ...m,
-    recipient_list: Array.isArray(m.recipient_emails) ? m.recipient_emails.join(', ') : (m.recipient_email || currentUserEmail),
-    created_display: m.created_at ? formatSystemTimestamp(m.created_at) : 'Recent',
-    is_unread: !(m.is_read_by || []).includes(currentUserEmail)
-  }));
-  const draftsList = (store.DRAFT_MESSAGES || []).map(d => ({
-    ...d,
-    sender_name: 'Laurence Magondu (Draft)',
-    sender_email: currentUserEmail,
-    created_at: d.updated_at || d.created_at || getSystemNowIso(),
-    created_display: formatSystemTimestamp(d.updated_at || d.created_at || getSystemNowIso()),
-    is_read_by: [currentUserEmail]
-  }));
-  const outboxList = (store.OUTBOX_MESSAGES || []).map(o => ({
-    ...o,
-    sender_name: o.sender_name || 'Laurence Magondu',
-    sender_email: o.sender_email || currentUserEmail,
-    created_at: o.created_at || getSystemNowIso(),
-    created_display: formatSystemTimestamp(o.created_at || getSystemNowIso()),
-    is_read_by: [currentUserEmail]
-  }));
+  const actor = getCurrentActor(req);
+  const currentUserEmail = (actor.email || 'opsloom.ke@gmail.com').toLowerCase().trim();
+  const allMsgs = (store.INTERNAL_MESSAGES || []).map(m => {
+    const recList = Array.isArray(m.recipient_emails)
+      ? m.recipient_emails
+      : (m.recipient_email ? [m.recipient_email] : []);
+    const isUnread = !((m.is_read_by || []).map(e => String(e).toLowerCase().trim()).includes(currentUserEmail));
+    return {
+      ...m,
+      recipient_list: recList.join(', ') || currentUserEmail,
+      created_display: m.created_at ? formatSystemTimestamp(m.created_at) : 'Recent',
+      is_unread: isUnread
+    };
+  });
 
-  const inboxMsgs = allMsgs;
-  const sentMsgs = allMsgs.filter(m => m.sender_email === currentUserEmail);
+  const draftsList = (store.DRAFT_MESSAGES || [])
+    .filter(d => (d.sender_email || currentUserEmail).toLowerCase().trim() === currentUserEmail)
+    .map(d => ({
+      ...d,
+      sender_name: actor.name + ' (Draft)',
+      sender_email: currentUserEmail,
+      created_at: d.updated_at || d.created_at || getSystemNowIso(),
+      created_display: formatSystemTimestamp(d.updated_at || d.created_at || getSystemNowIso()),
+      is_read_by: [currentUserEmail]
+    }));
+
+  const outboxList = (store.OUTBOX_MESSAGES || [])
+    .filter(o => (o.sender_email || currentUserEmail).toLowerCase().trim() === currentUserEmail)
+    .map(o => ({
+      ...o,
+      sender_name: o.sender_name || actor.name,
+      sender_email: o.sender_email || currentUserEmail,
+      created_at: o.created_at || getSystemNowIso(),
+      created_display: formatSystemTimestamp(o.created_at || getSystemNowIso()),
+      is_read_by: [currentUserEmail]
+    }));
+
+  const inboxMsgs = allMsgs.filter(m => {
+    const recs = (m.recipient_emails || []).map(e => String(e).toLowerCase().trim());
+    return recs.includes(currentUserEmail) || (m.recipient_email && m.recipient_email.toLowerCase().trim() === currentUserEmail);
+  });
+  const sentMsgs = allMsgs.filter(m => (m.sender_email || '').toLowerCase().trim() === currentUserEmail);
   const unreadInboxCount = inboxMsgs.filter(m => m.is_unread).length;
 
   const folder = (req.query.folder || 'inbox').toLowerCase();
   const q = (req.query.q || '').toLowerCase();
-
   let folderMsgs = inboxMsgs;
   if (folder === 'sent') folderMsgs = sentMsgs;
   else if (folder === 'drafts') folderMsgs = draftsList;
@@ -9200,11 +8384,13 @@ app.get('/settings/messages', (req, res) => {
 
   const selectedId = req.query.open || req.query.msg || (folderMsgs[0] && folderMsgs[0].id) || null;
   const openMessage = folderMsgs.find(m => m.id === selectedId) || allMsgs.find(m => m.id === selectedId) || folderMsgs[0] || null;
+
   if (openMessage && (folder === 'inbox' || folder === 'sent')) {
     const rawMsg = (store.INTERNAL_MESSAGES || []).find(m => m.id === openMessage.id);
     if (rawMsg) {
       if (!Array.isArray(rawMsg.is_read_by)) rawMsg.is_read_by = [];
-      if (!rawMsg.is_read_by.includes(currentUserEmail)) {
+      const readLower = rawMsg.is_read_by.map(e => String(e).toLowerCase().trim());
+      if (!readLower.includes(currentUserEmail)) {
         rawMsg.is_read_by.push(currentUserEmail);
         saveStore();
       }
@@ -9216,11 +8402,11 @@ app.get('/settings/messages', (req, res) => {
   if (req.query.reply && openMessage) {
     compose_prefill.thread_id = openMessage.thread_id || '';
     compose_prefill.recipient_emails = [openMessage.sender_email || currentUserEmail];
-    compose_prefill.subject = openMessage.subject?.startsWith('Re:') ? openMessage.subject : `Re: ${openMessage.subject || ''}`;
-    compose_prefill.body = `\n\n--- Original Message from ${openMessage.sender_name} ---\n${openMessage.body || ''}`;
+    compose_prefill.subject = openMessage.subject?.startsWith('Re:') ? openMessage.subject : ('Re: ' + (openMessage.subject || ''));
+    compose_prefill.body = '\n\n--- Original Message from ' + openMessage.sender_name + ' ---\n' + (openMessage.body || '');
   } else if (req.query.forward && openMessage) {
-    compose_prefill.subject = openMessage.subject?.startsWith('Fwd:') ? openMessage.subject : `Fwd: ${openMessage.subject || ''}`;
-    compose_prefill.body = `\n\n--- Forwarded Message ---\nSubject: ${openMessage.subject}\nFrom: ${openMessage.sender_name} (${openMessage.sender_email})\n\n${openMessage.body || ''}`;
+    compose_prefill.subject = openMessage.subject?.startsWith('Fwd:') ? openMessage.subject : ('Fwd: ' + (openMessage.subject || ''));
+    compose_prefill.body = '\n\n--- Forwarded Message ---\nSubject: ' + openMessage.subject + '\nFrom: ' + openMessage.sender_name + ' (' + openMessage.sender_email + ')\n\n' + (openMessage.body || '');
   } else if (folder === 'drafts' && openMessage) {
     compose_prefill.draft_id = openMessage.id;
     compose_prefill.recipient_emails = openMessage.recipient_emails || [];
@@ -9230,43 +8416,38 @@ app.get('/settings/messages', (req, res) => {
 
   const folder_list = [
     { key: 'inbox', label: 'Inbox', icon: 'inbox', count: inboxMsgs.length, unread: unreadInboxCount },
-    { key: 'sent', label: 'Sent Dispatch', icon: 'send', count: sentMsgs.length, unread: 0 },
-    { key: 'drafts', label: 'Drafts', icon: 'edit_note', count: draftsList.length, unread: 0 },
-    { key: 'outbox', label: 'Outbox Queue', icon: 'schedule_send', count: outboxList.length, unread: outboxList.length }
+    { key: 'sent', label: 'Sent', icon: 'send', count: sentMsgs.length, unread: 0 },
+    { key: 'drafts', label: 'Drafts', icon: 'draft', count: draftsList.length, unread: 0 },
+    { key: 'outbox', label: 'Outbox', icon: 'outbox', count: outboxList.length, unread: 0 }
   ];
 
   res.render('settings/messages_center.html', {
-    ...baseCtx(req, 'settings'),
+    ...baseCtx(req, 'messages'),
+    selected_folder: folder,
     folder_list,
     messages: folderMsgs,
     open_message: openMessage,
-    active_message: openMessage,
-    selected_folder: folder,
-    message_q: req.query.q || '',
-    search_q: req.query.q || '',
     compose_prefill,
-    current_user_email: currentUserEmail,
-    all_messages_count: allMsgs.length,
-    unread_count: unreadInboxCount,
-    sent_count: sentMsgs.length,
-    drafts: draftsList,
-    outbox: outboxList,
-    users: store.ADMIN_USERS || [],
-    technicians: store.TECHNICIAN_DIRECTORY || []
+    message_q: q
   });
 });
 
 app.post('/settings/messages/send', (req, res) => {
-  const actionType = req.body.message_action || req.body.action_type || 'send';
+  const actor = getCurrentActor(req);
+  const senderEmail = actor.email || 'opsloom.ke@gmail.com';
+  const senderName = actor.name || 'System User';
+  const actionType = req.body.action_type || 'send';
+
   const selectedRecs = Array.isArray(req.body.recipient_emails)
     ? req.body.recipient_emails
     : (req.body.recipient_emails ? [req.body.recipient_emails] : []);
   const manualRecs = String(req.body.recipient_manual || req.body.recipient_email || req.body.recipients || '')
     .split(',')
-    .map(s => s.trim())
+    .map(s => s.trim().toLowerCase())
     .filter(Boolean);
-  const recipients = Array.from(new Set([...selectedRecs, ...manualRecs]));
-  if (!recipients.length) recipients.push('opsloom.ke@gmail.com');
+  const recipients = Array.from(new Set([...selectedRecs.map(s => s.trim().toLowerCase()), ...manualRecs]));
+
+  if (!recipients.length) recipients.push(senderEmail);
 
   if (req.body.draft_id && store.DRAFT_MESSAGES) {
     store.DRAFT_MESSAGES = store.DRAFT_MESSAGES.filter(d => d.id !== req.body.draft_id);
@@ -9275,6 +8456,7 @@ app.post('/settings/messages/send', (req, res) => {
   if (actionType === 'draft') {
     const draft = {
       id: 'draft-' + Date.now(),
+      sender_email: senderEmail,
       recipient_emails: recipients,
       subject: req.body.subject || '(Untitled Draft)',
       body: req.body.body || '',
@@ -9285,14 +8467,14 @@ app.post('/settings/messages/send', (req, res) => {
     store.DRAFT_MESSAGES.unshift(draft);
     saveStore();
     flash('info', 'Message saved to drafts.');
-    return res.redirect(`/settings/messages?folder=drafts&open=${encodeURIComponent(draft.id)}`);
+    return res.redirect('/settings/messages?folder=drafts&open=' + encodeURIComponent(draft.id));
   }
 
   if (actionType === 'outbox') {
     const outMsg = {
       id: 'out-' + Date.now(),
-      sender_email: 'opsloom.ke@gmail.com',
-      sender_name: 'Laurence Magondu',
+      sender_email: senderEmail,
+      sender_name: senderName,
       recipient_emails: recipients,
       subject: req.body.subject || 'Queued Engineering Dispatch',
       body: req.body.body || '',
@@ -9303,34 +8485,51 @@ app.post('/settings/messages/send', (req, res) => {
     store.OUTBOX_MESSAGES.unshift(outMsg);
     saveStore();
     flash('info', 'Message queued in Outbox.');
-    return res.redirect(`/settings/messages?folder=outbox&open=${encodeURIComponent(outMsg.id)}`);
+    return res.redirect('/settings/messages?folder=outbox&open=' + encodeURIComponent(outMsg.id));
   }
 
   const msg = {
     id: 'msg-' + Date.now(),
     thread_id: req.body.thread_id || ('thread-' + Date.now()),
-    sender_email: 'opsloom.ke@gmail.com',
-    sender_name: 'Laurence Magondu',
+    sender_email: senderEmail,
+    sender_name: senderName,
     recipient_emails: recipients,
-    subject: req.body.subject || 'Internal Operational Dispatch',
+    subject: req.body.subject || 'Internal Message',
     body: req.body.body || '',
     priority: req.body.priority || 'Normal',
     category: req.body.category || 'Operations',
     attachments: [],
-    is_read_by: ['opsloom.ke@gmail.com'],
+    is_read_by: [senderEmail.toLowerCase().trim()],
     created_at: getSystemNowIso(),
     delivery_status: 'delivered',
     sent_at: getSystemNowIso()
   };
+
   if (!store.INTERNAL_MESSAGES) store.INTERNAL_MESSAGES = [];
   store.INTERNAL_MESSAGES.unshift(msg);
+
+  // Notify recipients
+  recipients.forEach(r => {
+    if (r !== senderEmail.toLowerCase().trim()) {
+      createSystemNotification({
+        title: 'New Internal Message',
+        message: 'From ' + senderName + ': ' + msg.subject,
+        kind: 'info',
+        recipient_email: r,
+        href: '/settings/messages?folder=inbox&open=' + encodeURIComponent(msg.id),
+        should_toast: true
+      });
+    }
+  });
+
   saveStore();
-  logAudit('Internal Message Dispatched', `Subject: ${msg.subject} → ${msg.recipient_emails.join(', ')}`, 'messages', '/settings/messages');
+  logAudit('Internal Message Dispatched', 'Subject: ' + msg.subject + ' → ' + msg.recipient_emails.join(', '), 'messages', '/settings/messages', 'info', actor);
   flash('success', 'Message dispatched to recipient inbox.');
-  res.redirect(`/settings/messages?folder=inbox&open=${encodeURIComponent(msg.id)}`);
+  res.redirect('/settings/messages?folder=inbox&open=' + encodeURIComponent(msg.id));
 });
 
 app.post('/settings/messages/outbox/:id/send', (req, res) => {
+  const actor = getCurrentActor(req);
   if (!store.OUTBOX_MESSAGES) store.OUTBOX_MESSAGES = [];
   const idx = store.OUTBOX_MESSAGES.findIndex(o => o.id === req.params.id);
   if (idx !== -1) {
@@ -9338,15 +8537,17 @@ app.post('/settings/messages/outbox/:id/send', (req, res) => {
     const sent = {
       ...queued,
       id: 'msg-' + Date.now(),
+      sender_email: actor.email,
+      sender_name: actor.name,
       delivery_status: 'delivered',
       sent_at: new Date().toISOString(),
-      is_read_by: ['opsloom.ke@gmail.com']
+      is_read_by: [actor.email.toLowerCase().trim()]
     };
     if (!store.INTERNAL_MESSAGES) store.INTERNAL_MESSAGES = [];
     store.INTERNAL_MESSAGES.unshift(sent);
     saveStore();
     flash('success', 'Queued message dispatched immediately.');
-    return res.redirect(`/settings/messages?folder=inbox&open=${encodeURIComponent(sent.id)}`);
+    return res.redirect('/settings/messages?folder=inbox&open=' + encodeURIComponent(sent.id));
   }
   res.redirect('/settings/messages?folder=outbox');
 });
@@ -9417,10 +8618,38 @@ app.post('/settings/messages/outbox/:outbox_id/delete', (req, res) => {
 });
 
 app.get('/settings/notifications', (req, res) => {
+  const actor = getCurrentActor(req);
+  const userEmail = (actor.email || '').toLowerCase().trim();
+  const notifs = (store.SYSTEM_NOTIFICATIONS || []).filter(n => {
+    if (!n) return false;
+    if (n.recipient_email && n.recipient_email.toLowerCase().trim() !== userEmail) return false;
+    return true;
+  });
   res.render('settings/notifications.html', {
     ...baseCtx(req, 'settings'),
-    notifications: store.SYSTEM_NOTIFICATIONS || []
+    notifications: notifs
   });
+});
+
+app.all(['/settings/notifications/:nid/delete', '/notifications/:nid/delete', '/api/notifications/:nid/delete'], (req, res) => {
+  const nid = req.params.nid;
+  if (Array.isArray(store.SYSTEM_NOTIFICATIONS)) {
+    const idx = store.SYSTEM_NOTIFICATIONS.findIndex(item => item && item.id === nid);
+    if (idx !== -1) {
+      store.SYSTEM_NOTIFICATIONS.splice(idx, 1);
+    }
+  }
+  const activeWsId = store._BOUND_COMPANY_ID || store.ACTIVE_COMPANY_ID || 'comp-001';
+  if (store.WORKSPACE_DATA && store.WORKSPACE_DATA[activeWsId] && Array.isArray(store.WORKSPACE_DATA[activeWsId].SYSTEM_NOTIFICATIONS)) {
+    const bIdx = store.WORKSPACE_DATA[activeWsId].SYSTEM_NOTIFICATIONS.findIndex(item => item && item.id === nid);
+    if (bIdx !== -1) store.WORKSPACE_DATA[activeWsId].SYSTEM_NOTIFICATIONS.splice(bIdx, 1);
+  }
+  saveStore();
+  if (req.path.startsWith('/api/') || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+    return res.json({ ok: true, deleted_id: nid });
+  }
+  flash('info', 'Notification dismissed.');
+  res.redirect('/settings/notifications');
 });
 
 app.post(['/notifications/:nid/dismiss', '/settings/notifications/:nid/dismiss'], (req, res) => {
@@ -9706,22 +8935,25 @@ app.get(['/api/system/health', '/api/health', '/api/live/dashboard/kpis'], (req,
 });
 
 app.get(['/api/live/breakdowns/kpis', '/api/breakdowns/kpi'], (req, res) => {
-  const active = (store.BREAKDOWNS || []).filter(b => b.status !== 'closed' && b.status !== 'resolved').length;
-  const totalDowntime = (store.BREAKDOWNS || []).reduce((acc, b) => acc + calculateDowntimeHours(b), 0);
-  const totalCost = (store.BREAKDOWNS || []).reduce((acc, b) => acc + Number(b.cost_total || b.cost || 0), 0);
+  const breakdowns = store.BREAKDOWNS || [];
+  const active = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved').length;
+  const totalDowntime = breakdowns.reduce((acc, b) => acc + calculateDowntimeHours(b), 0);
+  const totalCost = breakdowns.reduce((acc, b) => acc + Number(b.cost_total || b.cost || 0), 0);
+  const avgMttr = breakdowns.length ? Math.round((totalDowntime / breakdowns.length) * 10) / 10 : 0.0;
+  const sysHealth = computeSystemHealthStatus();
 
   res.json({
     active,
     active_delta: 0,
-    mttr_hours: 1.8,
+    mttr_hours: avgMttr,
     downtime_mtd_hours: Math.round(totalDowntime * 10) / 10,
-    uptime_rate: 98.4,
-    uptime_target: 98.0,
+    uptime_rate: sysHealth.uptime_rate,
+    uptime_target: sysHealth.uptime_target,
     cost_total: totalCost,
     cost_total_formatted: 'KES ' + totalCost.toLocaleString('en-US'),
-    mttr_trend: -3,
-    mtbf_hours: 142.5,
-    mtbf_delta: 5.1
+    mttr_trend: 0,
+    mtbf_hours: breakdowns.length ? Math.round(168 / breakdowns.length) : 0,
+    mtbf_delta: 0
   });
 });
 
@@ -9759,19 +8991,20 @@ app.get('/api/breakdowns/frequency', (req, res) => {
 });
 
 app.get('/api/live/maintenance/kpis', (req, res) => {
-  const total = (store.MAINTENANCE_TASKS || []).length;
-  const overdue = (store.MAINTENANCE_TASKS || []).filter(t => t.status === 'overdue').length;
-  const upcoming = (store.MAINTENANCE_TASKS || []).filter(t => t.status === 'upcoming').length;
-  const completed = (store.MAINTENANCE_TASKS || []).filter(t => t.status === 'completed').length;
-  const compliance = total ? Math.round((completed / total) * 100) : 92.0;
+  const tasks = store.MAINTENANCE_TASKS || [];
+  const total = tasks.length;
+  const overdue = tasks.filter(t => t.status === 'overdue').length;
+  const upcoming = tasks.filter(t => t.status === 'upcoming').length;
+  const completed = tasks.filter(t => t.status === 'completed').length;
+  const compliance = total ? Math.round(((completed + upcoming) / total) * 100) : 100.0;
 
   res.json({
-    kpi_total_pm_month: total || 8,
+    kpi_total_pm_month: total,
     kpi_overdue: overdue,
-    kpi_upcoming_7: upcoming || 3,
+    kpi_upcoming_7: upcoming,
     kpi_compliance_rate: compliance,
     compliance,
-    compliance_delta: 1.2,
+    compliance_delta: 0.0,
     overdue,
     completed_this_month: completed
   });
