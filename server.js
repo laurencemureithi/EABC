@@ -2729,6 +2729,26 @@ function getRoleDefinition(roleName) {
   return roles.find(r => (r.name || '').toLowerCase() === String(roleName || '').toLowerCase()) || null;
 }
 
+function normalizePermissionList(input) {
+  if (!input) return [];
+  const rawList = Array.isArray(input) ? input : [input];
+  const normalized = [];
+  rawList.forEach(item => {
+    if (typeof item === 'string') {
+      item.split(',').forEach(sub => {
+        const trimmed = sub.trim();
+        if (trimmed && !normalized.includes(trimmed)) {
+          normalized.push(trimmed);
+        }
+      });
+    } else if (item) {
+      const s = String(item).trim();
+      if (s && !normalized.includes(s)) normalized.push(s);
+    }
+  });
+  return normalized;
+}
+
 function resolveUserCapabilities(actor) {
   if (!actor) {
     return { view: ['dashboard'], edit: [], delete: [], can_adjust_kpi_targets: false };
@@ -2736,18 +2756,21 @@ function resolveUserCapabilities(actor) {
   const roleDef = getRoleDefinition(actor.role);
   const isAdmin = (actor.role || '').toLowerCase() === 'administrator' || (Array.isArray(actor.permissions) && actor.permissions.includes('all'));
   if (isAdmin) {
-    const allMods = ['all', 'dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'settings_manage', 'users_manage', 'technicians_manage', 'notifications_manage', 'recycle_bin', 'kpi_targets_manage', 'settings', 'admin'];
+    const allMods = ['all', 'dashboard', 'assets', 'breakdowns', 'maintenance', 'inventory', 'reports', 'companies', 'settings_manage', 'users_manage', 'technicians_manage', 'notifications_manage', 'recycle_bin', 'kpi_targets_manage', 'settings', 'admin', 'messages'];
     return { view: allMods, edit: allMods, delete: allMods, can_adjust_kpi_targets: true };
   }
-  const view = Array.isArray(actor.permissions) && actor.permissions.length
+  const rawView = Array.isArray(actor.permissions) && actor.permissions.length
     ? actor.permissions
     : (roleDef && Array.isArray(roleDef.modules) ? roleDef.modules : ['dashboard']);
-  const edit = Array.isArray(actor.edit_permissions)
+  const view = normalizePermissionList(rawView);
+  const rawEdit = Array.isArray(actor.edit_permissions)
     ? actor.edit_permissions
     : (roleDef && Array.isArray(roleDef.edit_modules) ? roleDef.edit_modules : []);
-  const del = Array.isArray(actor.delete_permissions)
+  const edit = normalizePermissionList(rawEdit);
+  const rawDel = Array.isArray(actor.delete_permissions)
     ? actor.delete_permissions
     : (roleDef && Array.isArray(roleDef.delete_modules) ? roleDef.delete_modules : []);
+  const del = normalizePermissionList(rawDel);
   const canAdjustKpis = Boolean(
     actor.can_adjust_kpi_targets === true ||
     (roleDef && roleDef.can_adjust_kpi_targets === true) ||
@@ -8063,12 +8086,9 @@ app.post(['/settings/admin-users/roles/save', '/settings/roles/save', '/api/role
     return res.redirect('/settings/admin-users#roleDefinitionsSection');
   }
 
-  let viewMods = req.body.modules || req.body.view_permissions || req.body.permissions || [];
-  if (!Array.isArray(viewMods)) viewMods = [viewMods];
-  let editMods = req.body.edit_modules || req.body.edit_permissions || [];
-  if (!Array.isArray(editMods)) editMods = [editMods];
-  let delMods = req.body.delete_modules || req.body.delete_permissions || [];
-  if (!Array.isArray(delMods)) delMods = [delMods];
+  let viewMods = normalizePermissionList(req.body.modules || req.body.view_permissions || req.body.permissions || []);
+  let editMods = normalizePermissionList(req.body.edit_modules || req.body.edit_permissions || []);
+  let delMods = normalizePermissionList(req.body.delete_modules || req.body.delete_permissions || []);
 
   const roleCanAdjustKpi = Boolean(
     req.body.can_adjust_kpi_targets === '1' ||
@@ -8175,26 +8195,9 @@ app.post('/settings/admin-users/create', (req, res) => {
   const role = (req.body.role || 'Viewer').trim();
   let roleDef = getRoleDefinition(role);
 
-  let perms = req.body.permissions;
-  if (!perms) {
-    perms = roleDef ? [...roleDef.modules] : ['dashboard'];
-  } else if (!Array.isArray(perms)) {
-    perms = [perms];
-  }
-
-  let editPerms = req.body.edit_permissions;
-  if (editPerms === undefined) {
-    editPerms = roleDef ? [...roleDef.edit_modules] : [];
-  } else if (!Array.isArray(editPerms)) {
-    editPerms = [editPerms];
-  }
-
-  let deletePerms = req.body.delete_permissions;
-  if (deletePerms === undefined) {
-    deletePerms = roleDef ? [...roleDef.delete_modules] : [];
-  } else if (!Array.isArray(deletePerms)) {
-    deletePerms = [deletePerms];
-  }
+  let perms = req.body.permissions ? normalizePermissionList(req.body.permissions) : (roleDef ? [...roleDef.modules] : ['dashboard']);
+  let editPerms = req.body.edit_permissions !== undefined ? normalizePermissionList(req.body.edit_permissions) : (roleDef ? [...roleDef.edit_modules] : []);
+  let deletePerms = req.body.delete_permissions !== undefined ? normalizePermissionList(req.body.delete_permissions) : (roleDef ? [...roleDef.delete_modules] : []);
 
   const userCanAdjustKpis = Boolean(
     role === 'Administrator' ||
