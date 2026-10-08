@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const PptxGenJS = require('pptxgenjs');
 const { GoogleGenAI } = require('@google/genai');
 const nodemailer = require('nodemailer');
+const dal = require('./src/db/dal');
 
 function getAiClient() {
   if (!process.env.GEMINI_API_KEY) return null;
@@ -652,67 +653,27 @@ function buildOpsloomWorkspaceSeed(comp = {}) {
 }
 
 function ensureWorkspaceBuckets() {
-  if (!store.WORKSPACE_DATA || typeof store.WORKSPACE_DATA !== 'object') {
-    store.WORKSPACE_DATA = {};
-  }
-  const companies = Array.isArray(store.COMPANIES) ? store.COMPANIES : [];
-  // Clean up any stale workspace buckets for companies that were deleted
-  const validCompanyIds = new Set(companies.map(c => c && c.id).filter(Boolean));
-  Object.keys(store.WORKSPACE_DATA).forEach(bucketId => {
-    if (!validCompanyIds.has(bucketId)) {
-      delete store.WORKSPACE_DATA[bucketId];
-    }
-  });
-
-  companies.forEach(comp => {
-    if (!comp || !comp.id) return;
-    if (!store.WORKSPACE_DATA[comp.id] || typeof store.WORKSPACE_DATA[comp.id] !== 'object') {
-      store.WORKSPACE_DATA[comp.id] = createEmptyWorkspaceBucket(comp);
-    } else {
-      const bucket = store.WORKSPACE_DATA[comp.id];
-      WORKSPACE_COLLECTION_KEYS.forEach(k => {
-        if (!Array.isArray(bucket[k])) {
-          bucket[k] = [];
-        }
-      });
-    }
-  });
+  // Dual bucket architecture eliminated - single source of truth enforced
 }
 
 function flushBoundWorkspaceToBucket() {
-  const boundId = store._BOUND_COMPANY_ID;
-  if (boundId && store.WORKSPACE_DATA && store.WORKSPACE_DATA[boundId]) {
-    WORKSPACE_COLLECTION_KEYS.forEach(k => {
-      if (Array.isArray(store[k])) {
-        store.WORKSPACE_DATA[boundId][k] = store[k];
-      }
-    });
-  }
+  // Dual bucket architecture eliminated
 }
 
 function activateWorkspaceBucket(companyId) {
-  flushBoundWorkspaceToBucket();
-  ensureWorkspaceBuckets();
   const targetId = companyId || store.ACTIVE_COMPANY_ID || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
-  const comp = (store.COMPANIES || []).find(c => c.id === targetId) || (store.COMPANIES && store.COMPANIES[0]);
+  const comp = (store.COMPANIES || []).find(c => c && c.id === targetId) || (store.COMPANIES && store.COMPANIES[0]);
   const effectiveId = comp ? comp.id : targetId;
-  if (!store.WORKSPACE_DATA[effectiveId]) {
-    store.WORKSPACE_DATA[effectiveId] = createEmptyWorkspaceBucket(comp || { id: effectiveId, name: 'Workspace', code: 'WKS' });
-  }
-  const bucket = store.WORKSPACE_DATA[effectiveId];
-  WORKSPACE_COLLECTION_KEYS.forEach(k => {
-    if (!Array.isArray(bucket[k])) bucket[k] = [];
-    store[k] = bucket[k];
-  });
   store._BOUND_COMPANY_ID = effectiveId;
   store.ACTIVE_COMPANY_ID = effectiveId;
-  return bucket;
+  return comp || { id: effectiveId, name: 'Workspace', code: 'WKS' };
 }
 
 // Load store from disk (with seed fallback) and keep in sync across requests
 let lastDiskMtimeMs = 0;
 function syncStoreFromDisk() {
   try {
+    delete store.WORKSPACE_DATA;
     const targetPath = fs.existsSync(DATASTORE_PATH)
       ? DATASTORE_PATH
       : path.join(__dirname, 'data', 'datastore.json');
@@ -722,11 +683,13 @@ function syncStoreFromDisk() {
         const raw = fs.readFileSync(targetPath, 'utf-8');
         if (!raw || !raw.trim()) return;
         const parsed = JSON.parse(raw);
+        delete parsed.WORKSPACE_DATA;
         const currentRev = Number(store.revision) || 0;
         const diskRev = Number(parsed.revision) || 0;
         // Only adopt from disk if this is first load or the disk revision is strictly newer
         if (lastDiskMtimeMs === 0 || diskRev > currentRev) {
           store = { ...store, ...parsed, initialized: true };
+          delete store.WORKSPACE_DATA;
           if (!Array.isArray(store.ADMIN_USERS) || store.ADMIN_USERS.length === 0) {
             seedInitialDataIfEmpty();
           }
@@ -734,7 +697,6 @@ function syncStoreFromDisk() {
             store.CUSTOM_ROLES = JSON.parse(JSON.stringify(DEFAULT_CUSTOM_ROLES));
           }
           purgeLegacySeededResetNoise();
-          ensureWorkspaceBuckets();
           activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
         }
         lastDiskMtimeMs = stat.mtimeMs;
@@ -795,19 +757,11 @@ saveStore();
 
 function saveStore() {
   try {
-    ensureWorkspaceBuckets();
-    const boundId = store._BOUND_COMPANY_ID || store.ACTIVE_COMPANY_ID;
-    if (boundId && store.WORKSPACE_DATA && store.WORKSPACE_DATA[boundId]) {
-      WORKSPACE_COLLECTION_KEYS.forEach(k => {
-        if (Array.isArray(store[k])) {
-          store.WORKSPACE_DATA[boundId][k] = store[k];
-        }
-      });
-    }
     store.initialized = true;
     store.revision = (Number(store.revision) || 1) + 1;
     store.saved_at = getSystemNowIso();
     store.saved_at_ms = Date.now();
+    delete store.WORKSPACE_DATA;
     const payload = JSON.stringify(store, null, 2);
 
     // Atomic write to prevent file corruption or half-reads during high-throughput requests
@@ -838,108 +792,7 @@ function saveStore() {
 }
 
 function hydrateStoreFromClientSnapshot(rawSnap) {
-  try {
-    const snap = typeof rawSnap === 'string' ? JSON.parse(rawSnap) : rawSnap;
-    if (!snap || typeof snap !== 'object') return false;
-
-    // Server datastore on disk is authoritative. Never overwrite if server already has initialized assets or companies
-    const serverHasData = Array.isArray(store.ASSETS) && store.ASSETS.length > 0 && Array.isArray(store.COMPANIES) && store.COMPANIES.length > 0;
-    if (serverHasData) {
-      return false;
-    }
-
-    const currentRev = Number(store.revision) || 0;
-    const snapRev = Number(snap.revision) || 0;
-    if (snapRev > 0 && snapRev < currentRev) {
-      return false;
-    }
-
-    // Preserve all server-authoritative passwords and security settings
-    const serverPasswords = new Map();
-    (store.ADMIN_USERS || []).forEach(u => {
-      if (u && u.id && u.password) serverPasswords.set(u.id, u.password);
-      if (u && u.email && u.password) serverPasswords.set(u.email.toLowerCase(), u.password);
-    });
-    const serverAdminLoginPass = store.SYSTEM_SETTINGS?.admin_login_password;
-
-    // Build set of recycled/deleted company IDs to prevent resurrecting deleted workplaces
-    const recycledCompanyIds = new Set(
-      (store.RECYCLE_BIN || [])
-        .filter(b => b && b.entity_type === 'company')
-        .map(b => b.primary_id || b.identifier || (b.record && b.record.id))
-        .filter(Boolean)
-    );
-
-    if (Array.isArray(snap.COMPANIES) && snap.COMPANIES.length) {
-      // Filter out any company that was explicitly deleted and moved to the Recycle Bin
-      const validIncoming = snap.COMPANIES.filter(c => c && c.id && !recycledCompanyIds.has(c.id));
-      if (!Array.isArray(store.COMPANIES) || store.COMPANIES.length === 0) {
-        store.COMPANIES = validIncoming;
-      } else {
-        // Only update branding for existing active companies; never re-add deleted ones
-        validIncoming.forEach(inc => {
-          const existing = store.COMPANIES.find(c => c.id === inc.id);
-          if (existing) {
-            if (existing.custom_logo_updated_at || String(existing.logo_light_url || '').startsWith('data:image/') || String(existing.logo_light_url || '').startsWith('/static/uploads/')) {
-              inc.logo_light_url = existing.logo_light_url;
-              inc.logo_dark_url = existing.logo_dark_url;
-              inc.print_logo_url = existing.print_logo_url;
-              inc.logo_height = existing.logo_height;
-              inc.logo_width_pct = existing.logo_width_pct;
-              inc.logo_alignment = existing.logo_alignment;
-              inc.logo_fit = existing.logo_fit;
-              inc.custom_logo_updated_at = existing.custom_logo_updated_at;
-            }
-          }
-        });
-      }
-    }
-
-    if (Array.isArray(snap.CUSTOM_ROLES) && snap.CUSTOM_ROLES.length) {
-      // Merge roles so custom roles created on the server are never wiped out
-      const existingNames = new Set((store.CUSTOM_ROLES || []).map(r => (r.name || '').toLowerCase()));
-      const incomingRoles = snap.CUSTOM_ROLES;
-      (store.CUSTOM_ROLES || []).forEach(existingRole => {
-        if (!incomingRoles.some(r => (r.name || '').toLowerCase() === (existingRole.name || '').toLowerCase())) {
-          incomingRoles.push(existingRole);
-        }
-      });
-      store.CUSTOM_ROLES = incomingRoles;
-    }
-
-    if (Array.isArray(snap.ADMIN_USERS) && snap.ADMIN_USERS.length) {
-      snap.ADMIN_USERS.forEach(u => {
-        const existingPass = serverPasswords.get(u.id) || serverPasswords.get((u.email || '').toLowerCase());
-        if (existingPass) u.password = existingPass;
-      });
-      store.ADMIN_USERS = snap.ADMIN_USERS;
-    }
-
-    if (snap.SYSTEM_SETTINGS && typeof snap.SYSTEM_SETTINGS === 'object') {
-      store.SYSTEM_SETTINGS = { ...(store.SYSTEM_SETTINGS || {}), ...snap.SYSTEM_SETTINGS };
-      if (serverAdminLoginPass) {
-        store.SYSTEM_SETTINGS.admin_login_password = serverAdminLoginPass;
-      }
-    }
-
-    if (snap.WORKSPACE_DATA && typeof snap.WORKSPACE_DATA === 'object') {
-      if (!store.WORKSPACE_DATA) store.WORKSPACE_DATA = {};
-      for (const [cid, wData] of Object.entries(snap.WORKSPACE_DATA)) {
-        if (wData && typeof wData === 'object') {
-          store.WORKSPACE_DATA[cid] = { ...(store.WORKSPACE_DATA[cid] || {}), ...wData };
-        }
-      }
-    }
-
-    if (snap.ACTIVE_COMPANY_ID) {
-      store.ACTIVE_COMPANY_ID = snap.ACTIVE_COMPANY_ID;
-    }
-    activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
-    saveStore();
-    return true;
-  } catch (e) {
-    console.warn('Client snapshot hydration skipped:', e.message);
-  }
+  // Disabled: Server and PostgreSQL are authoritative. Frontend is never allowed to override server truth.
   return false;
 }
 
@@ -1188,7 +1041,11 @@ function moveToRecycleBin(entity_type, entity_label, primary_id, record, deleted
     deleted_at_fmt: formatSystemTimestamp(nowIso)
   };
   entry.bin_id = entry.id;
+  entry.company_id = rec.company_id || store.ACTIVE_COMPANY_ID || 'comp-001';
   store.RECYCLE_BIN.unshift(entry);
+  try {
+    dal.addToRecycleBin(entry).catch(err => console.warn('DAL addToRecycleBin async error:', err.message));
+  } catch (e) {}
   saveStore();
   return entry;
 }
@@ -2911,6 +2768,8 @@ app.use((req, res, next) => {
       const isDeleteAction = req.method === 'DELETE' || p.includes('/delete') || p.includes('/purge') || p.includes('/empty');
       const isWriteAction = isDeleteAction || req.method === 'PUT' || req.method === 'PATCH' || p.includes('/new') || p.includes('/step') || p.includes('/create') || p.includes('/save') || p.includes('/edit') || p.includes('/update') || p.includes('/close') || p.includes('/complete') || p.includes('/toggle') || p.includes('/upload') || p.includes('/restore');
 
+      const fallbackModUrl = targetMod === 'companies' ? '/settings/companies' : (targetMod === 'users_manage' ? '/settings/admin-users' : (targetMod === 'technicians_manage' ? '/settings/technicians' : (targetMod === 'recycle_bin' ? '/settings/recycle-bin' : (targetMod === 'settings_manage' ? '/settings' : `/${targetMod}`))));
+
       if (isDeleteAction) {
         const canDel = caps.delete.includes('all') || caps.delete.includes(targetMod);
         if (!canDel) {
@@ -2919,7 +2778,7 @@ app.use((req, res, next) => {
             return res.status(403).json({ ok: false, error: 'Permission Denied: Your role (' + matchedUser.role + ') is not authorized to delete records in ' + modTitle + '.' });
           }
           flash('error', 'Permission Denied: Your role (' + matchedUser.role + ') is not authorized to delete records in ' + modTitle + '.');
-          return res.redirect(req.header('Referer') || '/dashboard');
+          return res.redirect(req.header('Referer') || fallbackModUrl);
         }
       } else if (isWriteAction) {
         const canEd = caps.edit.includes('all') || caps.edit.includes(targetMod);
@@ -2929,7 +2788,7 @@ app.use((req, res, next) => {
             return res.status(403).json({ ok: false, error: 'Read-Only Access: Your role (' + matchedUser.role + ') can view ' + modTitle + ' but is not permitted to create or edit records.' });
           }
           flash('error', 'Read-Only Access: Your role (' + matchedUser.role + ') can view ' + modTitle + ' but is not permitted to create or edit records.');
-          return res.redirect(req.header('Referer') || '/dashboard');
+          return res.redirect(req.header('Referer') || fallbackModUrl);
         }
       }
     }
@@ -3770,7 +3629,7 @@ app.post('/api/companies/save-logo', upload.single('logo_file'), (req, res) => {
 app.post(['/settings/companies/save', '/api/companies/save'], upload.fields([
   { name: 'logo_light_file', maxCount: 1 },
   { name: 'logo_dark_file', maxCount: 1 }
-]), (req, res) => {
+]), async (req, res) => {
   if (!store.COMPANIES) store.COMPANIES = [];
   const {
     id, name, code, primary_color, secondary_color,
@@ -3884,6 +3743,11 @@ app.post(['/settings/companies/save', '/api/companies/save'], upload.fields([
   res.clearCookie('current_company_id', { path: '/' });
 
   saveStore();
+  try {
+    await dal.upsertCompany(target);
+  } catch (e) {
+    console.warn('DAL upsertCompany error:', e.message);
+  }
   logAudit(isNew ? 'Company Workspace Created' : 'Company Workspace Updated', `Saved branding and logo configuration for ${target.name} (${target.code})`, 'settings', '/settings/companies');
   if (req.path === '/api/companies/save' || (req.headers.accept && req.headers.accept.includes('application/json'))) {
     return res.json({ ok: true, company: target, active_company_id: preservedActiveId });
@@ -3892,7 +3756,7 @@ app.post(['/settings/companies/save', '/api/companies/save'], upload.fields([
   res.redirect('/settings/companies');
 });
 
-app.all(['/settings/companies/:id/delete', '/api/companies/:id/delete'], (req, res) => {
+app.all(['/settings/companies/:id/delete', '/api/companies/:id/delete'], async (req, res) => {
   const isJson = req.path.startsWith('/api/') || (req.headers.accept && req.headers.accept.includes('application/json'));
   if (store.COMPANIES && store.COMPANIES.length > 1) {
     const idx = store.COMPANIES.findIndex(c => c && c.id === req.params.id);
@@ -3905,9 +3769,10 @@ app.all(['/settings/companies/:id/delete', '/api/companies/:id/delete'], (req, r
         summary: `Workspace Brand • Code: ${removed.code} • Theme: ${removed.primary_color}`
       });
 
-      // Permanently remove deleted company bucket from store.WORKSPACE_DATA
-      if (store.WORKSPACE_DATA && store.WORKSPACE_DATA[removed.id]) {
-        delete store.WORKSPACE_DATA[removed.id];
+      try {
+        await dal.deleteCompany(removed.id);
+      } catch (e) {
+        console.warn('DAL deleteCompany error:', e.message);
       }
 
       // Reassign users of deleted company to the primary remaining company
@@ -4812,7 +4677,7 @@ app.get('/assets/new/step-3', (req, res) => {
   });
 });
 
-app.post('/assets/new/step-3', upload.any(), (req, res) => {
+app.post('/assets/new/step-3', upload.any(), async (req, res) => {
   try {
     const user = req.cookies?.opsloom_user || 'default';
     const data = { ...(wizardState.assets.default || {}), ...(wizardState.assets[user] || {}), ...(req.body || {}) };
@@ -4864,25 +4729,22 @@ app.post('/assets/new/step-3', upload.any(), (req, res) => {
       photo_url: resolvedPhotoUrl
     };
 
+    const activeCompany = resolveActiveWorkspaceForRequest(req);
+    asset.company_id = activeCompany.id;
+
     if (!Array.isArray(store.ASSETS)) store.ASSETS = [];
     store.ASSETS.unshift(asset);
-
-    // Also persist directly into active company workspace bucket
-    const activeCompany = resolveActiveWorkspaceForRequest(req);
-    if (store.WORKSPACE_DATA && store.WORKSPACE_DATA[activeCompany.id]) {
-      if (!Array.isArray(store.WORKSPACE_DATA[activeCompany.id].ASSETS)) {
-        store.WORKSPACE_DATA[activeCompany.id].ASSETS = [];
-      }
-      if (!store.WORKSPACE_DATA[activeCompany.id].ASSETS.some(a => a.uid === asset.uid)) {
-        store.WORKSPACE_DATA[activeCompany.id].ASSETS.unshift(asset);
-      }
-    }
 
     delete wizardState.assets[user];
     delete wizardState.assets.default;
     logAudit('Asset Created', `Registered new asset ${asset.asset_name} (${asset.asset_id})`, 'assets', `/assets/${encodeURIComponent(uid)}`);
     pushNotification('Asset Registered', `New asset ${asset.asset_name} (${asset.asset_id}) has been enrolled in the Master Register.`, 'success', `/assets/${encodeURIComponent(uid)}`);
     saveStore();
+    try {
+      await dal.upsertAsset(asset);
+    } catch (e) {
+      console.warn('DAL upsertAsset error:', e.message);
+    }
     return res.redirect(`/assets/success/${encodeURIComponent(uid)}`);
   } catch (err) {
     console.error('Error finalizing asset registration:', err);
@@ -4994,7 +4856,7 @@ app.post('/assets/:asset_uid/edit', upload.any(), (req, res) => {
   res.redirect(`/assets/${asset ? asset.uid : req.params.asset_uid}`);
 });
 
-app.all(['/assets/:asset_uid/delete', '/assets/delete/:asset_uid', '/assets/delete', '/api/assets/:asset_uid/delete', '/api/assets/delete'], (req, res) => {
+app.all(['/assets/:asset_uid/delete', '/assets/delete/:asset_uid', '/assets/delete', '/api/assets/:asset_uid/delete', '/api/assets/delete'], async (req, res) => {
   try {
     if (!Array.isArray(store.ASSETS)) store.ASSETS = [];
     const identifier = req.params.asset_uid
@@ -5012,20 +4874,13 @@ app.all(['/assets/:asset_uid/delete', '/assets/delete/:asset_uid', '/assets/dele
     const target = findAssetByUidOrId(decodedId) || findAssetByUidOrId(identifier);
 
     if (target) {
-      // Remove from active store.ASSETS
-      const sIdx = store.ASSETS.indexOf(target);
-      if (sIdx !== -1) {
-        store.ASSETS.splice(sIdx, 1);
-      } else {
-        const sIdx2 = store.ASSETS.findIndex(a => a && (a.uid === target.uid || a.asset_id === target.asset_id));
-        if (sIdx2 !== -1) store.ASSETS.splice(sIdx2, 1);
-      }
+      // Remove permanently from store.ASSETS
+      store.ASSETS = (store.ASSETS || []).filter(a => a && a.uid !== target.uid && a.asset_id !== target.asset_id);
 
-      // Remove strictly from current active workspace bucket
-      const activeWsId = store._BOUND_COMPANY_ID || store.ACTIVE_COMPANY_ID || 'comp-001';
-      if (store.WORKSPACE_DATA && store.WORKSPACE_DATA[activeWsId] && Array.isArray(store.WORKSPACE_DATA[activeWsId].ASSETS)) {
-        const bIdx = store.WORKSPACE_DATA[activeWsId].ASSETS.findIndex(a => a && (a.uid === target.uid || a.asset_id === target.asset_id));
-        if (bIdx !== -1) store.WORKSPACE_DATA[activeWsId].ASSETS.splice(bIdx, 1);
+      try {
+        await dal.deleteAsset(target.uid);
+      } catch (e) {
+        console.warn('DAL deleteAsset error:', e.message);
       }
 
       const actor = getCurrentActor(req);
@@ -5048,9 +4903,14 @@ app.all(['/assets/:asset_uid/delete', '/assets/delete/:asset_uid', '/assets/dele
     }
 
     const rawNext = req.body?.next || req.query?.next || '';
-    const safeNext = (rawNext && String(rawNext).startsWith('/assets') && !String(rawNext).includes('/delete'))
-      ? String(rawNext)
-      : '/assets';
+    let safeNext = '/assets';
+    if (rawNext && String(rawNext).startsWith('/assets') && !String(rawNext).includes('/delete')) {
+      const cleanRaw = String(rawNext);
+      // If next is pointing to the deleted asset's profile page, stay on /assets
+      if (!target || (cleanRaw !== `/assets/${target.uid}` && !cleanRaw.includes(target.uid) && !cleanRaw.includes(target.asset_id))) {
+        safeNext = cleanRaw;
+      }
+    }
     return res.redirect(safeNext);
   } catch (err) {
     console.error('Error during asset deletion:', err);
@@ -5908,16 +5768,21 @@ app.post('/breakdowns/:id/delete', (req, res) => {
   const idx = store.BREAKDOWNS.findIndex(b => b.breakdown_id === req.params.id);
   if (idx !== -1) {
     const deleted = store.BREAKDOWNS.splice(idx, 1)[0];
+    try { dal.deleteBreakdown(deleted.breakdown_id).catch(() => {}); } catch (e) {}
     const actor = getCurrentActor(req);
     moveToRecycleBin('breakdown', `${deleted.breakdown_id} — ${deleted.asset_name} (${deleted.incident_title})`, deleted.breakdown_id, deleted, actor.name, {
       deleted_by_email: actor.email,
       deleted_by_role: actor.role
     });
+    saveStore();
     logAudit('Breakdown Deleted', `Moved incident ${deleted.breakdown_id} to Admin Recycle Bin`, 'breakdowns', '/settings/recycle-bin', 'warning');
     flash('success', 'Breakdown incident moved to Admin Recycle Bin.');
   }
-  const next = req.body?.next || '/breakdowns';
-  res.redirect(next);
+  const rawNext = req.body?.next || '';
+  const safeNext = (rawNext && rawNext.startsWith('/breakdowns') && !rawNext.includes(req.params.id) && !rawNext.includes('/delete'))
+    ? rawNext
+    : '/breakdowns';
+  res.redirect(safeNext);
 });
 
 // -------------------------
@@ -6297,15 +6162,21 @@ app.post('/maintenance/:task_id/delete', (req, res) => {
   const idx = store.MAINTENANCE_TASKS.findIndex(t => t.task_id === req.params.task_id);
   if (idx !== -1) {
     const deleted = store.MAINTENANCE_TASKS.splice(idx, 1)[0];
+    try { dal.deleteMaintenanceTask(deleted.task_id).catch(() => {}); } catch (e) {}
     const actor = getCurrentActor(req);
     moveToRecycleBin('maintenance', `${deleted.task_id} — ${deleted.asset_name} (${deleted.task_title || deleted.task_description || 'PM'})`, deleted.task_id, deleted, actor.name, {
       deleted_by_email: actor.email,
       deleted_by_role: actor.role
     });
+    saveStore();
     logAudit('Task Deleted', `Moved maintenance order ${deleted.task_id} to Admin Recycle Bin`, 'maintenance', '/settings/recycle-bin', 'warning');
     flash('success', 'Maintenance order moved to Admin Recycle Bin.');
   }
-  res.redirect('/maintenance');
+  const rawNext = req.body?.next || '';
+  const safeNext = (rawNext && rawNext.startsWith('/maintenance') && !rawNext.includes(req.params.task_id) && !rawNext.includes('/delete'))
+    ? rawNext
+    : '/maintenance';
+  res.redirect(safeNext);
 });
 
 app.get(['/maintenance/export', '/maintenance/export/:fmt', '/maintenance/schedule/export'], async (req, res) => {
@@ -6822,15 +6693,21 @@ app.post('/inventory/:part_uid/delete', (req, res) => {
   const idx = store.INVENTORY_PARTS.findIndex(p => (p.uid || p.id) === req.params.part_uid);
   if (idx !== -1) {
     const deleted = store.INVENTORY_PARTS.splice(idx, 1)[0];
+    try { dal.deleteInventoryPart(deleted.uid || deleted.id).catch(() => {}); } catch (e) {}
     const actor = getCurrentActor(req);
     moveToRecycleBin('inventory', `${deleted.part_name} (${deleted.sku})`, deleted.uid || deleted.id, deleted, actor.name, {
       deleted_by_email: actor.email,
       deleted_by_role: actor.role
     });
+    saveStore();
     logAudit('Part Deleted', `Moved spare part ${deleted.part_name} to Admin Recycle Bin`, 'inventory', '/settings/recycle-bin', 'warning');
     flash('success', 'Spare part moved to Admin Recycle Bin.');
   }
-  res.redirect('/inventory');
+  const rawNext = req.body?.next || '';
+  const safeNext = (rawNext && rawNext.startsWith('/inventory') && !rawNext.includes(req.params.part_uid) && !rawNext.includes('/delete'))
+    ? rawNext
+    : '/inventory';
+  res.redirect(safeNext);
 });
 
 // -------------------------
@@ -7606,28 +7483,68 @@ app.get('/settings/recycle-bin', (req, res) => {
   });
 });
 
-app.post('/settings/recycle-bin/:bin_id/restore', (req, res) => {
+app.post('/settings/recycle-bin/:bin_id/restore', async (req, res) => {
   if (!store.RECYCLE_BIN) store.RECYCLE_BIN = [];
-  const idx = store.RECYCLE_BIN.findIndex(x => (x.bin_id || x.id) === req.params.bin_id);
+  const reqBinId = req.params.bin_id;
+  let idx = store.RECYCLE_BIN.findIndex(x => (x.bin_id || x.id) === reqBinId);
+  let entry = null;
+
   if (idx !== -1) {
-    const entry = store.RECYCLE_BIN.splice(idx, 1)[0];
+    entry = store.RECYCLE_BIN.splice(idx, 1)[0];
+  } else {
+    // Check PostgreSQL recycle bin directly if not in memory
+    try {
+      const dbBin = await dal.getRecycleBin();
+      const match = (dbBin || []).find(x => (x.id || x.bin_id) === reqBinId || x.primary_id === reqBinId);
+      if (match) {
+        entry = {
+          id: match.id,
+          bin_id: match.id,
+          entity_type: match.entity_type,
+          entity_label: match.entity_label,
+          primary_id: match.primary_id,
+          record: match.record,
+          deleted_by: match.deleted_by_name || 'Administrator',
+          summary: match.summary || ''
+        };
+      }
+    } catch (e) {
+      console.warn('DAL getRecycleBin fallback error:', e.message);
+    }
+  }
+
+  if (entry) {
     const rec = entry.record || {};
+    try {
+      await dal.removeFromRecycleBin(entry.bin_id || entry.id);
+    } catch (e) {
+      console.warn('DAL removeFromRecycleBin error:', e.message);
+    }
+
     switch (entry.entity_type) {
       case 'asset':
         if (!store.ASSETS) store.ASSETS = [];
+        rec.company_id = rec.company_id || entry.company_id || store.ACTIVE_COMPANY_ID || 'comp-001';
         store.ASSETS.unshift(rec);
+        try { await dal.upsertAsset(rec); } catch (e) { console.warn('DAL upsertAsset restore error:', e.message); }
         break;
       case 'breakdown':
         if (!store.BREAKDOWNS) store.BREAKDOWNS = [];
+        rec.company_id = rec.company_id || entry.company_id || store.ACTIVE_COMPANY_ID || 'comp-001';
         store.BREAKDOWNS.unshift(rec);
+        try { await dal.upsertBreakdown(rec); } catch (e) { console.warn('DAL upsertBreakdown restore error:', e.message); }
         break;
       case 'maintenance':
         if (!store.MAINTENANCE_TASKS) store.MAINTENANCE_TASKS = [];
+        rec.company_id = rec.company_id || entry.company_id || store.ACTIVE_COMPANY_ID || 'comp-001';
         store.MAINTENANCE_TASKS.unshift(rec);
+        try { await dal.upsertMaintenanceTask(rec); } catch (e) { console.warn('DAL upsertMaintenanceTask restore error:', e.message); }
         break;
       case 'inventory':
         if (!store.INVENTORY_PARTS) store.INVENTORY_PARTS = [];
+        rec.company_id = rec.company_id || entry.company_id || store.ACTIVE_COMPANY_ID || 'comp-001';
         store.INVENTORY_PARTS.unshift(rec);
+        try { await dal.upsertInventoryPart(rec); } catch (e) { console.warn('DAL upsertInventoryPart restore error:', e.message); }
         break;
       case 'report':
         if (!store.REPORT_EXPORTS) store.REPORT_EXPORTS = [];
@@ -7650,8 +7567,21 @@ app.post('/settings/recycle-bin/:bin_id/restore', (req, res) => {
         store.AI_CHATS.unshift(rec);
         break;
       case 'company':
+      case 'workspace':
         if (!store.COMPANIES) store.COMPANIES = [];
-        store.COMPANIES.push(rec);
+        ensureCompanyDesignation(rec);
+        const compIdx = store.COMPANIES.findIndex(c => c && c.id === rec.id);
+        if (compIdx !== -1) {
+          store.COMPANIES[compIdx] = rec;
+        } else {
+          store.COMPANIES.push(rec);
+        }
+        ensureWorkspaceBuckets();
+        try {
+          await dal.upsertCompany(rec);
+        } catch (e) {
+          console.warn('DAL upsertCompany restore error:', e.message);
+        }
         break;
       case 'document':
         if (!store.ASSET_DOCUMENTS) store.ASSET_DOCUMENTS = [];
@@ -7667,11 +7597,16 @@ app.post('/settings/recycle-bin/:bin_id/restore', (req, res) => {
   res.redirect('/settings/recycle-bin');
 });
 
-app.post(['/settings/recycle-bin/:bin_id/delete', '/settings/recycle-bin/:bin_id/purge'], (req, res) => {
+app.post(['/settings/recycle-bin/:bin_id/delete', '/settings/recycle-bin/:bin_id/purge'], async (req, res) => {
   if (!store.RECYCLE_BIN) store.RECYCLE_BIN = [];
   const idx = store.RECYCLE_BIN.findIndex(x => (x.bin_id || x.id) === req.params.bin_id);
   if (idx !== -1) {
     const removed = store.RECYCLE_BIN.splice(idx, 1)[0];
+    try {
+      await dal.removeFromRecycleBin(removed.bin_id || removed.id);
+    } catch (e) {
+      console.warn('DAL removeFromRecycleBin purge error:', e.message);
+    }
     saveStore();
     logAudit('Record Permanently Purged', `Permanently removed ${removed.entity_label} from Recycle Bin`, 'settings', '/settings/recycle-bin', 'warning');
     flash('info', `Permanently deleted "${removed.entity_label}".`);
@@ -7681,6 +7616,9 @@ app.post(['/settings/recycle-bin/:bin_id/delete', '/settings/recycle-bin/:bin_id
 
 app.post('/settings/recycle-bin/empty', (req, res) => {
   const count = (store.RECYCLE_BIN || []).length;
+  (store.RECYCLE_BIN || []).forEach(r => {
+    try { dal.removeFromRecycleBin(r.bin_id || r.id).catch(() => {}); } catch (e) {}
+  });
   store.RECYCLE_BIN = [];
   saveStore();
   logAudit('Recycle Bin Emptied', `Permanently purged ${count} item(s) from Admin Recycle Bin`, 'settings', '/settings/recycle-bin', 'warning');
@@ -9517,11 +9455,20 @@ app.get('/maintenance/assets', (req, res) => {
   res.json(store.ASSETS || []);
 });
 
-// 404 Handler
+// 404 Handler - Keep user in their current module context
 app.use((req, res) => {
   const p = req.path || '';
   if (p === '/dashboard' || p === '/login' || p.startsWith('/dashboard') || p.startsWith('/login')) {
     return res.status(404).send('Not Found');
+  }
+  const referer = req.header('Referer') || '';
+  const mod = resolvePathModule(p) || resolvePathModule(referer);
+  if (mod) {
+    const modFallback = mod === 'companies' ? '/settings/companies' : (mod === 'users_manage' ? '/settings/admin-users' : (mod === 'technicians_manage' ? '/settings/technicians' : (mod === 'recycle_bin' ? '/settings/recycle-bin' : (mod === 'settings_manage' ? '/settings' : `/${mod}`))));
+    return res.redirect(303, modFallback);
+  }
+  if (referer && !referer.includes('/login') && !referer.includes('/delete') && !referer.includes(p)) {
+    return res.redirect(303, referer);
   }
   return res.redirect(303, '/dashboard');
 });

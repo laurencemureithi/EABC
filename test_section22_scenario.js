@@ -224,7 +224,7 @@ async function runScenario() {
   // STEP 8: Refresh
   console.log('Step 8 & 9: Refresh and Confirm Asset Remains...');
   datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
-  assetA = (datastore.WORKSPACE_DATA[wsA.id]?.ASSETS || []).find(a => a.asset_id === assetTag);
+  assetA = (datastore.ASSETS || datastore.WORKSPACE_DATA?.[wsA.id]?.ASSETS || []).find(a => a.asset_id === assetTag);
   assert.ok(assetA, 'Asset remains after refresh');
   console.log(`   ✅ Step 8 & 9 Passed: Asset "${assetA.asset_name}" verified in persistent store.\n`);
 
@@ -250,7 +250,7 @@ async function runScenario() {
   // STEP 11 & 12: Refresh & confirm edit remains
   console.log('Step 11 & 12: Refresh and Confirm Edit Remains...');
   datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
-  assetA = datastore.WORKSPACE_DATA[wsA.id].ASSETS.find(a => a.uid === assetA.uid);
+  assetA = (datastore.ASSETS || datastore.WORKSPACE_DATA?.[wsA.id]?.ASSETS || []).find(a => a.uid === assetA.uid);
   assert.strictEqual(assetA.asset_name, 'Conveyor Line Alpha-1 (Upgraded)');
   assert.strictEqual(assetA.location, 'Bay 1 - Station B');
   console.log('   ✅ Step 11 & 12 Passed: Edited values verified in persistent store.\n');
@@ -267,7 +267,7 @@ async function runScenario() {
   // STEP 14 & 15: Refresh & confirm it remains deleted
   console.log('Step 14 & 15: Refresh and Confirm Asset Remains Deleted...');
   datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
-  const assetStillInA = (datastore.WORKSPACE_DATA[wsA.id]?.ASSETS || []).some(a => a.uid === assetA.uid);
+  const assetStillInA = (datastore.ASSETS || datastore.WORKSPACE_DATA?.[wsA.id]?.ASSETS || []).some(a => a.uid === assetA.uid);
   assert.strictEqual(assetStillInA, false, 'Asset must not be in active workspace assets');
   console.log('   ✅ Step 14 & 15 Passed: Asset remains safely deleted from active view.\n');
 
@@ -398,7 +398,7 @@ async function runScenario() {
   });
 
   datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
-  const evAsset = datastore.WORKSPACE_DATA[wsA.id].ASSETS.find(a => a.asset_id === evAssetTag);
+  const evAsset = (datastore.ASSETS || datastore.WORKSPACE_DATA?.[wsA.id]?.ASSETS || []).find(a => a.asset_id === evAssetTag);
 
   await request({
     path: '/maintenance/schedule/step-3',
@@ -477,7 +477,7 @@ async function runScenario() {
   });
   assertRedirect(genReportARes);
   datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
-  const reportA = (datastore.WORKSPACE_DATA[wsA.id]?.REPORT_EXPORTS || datastore.REPORT_EXPORTS || [])[0];
+  const reportA = (datastore.WORKSPACE_DATA?.[wsA.id]?.REPORT_EXPORTS || datastore.REPORT_EXPORTS || [])[0];
   assert.ok(reportA, 'Report A must be created');
 
   const repARes = await request({
@@ -509,7 +509,7 @@ async function runScenario() {
   });
   assertRedirect(genReportBRes);
   datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
-  const reportB = (datastore.WORKSPACE_DATA[wsB.id]?.REPORT_EXPORTS || datastore.REPORT_EXPORTS || [])[0];
+  const reportB = (datastore.WORKSPACE_DATA?.[wsB.id]?.REPORT_EXPORTS || datastore.REPORT_EXPORTS || [])[0];
   assert.ok(reportB, 'Report B must be created');
 
   const repBRes = await request({
@@ -540,7 +540,7 @@ async function runScenario() {
   });
   assertRedirect(uploadDocRes);
   datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
-  const docs = datastore.WORKSPACE_DATA[wsA.id].ASSET_DOCUMENTS || [];
+  const docs = (datastore.ASSET_DOCUMENTS || datastore.WORKSPACE_DATA?.[wsA.id]?.ASSET_DOCUMENTS || []);
   assert.ok(docs.length > 0, 'Document must be persisted');
   console.log(`   ✅ Step 36, 37 & 38 Passed: Document "${docs[0].title || docs[0].name}" persisted and verified.\n`);
 

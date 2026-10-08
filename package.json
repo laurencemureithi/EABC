@@ -14,7 +14,9 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/pg": "^8.23.1",
     "autoprefixer": "^10.4.23",
+    "drizzle-kit": "^0.31.11",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17"
   },
@@ -25,10 +27,16 @@
     "@google/genai": "^2.24.0",
     "chart.js": "^4.5.1",
     "cookie-parser": "^1.4.7",
+    "dotenv": "^18.0.6",
+    "drizzle-orm": "^0.45.4",
     "express": "^5.2.1",
+    "firebase": "^13.0.0",
+    "firebase-admin": "^14.5.0",
     "multer": "^2.4.0",
     "nodemailer": "^10.0.15",
     "nunjucks": "^3.2.4",
-    "pptxgenjs": "^4.0.1"
+    "pg": "^8.23.1",
+    "pptxgenjs": "^4.0.1",
+    "sqlite3": "^6.0.1"
   }
 }

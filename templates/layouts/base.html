@@ -670,11 +670,10 @@
           tzInput.value = tz;
         }, true);
 
-        // Cache authoritative server state snapshot locally for offline reference
-        var serverSnap = {{ (client_sync_snapshot or {}) | dump | safe }};
-        if (serverSnap && typeof serverSnap === 'object' && serverSnap.revision) {
-          localStorage.setItem('opsloom_master_state_v1', JSON.stringify(serverSnap));
-        }
+        // Ensure no stale state snapshots reside in client storage
+        try {
+          localStorage.removeItem('opsloom_master_state_v1');
+        } catch (e) {}
       } catch (e) {}
     })();
 
