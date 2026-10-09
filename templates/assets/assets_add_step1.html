@@ -1,11 +1,11 @@
 {% extends "layouts/base.html" %}
-{% block title %}Add New Asset - Step 1 • Opsloom{% endblock %}
+{% block title %}Add New Asset - Step 1: Basic Information • Opsloom{% endblock %}
 
 {% block content %}
   {% set page_title = "Add New Asset" %}
   {% set breadcrumbs = [
     {"label":"Asset Register", "href": url_for("assets_master_list")},
-    {"label":"Add New Asset"}
+    {"label":"Add New Asset (Step 1 of 4)"}
   ] %}
   {% include "partials/title_block.html" %}
 
@@ -13,61 +13,106 @@
     <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden mb-6">
 
       {% if error %}
-      <div class="p-4 bg-red-50 text-red-700 text-sm font-semibold border-b border-red-100">
-        {{ error }}
+      <div id="validationAlert" class="p-4 bg-rose-50 text-rose-700 text-sm font-semibold border-b border-rose-200 flex items-center gap-3">
+        <span class="material-symbols-outlined text-rose-600">error</span>
+        <span>{{ error }}</span>
       </div>
       {% endif %}
 
-      <div class="grid grid-cols-3 border-b border-slate-100 dark:border-dark-border">
-        <div class="flex items-center justify-center p-4 gap-3 border-b-2 border-ueal-gold">
+      <!-- 4-STEP WIZARD PROGRESS BAR -->
+      <div class="grid grid-cols-4 border-b border-slate-100 dark:border-dark-border">
+        <div class="flex items-center justify-center p-3 gap-2 border-b-2 border-ueal-gold bg-ueal-gold/5">
           <span class="w-7 h-7 rounded-full bg-ueal-gold text-white flex items-center justify-center text-xs font-bold">1</span>
-          <span class="text-sm font-bold text-ueal-purple dark:text-ueal-gold">Basic Info</span>
+          <span class="text-xs font-bold text-ueal-purple dark:text-ueal-gold truncate">1. Basic Info</span>
         </div>
-        <div class="flex items-center justify-center p-4 gap-3 border-b-2 border-transparent text-slate-400">
-          <span class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-xs font-bold">2</span>
-          <span class="text-sm font-medium">Technical Details</span>
+        <div class="flex items-center justify-center p-3 gap-2 border-b-2 border-transparent text-slate-400">
+          <span class="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center text-xs font-bold">2</span>
+          <span class="text-xs font-medium truncate">2. Technical Specs</span>
         </div>
-        <div class="flex items-center justify-center p-4 gap-3 border-b-2 border-transparent text-slate-400">
-          <span class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-xs font-bold">3</span>
-          <span class="text-sm font-medium">Criticality &amp; Status</span>
+        <div class="flex items-center justify-center p-3 gap-2 border-b-2 border-transparent text-slate-400">
+          <span class="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center text-xs font-bold">3</span>
+          <span class="text-xs font-medium truncate">3. Operational Info</span>
+        </div>
+        <div class="flex items-center justify-center p-3 gap-2 border-b-2 border-transparent text-slate-400">
+          <span class="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center text-xs font-bold">4</span>
+          <span class="text-xs font-medium truncate">4. Review &amp; Save</span>
         </div>
       </div>
 
-      <form method="post" action="{{ url_for('assets_add_step1_post') }}">
+      <form id="step1Form" method="post" action="{{ url_for('assets_add_step1_post') }}">
         <div class="p-8">
           <div class="mb-8">
-            <h2 class="text-lg font-bold text-slate-900 dark:text-white">General Information</h2>
-            <p class="text-sm text-slate-500 dark:text-slate-400">Provide the fundamental identification details for the new asset.</p>
+            <h2 class="text-lg font-bold text-slate-900 dark:text-white">General Asset Information</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400">Provide fundamental identification and taxonomy details. All fields marked with * are required.</p>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+            <!-- Asset Name -->
             <div class="space-y-1.5">
               <label class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
                 <span>Asset Name <span class="text-red-500 font-bold">*</span></span>
-                <span class="text-[10px] uppercase font-bold text-red-500 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded">Mandatory</span>
+                <span class="text-[10px] uppercase font-bold text-red-500 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded">Required</span>
               </label>
-              <input name="asset_name" value="{{ form.asset_name if form else '' }}" required
+              <input name="asset_name" id="asset_name" value="{{ form.asset_name if form else '' }}" required
                      class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
-                     placeholder="e.g. Induction Sealer 500W" type="text"/>
+                     placeholder="e.g. High-Speed Induction Sealer 500W" type="text"/>
             </div>
 
+            <!-- Asset ID -->
             <div class="space-y-1.5">
               <label class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
-                <span>Asset ID <span class="text-red-500 font-bold">*</span></span>
-                <span class="text-[10px] uppercase font-bold text-red-500 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded">Mandatory</span>
+                <span>Asset ID / Code <span class="text-red-500 font-bold">*</span></span>
+                <span class="text-[10px] uppercase font-bold text-red-500 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded">Required</span>
               </label>
-              <input name="asset_id" value="{{ form.asset_id if form else '' }}" required
+              <input name="asset_id" id="asset_id" value="{{ form.asset_id if form else '' }}" required
                      class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm font-mono focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
-                     placeholder="e.g. ENG-AST-0105 or UEAL/HQ/P/001" type="text"/>
+                     placeholder="e.g. HSP-01 or ENG-AST-0105" type="text"/>
             </div>
 
+            <!-- Asset Category -->
             <div class="space-y-1.5">
               <label class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
-                <span>Section <span class="text-red-500 font-bold">*</span></span>
-                <span class="text-[10px] uppercase font-bold text-red-500 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded">Mandatory</span>
+                <span>Asset Category <span class="text-red-500 font-bold">*</span></span>
+                <span class="text-[10px] uppercase font-bold text-red-500 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded">Required</span>
               </label>
               <div class="relative">
-                <select name="section" required
+                <select name="category" id="category" required
+                        class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white appearance-none cursor-pointer">
+                  <option disabled value="" {% if not form or not form.category %}selected{% endif %}>Select Equipment Category</option>
+                  {% set cats = ["Packaging Machinery", "Processing Equipment", "Utilities & Power", "Conveyors & Material Handling", "Storage & Chemical Tanks", "Laboratory & Quality Assurance", "Facility & Safety Infrastructure"] %}
+                  {% for c in cats %}
+                    <option value="{{ c }}" {% if form and form.category==c %}selected{% endif %}>{{ c }}</option>
+                  {% endfor %}
+                </select>
+                <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+              </div>
+            </div>
+
+            <!-- Workspace / Company -->
+            <div class="space-y-1.5">
+              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                <span>Organization Workspace <span class="text-red-500 font-bold">*</span></span>
+                <span class="text-[10px] uppercase font-bold text-red-500 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded">Required</span>
+              </label>
+              <div class="relative">
+                <select name="company_id" id="company_id" required
+                        class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white appearance-none cursor-pointer">
+                  {% for comp in companies %}
+                    <option value="{{ comp.id }}" {% if form and (form.company_id == comp.id or (not form.company_id and active_company and active_company.id == comp.id)) %}selected{% elif not form and active_company and active_company.id == comp.id %}selected{% endif %}>{{ comp.name }} ({{ comp.code }})</option>
+                  {% endfor %}
+                </select>
+                <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+              </div>
+            </div>
+
+            <!-- Section -->
+            <div class="space-y-1.5">
+              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                <span>Production Section <span class="text-red-500 font-bold">*</span></span>
+                <span class="text-[10px] uppercase font-bold text-red-500 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded">Required</span>
+              </label>
+              <div class="relative">
+                <select name="section" id="section" required
                         class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white appearance-none cursor-pointer">
                   <option disabled value="" {% if not form or not form.section %}selected{% endif %}>Select Section</option>
                   {% for s in sections %}
@@ -78,18 +123,20 @@
               </div>
             </div>
 
+            <!-- Serial No -->
             <div class="space-y-1.5">
-              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Serial No.</label>
-              <input name="serial_no" value="{{ form.serial_no if form else '' }}"
+              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Serial Number</label>
+              <input name="serial_no" id="serial_no" value="{{ form.serial_no if form else '' }}"
                      class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
                      placeholder="e.g. SN-992039-B" type="text"/>
             </div>
 
+            <!-- Manufacturer -->
             <div class="space-y-1.5 md:col-span-2">
-              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Manufacturer</label>
-              <input name="manufacturer" value="{{ form.manufacturer if form else '' }}"
+              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Original Equipment Manufacturer (OEM)</label>
+              <input name="manufacturer" id="manufacturer" value="{{ form.manufacturer if form else '' }}"
                      class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
-                     placeholder="e.g. Enercon" type="text"/>
+                     placeholder="e.g. Bosch Packaging Technology / Enercon" type="text"/>
             </div>
           </div>
         </div>
@@ -100,13 +147,45 @@
             Cancel
           </a>
 
-          <button type="submit"
+          <!-- Intermediate button advances wizard to Step 2, NEVER creates final asset record -->
+          <button type="button" id="btnNextStep1" onclick="submitStep1()"
                   class="bg-ueal-gold text-white px-8 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:opacity-90 transition-all shadow-md active:scale-95">
-            Next Step
+            Next Step: Technical Specs
             <span class="material-symbols-outlined text-lg">arrow_forward</span>
           </button>
         </div>
       </form>
+      <script>
+        function submitStep1() {
+          const form = document.getElementById('step1Form');
+          const name = document.getElementById('asset_name')?.value?.trim();
+          const id = document.getElementById('asset_id')?.value?.trim();
+          const cat = document.getElementById('category')?.value?.trim();
+          const sec = document.getElementById('section')?.value?.trim();
+          const comp = document.getElementById('company_id')?.value?.trim();
+
+          let errorMsg = '';
+          if (!name) errorMsg = 'Asset Name is required. Please provide a clear identification name.';
+          else if (!id) errorMsg = 'Asset ID / Code is required. Please provide a unique asset identifier.';
+          else if (!cat) errorMsg = 'Asset Category is required. Please select an equipment category.';
+          else if (!comp) errorMsg = 'Organization Workspace is required. Please select a workspace.';
+          else if (!sec) errorMsg = 'Production Section is required. Please select a production section.';
+
+          if (errorMsg) {
+            let alertBox = document.getElementById('validationAlert');
+            if (!alertBox) {
+              alertBox = document.createElement('div');
+              alertBox.id = 'validationAlert';
+              alertBox.className = 'p-4 bg-rose-50 text-rose-700 text-sm font-semibold border-b border-rose-200 flex items-center gap-3';
+              form.parentNode.insertBefore(alertBox, form);
+            }
+            alertBox.innerHTML = '<span class="material-symbols-outlined text-rose-600">error</span><span>' + errorMsg + '</span>';
+            alertBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return false;
+          }
+          form.submit();
+        }
+      </script>
     </div>
   </div>
 {% endblock %}

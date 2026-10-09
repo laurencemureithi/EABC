@@ -1,91 +1,110 @@
 {% extends "layouts/base.html" %}
-{% block title %}Add New Asset - Step 2 • Opsloom{% endblock %}
+{% block title %}Add New Asset - Step 2: Technical Specifications • Opsloom{% endblock %}
 
 {% block content %}
   {% set page_title = "Add New Asset" %}
   {% set breadcrumbs = [
     {"label":"Asset Register", "href": url_for("assets_master_list")},
-    {"label":"Add New Asset"}
+    {"label":"Add New Asset (Step 2 of 4)"}
   ] %}
   {% include "partials/title_block.html" %}
 
   <div class="max-w-4xl mx-auto">
     <div class="bg-white dark:bg-dark-surface rounded-xl border border-slate-200 dark:border-dark-border shadow-sm overflow-hidden mb-6">
 
-      <div class="grid grid-cols-3 border-b border-slate-100 dark:border-dark-border">
-        <div class="flex items-center justify-center p-4 gap-3 border-b-2 border-ueal-purple/30 bg-ueal-purple/5">
+      {% if error %}
+      <div id="validationAlert" class="p-4 bg-rose-50 text-rose-700 text-sm font-semibold border-b border-rose-200 flex items-center gap-3">
+        <span class="material-symbols-outlined text-rose-600">error</span>
+        <span>{{ error }}</span>
+      </div>
+      {% endif %}
+
+      <!-- 4-STEP WIZARD PROGRESS BAR -->
+      <div class="grid grid-cols-4 border-b border-slate-100 dark:border-dark-border">
+        <div class="flex items-center justify-center p-3 gap-2 border-b-2 border-ueal-purple/30 bg-ueal-purple/5">
           <span class="w-7 h-7 rounded-full bg-ueal-purple text-white flex items-center justify-center text-xs font-bold">
             <span class="material-symbols-outlined text-sm">check</span>
           </span>
-          <span class="text-sm font-semibold text-ueal-purple dark:text-ueal-gold">Basic Info</span>
+          <span class="text-xs font-semibold text-ueal-purple dark:text-ueal-gold truncate">1. Basic Info</span>
         </div>
 
-        <div class="flex items-center justify-center p-4 gap-3 border-b-2 border-ueal-gold">
+        <div class="flex items-center justify-center p-3 gap-2 border-b-2 border-ueal-gold bg-ueal-gold/5">
           <span class="w-7 h-7 rounded-full bg-ueal-gold text-white flex items-center justify-center text-xs font-bold">2</span>
-          <span class="text-sm font-bold text-ueal-purple dark:text-ueal-gold">Technical Details</span>
+          <span class="text-xs font-bold text-ueal-purple dark:text-ueal-gold truncate">2. Technical Specs</span>
         </div>
 
-        <div class="flex items-center justify-center p-4 gap-3 border-b-2 border-transparent text-slate-400">
-          <span class="w-7 h-7 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-xs font-bold">3</span>
-          <span class="text-sm font-medium">Criticality &amp; Status</span>
+        <div class="flex items-center justify-center p-3 gap-2 border-b-2 border-transparent text-slate-400">
+          <span class="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center text-xs font-bold">3</span>
+          <span class="text-xs font-medium truncate">3. Operational Info</span>
+        </div>
+
+        <div class="flex items-center justify-center p-3 gap-2 border-b-2 border-transparent text-slate-400">
+          <span class="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center text-xs font-bold">4</span>
+          <span class="text-xs font-medium truncate">4. Review &amp; Save</span>
         </div>
       </div>
 
-      <form method="post" action="{{ url_for('assets_add_step2_post') }}">
+      <form id="step2Form" method="post" action="{{ url_for('assets_add_step2_post') }}">
         <div class="p-8">
           <div class="mb-8">
-            <h2 class="text-lg font-bold text-slate-900 dark:text-white">Technical Specifications &amp; OEM Info</h2>
-            <p class="text-sm text-slate-500 dark:text-slate-400">Enter the engineering specifications and manufacturer details for the asset.</p>
+            <h2 class="text-lg font-bold text-slate-900 dark:text-white">Technical Specifications &amp; Engineering Info</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400">Enter technical parameters for {{ form.asset_name if form and form.asset_name else 'the asset' }}. Model number and power rating are required.</p>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
             <div class="space-y-1.5">
-              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Model Number</label>
-              <input name="model_number" value="{{ form.model_number if form else '' }}"
-                     class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
-                     placeholder="e.g. MT-500-X1" type="text"/>
+              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                <span>Model Number <span class="text-red-500 font-bold">*</span></span>
+                <span class="text-[10px] uppercase font-bold text-red-500 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded">Required</span>
+              </label>
+              <input name="model_number" id="model_number" value="{{ form.model_number if form else '' }}" required
+                     class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white font-mono"
+                     placeholder="e.g. MT-500-X1 or IND-5000" type="text"/>
             </div>
 
             <div class="space-y-1.5">
-              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Power Rating</label>
-              <input name="power_rating" value="{{ form.power_rating if form else '' }}"
+              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                <span>Power Rating / Capacity <span class="text-red-500 font-bold">*</span></span>
+                <span class="text-[10px] uppercase font-bold text-red-500 bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded">Required</span>
+              </label>
+              <input name="power_rating" id="power_rating" value="{{ form.power_rating if form else '' }}" required
                      class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
-                     placeholder="e.g. 2.5 kW" type="text"/>
+                     placeholder="e.g. 15 kW / 415V 3-Phase or 500 bottles/min" type="text"/>
             </div>
 
             <div class="space-y-1.5">
-              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Supplier</label>
-              <input name="supplier" value="{{ form.supplier if form else '' }}"
+              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Supplier / Vendor</label>
+              <input name="supplier" id="supplier" value="{{ form.supplier if form else '' }}"
                      class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
-                     placeholder="Type supplier name e.g. Industrial Solutions Ltd" type="text"/>
+                     placeholder="e.g. Industrial Automation Solutions Ltd" type="text"/>
             </div>
 
             <div class="space-y-1.5">
               <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Installation Date</label>
-              <input name="installation_date" value="{{ form.installation_date if form else '' }}"
+              <input name="installation_date" id="installation_date" value="{{ form.installation_date if form else '' }}"
                      class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
                      type="date"/>
             </div>
 
             <div class="space-y-1.5">
               <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Year of Manufacture</label>
-              <input name="year_of_manufacture" value="{{ form.year_of_manufacture if form else '' }}"
+              <input name="year_of_manufacture" id="year_of_manufacture" value="{{ form.year_of_manufacture if form else '' }}"
                      class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
-                     placeholder="e.g. 2020" type="text"/>
+                     placeholder="e.g. 2023" type="text"/>
             </div>
 
             <div class="space-y-1.5">
-              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Warranty Expiry</label>
-              <input name="warranty_expiry" value="{{ form.warranty_expiry if form else '' }}"
+              <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Warranty Expiry Date</label>
+              <input name="warranty_expiry" id="warranty_expiry" value="{{ form.warranty_expiry if form else '' }}"
                      class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white"
                      type="date"/>
             </div>
 
             <div class="space-y-1.5 md:col-span-2">
               <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Technical Notes / Engineering Requirements</label>
-              <textarea name="technical_notes"
-                        class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white min-h-[120px]"
-                        placeholder="Enter critical engineering specs, electrical requirements, or special installation notes...">{{ form.technical_notes if form else '' }}</textarea>
+              <textarea name="technical_notes" id="technical_notes"
+                        class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-dark-border rounded-lg text-sm focus:ring-2 focus:ring-ueal-purple/20 transition-all outline-none text-slate-900 dark:text-white min-h-[100px]"
+                        placeholder="Enter critical engineering specs, electrical requirements, lubrication intervals, or special installation notes...">{{ form.technical_notes if form else '' }}</textarea>
             </div>
           </div>
         </div>
@@ -97,14 +116,39 @@
             Previous Step
           </a>
 
-          <button type="submit"
+          <!-- Intermediate button advances wizard to Step 3, NEVER creates final asset record -->
+          <button type="button" id="btnNextStep2" onclick="submitStep2()"
                   class="bg-ueal-gold text-white px-8 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:opacity-90 transition-all shadow-md active:scale-95">
-            Next Step
+            Next Step: Operational Info
             <span class="material-symbols-outlined text-lg">arrow_forward</span>
           </button>
         </div>
       </form>
+      <script>
+        function submitStep2() {
+          const form = document.getElementById('step2Form');
+          const model = document.getElementById('model_number')?.value?.trim();
+          const power = document.getElementById('power_rating')?.value?.trim();
 
+          let errorMsg = '';
+          if (!model) errorMsg = 'Model Number is required for technical specification.';
+          else if (!power) errorMsg = 'Power Rating / Capacity is required.';
+
+          if (errorMsg) {
+            let alertBox = document.getElementById('validationAlert');
+            if (!alertBox) {
+              alertBox = document.createElement('div');
+              alertBox.id = 'validationAlert';
+              alertBox.className = 'p-4 bg-rose-50 text-rose-700 text-sm font-semibold border-b border-rose-200 flex items-center gap-3';
+              form.parentNode.insertBefore(alertBox, form);
+            }
+            alertBox.innerHTML = '<span class="material-symbols-outlined text-rose-600">error</span><span>' + errorMsg + '</span>';
+            alertBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return false;
+          }
+          form.submit();
+        }
+      </script>
     </div>
   </div>
 {% endblock %}

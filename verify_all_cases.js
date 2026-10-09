@@ -117,26 +117,46 @@ async function verify() {
   const assetName = 'Verification Pump ' + assetTag;
 
   // Step 1: wizard step 1
-  await req({
+  const s1Res = await req({
     path: '/assets/new/step-1',
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Cookie': cookies }
-  }, `asset_type=Pump&criticality=A&section=Processing`);
+  }, `asset_id=${encodeURIComponent(assetTag)}&asset_name=${encodeURIComponent(assetName)}&category=Processing+Equipment&section=Processing&company_id=comp-001`);
+  console.log('   Step 1 redirected to:', s1Res.headers.location);
+
+  // Verify DB does NOT have asset yet
+  let dbCheck = await pool.query('SELECT * FROM assets WHERE asset_id = $1;', [assetTag]);
+  if (dbCheck.rows.length !== 0) throw new Error('Asset prematurely created on Step 1!');
 
   // Step 2: wizard step 2
-  await req({
+  const s2Res = await req({
     path: '/assets/new/step-2',
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Cookie': cookies }
-  }, `manufacturer=Grundfos&model_number=CR-30&serial_number=SN-${assetTag}`);
+  }, `model_number=CR-30&power_rating=15kW&supplier=Grundfos`);
+  console.log('   Step 2 redirected to:', s2Res.headers.location);
+
+  dbCheck = await pool.query('SELECT * FROM assets WHERE asset_id = $1;', [assetTag]);
+  if (dbCheck.rows.length !== 0) throw new Error('Asset prematurely created on Step 2!');
 
   // Step 3: wizard step 3
-  const createAssetRes = await req({
+  const s3Res = await req({
     path: '/assets/new/step-3',
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Cookie': cookies }
-  }, `asset_id=${encodeURIComponent(assetTag)}&asset_name=${encodeURIComponent(assetName)}&location=Pump+House&criticality=A`);
-  console.log('   Create asset redirected to:', createAssetRes.headers.location);
+  }, `status=operational&criticality=A&location=Pump+House&department=Engineering`);
+  console.log('   Step 3 redirected to:', s3Res.headers.location);
+
+  dbCheck = await pool.query('SELECT * FROM assets WHERE asset_id = $1;', [assetTag]);
+  if (dbCheck.rows.length !== 0) throw new Error('Asset prematurely created on Step 3!');
+
+  // Step 4: Final save
+  const createAssetRes = await req({
+    path: '/assets/new/step-4',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Cookie': cookies }
+  }, '');
+  console.log('   Step 4 Final Save redirected to:', createAssetRes.headers.location);
 
   // Check database
   const dbAssetBefore = await pool.query('SELECT * FROM assets WHERE asset_id = $1;', [assetTag]);

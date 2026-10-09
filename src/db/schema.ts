@@ -3,7 +3,7 @@ import { pgTable, text, integer, boolean } from 'drizzle-orm/pg-core';
 export const companies = pgTable('companies', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
-  code: text('code').notNull(),
+  code: text('code').notNull().unique(),
   primaryColor: text('primary_color'),
   secondaryColor: text('secondary_color'),
   logoLightUrl: text('logo_light_url'),
@@ -183,3 +183,19 @@ export const systemSettings = pgTable('system_settings', {
   settingsJson: text('settings_json').notNull(),
   updatedAt: text('updated_at'),
 });
+
+export const notifications = pgTable('notifications', {
+  id: text('id').primaryKey(),
+  userId: text('user_id'),
+  companyId: text('company_id'),
+  eventType: text('event_type').notNull(),
+  entityModule: text('entity_module').notNull(),
+  entityId: text('entity_id'),
+  title: text('title').notNull(),
+  message: text('message').notNull(),
+  severity: text('severity').default('info'),
+  isRead: boolean('is_read').default(false),
+  isToasted: boolean('is_toasted').default(false),
+  createdAt: text('created_at').notNull(),
+});
+

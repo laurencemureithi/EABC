@@ -142,11 +142,12 @@
       </button>
 
       <a class="app-topbar-icon app-topbar-notifications w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors relative"
-         href="{{ url_for('notifications') }}">
+         href="{{ url_for('notifications') }}"
+         title="Notifications">
         <span class="material-symbols-outlined text-[20px] sm:text-[22px]">notifications</span>
-        {% if unread_notifications_count and unread_notifications_count > 0 %}
-        <span class="absolute top-1.5 right-1.5 sm:top-2.5 sm:right-2.5 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-dark-surface"></span>
-        {% endif %}
+        <span id="topbarNotifBadge" class="{% if not unread_notifications_count or unread_notifications_count == 0 %}hidden {% endif %}absolute top-1 right-1 sm:top-1.5 sm:right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-red-600 text-white text-[9px] font-black flex items-center justify-center shadow-xs">
+          {{ unread_notifications_count if unread_notifications_count < 10 else '9+' }}
+        </span>
       </a>
 
       <a class="app-topbar-icon app-topbar-messages w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors relative"

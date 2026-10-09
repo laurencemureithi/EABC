@@ -149,12 +149,7 @@ const candidateDataDirs = [
   path.join(__dirname, '..', 'data'),
   path.join(process.cwd(), '..', 'data')
 ];
-const bundledDatastorePath = candidateDataDirs.map(d => path.join(d, 'datastore.json')).find(p => {
-  try { return fs.existsSync(p); } catch (e) { return false; }
-}) || path.join(__dirname, 'data', 'datastore.json');
-
 const DATA_DIR = isVercel ? '/tmp/data' : path.join(__dirname, 'data');
-const DATASTORE_PATH = isVercel ? '/tmp/opsloom_datastore.json' : path.join(DATA_DIR, 'datastore.json');
 
 const candidateStaticDirs = [
   path.join(__dirname, 'static'),
@@ -172,13 +167,6 @@ try {
 } catch (e) {}
 try {
   if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-} catch (e) {}
-
-// On Vercel cold boot, seed /tmp datastore from packaged repository datastore if not already created
-try {
-  if (isVercel && !fs.existsSync(DATASTORE_PATH) && fs.existsSync(bundledDatastorePath)) {
-    fs.copyFileSync(bundledDatastorePath, DATASTORE_PATH);
-  }
 } catch (e) {}
 
 // Multer upload config
@@ -553,27 +541,8 @@ function seedInitialDataIfEmpty() {
     primaryAdmin.password = store.SYSTEM_SETTINGS.admin_login_password;
   }
 
-  if (!store.COMPANIES || !Array.isArray(store.COMPANIES) || store.COMPANIES.length === 0) {
-    store.COMPANIES = [
-      {
-        id: 'comp-001',
-        name: 'Ultravetis East Africa Ltd',
-        code: 'UEAL',
-        primary_color: '#7E22CE',
-        secondary_color: '#F59E0B',
-        logo_light_url: '/static/brand/ultravetis_logo.png',
-        logo_dark_url: '/static/brand/ultravetis_logo.png',
-        show_name_next_to_logo: false,
-        logo_height: 44,
-        logo_width_pct: 85,
-        logo_alignment: 'left',
-        logo_fit: 'contain',
-        designation_line_1: 'Ultravetis East Africa Limited (UEAL)',
-        designation_line_2: 'Industrial Area, Shanghai Road • P.O. Box 00100, Nairobi, Kenya',
-        designation_line_3: 'Veterinary, Agro-Inputs & Manufacturing Operations • Email: info@ultravetis.com',
-        departments: ['Engineering', 'Production', 'Logistics & Warehousing', 'Premises']
-      }
-    ];
+  if (!store.COMPANIES || !Array.isArray(store.COMPANIES)) {
+    store.COMPANIES = [];
   }
   (store.COMPANIES || []).forEach(ensureCompanyDesignation);
 
@@ -669,45 +638,42 @@ function activateWorkspaceBucket(companyId) {
   return comp || { id: effectiveId, name: 'Workspace', code: 'WKS' };
 }
 
-// Load store from disk (with seed fallback) and keep in sync across requests
-let lastDiskMtimeMs = 0;
-function syncStoreFromDisk() {
+async function syncStoreFromDatabase() {
   try {
+    const [companies, assets, users, breakdowns, maint, inv, bin, notifs, audit] = await Promise.all([
+      dal.getCompanies(),
+      dal.getAssets(),
+      dal.getUsers(),
+      dal.getBreakdowns(),
+      dal.getMaintenanceTasks(),
+      dal.getInventoryParts(),
+      dal.getRecycleBin(),
+      dal.getNotifications(),
+      dal.getAuditTrail()
+    ]);
+    if (companies && companies.length) store.COMPANIES = companies;
+    if (assets) store.ASSETS = assets;
+    if (users && users.length) store.ADMIN_USERS = users;
+    if (breakdowns) store.BREAKDOWNS = breakdowns;
+    if (maint) store.MAINTENANCE_TASKS = maint;
+    if (inv) store.INVENTORY_PARTS = inv;
+    if (bin) store.RECYCLE_BIN = bin;
+    if (notifs) store.SYSTEM_NOTIFICATIONS = notifs;
+    if (audit) store.AUDIT_TRAIL = audit;
     delete store.WORKSPACE_DATA;
-    const targetPath = fs.existsSync(DATASTORE_PATH)
-      ? DATASTORE_PATH
-      : path.join(__dirname, 'data', 'datastore.json');
-    if (fs.existsSync(targetPath)) {
-      const stat = fs.statSync(targetPath);
-      if (stat.mtimeMs > lastDiskMtimeMs) {
-        const raw = fs.readFileSync(targetPath, 'utf-8');
-        if (!raw || !raw.trim()) return;
-        const parsed = JSON.parse(raw);
-        delete parsed.WORKSPACE_DATA;
-        const currentRev = Number(store.revision) || 0;
-        const diskRev = Number(parsed.revision) || 0;
-        // Only adopt from disk if this is first load or the disk revision is strictly newer
-        if (lastDiskMtimeMs === 0 || diskRev > currentRev) {
-          store = { ...store, ...parsed, initialized: true };
-          delete store.WORKSPACE_DATA;
-          if (!Array.isArray(store.ADMIN_USERS) || store.ADMIN_USERS.length === 0) {
-            seedInitialDataIfEmpty();
-          }
-          if (!Array.isArray(store.CUSTOM_ROLES) || store.CUSTOM_ROLES.length === 0) {
-            store.CUSTOM_ROLES = JSON.parse(JSON.stringify(DEFAULT_CUSTOM_ROLES));
-          }
-          purgeLegacySeededResetNoise();
-          activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
-        }
-        lastDiskMtimeMs = stat.mtimeMs;
-      }
-    }
+    activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
+    console.log(`[PostgreSQL Sync]: Loaded ${store.COMPANIES?.length || 0} companies, ${store.ASSETS?.length || 0} assets, ${store.ADMIN_USERS?.length || 0} users.`);
   } catch (err) {
-    console.warn('Could not sync datastore from disk:', err.message);
+    console.warn('[syncStoreFromDatabase Error]:', err.message);
   }
 }
 
-// Clear any stuck/forced toast flags and remove legacy seeded grace.wanjiku reset messages on startup
+function syncStoreFromDisk() {
+  // Permanently disabled: PostgreSQL Cloud SQL is the single authoritative source of business data.
+  // Disk JSON files are never read or used to resurrect data.
+}
+
+// Clear any stuck/forced toast flags and remove legacy reset messages on startup
 function purgeLegacySeededResetNoise() {
   if (Array.isArray(store.SYSTEM_NOTIFICATIONS)) {
     store.SYSTEM_NOTIFICATIONS = store.SYSTEM_NOTIFICATIONS.filter(
@@ -727,68 +693,20 @@ function purgeLegacySeededResetNoise() {
       a => !(a && String(a.detail || '').includes('grace.wanjiku@opsloom.co.ke'))
     );
   }
-  if (store.WORKSPACE_DATA && typeof store.WORKSPACE_DATA === 'object') {
-    Object.values(store.WORKSPACE_DATA).forEach(w => {
-      if (w && Array.isArray(w.AUDIT_TRAIL)) {
-        w.AUDIT_TRAIL = w.AUDIT_TRAIL.filter(
-          a => !(a && String(a.detail || '').includes('grace.wanjiku@opsloom.co.ke'))
-        );
-      }
-      if (w && Array.isArray(w.INTERNAL_MESSAGES)) {
-        w.INTERNAL_MESSAGES = w.INTERNAL_MESSAGES.filter(
-          m => !(m && (m.id === 'msg-reset-1790848310149' || (m.sender_email === 'grace.wanjiku@opsloom.co.ke' && (m.category === 'Credential Reset' || String(m.subject || '').includes('Credential Reset')))))
-        );
-      }
-      if (w && Array.isArray(w.SYSTEM_NOTIFICATIONS)) {
-        w.SYSTEM_NOTIFICATIONS = w.SYSTEM_NOTIFICATIONS.filter(
-          n => !(n && (String(n.message || '').includes('grace.wanjiku@opsloom.co.ke') || String(n.title || '').includes('Grace Wanjiku')))
-        );
-      }
-    });
-  }
+  delete store.WORKSPACE_DATA;
 }
 
-syncStoreFromDisk();
-seedInitialDataIfEmpty();
-ensureWorkspaceBuckets();
-activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
-purgeLegacySeededResetNoise();
-saveStore();
+// Startup: Synchronize from authoritative PostgreSQL database
+syncStoreFromDatabase().then(() => {
+  purgeLegacySeededResetNoise();
+  activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
+}).catch(e => console.error('Initial DB sync error:', e.message));
 
 function saveStore() {
-  try {
-    store.initialized = true;
-    store.revision = (Number(store.revision) || 1) + 1;
-    store.saved_at = getSystemNowIso();
-    store.saved_at_ms = Date.now();
-    delete store.WORKSPACE_DATA;
-    const payload = JSON.stringify(store, null, 2);
-
-    // Atomic write to prevent file corruption or half-reads during high-throughput requests
-    const tmpPath = `${DATASTORE_PATH}.tmp.${process.pid}.${Date.now()}`;
-    fs.writeFileSync(tmpPath, payload, 'utf-8');
-    fs.renameSync(tmpPath, DATASTORE_PATH);
-    const stat = fs.statSync(DATASTORE_PATH);
-    lastDiskMtimeMs = stat.mtimeMs;
-
-    const repoPath = path.join(__dirname, 'data', 'datastore.json');
-    if (!isVercel && DATASTORE_PATH !== repoPath) {
-      try {
-        const repoTmp = `${repoPath}.tmp.${process.pid}.${Date.now()}`;
-        fs.writeFileSync(repoTmp, payload, 'utf-8');
-        fs.renameSync(repoTmp, repoPath);
-      } catch (e) {}
-    }
-
-    // Rolling automated backup for data safety
-    try {
-      const backupDir = path.join(__dirname, 'data', 'backups');
-      if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
-      fs.writeFileSync(path.join(backupDir, 'datastore_latest.json'), payload, 'utf-8');
-    } catch (e) {}
-  } catch (err) {
-    console.warn('Failed to write datastore.json:', err.message);
-  }
+  // Business data is saved transactionally to PostgreSQL Cloud SQL via dal.js.
+  // We do NOT write to datastore.json or backups to prevent data resurrection.
+  store.initialized = true;
+  store.revision = (Number(store.revision) || 1) + 1;
 }
 
 function hydrateStoreFromClientSnapshot(rawSnap) {
@@ -1043,9 +961,11 @@ function moveToRecycleBin(entity_type, entity_label, primary_id, record, deleted
   entry.bin_id = entry.id;
   entry.company_id = rec.company_id || store.ACTIVE_COMPANY_ID || 'comp-001';
   store.RECYCLE_BIN.unshift(entry);
-  try {
-    dal.addToRecycleBin(entry).catch(err => console.warn('DAL addToRecycleBin async error:', err.message));
-  } catch (e) {}
+  if (!extra.skipDal) {
+    try {
+      dal.addToRecycleBin(entry).catch(err => console.warn('DAL addToRecycleBin async error:', err.message));
+    } catch (e) {}
+  }
   saveStore();
   return entry;
 }
@@ -1089,6 +1009,8 @@ function url_for(endpoint, params = {}) {
     'assets_add_step2_post': '/assets/new/step-2',
     'assets_add_step3_get': '/assets/new/step-3',
     'assets_add_step3_post': '/assets/new/step-3',
+    'assets_add_step4_get': '/assets/new/step-4',
+    'assets_add_step4_post': '/assets/new/step-4',
     'assets_export': (p) => `/assets/export/${p?.fmt || 'csv'}`,
     'assets_profile_get': (p) => `/assets/${encodeURIComponent(p?.asset_uid || p?.uid || p?.id || '')}`,
     'assets_profile_pdf': (p) => `/assets/${encodeURIComponent(p?.asset_uid || p?.uid || p?.id || '')}/profile.pdf`,
@@ -2527,10 +2449,36 @@ app.use((req, res, next) => {
       runtimeClientClockOffsetMs = clientOffsetRaw;
     }
 
-    syncStoreFromDisk();
     resolveActiveWorkspaceForRequest(req);
   }
   next();
+});
+
+// Authoritative Diagnostic Endpoint proving PostgreSQL database usage
+app.get(['/api/system/diagnostic', '/api/diagnostic', '/diagnostic'], async (req, res) => {
+  try {
+    const diag = await dal.getDiagnosticInfo();
+    const acceptsText = req.query?.format === 'text' || String(req.headers.accept || '').includes('text/plain');
+    if (acceptsText) {
+      const textOutput = [
+        `DATABASE_PROVIDER=${diag.DATABASE_PROVIDER}`,
+        `DATABASE_HOST=${diag.DATABASE_HOST}`,
+        `DATABASE_NAME=${diag.DATABASE_NAME}`,
+        `DATABASE_CONNECTED=${diag.DATABASE_CONNECTED}`,
+        `DATABASE_USER=${diag.DATABASE_USER}`,
+        `SINGLE_AUTHORITATIVE_SOURCE=${diag.SINGLE_AUTHORITATIVE_SOURCE}`,
+        `JSON_FALLBACK_ACTIVE=${diag.JSON_FALLBACK_ACTIVE}`,
+        `COMPANIES_COUNT=${diag.TABLE_COUNTS?.companies || 0}`,
+        `ASSETS_COUNT=${diag.TABLE_COUNTS?.assets || 0}`,
+        `USERS_COUNT=${diag.TABLE_COUNTS?.users || 0}`
+      ].join('\n');
+      res.setHeader('Content-Type', 'text/plain');
+      return res.send(textOutput);
+    }
+    return res.json(diag);
+  } catch (err) {
+    return res.status(500).json({ error: err.message, DATABASE_CONNECTED: false });
+  }
 });
 
 app.post('/api/system/hydrate-state', (req, res) => {
@@ -3508,7 +3456,13 @@ app.all('/set-department', (req, res) => {
 // -------------------------
 // COMPANY WORKSPACES
 // -------------------------
-app.get(['/settings/companies', '/companies', '/admin/companies'], (req, res) => {
+app.get(['/settings/companies', '/companies', '/admin/companies'], async (req, res) => {
+  try {
+    const dbCompanies = await dal.getCompanies();
+    if (dbCompanies && dbCompanies.length) store.COMPANIES = dbCompanies;
+  } catch (e) {
+    console.warn('Failed to refresh companies from DB:', e.message);
+  }
   const ctx = baseCtx(req, 'companies');
   const activeId = ctx.active_company ? ctx.active_company.id : store.ACTIVE_COMPANY_ID;
   const sortedCompanies = [...(store.COMPANIES || [])].sort((a, b) => {
@@ -3766,7 +3720,8 @@ app.all(['/settings/companies/:id/delete', '/api/companies/:id/delete'], async (
       moveToRecycleBin('company', `${removed.name} (${removed.code})`, removed.id, removed, actor.name, {
         deleted_by_email: actor.email,
         deleted_by_role: actor.role,
-        summary: `Workspace Brand • Code: ${removed.code} • Theme: ${removed.primary_color}`
+        summary: `Workspace Brand • Code: ${removed.code} • Theme: ${removed.primary_color}`,
+        skipDal: true
       });
 
       try {
@@ -4171,7 +4126,13 @@ app.get('/dashboard/strategic-export', async (req, res) => {
 // -------------------------
 // ASSETS
 // -------------------------
-app.get(['/assets', '/assets/master-list'], (req, res) => {
+app.get(['/assets', '/assets/master-list'], async (req, res) => {
+  try {
+    const dbAssets = await dal.getAssets();
+    if (dbAssets) store.ASSETS = dbAssets;
+  } catch (e) {
+    console.warn('Failed to refresh assets from DB:', e.message);
+  }
   const allAssets = store.ASSETS || [];
   let list = [...allAssets];
   const q = (req.query.q || '').toLowerCase();
@@ -4633,7 +4594,7 @@ app.get(['/assets/new', '/assets/add'], (req, res) => {
 
 app.get('/assets/new/step-1', (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
-  const stepData = wizardState.assets[user] || wizardState.assets.default || {};
+  const stepData = wizardState.assets[user] || {};
   res.render('assets/assets_add_step1.html', {
     ...baseCtx(req, 'assets'),
     step_data: stepData,
@@ -4643,15 +4604,59 @@ app.get('/assets/new/step-1', (req, res) => {
 
 app.post('/assets/new/step-1', (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
-  const merged = { ...(wizardState.assets.default || {}), ...(wizardState.assets[user] || {}), ...(req.body || {}) };
-  wizardState.assets[user] = merged;
-  wizardState.assets.default = merged;
+  const { asset_name, asset_id, category, section, company_id, serial_no, manufacturer } = req.body || {};
+
+  if (!asset_name || !String(asset_name).trim()) {
+    return res.render('assets/assets_add_step1.html', {
+      ...baseCtx(req, 'assets'),
+      error: 'Asset Name is required. Please provide a clear identification name.',
+      form: req.body
+    });
+  }
+  if (!asset_id || !String(asset_id).trim()) {
+    return res.render('assets/assets_add_step1.html', {
+      ...baseCtx(req, 'assets'),
+      error: 'Asset ID / Code is required. Please provide a unique asset identifier.',
+      form: req.body
+    });
+  }
+  if (!category || !String(category).trim()) {
+    return res.render('assets/assets_add_step1.html', {
+      ...baseCtx(req, 'assets'),
+      error: 'Asset Category is required. Please select a category.',
+      form: req.body
+    });
+  }
+  if (!section || !String(section).trim()) {
+    return res.render('assets/assets_add_step1.html', {
+      ...baseCtx(req, 'assets'),
+      error: 'Production Section is required. Please select a section.',
+      form: req.body
+    });
+  }
+
+  const prev = wizardState.assets[user] || {};
+  wizardState.assets[user] = {
+    ...prev,
+    asset_name: String(asset_name).trim(),
+    asset_id: String(asset_id).trim(),
+    category: String(category).trim(),
+    section: String(section).trim(),
+    company_id: company_id || prev.company_id || resolveActiveWorkspaceForRequest(req).id,
+    serial_no: (serial_no && String(serial_no).trim()) || '',
+    manufacturer: (manufacturer && String(manufacturer).trim()) || ''
+  };
+
+  // Crucial: Step 1 NEVER creates the asset record in the database. Advance to Step 2.
   res.redirect('/assets/new/step-2');
 });
 
 app.get('/assets/new/step-2', (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
-  const stepData = wizardState.assets[user] || wizardState.assets.default || {};
+  const stepData = wizardState.assets[user] || {};
+  if (!stepData.asset_name || !stepData.asset_id) {
+    return res.redirect('/assets/new/step-1');
+  }
   res.render('assets/assets_add_step2.html', {
     ...baseCtx(req, 'assets'),
     step_data: stepData,
@@ -4661,15 +4666,45 @@ app.get('/assets/new/step-2', (req, res) => {
 
 app.post('/assets/new/step-2', (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
-  const merged = { ...(wizardState.assets.default || {}), ...(wizardState.assets[user] || {}), ...(req.body || {}) };
-  wizardState.assets[user] = merged;
-  wizardState.assets.default = merged;
+  const prev = wizardState.assets[user] || {};
+  const { model_number, power_rating, supplier, installation_date, year_of_manufacture, warranty_expiry, technical_notes } = req.body || {};
+
+  if (!model_number || !String(model_number).trim()) {
+    return res.render('assets/assets_add_step2.html', {
+      ...baseCtx(req, 'assets'),
+      error: 'Model Number is required for technical specification.',
+      form: { ...prev, ...req.body }
+    });
+  }
+  if (!power_rating || !String(power_rating).trim()) {
+    return res.render('assets/assets_add_step2.html', {
+      ...baseCtx(req, 'assets'),
+      error: 'Power Rating / Capacity is required.',
+      form: { ...prev, ...req.body }
+    });
+  }
+
+  wizardState.assets[user] = {
+    ...prev,
+    model_number: String(model_number).trim(),
+    power_rating: String(power_rating).trim(),
+    supplier: (supplier && String(supplier).trim()) || '',
+    installation_date: (installation_date && String(installation_date).trim()) || '',
+    year_of_manufacture: (year_of_manufacture && String(year_of_manufacture).trim()) || '',
+    warranty_expiry: (warranty_expiry && String(warranty_expiry).trim()) || '',
+    technical_notes: (technical_notes && String(technical_notes).trim()) || ''
+  };
+
+  // Crucial: Step 2 NEVER creates the asset record in the database. Advance to Step 3.
   res.redirect('/assets/new/step-3');
 });
 
 app.get('/assets/new/step-3', (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
-  const stepData = wizardState.assets[user] || wizardState.assets.default || {};
+  const stepData = wizardState.assets[user] || {};
+  if (!stepData.asset_name || !stepData.asset_id) {
+    return res.redirect('/assets/new/step-1');
+  }
   res.render('assets/assets_add_step3.html', {
     ...baseCtx(req, 'assets'),
     step_data: stepData,
@@ -4677,44 +4712,103 @@ app.get('/assets/new/step-3', (req, res) => {
   });
 });
 
-app.post('/assets/new/step-3', upload.any(), async (req, res) => {
+app.post('/assets/new/step-3', upload.any(), (req, res) => {
+  const user = req.cookies?.opsloom_user || 'default';
+  const prev = wizardState.assets[user] || {};
+  const { status, criticality, location, department, service_provider, asset_value } = req.body || {};
+
+  if (!status || !String(status).trim()) {
+    return res.render('assets/assets_add_step3.html', {
+      ...baseCtx(req, 'assets'),
+      error: 'Operational Status is required.',
+      form: { ...prev, ...req.body }
+    });
+  }
+  if (!criticality || !String(criticality).trim()) {
+    return res.render('assets/assets_add_step3.html', {
+      ...baseCtx(req, 'assets'),
+      error: 'Business Criticality Level is required.',
+      form: { ...prev, ...req.body }
+    });
+  }
+  if (!location || !String(location).trim()) {
+    return res.render('assets/assets_add_step3.html', {
+      ...baseCtx(req, 'assets'),
+      error: 'Plant Location is required.',
+      form: { ...prev, ...req.body }
+    });
+  }
+
+  let resolvedPhotoUrl = prev.photo_url || '';
+  const uploadedFile = req.file || (Array.isArray(req.files) && req.files[0]) || null;
+  if (uploadedFile && Number(uploadedFile.size) > 0 && uploadedFile.filename) {
+    resolvedPhotoUrl = `/static/uploads/${uploadedFile.filename}`;
+  }
+
+  wizardState.assets[user] = {
+    ...prev,
+    status: String(status).trim(),
+    criticality: String(criticality).trim(),
+    location: String(location).trim(),
+    department: (department && String(department).trim()) || 'Engineering',
+    service_provider: (service_provider && String(service_provider).trim()) || '',
+    asset_value: (asset_value && String(asset_value).trim()) || 'KES 4,500,000',
+    photo_url: resolvedPhotoUrl
+  };
+
+  // Crucial: Step 3 NEVER creates the asset record in the database. Advance to Step 4 (Review).
+  res.redirect('/assets/new/step-4');
+});
+
+app.get('/assets/new/step-4', (req, res) => {
+  const user = req.cookies?.opsloom_user || 'default';
+  const stepData = wizardState.assets[user] || {};
+  if (!stepData.asset_name || !stepData.asset_id) {
+    return res.redirect('/assets/new/step-1');
+  }
+
+  const activeComp = resolveActiveWorkspaceForRequest(req);
+  const targetComp = (store.COMPANIES || []).find(c => c && c.id === stepData.company_id) || activeComp;
+
+  res.render('assets/assets_add_step4.html', {
+    ...baseCtx(req, 'assets'),
+    form: stepData,
+    target_company_name: targetComp ? `${targetComp.name} (${targetComp.code})` : ''
+  });
+});
+
+app.post('/assets/new/step-4', async (req, res) => {
   try {
     const user = req.cookies?.opsloom_user || 'default';
-    const data = { ...(wizardState.assets.default || {}), ...(wizardState.assets[user] || {}), ...(req.body || {}) };
+    const data = wizardState.assets[user] || {};
+
+    if (!data.asset_name || !data.asset_id) {
+      flash('error', 'Incomplete asset information. Please start from Step 1.');
+      return res.redirect('/assets/new/step-1');
+    }
+
     const uid = 'asset-' + Date.now();
-    const uploadedFile = req.file || (Array.isArray(req._allUploadedFiles) && req._allUploadedFiles[0]) || (Array.isArray(req.files) && req.files[0]) || null;
-    const hasValidFile = uploadedFile && Number(uploadedFile.size) > 0 && uploadedFile.filename;
-
-    // Clean up empty 0-byte upload file if created by browser multipart submission
-    if (uploadedFile && Number(uploadedFile.size) === 0 && uploadedFile.path) {
-      try { if (fs.existsSync(uploadedFile.path)) fs.unlinkSync(uploadedFile.path); } catch (e) {}
-    }
-
-    // Prefer static uploaded file path over heavy base64 strings to keep datastore lean and fast
-    let resolvedPhotoUrl = data.photo_url || '';
-    if (hasValidFile) {
-      resolvedPhotoUrl = `/static/uploads/${uploadedFile.filename}`;
-    } else if (data.photo_url && String(data.photo_url).trim()) {
-      resolvedPhotoUrl = String(data.photo_url).trim();
-    }
     const nowIso = getSystemNowIso();
-    const cleanSection = (data.section && String(data.section).trim()) || 'Pharma';
-    const cleanManufacturer = (data.manufacturer && String(data.manufacturer).trim()) || '';
-    const cleanSupplier = (data.supplier && String(data.supplier).trim()) || '';
+    const cleanSection = data.section || 'General';
+    const cleanManufacturer = data.manufacturer || '';
+    const cleanSupplier = data.supplier || '';
+    const activeCompany = resolveActiveWorkspaceForRequest(req);
+    const targetCompId = data.company_id || activeCompany.id || 'comp-001';
 
     const asset = {
       uid,
-      asset_id: (data.asset_id && String(data.asset_id).trim()) || `ENG-AST-${Math.floor(1000 + Math.random() * 9000)}`,
-      asset_name: (data.asset_name && String(data.asset_name).trim()) || 'New Industrial Asset',
+      company_id: targetCompId,
+      asset_id: String(data.asset_id).trim(),
+      asset_name: String(data.asset_name).trim(),
       section: cleanSection,
-      department: data.department || store.ACTIVE_DEPARTMENT || 'Engineering',
+      department: data.department || 'Engineering',
       status: data.status || 'operational',
       criticality: data.criticality || 'A',
-      serial_no: (data.serial_no && String(data.serial_no).trim()) || '',
+      serial_no: data.serial_no || '',
       manufacturer: cleanManufacturer,
-      oem: (data.oem && String(data.oem).trim()) || cleanManufacturer,
-      model_number: (data.model_number && String(data.model_number).trim()) || '',
-      power_rating: (data.power_rating && String(data.power_rating).trim()) || '',
+      oem: cleanManufacturer,
+      model_number: data.model_number || '',
+      power_rating: data.power_rating || '',
       supplier: cleanSupplier,
       installation_date: data.installation_date || getSystemIsoDateStr(nowIso),
       year_of_manufacture: data.year_of_manufacture || '',
@@ -4722,34 +4816,46 @@ app.post('/assets/new/step-3', upload.any(), async (req, res) => {
       technical_notes: data.technical_notes || '',
       category: data.category || `${cleanSection} Production Equipment`,
       location: data.location || `${cleanSection} Plant Floor`,
-      service_provider: data.service_provider || cleanSupplier || cleanManufacturer || 'Engineering Field Services',
+      service_provider: data.service_provider || cleanSupplier || 'Engineering Services',
       asset_value: data.asset_value || 'KES 4,500,000',
       registered_at: formatSystemTimestamp(nowIso),
       created_at: nowIso,
-      photo_url: resolvedPhotoUrl
+      photo_url: data.photo_url || ''
     };
 
-    const activeCompany = resolveActiveWorkspaceForRequest(req);
-    asset.company_id = activeCompany.id;
+    // ONLY HERE in Step 4 is the asset committed to PostgreSQL!
+    await dal.upsertAsset(asset);
 
+    // Keep active in-memory list synchronized with PostgreSQL
     if (!Array.isArray(store.ASSETS)) store.ASSETS = [];
-    store.ASSETS.unshift(asset);
+    const existingIdx = store.ASSETS.findIndex(a => a && (a.uid === asset.uid || a.asset_id === asset.asset_id));
+    if (existingIdx >= 0) store.ASSETS[existingIdx] = asset;
+    else store.ASSETS.unshift(asset);
 
+    // Clear wizard draft for this user
     delete wizardState.assets[user];
-    delete wizardState.assets.default;
+
+    // Create Smart Event Notification in PostgreSQL
+    await dal.addNotification({
+      companyId: targetCompId,
+      eventType: 'asset_created',
+      entityModule: 'assets',
+      entityId: uid,
+      title: 'Asset Registered',
+      message: `Asset ${asset.asset_name} (${asset.asset_id}) was enrolled in the Master Register.`,
+      severity: 'success'
+    });
+
     logAudit('Asset Created', `Registered new asset ${asset.asset_name} (${asset.asset_id})`, 'assets', `/assets/${encodeURIComponent(uid)}`);
-    pushNotification('Asset Registered', `New asset ${asset.asset_name} (${asset.asset_id}) has been enrolled in the Master Register.`, 'success', `/assets/${encodeURIComponent(uid)}`);
-    saveStore();
-    try {
-      await dal.upsertAsset(asset);
-    } catch (e) {
-      console.warn('DAL upsertAsset error:', e.message);
-    }
+
     return res.redirect(`/assets/success/${encodeURIComponent(uid)}`);
   } catch (err) {
     console.error('Error finalizing asset registration:', err);
-    flash('error', `Could not save asset: ${err.message || 'Unexpected error'}`);
-    return res.redirect('/assets/new/step-3');
+    return res.render('assets/assets_add_step4.html', {
+      ...baseCtx(req, 'assets'),
+      error: `Could not save asset: ${err.message || 'Unexpected error'}`,
+      form: wizardState.assets[req.cookies?.opsloom_user || 'default'] || {}
+    });
   }
 });
 
@@ -4886,7 +4992,8 @@ app.all(['/assets/:asset_uid/delete', '/assets/delete/:asset_uid', '/assets/dele
       const actor = getCurrentActor(req);
       moveToRecycleBin('asset', `${target.asset_name || 'Asset'} (${target.asset_id || target.uid})`, target.uid || target.asset_id, target, actor.name, {
         deleted_by_email: actor.email,
-        deleted_by_role: actor.role
+        deleted_by_role: actor.role,
+        skipDal: true
       });
       saveStore();
       logAudit('Asset Deleted', `Moved asset ${target.asset_name} (${target.asset_id}) to Admin Recycle Bin`, 'assets', '/settings/recycle-bin', 'warning');
@@ -7440,7 +7547,13 @@ app.post(['/settings/kpi-targets/save', '/settings/admin/kpi-targets/save', '/ap
 // -------------------------
 // ADMIN RECYCLE BIN & DATA RECOVERY
 // -------------------------
-app.get('/settings/recycle-bin', (req, res) => {
+app.get('/settings/recycle-bin', async (req, res) => {
+  try {
+    const dbBin = await dal.getRecycleBin();
+    if (dbBin) store.RECYCLE_BIN = dbBin;
+  } catch (e) {
+    console.warn('DAL getRecycleBin error:', e.message);
+  }
   const all = (store.RECYCLE_BIN || []).map(item => ({
     ...item,
     bin_id: item.bin_id || item.id,
@@ -7484,141 +7597,46 @@ app.get('/settings/recycle-bin', (req, res) => {
 });
 
 app.post('/settings/recycle-bin/:bin_id/restore', async (req, res) => {
-  if (!store.RECYCLE_BIN) store.RECYCLE_BIN = [];
   const reqBinId = req.params.bin_id;
-  let idx = store.RECYCLE_BIN.findIndex(x => (x.bin_id || x.id) === reqBinId);
-  let entry = null;
-
-  if (idx !== -1) {
-    entry = store.RECYCLE_BIN.splice(idx, 1)[0];
-  } else {
-    // Check PostgreSQL recycle bin directly if not in memory
-    try {
-      const dbBin = await dal.getRecycleBin();
-      const match = (dbBin || []).find(x => (x.id || x.bin_id) === reqBinId || x.primary_id === reqBinId);
-      if (match) {
-        entry = {
-          id: match.id,
-          bin_id: match.id,
-          entity_type: match.entity_type,
-          entity_label: match.entity_label,
-          primary_id: match.primary_id,
-          record: match.record,
-          deleted_by: match.deleted_by_name || 'Administrator',
-          summary: match.summary || ''
-        };
-      }
-    } catch (e) {
-      console.warn('DAL getRecycleBin fallback error:', e.message);
-    }
-  }
-
-  if (entry) {
-    const rec = entry.record || {};
-    try {
-      await dal.removeFromRecycleBin(entry.bin_id || entry.id);
-    } catch (e) {
-      console.warn('DAL removeFromRecycleBin error:', e.message);
-    }
-
-    switch (entry.entity_type) {
-      case 'asset':
-        if (!store.ASSETS) store.ASSETS = [];
-        rec.company_id = rec.company_id || entry.company_id || store.ACTIVE_COMPANY_ID || 'comp-001';
-        store.ASSETS.unshift(rec);
-        try { await dal.upsertAsset(rec); } catch (e) { console.warn('DAL upsertAsset restore error:', e.message); }
-        break;
-      case 'breakdown':
-        if (!store.BREAKDOWNS) store.BREAKDOWNS = [];
-        rec.company_id = rec.company_id || entry.company_id || store.ACTIVE_COMPANY_ID || 'comp-001';
-        store.BREAKDOWNS.unshift(rec);
-        try { await dal.upsertBreakdown(rec); } catch (e) { console.warn('DAL upsertBreakdown restore error:', e.message); }
-        break;
-      case 'maintenance':
-        if (!store.MAINTENANCE_TASKS) store.MAINTENANCE_TASKS = [];
-        rec.company_id = rec.company_id || entry.company_id || store.ACTIVE_COMPANY_ID || 'comp-001';
-        store.MAINTENANCE_TASKS.unshift(rec);
-        try { await dal.upsertMaintenanceTask(rec); } catch (e) { console.warn('DAL upsertMaintenanceTask restore error:', e.message); }
-        break;
-      case 'inventory':
-        if (!store.INVENTORY_PARTS) store.INVENTORY_PARTS = [];
-        rec.company_id = rec.company_id || entry.company_id || store.ACTIVE_COMPANY_ID || 'comp-001';
-        store.INVENTORY_PARTS.unshift(rec);
-        try { await dal.upsertInventoryPart(rec); } catch (e) { console.warn('DAL upsertInventoryPart restore error:', e.message); }
-        break;
-      case 'report':
-        if (!store.REPORT_EXPORTS) store.REPORT_EXPORTS = [];
-        store.REPORT_EXPORTS.unshift(rec);
-        break;
-      case 'technician':
-        if (!store.TECHNICIAN_DIRECTORY) store.TECHNICIAN_DIRECTORY = [];
-        store.TECHNICIAN_DIRECTORY.push(rec);
-        break;
-      case 'user':
-        if (!store.ADMIN_USERS) store.ADMIN_USERS = [];
-        store.ADMIN_USERS.push(rec);
-        break;
-      case 'message':
-        if (!store.INTERNAL_MESSAGES) store.INTERNAL_MESSAGES = [];
-        store.INTERNAL_MESSAGES.unshift(rec);
-        break;
-      case 'ai_chat':
-        if (!store.AI_CHATS) store.AI_CHATS = [];
-        store.AI_CHATS.unshift(rec);
-        break;
-      case 'company':
-      case 'workspace':
-        if (!store.COMPANIES) store.COMPANIES = [];
-        ensureCompanyDesignation(rec);
-        const compIdx = store.COMPANIES.findIndex(c => c && c.id === rec.id);
-        if (compIdx !== -1) {
-          store.COMPANIES[compIdx] = rec;
-        } else {
-          store.COMPANIES.push(rec);
-        }
-        ensureWorkspaceBuckets();
-        try {
-          await dal.upsertCompany(rec);
-        } catch (e) {
-          console.warn('DAL upsertCompany restore error:', e.message);
-        }
-        break;
-      case 'document':
-        if (!store.ASSET_DOCUMENTS) store.ASSET_DOCUMENTS = [];
-        store.ASSET_DOCUMENTS.push(rec);
-        break;
-      default:
-        break;
-    }
-    saveStore();
-    logAudit('Record Restored from Recycle Bin', `Restored ${entry.entity_type}: ${entry.entity_label}`, 'settings', '/settings/recycle-bin', 'success');
-    flash('success', `Restored "${entry.entity_label}" back to its active module.`);
+  const actor = getCurrentActor(req);
+  try {
+    const result = await dal.restoreFromRecycleBin(reqBinId, actor);
+    // Refresh authoritative stores from PostgreSQL
+    await syncStoreFromDatabase();
+    logAudit('Record Restored from Recycle Bin', `Restored ${result?.entity_type || 'record'} ${reqBinId}`, 'settings', '/settings/recycle-bin', 'success');
+    flash('success', 'Record restored successfully back to its active module.');
+  } catch (err) {
+    console.warn('DAL restore error:', err.message);
+    flash('error', `Failed to restore: ${err.message}`);
   }
   res.redirect('/settings/recycle-bin');
 });
 
 app.post(['/settings/recycle-bin/:bin_id/delete', '/settings/recycle-bin/:bin_id/purge'], async (req, res) => {
-  if (!store.RECYCLE_BIN) store.RECYCLE_BIN = [];
-  const idx = store.RECYCLE_BIN.findIndex(x => (x.bin_id || x.id) === req.params.bin_id);
-  if (idx !== -1) {
-    const removed = store.RECYCLE_BIN.splice(idx, 1)[0];
-    try {
-      await dal.removeFromRecycleBin(removed.bin_id || removed.id);
-    } catch (e) {
-      console.warn('DAL removeFromRecycleBin purge error:', e.message);
-    }
-    saveStore();
-    logAudit('Record Permanently Purged', `Permanently removed ${removed.entity_label} from Recycle Bin`, 'settings', '/settings/recycle-bin', 'warning');
-    flash('info', `Permanently deleted "${removed.entity_label}".`);
+  const reqBinId = req.params.bin_id;
+  try {
+    await dal.removeFromRecycleBin(reqBinId);
+  } catch (e) {
+    console.warn('DAL removeFromRecycleBin purge error:', e.message);
   }
+  if (!store.RECYCLE_BIN) store.RECYCLE_BIN = [];
+  const idx = store.RECYCLE_BIN.findIndex(x => (x.bin_id || x.id) === reqBinId || x.primary_id === reqBinId);
+  if (idx !== -1) {
+    store.RECYCLE_BIN.splice(idx, 1);
+  }
+  saveStore();
+  logAudit('Record Permanently Purged', `Permanently removed ${reqBinId} from Recycle Bin`, 'settings', '/settings/recycle-bin', 'warning');
+  flash('info', 'Record permanently removed from Recycle Bin.');
   res.redirect('/settings/recycle-bin');
 });
 
-app.post('/settings/recycle-bin/empty', (req, res) => {
+app.post('/settings/recycle-bin/empty', async (req, res) => {
   const count = (store.RECYCLE_BIN || []).length;
-  (store.RECYCLE_BIN || []).forEach(r => {
-    try { dal.removeFromRecycleBin(r.bin_id || r.id).catch(() => {}); } catch (e) {}
-  });
+  try {
+    await dal.query('DELETE FROM recycle_bin;');
+  } catch (e) {
+    console.warn('DAL empty recycle_bin error:', e.message);
+  }
   store.RECYCLE_BIN = [];
   saveStore();
   logAudit('Recycle Bin Emptied', `Permanently purged ${count} item(s) from Admin Recycle Bin`, 'settings', '/settings/recycle-bin', 'warning');
@@ -8558,12 +8576,20 @@ app.post('/settings/messages/outbox/:outbox_id/delete', (req, res) => {
   res.redirect('/settings/messages?folder=outbox');
 });
 
-app.get('/settings/notifications', (req, res) => {
+app.get(['/settings/notifications', '/notifications'], async (req, res) => {
   const actor = getCurrentActor(req);
+  const activeComp = resolveActiveWorkspaceForRequest(req);
+  try {
+    const dbNotifs = await dal.getNotifications(actor.id, activeComp.id);
+    if (dbNotifs) store.SYSTEM_NOTIFICATIONS = dbNotifs;
+  } catch (e) {
+    console.warn('Failed to load notifications from DB:', e.message);
+  }
   const userEmail = (actor.email || '').toLowerCase().trim();
   const notifs = (store.SYSTEM_NOTIFICATIONS || []).filter(n => {
     if (!n) return false;
-    if (n.recipient_email && n.recipient_email.toLowerCase().trim() !== userEmail) return false;
+    if (n.company_id && n.company_id !== activeComp.id && n.company_id !== 'comp-001' && actor.role !== 'Administrator') return false;
+    if (n.recipient_email && n.recipient_email.toLowerCase().trim() !== userEmail && actor.role !== 'Administrator') return false;
     return true;
   });
   res.render('settings/notifications.html', {
@@ -8572,18 +8598,38 @@ app.get('/settings/notifications', (req, res) => {
   });
 });
 
-app.all(['/settings/notifications/:nid/delete', '/notifications/:nid/delete', '/api/notifications/:nid/delete'], (req, res) => {
+app.get('/api/notifications/poll', async (req, res) => {
+  try {
+    const actor = getCurrentActor(req);
+    const activeComp = resolveActiveWorkspaceForRequest(req);
+    const since = req.query.since || '';
+    let notifs = await dal.getNotifications(actor.id, activeComp.id);
+    if (since) {
+      notifs = notifs.filter(n => n.created_at > since);
+    }
+    const unreadCount = await dal.getUnreadNotificationCount(actor.id, activeComp.id);
+    const toasts = await dal.getRecentToasts(actor.id, activeComp.id);
+    return res.json({
+      ok: true,
+      unread_count: unreadCount,
+      notifications: notifs.slice(0, 10),
+      toasts: toasts
+    });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.all(['/settings/notifications/:nid/delete', '/notifications/:nid/delete', '/api/notifications/:nid/delete'], async (req, res) => {
   const nid = req.params.nid;
+  try {
+    await dal.dismissNotification(nid);
+  } catch (e) {}
   if (Array.isArray(store.SYSTEM_NOTIFICATIONS)) {
     const idx = store.SYSTEM_NOTIFICATIONS.findIndex(item => item && item.id === nid);
     if (idx !== -1) {
       store.SYSTEM_NOTIFICATIONS.splice(idx, 1);
     }
-  }
-  const activeWsId = store._BOUND_COMPANY_ID || store.ACTIVE_COMPANY_ID || 'comp-001';
-  if (store.WORKSPACE_DATA && store.WORKSPACE_DATA[activeWsId] && Array.isArray(store.WORKSPACE_DATA[activeWsId].SYSTEM_NOTIFICATIONS)) {
-    const bIdx = store.WORKSPACE_DATA[activeWsId].SYSTEM_NOTIFICATIONS.findIndex(item => item && item.id === nid);
-    if (bIdx !== -1) store.WORKSPACE_DATA[activeWsId].SYSTEM_NOTIFICATIONS.splice(bIdx, 1);
   }
   saveStore();
   if (req.path.startsWith('/api/') || (req.headers.accept && req.headers.accept.includes('application/json'))) {
@@ -8593,7 +8639,10 @@ app.all(['/settings/notifications/:nid/delete', '/notifications/:nid/delete', '/
   res.redirect('/settings/notifications');
 });
 
-app.post(['/notifications/:nid/dismiss', '/settings/notifications/:nid/dismiss'], (req, res) => {
+app.post(['/notifications/:nid/dismiss', '/settings/notifications/:nid/dismiss'], async (req, res) => {
+  try {
+    await dal.markNotificationRead(req.params.nid);
+  } catch (e) {}
   const n = (store.SYSTEM_NOTIFICATIONS || []).find(item => item.id === req.params.nid);
   if (n) {
     n.is_read = true;
@@ -8603,7 +8652,12 @@ app.post(['/notifications/:nid/dismiss', '/settings/notifications/:nid/dismiss']
   res.json({ ok: true });
 });
 
-app.post('/settings/notifications/:nid/toggle', (req, res) => {
+app.post('/settings/notifications/:nid/toggle', async (req, res) => {
+  try {
+    await dal.query('UPDATE notifications SET is_read = NOT is_read WHERE id = $1;', [req.params.nid]);
+  } catch (e) {
+    console.warn('DAL toggle error:', e.message);
+  }
   const n = (store.SYSTEM_NOTIFICATIONS || []).find(item => item.id === req.params.nid);
   if (n) {
     n.is_read = !n.is_read;
@@ -8613,7 +8667,10 @@ app.post('/settings/notifications/:nid/toggle', (req, res) => {
   res.redirect('/settings/notifications');
 });
 
-app.get('/settings/notifications/:nid/open', (req, res) => {
+app.get('/settings/notifications/:nid/open', async (req, res) => {
+  try {
+    await dal.markNotificationRead(req.params.nid);
+  } catch (e) {}
   const n = (store.SYSTEM_NOTIFICATIONS || []).find(item => item.id === req.params.nid);
   if (n) {
     n.is_read = true;
@@ -8624,7 +8681,12 @@ app.get('/settings/notifications/:nid/open', (req, res) => {
   res.redirect('/settings/notifications');
 });
 
-app.post('/settings/notifications/read-all', (req, res) => {
+app.post('/settings/notifications/read-all', async (req, res) => {
+  try {
+    await dal.query('UPDATE notifications SET is_read = true WHERE is_read = false;');
+  } catch (e) {
+    console.warn('DAL read-all error:', e.message);
+  }
   (store.SYSTEM_NOTIFICATIONS || []).forEach(n => {
     n.is_read = true;
     n.should_toast = false;

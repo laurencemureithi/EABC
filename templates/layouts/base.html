@@ -408,38 +408,125 @@
 </script>
 
 {% block page_scripts %}{% endblock %}
-  {% if latest_unread_notification %}
-  <div id="systemToast" class="eabc-toast rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-4" data-no-print style="position:fixed;right:1rem;bottom:1rem;z-index:9999;width:min(26rem,calc(100vw - 2rem));max-width:min(26rem,calc(100vw - 2rem));">
-    <div class="flex items-start gap-3">
-      <span class="material-symbols-outlined text-amber-500 mt-0.5">notifications_active</span>
-      <div class="min-w-0 flex-1">
-        <p class="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Alert</p>
-        <p class="mt-1 font-bold text-slate-900 dark:text-white">{{ latest_unread_notification.title }}</p>
-        <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{{ latest_unread_notification.message }}</p>
-        <div class="mt-3 flex items-center gap-2">
-          <a href="{{ url_for('notifications') }}" class="px-3 py-2 rounded-lg bg-ueal-gold text-white text-xs font-black uppercase tracking-wider">Notification Center</a>
-          <button type="button" id="systemToastClose" data-id="{{ latest_unread_notification.id }}" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-black uppercase tracking-wider">Dismiss</button>
+  <!-- Smart Event-Driven Notification Toasts & Real-Time Polling -->
+  <div id="toastContainer" data-no-print style="position:fixed;right:1.25rem;top:4.5rem;z-index:9999;pointer-events:none;display:flex;flex-direction:column;gap:0.75rem;width:min(24rem,calc(100vw - 2.5rem));">
+    {% if latest_unread_notification %}
+    <div id="systemToast" data-id="{{ latest_unread_notification.id }}" class="eabc-toast rounded-xl border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-2xl p-4 transition-all duration-300 pointer-events-auto" style="border-left: 4px solid #F59E0B;">
+      <div class="flex items-start gap-3">
+        <span class="material-symbols-outlined text-amber-500 mt-0.5 text-xl">notifications_active</span>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Smart Alert</span>
+            <button type="button" onclick="dismissToast(this.closest('.eabc-toast'))" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none p-0.5" title="Dismiss">&times;</button>
+          </div>
+          <p class="font-bold text-sm text-slate-900 dark:text-white mt-0.5">{{ latest_unread_notification.title }}</p>
+          <p class="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">{{ latest_unread_notification.message }}</p>
+          <div class="mt-2.5 flex items-center gap-2">
+            <a href="{{ url_for('notifications') }}" class="px-2.5 py-1 rounded-md bg-ueal-purple text-white text-[11px] font-bold hover:opacity-90 transition-opacity">Open Center</a>
+            <button type="button" onclick="dismissToast(this.closest('.eabc-toast'))" class="px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">Dismiss</button>
+          </div>
         </div>
       </div>
     </div>
+    {% endif %}
   </div>
+
   <script>
     (function(){
-      const toast = document.getElementById('systemToast');
-      const btn = document.getElementById('systemToastClose');
-      async function dismiss(){
-        if (!btn) return;
-        const id = btn.getAttribute('data-id');
-        if (!id) return;
-        try { await fetch(`/notifications/${id}/dismiss`, {method:'POST', credentials:'same-origin'}); } catch(e) {}
+      const seenToastIds = new Set();
+      const initialToast = document.getElementById('systemToast');
+      if (initialToast) {
+        const iid = initialToast.getAttribute('data-id');
+        if (iid) seenToastIds.add(iid);
+        scheduleToastDismiss(initialToast);
       }
-      if (!toast || !btn) return;
-      btn.addEventListener('click', async ()=> { await dismiss(); toast.remove(); });
-      setTimeout(()=>{ if (toast && toast.parentNode) toast.classList.add('opacity-0','translate-y-2'); }, 8000);
-      setTimeout(async ()=>{ if (toast && toast.parentNode) { await dismiss(); toast.remove(); } }, 8600);
+
+      window.dismissToast = async function(el) {
+        if (!el) return;
+        const id = el.getAttribute('data-id');
+        el.classList.add('opacity-0', '-translate-y-2');
+        setTimeout(() => el.remove(), 300);
+        if (id) {
+          try { await fetch(`/notifications/${id}/dismiss`, { method: 'POST', credentials: 'same-origin' }); } catch(e) {}
+        }
+      };
+
+      function scheduleToastDismiss(el) {
+        setTimeout(() => {
+          if (el && el.parentNode) {
+            el.classList.add('opacity-0', '-translate-y-2');
+            setTimeout(() => el.remove(), 300);
+          }
+        }, 5000);
+      }
+
+      function spawnToast(notif) {
+        if (!notif || !notif.id || seenToastIds.has(notif.id)) return;
+        seenToastIds.add(notif.id);
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+
+        const el = document.createElement('div');
+        el.className = 'eabc-toast rounded-xl border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-2xl p-4 transition-all duration-300 pointer-events-auto';
+        el.setAttribute('data-id', notif.id);
+        const borderColor = notif.severity === 'warning' ? '#F59E0B' : (notif.severity === 'danger' ? '#EF4444' : '#10B981');
+        el.style.borderLeft = `4px solid ${borderColor}`;
+
+        el.innerHTML = `
+          <div class="flex items-start gap-3">
+            <span class="material-symbols-outlined text-amber-500 mt-0.5 text-xl">notifications_active</span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Event Alert</span>
+                <button type="button" onclick="dismissToast(this.closest('.eabc-toast'))" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none p-0.5" title="Dismiss">&times;</button>
+              </div>
+              <p class="font-bold text-sm text-slate-900 dark:text-white mt-0.5">${notif.title || 'Notification'}</p>
+              <p class="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">${notif.message || ''}</p>
+              <div class="mt-2.5 flex items-center gap-2">
+                <a href="/settings/notifications" class="px-2.5 py-1 rounded-md bg-ueal-purple text-white text-[11px] font-bold hover:opacity-90 transition-opacity">Open Center</a>
+                <button type="button" onclick="dismissToast(this.closest('.eabc-toast'))" class="px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">Dismiss</button>
+              </div>
+            </div>
+          </div>
+        `;
+        container.appendChild(el);
+        scheduleToastDismiss(el);
+      }
+
+      // Smart lightweight polling every 12 seconds
+      let lastPollTime = new Date().toISOString();
+      setInterval(async () => {
+        try {
+          const res = await fetch(`/api/notifications/poll?since=${encodeURIComponent(lastPollTime)}`, { credentials: 'same-origin' });
+          if (!res.ok) return;
+          const data = await res.json();
+          lastPollTime = new Date().toISOString();
+
+          // Update unread badge on bell
+          if (typeof data.unread_count === 'number') {
+            const bell = document.querySelector('.app-topbar-notifications');
+            if (bell) {
+              let dot = bell.querySelector('.bg-red-500');
+              if (data.unread_count > 0) {
+                if (!dot) {
+                  dot = document.createElement('span');
+                  dot.className = 'absolute top-1.5 right-1.5 sm:top-2.5 sm:right-2.5 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-dark-surface';
+                  bell.appendChild(dot);
+                }
+              } else if (dot) {
+                dot.remove();
+              }
+            }
+          }
+
+          // Spawn toasts for new events
+          if (Array.isArray(data.toasts)) {
+            data.toasts.forEach(spawnToast);
+          }
+        } catch(e) {}
+      }, 12000);
     })();
   </script>
-  {% endif %}
 
   <!-- Floating Opsloom AI Copilot Action Button -->
   <button
@@ -707,6 +794,87 @@
         return false;
       }
     };
+  </script>
+
+  <!-- SMART EVENT-DRIVEN TOAST NOTIFICATIONS SYSTEM -->
+  <div id="toastNotificationsContainer" class="fixed top-5 right-5 z-[9999] flex flex-col gap-3 max-w-sm w-full pointer-events-none p-4" aria-live="polite"></div>
+
+  <script>
+    (function initSmartNotifications() {
+      const container = document.getElementById('toastNotificationsContainer');
+      const badge = document.getElementById('topbarNotifBadge');
+      let lastPolledIso = new Date(Date.now() - 60000).toISOString();
+
+      window.showSmartToast = function(title, message, severity = 'info', href = null) {
+        if (!container) return;
+        const toast = document.createElement('div');
+        toast.className = 'pointer-events-auto flex items-start gap-3 p-4 rounded-xl shadow-xl border backdrop-blur-md transition-all duration-300 transform translate-x-10 opacity-0 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 ' +
+          (severity === 'success' ? 'border-emerald-500/30 shadow-emerald-500/10' :
+           severity === 'warning' ? 'border-amber-500/30 shadow-amber-500/10' :
+           severity === 'danger' || severity === 'error' ? 'border-rose-500/30 shadow-rose-500/10' :
+           'border-blue-500/30 shadow-blue-500/10');
+
+        const iconName = severity === 'success' ? 'check_circle' :
+                         severity === 'warning' ? 'warning' :
+                         severity === 'danger' || severity === 'error' ? 'error' : 'notifications_active';
+        const iconColor = severity === 'success' ? 'text-emerald-500' :
+                          severity === 'warning' ? 'text-amber-500' :
+                          severity === 'danger' || severity === 'error' ? 'text-rose-500' : 'text-blue-500';
+
+        toast.innerHTML = `
+          <span class="material-symbols-outlined ${iconColor} text-2xl shrink-0 mt-0.5">${iconName}</span>
+          <div class="flex-1 min-w-0">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">${title || 'Notification'}</h4>
+            <p class="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-snug break-words">${message || ''}</p>
+            ${href ? `<a href="${href}" class="inline-block mt-2 text-[11px] font-bold text-ueal-purple hover:underline">View Details &rarr;</a>` : ''}
+          </div>
+          <button type="button" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0 p-1 rounded-md" aria-label="Dismiss">
+            <span class="material-symbols-outlined text-sm">close</span>
+          </button>
+        `;
+
+        const closeBtn = toast.querySelector('button');
+        const dismissToast = () => {
+          toast.classList.add('translate-x-10', 'opacity-0');
+          setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
+        };
+        closeBtn.addEventListener('click', dismissToast);
+
+        container.appendChild(toast);
+        requestAnimationFrame(() => {
+          toast.classList.remove('translate-x-10', 'opacity-0');
+        });
+
+        setTimeout(dismissToast, 6000);
+      };
+
+      async function pollNotifications() {
+        try {
+          const res = await fetch('/api/notifications/poll?since=' + encodeURIComponent(lastPolledIso), { credentials: 'same-origin' });
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data && data.ok) {
+            if (badge) {
+              if (data.unread_count > 0) {
+                badge.textContent = data.unread_count > 9 ? '9+' : String(data.unread_count);
+                badge.classList.remove('hidden');
+              } else {
+                badge.classList.add('hidden');
+              }
+            }
+            if (Array.isArray(data.toasts) && data.toasts.length > 0) {
+              data.toasts.forEach(t => {
+                showSmartToast(t.title, t.message, t.severity || 'info', t.href);
+              });
+            }
+            lastPolledIso = new Date().toISOString();
+          }
+        } catch (e) {}
+      }
+
+      setTimeout(pollNotifications, 3000);
+      setInterval(pollNotifications, 10000);
+    })();
   </script>
 
   {% include "partials/system_health_modal.html" %}
