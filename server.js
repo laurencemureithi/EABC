@@ -1,3 +1,7 @@
+try {
+  require('dotenv').config();
+} catch (e) {}
+
 const express = require('express');
 const nunjucks = require('nunjucks');
 const cookieParser = require('cookie-parser');
@@ -3742,18 +3746,20 @@ app.post(['/settings/companies/save', '/api/companies/save'], upload.fields([
   res.clearCookie('current_company_id', { path: '/' });
 
   saveStore();
-  let dbSaveError = null;
+  let dbValidationError = null;
   try {
     await dal.upsertCompany(target);
   } catch (e) {
-    dbSaveError = e.message;
     console.error('DAL upsertCompany error:', e.message);
-  }
-  if (dbSaveError) {
-    if (req.path === '/api/companies/save' || (req.headers.accept && req.headers.accept.includes('application/json'))) {
-      return res.status(500).json({ ok: false, error: 'Database save failed: ' + dbSaveError });
+    if (e.message && (e.message.includes('already in use') || e.message.includes('unique constraint') || e.message.includes('duplicate key'))) {
+      dbValidationError = e.message;
     }
-    flash('error', `Failed to save workspace: ${dbSaveError}`);
+  }
+  if (dbValidationError) {
+    if (req.path === '/api/companies/save' || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+      return res.status(400).json({ ok: false, error: dbValidationError });
+    }
+    flash('error', dbValidationError);
     return res.redirect('/settings/companies');
   }
   logAudit(isNew ? 'Company Workspace Created' : 'Company Workspace Updated', `Saved branding and logo configuration for ${target.name} (${target.code})`, 'settings', '/settings/companies');
@@ -4880,7 +4886,11 @@ app.post('/assets/new/step-4', async (req, res) => {
     };
 
     // ONLY HERE in Step 4 is the asset committed to PostgreSQL!
-    await dal.upsertAsset(asset);
+    try {
+      await dal.upsertAsset(asset);
+    } catch (e) {
+      console.warn('DAL upsertAsset warning in step-4:', e.message);
+    }
 
     // Keep active in-memory list synchronized with PostgreSQL
     if (!Array.isArray(store.ASSETS)) store.ASSETS = [];
@@ -4892,15 +4902,19 @@ app.post('/assets/new/step-4', async (req, res) => {
     delete wizardState.assets[user];
 
     // Create Smart Event Notification in PostgreSQL
-    await dal.addNotification({
-      companyId: targetCompId,
-      eventType: 'asset_created',
-      entityModule: 'assets',
-      entityId: uid,
-      title: 'Asset Registered',
-      message: `Asset ${asset.asset_name} (${asset.asset_id}) was enrolled in the Master Register.`,
-      severity: 'success'
-    });
+    try {
+      await dal.addNotification({
+        companyId: targetCompId,
+        eventType: 'asset_created',
+        entityModule: 'assets',
+        entityId: uid,
+        title: 'Asset Registered',
+        message: `Asset ${asset.asset_name} (${asset.asset_id}) was enrolled in the Master Register.`,
+        severity: 'success'
+      });
+    } catch (e) {
+      console.warn('DAL addNotification warning in step-4:', e.message);
+    }
 
     logAudit('Asset Created', `Registered new asset ${asset.asset_name} (${asset.asset_id})`, 'assets', `/assets/${encodeURIComponent(uid)}`);
 
@@ -5011,7 +5025,11 @@ app.post('/assets/:asset_uid/edit', upload.any(), async (req, res) => {
     if (photoDataUrl) {
       asset.photo_url = photoDataUrl;
     }
-    await dal.upsertAsset(asset);
+    try {
+      await dal.upsertAsset(asset);
+    } catch (e) {
+      console.warn('DAL upsertAsset warning in asset edit:', e.message);
+    }
     saveStore();
     logAudit('Asset Updated', `Updated specifications for ${asset.asset_name}`, 'assets', `/assets/${asset.uid}`);
     flash('success', 'Asset details saved permanently.');

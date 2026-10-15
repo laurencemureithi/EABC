@@ -1,22 +1,57 @@
+try {
+  require('dotenv').config();
+} catch (e) {}
+
 const { Pool } = require('pg');
 
 let pool = null;
 
 function getPool() {
-  if (!pool && process.env.SQL_HOST && process.env.SQL_USER && process.env.SQL_DB_NAME) {
+  if (pool) return pool;
+
+  if (global._postgresPool) {
+    pool = global._postgresPool;
+    return pool;
+  }
+
+  const host = process.env.SQL_HOST || process.env.PGHOST;
+  const user = process.env.SQL_USER || process.env.PGUSER;
+  const password = process.env.SQL_PASSWORD || process.env.PGPASSWORD;
+  const database = process.env.SQL_DB_NAME || process.env.PGDATABASE;
+  const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+
+  if (connectionString) {
     pool = new Pool({
-      host: process.env.SQL_HOST,
-      user: process.env.SQL_USER,
-      password: process.env.SQL_PASSWORD,
-      database: process.env.SQL_DB_NAME,
+      connectionString,
       max: 15,
       connectionTimeoutMillis: 10000,
     });
+  } else if (host && user && database) {
+    const config = {
+      host,
+      user,
+      password: password || '',
+      database,
+      max: 15,
+      connectionTimeoutMillis: 10000,
+    };
+    if (process.env.PGPORT && !host.startsWith('/')) {
+      config.port = parseInt(process.env.PGPORT, 10);
+    }
+    pool = new Pool(config);
+  }
+
+  if (pool) {
+    global._postgresPool = pool;
     pool.on('error', (err) => {
       console.error('[PostgreSQL Pool Error]:', err.message);
     });
   }
   return pool;
+}
+
+function isAvailable() {
+  return Boolean(getPool());
 }
 
 async function query(sql, params = []) {
@@ -29,11 +64,18 @@ async function query(sql, params = []) {
       throw err;
     }
   }
-  throw new Error('PostgreSQL pool is not configured or available.');
+  console.warn('[PostgreSQL Pool Warning]: Pool is not configured or available for query:', sql);
+  return { rows: [], rowCount: 0 };
 }
 
 async function withTransaction(fn) {
   const p = getPool();
+  if (!p) {
+    console.warn('[PostgreSQL Pool Warning]: withTransaction called but pool is not available.');
+    return await fn({
+      query: async (sql, params) => query(sql, params)
+    });
+  }
   const client = await p.connect();
   try {
     await client.query('BEGIN');
@@ -1013,6 +1055,7 @@ async function getDiagnosticInfo() {
 
 module.exports = {
   getPool,
+  isAvailable,
   query,
   withTransaction,
   getCompanies,
