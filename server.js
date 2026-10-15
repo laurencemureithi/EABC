@@ -439,13 +439,11 @@ function ensureCompanyDesignation(comp) {
   const isUltravetis = nameLower.includes('ultravetis') || code === 'UEAL';
   const isOpsloom = !isUltravetis && (nameLower.includes('opsloom') || code === 'OPS');
 
-  if (isUltravetis) {
-    if (!comp.primary_color || comp.primary_color.toLowerCase() === '#3700ff' || comp.primary_color.toLowerCase() === '#1554ff') {
-      comp.primary_color = '#7E22CE';
-    }
-    if (!comp.secondary_color || comp.secondary_color.toLowerCase() === '#ffffff' || comp.secondary_color.toLowerCase() === '#0ea5e9') {
-      comp.secondary_color = '#F59E0B';
-    }
+  if (!comp.primary_color) {
+    comp.primary_color = '#1554FF';
+  }
+  if (!comp.secondary_color) {
+    comp.secondary_color = '#F59E0B';
   }
 
   // Only generate a fallback emblem if logo URLs are completely missing
@@ -636,6 +634,41 @@ function activateWorkspaceBucket(companyId) {
   store._BOUND_COMPANY_ID = effectiveId;
   store.ACTIVE_COMPANY_ID = effectiveId;
   return comp || { id: effectiveId, name: 'Workspace', code: 'WKS' };
+}
+
+function getCompanyAssets(companyId) {
+  if (!companyId) return [];
+  return (store.ASSETS || []).filter(a => a && a.company_id === companyId);
+}
+
+function getCompanyBreakdowns(companyId) {
+  if (!companyId) return [];
+  return (store.BREAKDOWNS || []).filter(b => b && b.company_id === companyId);
+}
+
+function getCompanyMaintenanceTasks(companyId) {
+  if (!companyId) return [];
+  return (store.MAINTENANCE_TASKS || []).filter(t => t && t.company_id === companyId);
+}
+
+function getCompanyInventoryParts(companyId) {
+  if (!companyId) return [];
+  return (store.INVENTORY_PARTS || []).filter(p => p && p.company_id === companyId);
+}
+
+function getCompanyRecycleBin(companyId) {
+  if (!companyId) return [];
+  return (store.RECYCLE_BIN || []).filter(r => r && (!r.company_id || r.company_id === companyId || r.entity_type === 'company' || r.entity_type === 'workspace'));
+}
+
+function getCompanyReports(companyId) {
+  if (!companyId) return [];
+  return (store.REPORT_EXPORTS || []).filter(r => r && (!r.company_id || r.company_id === companyId));
+}
+
+function getCompanyAuditTrail(companyId) {
+  if (!companyId) return [];
+  return (store.AUDIT_TRAIL || []).filter(a => a && (!a.company_id || a.company_id === companyId));
 }
 
 async function syncStoreFromDatabase() {
@@ -1790,14 +1823,15 @@ async function sendBrandPowerPoint(req, res, options = {}) {
 
 // Comprehensive Report Analysis Builder for all 5 Report Categories & Print Views
 function buildReportAnalysis(report = {}) {
+  const activeCompId = report.company_id || store.ACTIVE_COMPANY_ID || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
   const scopeMode = (report.scope_mode || 'department').toLowerCase();
   const scopeTarget = (report.scope_target || report.scope_section || report.generated_for || '').trim();
   const catKey = (report.category_key || report.category || 'strategic_roi').toLowerCase();
 
-  let assets = [...(store.ASSETS || [])];
-  let breakdowns = [...(store.BREAKDOWNS || [])];
-  let tasks = [...(store.MAINTENANCE_TASKS || [])];
-  let parts = [...(store.INVENTORY_PARTS || [])];
+  let assets = getCompanyAssets(activeCompId);
+  let breakdowns = getCompanyBreakdowns(activeCompId);
+  let tasks = getCompanyMaintenanceTasks(activeCompId);
+  let parts = getCompanyInventoryParts(activeCompId);
 
   if (scopeMode === 'section' && scopeTarget && scopeTarget !== 'All') {
     assets = assets.filter(a => a.section === scopeTarget);
@@ -1819,16 +1853,16 @@ function buildReportAnalysis(report = {}) {
     return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
   };
 
-  const totalAssets = assets.length || 1;
+  const totalAssets = assets.length;
   const operationalAssets = assets.filter(a => a.status === 'operational').length;
-  const availabilityPct = Math.round((operationalAssets / Math.max(1, totalAssets)) * 1000) / 10;
+  const availabilityPct = totalAssets > 0 ? Math.round((operationalAssets / totalAssets) * 1000) / 10 : 0.0;
 
   const totalIncidents = breakdowns.length;
   const openIncidents = breakdowns.filter(b => b.status === 'open').length;
   const inProgressIncidents = breakdowns.filter(b => b.status === 'in_progress').length;
   const resolvedIncidents = breakdowns.filter(b => b.status === 'resolved' || b.status === 'closed').length;
   const totalDowntime = Math.round(breakdowns.reduce((s, b) => s + calculateDowntimeHours(b), 0) * 10) / 10;
-  const mttrHours = totalIncidents ? Math.round((totalDowntime / totalIncidents) * 10) / 10 : 1.8;
+  const mttrHours = totalIncidents ? Math.round((totalDowntime / totalIncidents) * 10) / 10 : 0.0;
 
   const breakdownSubtotal = breakdowns.reduce((s, b) => s + Number(b.cost_subtotal || b.cost || 0), 0);
   const breakdownVat = breakdowns.reduce((s, b) => s + Number(b.cost_vat_amount || Math.round(Number(b.cost_subtotal || b.cost || 0) * 0.16)), 0);
@@ -1849,7 +1883,7 @@ function buildReportAnalysis(report = {}) {
   const overdueTasks = tasks.filter(t => t.status === 'overdue').length;
   const inProgressTasks = tasks.filter(t => t.status === 'in_progress').length;
   const upcomingTasks = tasks.filter(t => t.status === 'upcoming').length;
-  const compliancePct = tasks.length ? Math.round(((completedTasks + upcomingTasks) / tasks.length) * 1000) / 10 : 83.3;
+  const compliancePct = tasks.length ? Math.round(((completedTasks + upcomingTasks) / tasks.length) * 1000) / 10 : 0.0;
 
   const invTotalValue = parts.reduce((s, p) => s + (Number(p.qty || 0) * Number(p.unit_price || 0)), 0);
   const invHealthy = parts.filter(p => Number(p.qty) > Number(p.min_qty)).length;
@@ -2296,19 +2330,20 @@ function getCompanyKpiTargets(companyId = null) {
   };
 }
 
-function computeSystemHealthStatus() {
+function computeSystemHealthStatus(companyId = null) {
   try {
-    const assets = (store.ASSETS || []).filter(a => a && typeof a === 'object');
-    const breakdowns = (store.BREAKDOWNS || []).filter(b => b && typeof b === 'object');
-    const tasks = (store.MAINTENANCE_TASKS || []).filter(t => t && typeof t === 'object');
-    const parts = (store.INVENTORY_PARTS || []).filter(p => p && typeof p === 'object');
-    const targets = getCompanyKpiTargets();
+    const targetId = companyId || store.ACTIVE_COMPANY_ID || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
+    const assets = getCompanyAssets(targetId);
+    const breakdowns = getCompanyBreakdowns(targetId);
+    const tasks = getCompanyMaintenanceTasks(targetId);
+    const parts = getCompanyInventoryParts(targetId);
+    const targets = getCompanyKpiTargets(targetId);
 
     const totalAssets = assets.length;
     const operationalAssets = assets.filter(a => a.status === 'operational').length;
     const maintenanceAssets = assets.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
     const oosAssets = assets.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
-    const uptimeRate = totalAssets > 0 ? Math.round((operationalAssets / totalAssets) * 1000) / 10 : 100.0;
+    const uptimeRate = totalAssets > 0 ? Math.round((operationalAssets / totalAssets) * 1000) / 10 : 0.0;
     const uptimeTarget = (!isNaN(Number(targets.uptime_target_pct)) && isFinite(Number(targets.uptime_target_pct))) ? Number(targets.uptime_target_pct) : 85.0;
 
     const activeBds = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved');
@@ -2316,7 +2351,7 @@ function computeSystemHealthStatus() {
     const overduePm = tasks.filter(t => t.status === 'overdue').length;
     const completedTasks = tasks.filter(t => t.status === 'completed').length;
     const upcomingTasks = tasks.filter(t => t.status === 'upcoming').length;
-    const pmCompliance = tasks.length ? Math.round(((completedTasks + upcomingTasks) / tasks.length) * 1000) / 10 : 100.0;
+    const pmCompliance = tasks.length ? Math.round(((completedTasks + upcomingTasks) / tasks.length) * 1000) / 10 : 0.0;
 
     const outOfStockCount = parts.filter(p => Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) <= 0).length;
 
@@ -2326,12 +2361,12 @@ function computeSystemHealthStatus() {
     const maxOverdue = Number(targets.max_overdue_pm) || 2;
     const pmComplianceTarget = Number(targets.pm_compliance_target_pct) || 90.0;
 
-    const ruleUptimePass = uptimeRate >= uptimeTarget;
+    const ruleUptimePass = totalAssets > 0 ? uptimeRate >= uptimeTarget : true;
     const ruleCritBdPass = criticalOpenBds.length <= maxCrit && activeBds.length <= maxActive;
     const ruleOosPass = oosAssets <= maxOos;
-    const rulePmPass = overduePm <= maxOverdue && pmCompliance >= pmComplianceTarget;
+    const rulePmPass = tasks.length > 0 ? (overduePm <= maxOverdue && pmCompliance >= pmComplianceTarget) : true;
 
-    const isRisk = !ruleUptimePass || !ruleCritBdPass || !ruleOosPass;
+    const isRisk = !ruleUptimePass || !ruleCritBdPass || !ruleOosPass || !rulePmPass;
     const state = isRisk ? 'risk' : 'stable';
     const badge = isRisk ? 'SYSTEM AT RISK' : 'SYSTEM STABLE';
 
@@ -2339,7 +2374,7 @@ function computeSystemHealthStatus() {
       {
         label: 'Fleet Availability (OEE Uptime)',
         threshold_label: `Minimum SLA ≥ ${uptimeTarget.toFixed(1)}%`,
-        actual: `${uptimeRate.toFixed(1)}% (${operationalAssets}/${assets.length} Online)`,
+        actual: totalAssets > 0 ? `${uptimeRate.toFixed(1)}% (${operationalAssets}/${assets.length} Online)` : '0.0% (0 Assets Enrolled)',
         passed: ruleUptimePass
       },
       {
@@ -2357,7 +2392,7 @@ function computeSystemHealthStatus() {
       {
         label: 'Preventive Maintenance (PM) Cadence',
         threshold_label: `≤ ${maxOverdue} Overdue • SLA ≥ ${pmComplianceTarget.toFixed(0)}%`,
-        actual: `${overduePm} Overdue (${pmCompliance}% SLA)`,
+        actual: tasks.length > 0 ? `${overduePm} Overdue (${pmCompliance}% SLA)` : '0 Overdue (0 Scheduled)',
         passed: rulePmPass
       }
     ];
@@ -2365,10 +2400,14 @@ function computeSystemHealthStatus() {
     const triggeredReasons = rules.filter(r => !r.passed).map(r => `${r.label}: ${r.actual}`);
     const driverShort = isRisk
       ? `Triggered by: ${triggeredReasons[0] || 'SLA Threshold Breach'}`
-      : `${operationalAssets}/${assets.length} Online (${uptimeRate.toFixed(1)}% ≥ ${uptimeTarget.toFixed(1)}% SLA) • ${activeBds.length} Active Fault(s)`;
+      : (totalAssets > 0
+          ? `${operationalAssets}/${assets.length} Online (${uptimeRate.toFixed(1)}% ≥ ${uptimeTarget.toFixed(1)}% SLA) • ${activeBds.length} Active Fault(s)`
+          : '0 Assets Enrolled • 0 Active Fault(s)');
     const driverSummary = isRisk
       ? `System flagged AT RISK because ${triggeredReasons.join(' and ')}. Resolve active stoppages to restore nominal status.`
-      : `System is STABLE: Fleet Uptime (${uptimeRate.toFixed(1)}%) meets the ${uptimeTarget.toFixed(1)}% minimum SLA threshold and active breakdowns (${activeBds.length}) are within containment limits.`;
+      : (totalAssets > 0
+          ? `System is STABLE: Fleet Uptime (${uptimeRate.toFixed(1)}%) meets the ${uptimeTarget.toFixed(1)}% minimum SLA threshold and active breakdowns (${activeBds.length}) are within containment limits.`
+          : 'System is STABLE: No active stoppages or operational risks recorded.');
 
     return {
       state,
@@ -2824,6 +2863,7 @@ function updateUserPasswordEverywhere(identifier, newPassword) {
     ) {
       u.password = cleanPass;
       updated = true;
+      try { dal.upsertUser(u).catch(() => {}); } catch (e) {}
     }
   });
 
@@ -2895,8 +2935,8 @@ function baseCtx(req, activeNav = 'dashboard') {
     saveStore();
   }
 
-  const sysHealth = computeSystemHealthStatus();
-  const allParts = store.INVENTORY_PARTS || [];
+  const sysHealth = computeSystemHealthStatus(activeCompany.id);
+  const allParts = getCompanyInventoryParts(activeCompany.id);
   const invLowCount = allParts.filter(p => Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) <= Number(p.min_qty !== undefined ? p.min_qty : p.reorder_level || 5) && Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) > 0).length;
   const invOutCount = sysHealth.out_of_stock;
   const invCritCount = allParts.filter(p => Boolean(p.is_critical)).length;
@@ -2956,16 +2996,16 @@ function baseCtx(req, activeNav = 'dashboard') {
     maintenance_assets: sysHealth.maintenance_assets,
     oos_assets: sysHealth.oos_assets,
     kpi_active_breakdowns: sysHealth.active_breakdowns,
-    total_breakdowns: (store.BREAKDOWNS || []).length,
+    total_breakdowns: getCompanyBreakdowns(activeCompany.id).length,
     pm_compliance: sysHealth.pm_compliance,
     overdue_pm: sysHealth.overdue_pm,
-    total_tasks: (store.MAINTENANCE_TASKS || []).length,
+    total_tasks: getCompanyMaintenanceTasks(activeCompany.id).length,
     total_parts: allParts.length,
     inventory_critical_spares: invCritCount,
     inventory_low_stock: invLowCount,
     inventory_out_of_stock: invOutCount,
     inventory_value: invTotalVal,
-    recycle_bin_count: (store.RECYCLE_BIN || []).length,
+    recycle_bin_count: getCompanyRecycleBin(activeCompany.id).length,
     session_timeout_minutes: getSessionTimeoutMinutes(),
     custom_roles: customRoles,
     permission_presets: dynamicPresets,
@@ -3180,7 +3220,7 @@ app.post('/login', (req, res) => {
   setSafeCookie(req, res, 'opsloom_role', user.role || 'Viewer', timeoutMs);
   setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()), timeoutMs);
 
-  const preferredCompId = req.cookies?.opsloom_ws_id || store.ACTIVE_COMPANY_ID || user.company_id || 'comp-001';
+  const preferredCompId = req.cookies?.opsloom_ws_id || user.company_id || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
   if (preferredCompId) {
     store.ACTIVE_COMPANY_ID = preferredCompId;
     activateWorkspaceBucket(preferredCompId);
@@ -3476,7 +3516,7 @@ app.get(['/settings/companies', '/companies', '/admin/companies'], async (req, r
   });
 });
 
-app.post('/api/companies/save-logo', upload.single('logo_file'), (req, res) => {
+app.post('/api/companies/save-logo', upload.single('logo_file'), async (req, res) => {
   if (!store.COMPANIES) store.COMPANIES = [];
   const {
     id, mode, logo_data_url, logo_light_data_url, logo_dark_data_url,
@@ -3572,6 +3612,11 @@ app.post('/api/companies/save-logo', upload.single('logo_file'), (req, res) => {
   res.clearCookie('current_company_id', { path: '/' });
 
   saveStore();
+  try {
+    await dal.upsertCompany(target);
+  } catch (e) {
+    console.warn('DAL upsertCompany error in save-logo:', e.message);
+  }
   logAudit('Workspace Logo Updated', `Updated brand logo for ${target.name} (${target.code})`, 'settings', '/settings/companies');
   return res.json({
     ok: true,
@@ -3697,10 +3742,19 @@ app.post(['/settings/companies/save', '/api/companies/save'], upload.fields([
   res.clearCookie('current_company_id', { path: '/' });
 
   saveStore();
+  let dbSaveError = null;
   try {
     await dal.upsertCompany(target);
   } catch (e) {
-    console.warn('DAL upsertCompany error:', e.message);
+    dbSaveError = e.message;
+    console.error('DAL upsertCompany error:', e.message);
+  }
+  if (dbSaveError) {
+    if (req.path === '/api/companies/save' || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+      return res.status(500).json({ ok: false, error: 'Database save failed: ' + dbSaveError });
+    }
+    flash('error', `Failed to save workspace: ${dbSaveError}`);
+    return res.redirect('/settings/companies');
   }
   logAudit(isNew ? 'Company Workspace Created' : 'Company Workspace Updated', `Saved branding and logo configuration for ${target.name} (${target.code})`, 'settings', '/settings/companies');
   if (req.path === '/api/companies/save' || (req.headers.accept && req.headers.accept.includes('application/json'))) {
@@ -3784,9 +3838,6 @@ app.all('/set-company', (req, res) => {
   if (company) {
     store.ACTIVE_COMPANY_ID = company.id;
     activateWorkspaceBucket(company.id);
-    if (isAdmin) {
-      actor.company_id = company.id;
-    }
     saveStore();
     setSafeCookie(req, res, 'opsloom_ws_id', company.id);
     res.clearCookie('current_company_id', { path: '/' });
@@ -3801,15 +3852,16 @@ app.all('/set-company', (req, res) => {
 // DASHBOARD
 // -------------------------
 app.all('/dashboard', (req, res) => {
-  const assets = store.ASSETS || [];
-  const breakdowns = store.BREAKDOWNS || [];
-  const tasks = store.MAINTENANCE_TASKS || [];
-  const parts = store.INVENTORY_PARTS || [];
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  const assets = getCompanyAssets(activeCompany.id);
+  const breakdowns = getCompanyBreakdowns(activeCompany.id);
+  const tasks = getCompanyMaintenanceTasks(activeCompany.id);
+  const parts = getCompanyInventoryParts(activeCompany.id);
   const totalAssets = assets.length;
   const operationalAssets = assets.filter(a => a.status === 'operational').length;
   const maintenanceAssets = assets.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
   const oosAssets = assets.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
-  const kpiUptimeRate = totalAssets > 0 ? Math.round((operationalAssets / totalAssets) * 1000) / 10 : 100.0;
+  const kpiUptimeRate = totalAssets > 0 ? Math.round((operationalAssets / totalAssets) * 1000) / 10 : 0.0;
 
   const activeBds = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved');
   const totalDowntime = Math.round(breakdowns.reduce((sum, b) => sum + calculateDowntimeHours(b), 0) * 10) / 10;
@@ -3819,7 +3871,7 @@ app.all('/dashboard', (req, res) => {
   const completedTasks = tasks.filter(t => t.status === 'completed').length;
   const upcomingTasks = tasks.filter(t => t.status === 'upcoming').length;
   const overduePm = tasks.filter(t => t.status === 'overdue').length;
-  const pmCompliance = tasks.length ? Math.round(((completedTasks + upcomingTasks) / tasks.length) * 1000) / 10 : 100.0;
+  const pmCompliance = tasks.length ? Math.round(((completedTasks + upcomingTasks) / tasks.length) * 1000) / 10 : 0.0;
 
   const normalizedParts = parts.map(p => ({
     ...p,
@@ -3932,7 +3984,7 @@ app.all('/dashboard', (req, res) => {
   ];
 
   const financialExposure = Math.round(totalDowntime * 18500);
-  const companyTargets = getCompanyKpiTargets();
+  const companyTargets = getCompanyKpiTargets(activeCompany.id);
   const totalDirectSpend = maintenanceCostTotal + breakdownCostTotal;
   const monthlyBudget = Math.max(1, companyTargets.monthly_maintenance_budget || 2500000);
   const budgetUtilizationPct = Math.round((totalDirectSpend / monthlyBudget) * 1000) / 10;
@@ -3954,14 +4006,14 @@ app.all('/dashboard', (req, res) => {
     active_breakdowns_count: activeBds.length,
     kpi_active_delta: activeBds.length,
     kpi_mttr_hours: avgMttr,
-    kpi_mttr_delta: -0.4,
-    kpi_mttr_trend: -4.2,
-    kpi_mtbf_hours: 142.5,
-    kpi_mtbf_delta: 8.2,
+    kpi_mttr_delta: breakdowns.length ? -0.4 : 0.0,
+    kpi_mttr_trend: breakdowns.length ? -4.2 : 0.0,
+    kpi_mtbf_hours: breakdowns.length ? Math.round(168 / breakdowns.length * 10) / 10 : 0.0,
+    kpi_mtbf_delta: breakdowns.length ? 8.2 : 0.0,
     kpi_pm_compliance: pmCompliance,
     pm_compliance: pmCompliance,
     overdue_pm: overduePm,
-    kpi_pm_delta: 3.5,
+    kpi_pm_delta: tasks.length ? 3.5 : 0.0,
     kpi_downtime_mtd_hours: totalDowntime,
     kpi_downtime_financial_mtd: financialExposure,
     maintenance_cost_total: maintenanceCostTotal,
@@ -3975,7 +4027,7 @@ app.all('/dashboard', (req, res) => {
     inventory_critical_spares: inventoryCriticalSpares,
     inventory_low_stock: lowStockCount,
     inventory_out_of_stock: outOfStockCount,
-    reports_count: (store.REPORT_EXPORTS || []).length,
+    reports_count: getCompanyReports(activeCompany.id).length,
     upcoming_tasks_count: tasks.filter(t => t.status !== 'completed').length,
     quick: {
       assets_monitored: assets.length,
@@ -3992,20 +4044,21 @@ app.all('/dashboard', (req, res) => {
     recent_breakdowns,
     critical_risks: critical_open.length,
     critical_open,
-    audit_preview: (store.AUDIT_TRAIL || []).slice(0, 5)
+    audit_preview: getCompanyAuditTrail(activeCompany.id).slice(0, 5)
   });
 });
 
 app.get('/dashboard/strategic-export', async (req, res) => {
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
   const fmt = (req.query.format || req.query.fmt || 'pptx').toLowerCase();
   const range = (req.query.range || '30d').toUpperCase();
-  const assets = store.ASSETS || [];
-  const breakdowns = store.BREAKDOWNS || [];
-  const tasks = store.MAINTENANCE_TASKS || [];
+  const assets = getCompanyAssets(activeCompany.id);
+  const breakdowns = getCompanyBreakdowns(activeCompany.id);
+  const tasks = getCompanyMaintenanceTasks(activeCompany.id);
   const activeBds = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved');
   const totalDowntime = Math.round(breakdowns.reduce((sum, b) => sum + calculateDowntimeHours(b), 0) * 10) / 10;
   const operational = assets.filter(a => a.status === 'operational').length;
-  const uptime = assets.length ? Math.round((operational / assets.length) * 1000) / 10 : 98.4;
+  const uptime = assets.length ? Math.round((operational / assets.length) * 1000) / 10 : 0.0;
 
   const kpiRecords = [
     { label: 'Plant Uptime Rate', value: `${uptime}%`, note: 'Target >= 95.0%' },
@@ -4127,13 +4180,14 @@ app.get('/dashboard/strategic-export', async (req, res) => {
 // ASSETS
 // -------------------------
 app.get(['/assets', '/assets/master-list'], async (req, res) => {
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
   try {
     const dbAssets = await dal.getAssets();
     if (dbAssets) store.ASSETS = dbAssets;
   } catch (e) {
     console.warn('Failed to refresh assets from DB:', e.message);
   }
-  const allAssets = store.ASSETS || [];
+  const allAssets = getCompanyAssets(activeCompany.id);
   let list = [...allAssets];
   const q = (req.query.q || '').toLowerCase();
   const section = req.query.section || '';
@@ -4163,7 +4217,7 @@ app.get(['/assets', '/assets/master-list'], async (req, res) => {
   const operational = allAssets.filter(a => a.status === 'operational').length;
   const maintenance = allAssets.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
   const oos = allAssets.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
-  const availability = total > 0 ? (operational / total) * 100 : 98.4;
+  const availability = total > 0 ? (operational / total) * 100 : 0.0;
   const sections = [...new Set(allAssets.map(a => a.section).filter(Boolean))];
 
   const per_page = Math.max(1, parseInt(req.query.per_page, 10) || 10);
@@ -4201,7 +4255,8 @@ app.get(['/assets', '/assets/master-list'], async (req, res) => {
 
 // Smart Asset Insights API Endpoint
 app.get('/api/assets/dashboard', (req, res) => {
-  let assets = [...(store.ASSETS || [])];
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  let assets = getCompanyAssets(activeCompany.id);
   const secFilter = req.query.section;
   const stFilter = req.query.status;
   const critFilter = req.query.criticality;
@@ -4225,7 +4280,7 @@ app.get('/api/assets/dashboard', (req, res) => {
     C: assets.filter(a => a.criticality === 'C').length
   };
 
-  const breakdowns = store.BREAKDOWNS || [];
+  const breakdowns = getCompanyBreakdowns(activeCompany.id);
   const top_downtime = assets.map(a => {
     const bds = breakdowns.filter(b => b.asset_uid === a.uid || b.asset_id === a.asset_id);
     const hrs = Math.round(bds.reduce((sum, b) => sum + calculateDowntimeHours(b), 0) * 10) / 10;
@@ -4438,6 +4493,7 @@ function buildMaintenanceSchedulePrintContext(req, customTasks = null) {
 
 // Master Asset Register & Smart Asset Insights Export Route (placed before /assets/:asset_uid so /assets/export is never captured as a UID)
 app.get(['/assets/export', '/assets/export/:fmt', '/assets/report/pdf', '/assets/report/print'], async (req, res) => {
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
   const fmt = (
     req.params.fmt ||
     req.query.format ||
@@ -4445,7 +4501,7 @@ app.get(['/assets/export', '/assets/export/:fmt', '/assets/report/pdf', '/assets
     (req.path.includes('pdf') ? 'pdf' : (req.path.includes('print') ? 'print' : 'csv'))
   ).toLowerCase();
 
-  let list = [...(store.ASSETS || [])];
+  let list = getCompanyAssets(activeCompany.id);
   const rawSec = req.query.section;
   const selectedSecs = (Array.isArray(rawSec) ? rawSec : (rawSec ? [rawSec] : []))
     .map(s => String(s || '').trim())
@@ -4479,7 +4535,7 @@ app.get(['/assets/export', '/assets/export/:fmt', '/assets/report/pdf', '/assets
   const maintCount = list.filter(a => a.status === 'degraded' || a.status === 'maintenance' || a.status === 'under_maintenance').length;
   const oosCount = list.filter(a => a.status === 'breakdown' || a.status === 'down' || a.status === 'out_of_service').length;
   const classACount = list.filter(a => a.criticality === 'A').length;
-  const availPct = list.length ? Math.round((opCount / list.length) * 1000) / 10 : 100.0;
+  const availPct = list.length ? Math.round((opCount / list.length) * 1000) / 10 : 0.0;
 
   const scopeParts = [];
   if (selectedSecs.length) scopeParts.push(`Section: ${selectedSecs.join(', ')}`);
@@ -4946,7 +5002,7 @@ app.get('/assets/:asset_uid/edit', (req, res) => {
   });
 });
 
-app.post('/assets/:asset_uid/edit', upload.any(), (req, res) => {
+app.post('/assets/:asset_uid/edit', upload.any(), async (req, res) => {
   const asset = findAssetByUidOrId(req.params.asset_uid);
   if (asset) {
     Object.assign(asset, req.body);
@@ -4955,6 +5011,7 @@ app.post('/assets/:asset_uid/edit', upload.any(), (req, res) => {
     if (photoDataUrl) {
       asset.photo_url = photoDataUrl;
     }
+    await dal.upsertAsset(asset);
     saveStore();
     logAudit('Asset Updated', `Updated specifications for ${asset.asset_name}`, 'assets', `/assets/${asset.uid}`);
     flash('success', 'Asset details saved permanently.');
@@ -5030,11 +5087,13 @@ app.post('/assets/:asset_uid/spareparts/:spare_id/delete', (req, res) => {
   const idx = (store.INVENTORY_PARTS || []).findIndex(p => (p.uid || p.id) === req.params.spare_id);
   if (idx !== -1) {
     const deleted = store.INVENTORY_PARTS.splice(idx, 1)[0];
+    try { dal.deleteInventoryPart(deleted.uid || deleted.id).catch(() => {}); } catch (e) {}
     const actor = getCurrentActor(req);
     moveToRecycleBin('inventory', `${deleted.part_name} (${deleted.sku})`, deleted.uid || deleted.id, deleted, actor.name, {
       deleted_by_email: actor.email,
       deleted_by_role: actor.role
     });
+    saveStore();
     logAudit('Spare Part Deleted', `Moved spare part ${deleted.part_name} to Admin Recycle Bin`, 'inventory', '/settings/recycle-bin', 'warning');
     flash('success', `Spare part ${deleted.part_name} moved to Admin Recycle Bin.`);
   }
@@ -5328,7 +5387,10 @@ function filterBreakdowns(all, query = {}) {
 }
 
 app.get(['/breakdowns', '/breakdowns/management'], (req, res) => {
-  const all = store.BREAKDOWNS || [];
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  const all = getCompanyBreakdowns(activeCompany.id);
+  const compAssets = getCompanyAssets(activeCompany.id);
+  const sysHealth = computeSystemHealthStatus(activeCompany.id);
   const filtered = filterBreakdowns(all, req.query);
 
   const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -5347,7 +5409,8 @@ app.get(['/breakdowns', '/breakdowns/management'], (req, res) => {
   const resolvedCount = all.filter(b => b.status === 'resolved' || b.status === 'closed').length;
   const totalDowntime = all.reduce((acc, b) => acc + calculateDowntimeHours(b), 0);
   const totalCost = all.reduce((acc, b) => acc + Number(b.cost_total || b.cost || 0), 0);
-  const facilities = new Set(all.map(b => b.section).filter(Boolean)).size || 4;
+  const avgMttr = all.length ? Math.round((totalDowntime / all.length) * 10) / 10 : 0.0;
+  const facilities = new Set(all.map(b => b.section).filter(Boolean)).size;
 
   const techNames = Array.from(new Set([
     ...(store.TECHNICIAN_DIRECTORY || []).map(t => t.name),
@@ -5373,22 +5436,23 @@ app.get(['/breakdowns', '/breakdowns/management'], (req, res) => {
     resolved_count: resolvedCount,
     kpi_active_breakdowns: activeCount,
     kpi_active_delta: 0,
-    kpi_mttr_hours: 1.8,
-    kpi_mttr_trend: -3.0,
+    kpi_mttr_hours: avgMttr,
+    kpi_mttr_trend: all.length ? -3.0 : 0.0,
     kpi_downtime_mtd_hours: Math.round(totalDowntime * 10) / 10,
     kpi_facilities: facilities,
-    kpi_uptime_rate: 98.4,
-    kpi_uptime_target: 98.0,
+    kpi_uptime_rate: sysHealth.uptime_rate,
+    kpi_uptime_target: sysHealth.uptime_target,
     kpi_cost_total: totalCost,
     technicians: techNames,
-    assets: store.ASSETS || []
+    assets: compAssets
   });
 });
 
 app.get('/breakdowns/new/step1', (req, res) => {
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
   res.render('breakdowns/log_breakdown_step1.html', {
     ...baseCtx(req, 'breakdowns'),
-    assets: store.ASSETS || [],
+    assets: getCompanyAssets(activeCompany.id),
     technicians: store.TECHNICIAN_DIRECTORY || [],
     step_data: wizardState.breakdowns[req.cookies?.opsloom_user || 'default'] || {}
   });
@@ -5408,17 +5472,20 @@ app.get('/breakdowns/new/step-2', (req, res) => {
   });
 });
 
-app.post('/breakdowns/new/step-2', (req, res) => {
+app.post('/breakdowns/new/step-2', async (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
   const data = { ...wizardState.breakdowns[user], ...req.body };
   const bdId = 'BD-' + new Date().getFullYear() + '-' + Math.floor(100 + Math.random() * 900);
-  const asset = store.ASSETS.find(a => a.uid === data.asset_uid || a.asset_id === data.asset_id) || {};
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  const asset = (store.ASSETS || []).find(a => a && (a.uid === data.asset_uid || a.asset_id === data.asset_id)) || {};
+  const targetCompanyId = asset.company_id || activeCompany.id || 'comp-001';
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10);
   const timeStr = now.toTimeString().slice(0, 5);
 
   const bd = {
     breakdown_id: bdId,
+    company_id: targetCompanyId,
     asset_uid: asset.uid || data.asset_uid || '',
     asset_id: asset.asset_id || data.asset_id || '',
     asset_name: asset.asset_name || data.asset_name || 'Industrial Equipment',
@@ -5439,8 +5506,12 @@ app.post('/breakdowns/new/step-2', (req, res) => {
     created_at: now.toISOString()
   };
 
-  if (asset) asset.status = 'out_of_service';
+  if (asset && asset.uid) {
+    asset.status = 'out_of_service';
+    try { await dal.upsertAsset(asset); } catch (e) { console.warn('DAL upsertAsset error:', e.message); }
+  }
 
+  try { await dal.upsertBreakdown(bd); } catch (e) { console.warn('DAL upsertBreakdown error:', e.message); }
   store.BREAKDOWNS.unshift(bd);
   delete wizardState.breakdowns[user];
   logAudit('Breakdown Logged', `Reported fault on ${bd.asset_name}: ${bd.incident_title}`, 'breakdowns', `/breakdowns/${bdId}`, 'warning');
@@ -5514,8 +5585,9 @@ function renderBreakdownView(req, res, breakdown, print_mode = false) {
 }
 
 app.get(['/breakdowns/export', '/breakdowns/export/:fmt'], async (req, res) => {
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
   const fmt = (req.params.fmt || req.query.format || req.query.fmt || 'csv').toLowerCase();
-  const list = filterBreakdowns(store.BREAKDOWNS || [], req.query);
+  const list = filterBreakdowns(getCompanyBreakdowns(activeCompany.id), req.query);
   const totalDowntime = Math.round(list.reduce((s, b) => s + calculateDowntimeHours(b), 0) * 10) / 10;
 
   const kpiRecords = [
@@ -5747,6 +5819,27 @@ app.get('/breakdowns/frequency/export', async (req, res) => {
   });
 });
 
+app.get('/breakdowns/assets', (req, res) => {
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  const section = req.query.section;
+  let assets = getCompanyAssets(activeCompany.id);
+  if (section && section !== 'All' && section !== 'all') {
+    assets = assets.filter(a => a.section === section);
+  }
+  const formatted = assets.map(a => ({
+    uid: a.uid,
+    asset_uid: a.uid,
+    asset_id: a.asset_id,
+    asset_name: a.asset_name,
+    section: a.section,
+    department: a.department,
+    location: a.location,
+    criticality: a.criticality,
+    status: a.status
+  }));
+  res.json({ assets: formatted });
+});
+
 app.get('/breakdowns/:id', (req, res) => {
   const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
   if (!breakdown) return res.redirect('/breakdowns');
@@ -5788,7 +5881,7 @@ app.get('/breakdowns/:id/update', (req, res) => {
   });
 });
 
-app.post('/breakdowns/:id/update', upload.array('media', 5), (req, res) => {
+app.post('/breakdowns/:id/update', upload.array('media', 5), async (req, res) => {
   const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
   if (breakdown) {
     Object.assign(breakdown, req.body);
@@ -5819,11 +5912,21 @@ app.post('/breakdowns/:id/update', upload.array('media', 5), (req, res) => {
         if (dUrl) breakdown.media.push({ name: f.originalname, url: dUrl });
       });
     }
+    let restoredAsset = null;
     if (breakdown.status === 'resolved' || breakdown.status === 'closed') {
       const asset = store.ASSETS.find(a => a.uid === breakdown.asset_uid || a.asset_id === breakdown.asset_id);
-      if (asset) asset.status = 'operational';
+      if (asset) {
+        asset.status = 'operational';
+        restoredAsset = asset;
+      }
       breakdown.downtime_hours = calculateDowntimeHours(breakdown);
       breakdown.resolved_at = breakdown.resolved_at || getSystemNowIso();
+    }
+    try {
+      await dal.upsertBreakdown(breakdown);
+      if (restoredAsset) await dal.upsertAsset(restoredAsset);
+    } catch (e) {
+      console.warn('DAL upsertBreakdown update error:', e.message);
     }
     saveStore();
     logAudit('Breakdown Updated', `Updated incident ${breakdown.breakdown_id} (${breakdown.status})`, 'breakdowns', `/breakdowns/${breakdown.breakdown_id}`);
@@ -5844,10 +5947,15 @@ app.get('/breakdowns/:id/rca', (req, res) => {
   });
 });
 
-app.post('/breakdowns/:id/rca', (req, res) => {
+app.post('/breakdowns/:id/rca', async (req, res) => {
   const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
   if (breakdown) {
     breakdown.rca = { ...(breakdown.rca || {}), ...req.body, updated_at: getSystemNowIso() };
+    try {
+      await dal.upsertBreakdown(breakdown);
+    } catch (e) {
+      console.warn('DAL upsertBreakdown rca error:', e.message);
+    }
     saveStore();
     logAudit('RCA Recorded', `Saved Root Cause Analysis for ${breakdown.breakdown_id}`, 'breakdowns', `/breakdowns/${breakdown.breakdown_id}`);
     flash('success', 'Root Cause Analysis saved permanently.');
@@ -5855,7 +5963,7 @@ app.post('/breakdowns/:id/rca', (req, res) => {
   res.redirect(`/breakdowns/${req.params.id}`);
 });
 
-app.post('/breakdowns/:id/close', (req, res) => {
+app.post('/breakdowns/:id/close', async (req, res) => {
   const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
   if (breakdown) {
     breakdown.status = 'resolved';
@@ -5863,6 +5971,12 @@ app.post('/breakdowns/:id/close', (req, res) => {
     breakdown.downtime_hours = calculateDowntimeHours(breakdown);
     const asset = store.ASSETS.find(a => a.uid === breakdown.asset_uid);
     if (asset) asset.status = 'operational';
+    try {
+      await dal.upsertBreakdown(breakdown);
+      if (asset) await dal.upsertAsset(asset);
+    } catch (e) {
+      console.warn('DAL upsertBreakdown close error:', e.message);
+    }
     saveStore();
     logAudit('Breakdown Closed', `Incident ${breakdown.breakdown_id} resolved and closed.`, 'breakdowns', `/breakdowns/${breakdown.breakdown_id}`, 'success');
     flash('success', 'Incident marked as closed and asset restored to operational status.');
@@ -5896,7 +6010,9 @@ app.post('/breakdowns/:id/delete', (req, res) => {
 // MAINTENANCE
 // -------------------------
 app.get('/maintenance', (req, res) => {
-  const allTasks = (store.MAINTENANCE_TASKS || []).map(t => ({
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  const compTasks = getCompanyMaintenanceTasks(activeCompany.id);
+  const allTasks = (compTasks || []).map(t => ({
     ...t,
     technician_initials: t.technician_initials || (t.technician ? t.technician.split(' ').map(w => w[0]).join('').toUpperCase() : 'DK')
   }));
@@ -5932,7 +6048,7 @@ app.get('/maintenance', (req, res) => {
   const overdueCount = allTasks.filter(t => t.status === 'overdue').length;
   const inProgressCount = allTasks.filter(t => t.status === 'in_progress').length;
   const completedCount = allTasks.filter(t => t.status === 'completed').length;
-  const complianceRate = allTasks.length ? Math.round(((completedCount + upcomingCount) / allTasks.length) * 1000) / 10 : 92.0;
+  const complianceRate = allTasks.length ? Math.round(((completedCount + upcomingCount) / allTasks.length) * 1000) / 10 : 0.0;
   const actualCostTotal = allTasks.filter(t => t.status === 'completed').reduce((s, t) => s + Number(t.cost_total || t.cost || 0), 0);
   const estimatedCostTotal = allTasks.reduce((s, t) => s + Number(t.cost_total || t.cost || 0), 0);
 
@@ -6118,14 +6234,17 @@ app.get('/maintenance/schedule/step-3', (req, res) => {
   });
 });
 
-app.post('/maintenance/schedule/step-3', (req, res) => {
+app.post('/maintenance/schedule/step-3', async (req, res) => {
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
   const user = req.cookies?.opsloom_user || 'default';
   const data = { ...wizardState.maintenance[user], ...req.body };
   const taskId = 'TASK-' + new Date().getFullYear() + '-' + Math.floor(100 + Math.random() * 900);
-  const asset = store.ASSETS.find(a => a.uid === data.asset_uid || a.asset_id === data.asset_id) || {};
+  const asset = (store.ASSETS || []).find(a => a && (a.uid === data.asset_uid || a.asset_id === data.asset_id)) || {};
+  const targetCompanyId = asset.company_id || activeCompany.id || 'comp-001';
 
   const task = {
     task_id: taskId,
+    company_id: targetCompanyId,
     asset_uid: asset.uid || data.asset_uid || '',
     asset_id: asset.asset_id || data.asset_id || '',
     asset_name: asset.asset_name || data.asset_name || 'Industrial Unit',
@@ -6142,6 +6261,11 @@ app.post('/maintenance/schedule/step-3', (req, res) => {
     created_at: getSystemNowIso()
   };
 
+  try {
+    await dal.upsertMaintenanceTask(task);
+  } catch (e) {
+    console.warn('DAL upsertMaintenanceTask error:', e.message);
+  }
   store.MAINTENANCE_TASKS.push(task);
   delete wizardState.maintenance[user];
   logAudit('Task Scheduled', `Scheduled PM task ${taskId} for ${task.asset_name}`, 'maintenance', `/maintenance/${taskId}`);
@@ -6158,14 +6282,36 @@ app.get('/maintenance/schedule/success', (req, res) => {
 });
 
 app.get('/maintenance/calendar', (req, res) => {
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
   res.render('maintenance/maintenance_calendar.html', {
     ...baseCtx(req, 'maintenance'),
-    tasks: store.MAINTENANCE_TASKS || []
+    tasks: getCompanyMaintenanceTasks(activeCompany.id)
   });
 });
 
 app.get('/maintenance/schedule/print', (req, res) => {
   res.render('maintenance/maintenance_schedule_print.html', buildMaintenanceSchedulePrintContext(req));
+});
+
+app.get('/maintenance/assets', (req, res) => {
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  const section = req.query.section;
+  let assets = getCompanyAssets(activeCompany.id);
+  if (section && section !== 'All' && section !== 'all') {
+    assets = assets.filter(a => a.section === section);
+  }
+  const formatted = assets.map(a => ({
+    uid: a.uid,
+    asset_uid: a.uid,
+    asset_id: a.asset_id,
+    asset_name: a.asset_name,
+    section: a.section,
+    department: a.department,
+    location: a.location,
+    criticality: a.criticality,
+    status: a.status
+  }));
+  res.json({ assets: formatted });
 });
 
 app.get(['/maintenance/:task_id', '/maintenance/work-order/:work_order_id'], (req, res) => {
@@ -6230,7 +6376,7 @@ app.get('/maintenance/:task_id/update', (req, res) => {
   });
 });
 
-app.post('/maintenance/:task_id/update', upload.single('invoice'), (req, res) => {
+app.post('/maintenance/:task_id/update', upload.single('invoice'), async (req, res) => {
   const task = store.MAINTENANCE_TASKS.find(t => t.task_id === req.params.task_id);
   if (task) {
     Object.assign(task, req.body);
@@ -6245,6 +6391,11 @@ app.post('/maintenance/:task_id/update', upload.single('invoice'), (req, res) =>
     if (req.body.progress_note && String(req.body.progress_note).trim()) {
       task.completion_notes = String(req.body.progress_note).trim();
     }
+    try {
+      await dal.upsertMaintenanceTask(task);
+    } catch (e) {
+      console.warn('DAL upsertMaintenanceTask update error:', e.message);
+    }
     saveStore();
     logAudit('Task Updated', `Updated work order ${task.task_id}`, 'maintenance', `/maintenance/${task.task_id}`);
     flash('success', 'Maintenance task updated and saved permanently.');
@@ -6252,12 +6403,17 @@ app.post('/maintenance/:task_id/update', upload.single('invoice'), (req, res) =>
   res.redirect(`/maintenance/${req.params.task_id}`);
 });
 
-app.post('/maintenance/:task_id/complete', (req, res) => {
+app.post('/maintenance/:task_id/complete', async (req, res) => {
   const task = store.MAINTENANCE_TASKS.find(t => t.task_id === req.params.task_id);
   if (task) {
     task.status = 'completed';
     task.completed_at = getSystemNowIso();
     task.completion_notes = req.body.completion_notes || 'Service protocol satisfied.';
+    try {
+      await dal.upsertMaintenanceTask(task);
+    } catch (e) {
+      console.warn('DAL upsertMaintenanceTask complete error:', e.message);
+    }
     saveStore();
     logAudit('Task Completed', `Completed maintenance order ${task.task_id}`, 'maintenance', `/maintenance/${task.task_id}`, 'success');
     flash('success', 'Maintenance task marked as completed.');
@@ -6403,7 +6559,9 @@ app.get(['/maintenance/export', '/maintenance/export/:fmt', '/maintenance/schedu
 // INVENTORY
 // -------------------------
 app.get(['/inventory', '/inventory/management'], (req, res) => {
-  const parts = (store.INVENTORY_PARTS || []).map(p => ({
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  const compParts = getCompanyInventoryParts(activeCompany.id);
+  const parts = (compParts || []).map(p => ({
     ...p,
     qty: Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0),
     min_qty: Number(p.min_qty !== undefined ? p.min_qty : p.reorder_level || 5),
@@ -6416,9 +6574,9 @@ app.get(['/inventory', '/inventory/management'], (req, res) => {
   const totalValue = parts.reduce((sum, p) => sum + (p.qty * p.unit_price), 0);
 
   const healthyCount = parts.filter(p => p.qty > p.min_qty).length;
-  const healthyPct = total > 0 ? Math.round((healthyCount / total) * 100) : 60;
-  const lowPct = total > 0 ? Math.round((lowStockAlerts / total) * 100) : 25;
-  const outPct = total > 0 ? Math.max(0, 100 - healthyPct - lowPct) : 15;
+  const healthyPct = total > 0 ? Math.round((healthyCount / total) * 100) : 0;
+  const lowPct = total > 0 ? Math.round((lowStockAlerts / total) * 100) : 0;
+  const outPct = total > 0 ? Math.max(0, 100 - healthyPct - lowPct) : 0;
 
   const urgent = parts
     .filter(p => p.qty <= p.min_qty)
@@ -6528,12 +6686,14 @@ app.get('/inventory/new/step-3', (req, res) => {
   });
 });
 
-app.post('/inventory/new/step-3', (req, res) => {
+app.post('/inventory/new/step-3', async (req, res) => {
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
   const user = req.cookies?.opsloom_user || 'default';
   const data = { ...wizardState.inventory[user], ...req.body };
   const uid = 'part-' + Date.now();
   const part = {
     uid,
+    company_id: activeCompany.id,
     part_name: data.part_name || 'Industrial Spare Part',
     sku: data.sku || `SKU-${Math.floor(1000 + Math.random() * 9000)}`,
     category: data.category || 'Mechanical',
@@ -6546,6 +6706,11 @@ app.post('/inventory/new/step-3', (req, res) => {
     lead_time_days: Number(data.lead_time_days) || 7,
     created_at: new Date().toISOString()
   };
+  try {
+    await dal.upsertInventoryPart(part);
+  } catch (e) {
+    console.warn('DAL upsertInventoryPart error:', e.message);
+  }
   store.INVENTORY_PARTS.push(part);
   delete wizardState.inventory[user];
   logAudit('Part Enrolled', `Enrolled spare part ${part.part_name} (${part.sku})`, 'inventory', `/inventory/${uid}`);
@@ -6555,8 +6720,10 @@ app.post('/inventory/new/step-3', (req, res) => {
 });
 
 app.get(['/inventory/export', '/inventory/export/:fmt'], async (req, res) => {
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
   const fmt = (req.params.fmt || req.query.format || req.query.fmt || 'csv').toLowerCase();
-  let list = (store.INVENTORY_PARTS || []).map(p => ({
+  const compParts = getCompanyInventoryParts(activeCompany.id);
+  let list = (compParts || []).map(p => ({
     ...p,
     qty: Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0),
     min_qty: Number(p.min_qty !== undefined ? p.min_qty : p.reorder_level || 5),
@@ -6831,7 +6998,8 @@ function formatReportRecords(list) {
 }
 
 app.get('/reports', (req, res) => {
-  const allReports = formatReportRecords(store.REPORT_EXPORTS || []);
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  const allReports = formatReportRecords(getCompanyReports(activeCompany.id));
   const q = (req.query.q || '').toLowerCase();
   const category = req.query.category || 'all';
   const format = req.query.format || 'all';
@@ -6852,10 +7020,10 @@ app.get('/reports', (req, res) => {
     filtered = filtered.filter(r => (r.format || '').toLowerCase() === format.toLowerCase());
   }
 
-  const companyTargets = getCompanyKpiTargets();
-  const sysHealth = computeSystemHealthStatus();
-  const tasks = store.MAINTENANCE_TASKS || [];
-  const breakdowns = store.BREAKDOWNS || [];
+  const companyTargets = getCompanyKpiTargets(activeCompany.id);
+  const sysHealth = computeSystemHealthStatus(activeCompany.id);
+  const tasks = getCompanyMaintenanceTasks(activeCompany.id);
+  const breakdowns = getCompanyBreakdowns(activeCompany.id);
   const totalDowntime = Math.round(breakdowns.reduce((sum, b) => sum + calculateDowntimeHours(b), 0) * 10) / 10;
   const avgMttr = breakdowns.length ? Math.round((totalDowntime / breakdowns.length) * 10) / 10 : 0.0;
   const mtdSpendVal = tasks.reduce((s, t) => s + Number(t.cost_total || t.cost || 0), 0) + breakdowns.reduce((s, b) => s + Number(b.cost_total || b.cost || 0), 0);
@@ -6880,7 +7048,8 @@ app.get('/reports', (req, res) => {
 });
 
 app.get('/reports/history', (req, res) => {
-  const allReports = formatReportRecords(store.REPORT_EXPORTS || []);
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  const allReports = formatReportRecords(getCompanyReports(activeCompany.id));
   const q = (req.query.q || '').toLowerCase();
   const category = req.query.category || 'all';
   const format = req.query.format || 'all';
@@ -8129,7 +8298,7 @@ app.post(['/settings/admin-users/roles/:role_id/delete', '/settings/roles/:role_
   res.redirect('/settings/admin-users#roleDefinitionsSection');
 });
 
-app.post('/settings/admin-users/create', (req, res) => {
+app.post('/settings/admin-users/create', async (req, res) => {
   if (!store.ADMIN_USERS) store.ADMIN_USERS = [];
   if (!Array.isArray(store.CUSTOM_ROLES) || !store.CUSTOM_ROLES.length) {
     store.CUSTOM_ROLES = JSON.parse(JSON.stringify(DEFAULT_CUSTOM_ROLES));
@@ -8241,6 +8410,11 @@ app.post('/settings/admin-users/create', (req, res) => {
   target.signature_font = req.body.signature_font || target.signature_font || 'Inter';
   target.signature_color = req.body.signature_color || target.signature_color || '#7E22CE';
 
+  try {
+    await dal.upsertUser(target);
+  } catch (e) {
+    console.warn('DAL upsertUser error:', e.message);
+  }
   if (submittedUserPass) {
     updateUserPasswordEverywhere(target, submittedUserPass);
   } else {
@@ -8251,10 +8425,11 @@ app.post('/settings/admin-users/create', (req, res) => {
   res.redirect('/settings/admin-users');
 });
 
-app.post('/settings/admin-users/:user_id/toggle', (req, res) => {
+app.post('/settings/admin-users/:user_id/toggle', async (req, res) => {
   const user = (store.ADMIN_USERS || []).find(u => u.id === req.params.user_id);
   if (user) {
     user.active = !user.active;
+    try { await dal.upsertUser(user); } catch (e) { console.warn('DAL upsertUser toggle error:', e.message); }
     saveStore();
     logAudit('User Status Toggled', `Set ${user.name} (${user.email}) active=${user.active}`, 'security', '/settings/admin-users');
     flash('info', `User account status updated for ${user.name}.`);
@@ -8262,7 +8437,7 @@ app.post('/settings/admin-users/:user_id/toggle', (req, res) => {
   res.redirect('/settings/admin-users');
 });
 
-app.post('/settings/admin-users/:user_id/delete', (req, res) => {
+app.post('/settings/admin-users/:user_id/delete', async (req, res) => {
   const idx = (store.ADMIN_USERS || []).findIndex(u => u.id === req.params.user_id);
   if (idx !== -1) {
     if (store.ADMIN_USERS.length <= 1) {
@@ -8270,6 +8445,7 @@ app.post('/settings/admin-users/:user_id/delete', (req, res) => {
       return res.redirect('/settings/admin-users');
     }
     const deleted = store.ADMIN_USERS.splice(idx, 1)[0];
+    try { await dal.deleteUser(deleted.id); } catch (e) { console.warn('DAL deleteUser error:', e.message); }
     const actor = getCurrentActor(req);
     moveToRecycleBin('user', `${deleted.name} (${deleted.email})`, deleted.id, deleted, actor.name, {
       deleted_by_email: actor.email,
@@ -8914,13 +9090,15 @@ app.post(['/settings/help', '/settings/help/request'], (req, res) => {
 // LIVE APIS (FOR POLLING & CHARTS)
 // -------------------------
 app.get(['/api/system/health', '/api/health', '/api/live/dashboard/kpis'], (req, res) => {
-  const sysHealth = computeSystemHealthStatus();
-  const breakdowns = store.BREAKDOWNS || [];
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  const sysHealth = computeSystemHealthStatus(activeCompany.id);
+  const breakdowns = getCompanyBreakdowns(activeCompany.id);
+  const tasks = getCompanyMaintenanceTasks(activeCompany.id);
   const activeBds = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved');
   const totalDowntime = Math.round(breakdowns.reduce((sum, b) => sum + calculateDowntimeHours(b), 0) * 10) / 10;
   const avgMttr = breakdowns.length
     ? Math.round((totalDowntime / breakdowns.length) * 10) / 10
-    : 1.8;
+    : 0.0;
   const financialExposure = Math.round(totalDowntime * 18500);
 
   res.json({
@@ -8931,19 +9109,20 @@ app.get(['/api/system/health', '/api/health', '/api/live/dashboard/kpis'], (req,
     downtime_mtd_hours: totalDowntime,
     downtime_financial_mtd: financialExposure,
     active_delta: activeBds.length,
-    mttr_trend: -0.4,
-    open_tasks: (store.MAINTENANCE_TASKS || []).filter(t => t.status !== 'completed').length,
+    mttr_trend: 0.0,
+    open_tasks: tasks.filter(t => t.status !== 'completed').length,
     system_health: sysHealth
   });
 });
 
 app.get(['/api/live/breakdowns/kpis', '/api/breakdowns/kpi'], (req, res) => {
-  const breakdowns = store.BREAKDOWNS || [];
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  const breakdowns = getCompanyBreakdowns(activeCompany.id);
   const active = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved').length;
   const totalDowntime = breakdowns.reduce((acc, b) => acc + calculateDowntimeHours(b), 0);
   const totalCost = breakdowns.reduce((acc, b) => acc + Number(b.cost_total || b.cost || 0), 0);
   const avgMttr = breakdowns.length ? Math.round((totalDowntime / breakdowns.length) * 10) / 10 : 0.0;
-  const sysHealth = computeSystemHealthStatus();
+  const sysHealth = computeSystemHealthStatus(activeCompany.id);
 
   res.json({
     active,
@@ -8961,8 +9140,9 @@ app.get(['/api/live/breakdowns/kpis', '/api/breakdowns/kpi'], (req, res) => {
 });
 
 app.get('/api/breakdowns/frequency', (req, res) => {
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
   const range = (req.query.range || '7d').toLowerCase();
-  const breakdowns = store.BREAKDOWNS || [];
+  const breakdowns = getCompanyBreakdowns(activeCompany.id);
   
   let labels = [];
   let values = [];
@@ -8994,12 +9174,13 @@ app.get('/api/breakdowns/frequency', (req, res) => {
 });
 
 app.get('/api/live/maintenance/kpis', (req, res) => {
-  const tasks = store.MAINTENANCE_TASKS || [];
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  const tasks = getCompanyMaintenanceTasks(activeCompany.id);
   const total = tasks.length;
   const overdue = tasks.filter(t => t.status === 'overdue').length;
   const upcoming = tasks.filter(t => t.status === 'upcoming').length;
   const completed = tasks.filter(t => t.status === 'completed').length;
-  const compliance = total ? Math.round(((completed + upcoming) / total) * 100) : 100.0;
+  const compliance = total ? Math.round(((completed + upcoming) / total) * 100) : 0.0;
 
   res.json({
     kpi_total_pm_month: total,
@@ -9014,13 +9195,14 @@ app.get('/api/live/maintenance/kpis', (req, res) => {
 });
 
 app.get(['/api/live/reports/kpis', '/api/live/reports-kpis'], (req, res) => {
-  const targets = getCompanyKpiTargets();
-  const sysHealth = computeSystemHealthStatus();
-  const tasks = store.MAINTENANCE_TASKS || [];
-  const breakdowns = store.BREAKDOWNS || [];
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  const targets = getCompanyKpiTargets(activeCompany.id);
+  const sysHealth = computeSystemHealthStatus(activeCompany.id);
+  const tasks = getCompanyMaintenanceTasks(activeCompany.id);
+  const breakdowns = getCompanyBreakdowns(activeCompany.id);
   const totalDowntime = Math.round(breakdowns.reduce((sum, b) => sum + calculateDowntimeHours(b), 0) * 10) / 10;
-  const avgMttr = breakdowns.length ? Math.round((totalDowntime / breakdowns.length) * 10) / 10 : 1.8;
-  const mtdSpendVal = tasks.reduce((s, t) => s + Number(t.cost_total || t.cost || 0), 0) + breakdowns.reduce((s, b) => s + Number(b.cost_total || b.cost || 0), 0) || 441000;
+  const avgMttr = breakdowns.length ? Math.round((totalDowntime / breakdowns.length) * 10) / 10 : 0.0;
+  const mtdSpendVal = tasks.reduce((s, t) => s + Number(t.cost_total || t.cost || 0), 0) + breakdowns.reduce((s, b) => s + Number(b.cost_total || b.cost || 0), 0);
   const budgetCap = Math.max(1, targets.monthly_maintenance_budget || 2500000);
   const budgetPct = Math.round((mtdSpendVal / budgetCap) * 1000) / 10;
 
@@ -9038,8 +9220,9 @@ app.get(['/api/live/reports/kpis', '/api/live/reports-kpis'], (req, res) => {
 });
 
 app.get('/api/maintenance/technicians', (req, res) => {
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
   const techs = store.TECHNICIAN_DIRECTORY || [];
-  const tasks = store.MAINTENANCE_TASKS || [];
+  const tasks = getCompanyMaintenanceTasks(activeCompany.id);
   const rows = techs.map(t => {
     const activeTasks = tasks.filter(m => m.technician === t.name && m.status !== 'completed');
     const dueSoon = activeTasks.filter(m => m.status === 'upcoming').length;
@@ -9062,9 +9245,12 @@ app.get('/api/maintenance/technicians', (req, res) => {
 });
 
 app.get('/api/technicians/workload', (req, res) => {
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  const tasks = getCompanyMaintenanceTasks(activeCompany.id);
+  const breakdowns = getCompanyBreakdowns(activeCompany.id);
   const list = (store.TECHNICIAN_DIRECTORY || []).map(t => {
-    const assignedTasks = (store.MAINTENANCE_TASKS || []).filter(m => m.technician === t.name && m.status !== 'completed').length;
-    const assignedBds = (store.BREAKDOWNS || []).filter(b => b.technician_name === t.name && b.status !== 'closed' && b.status !== 'resolved').length;
+    const assignedTasks = tasks.filter(m => m.technician === t.name && m.status !== 'completed').length;
+    const assignedBds = breakdowns.filter(b => b.technician_name === t.name && b.status !== 'closed' && b.status !== 'resolved').length;
     return {
       id: t.id,
       name: t.name,
@@ -9507,14 +9693,6 @@ RECOMMENDED ENGINEERING ACTIONS:
     chat: chatEntry,
     chats: store.AI_CHATS.slice(0, 20).map(formatAiChatEntry)
   });
-});
-
-app.get('/breakdowns/assets', (req, res) => {
-  res.json(store.ASSETS || []);
-});
-
-app.get('/maintenance/assets', (req, res) => {
-  res.json(store.ASSETS || []);
 });
 
 // 404 Handler - Keep user in their current module context

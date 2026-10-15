@@ -99,33 +99,6 @@
               nameBox.classList.add('hidden');
               nameBox.classList.remove('flex');
             }
-          }
-          // If the user navigated between modules while an upload POST was still in flight, finish syncing to server
-          if (cached.pending_sync) {
-            fetch('/api/companies/save-logo', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-              credentials: 'same-origin',
-              keepalive: true,
-              body: JSON.stringify({
-                id: wsId,
-                mode: 'both',
-                logo_data_url: cached.logo_light_url,
-                logo_light_data_url: cached.logo_light_url,
-                logo_dark_data_url: cached.logo_dark_url || cached.logo_light_url,
-                logo_height: h,
-                logo_width_pct: w,
-                logo_alignment: align,
-                logo_fit: fit,
-                show_name_next_to_logo: showName ? '1' : '0'
-              })
-            }).then(function(r) { return r.json(); }).then(function(d) {
-              if (d && d.ok) {
-                cached.pending_sync = false;
-                localStorage.setItem('opsloom_ws_brand_' + wsId, JSON.stringify(cached));
-              }
-            }).catch(function() {});
-          }
         }
       } catch (e) {}
     })();

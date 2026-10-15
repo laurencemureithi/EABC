@@ -187,8 +187,40 @@
               const fileInp = document.getElementById('asset_photo');
               const nameLbl = document.getElementById('fileName');
               if (fileInp && nameLbl) {
-                fileInp.addEventListener('change', () => {
-                  nameLbl.textContent = fileInp.files && fileInp.files.length ? fileInp.files[0].name : 'No file chosen';
+                fileInp.addEventListener('change', async () => {
+                  if (fileInp.files && fileInp.files.length) {
+                    const file = fileInp.files[0];
+                    nameLbl.textContent = file.name;
+                    // Client-side image optimization to eliminate HTTP 413
+                    if (file.type.startsWith('image/') && file.size > 250000) {
+                      try {
+                        const bmp = await createImageBitmap(file);
+                        const maxDim = 1200;
+                        let w = bmp.width;
+                        let h = bmp.height;
+                        if (w > maxDim || h > maxDim) {
+                          if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+                          else { w = Math.round((w * maxDim) / h); h = maxDim; }
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w;
+                        canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(bmp, 0, 0, w, h);
+                        canvas.toBlob((blob) => {
+                          if (blob && blob.size < file.size) {
+                            const newFile = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
+                            const dt = new DataTransfer();
+                            dt.items.add(newFile);
+                            fileInp.files = dt.files;
+                            nameLbl.textContent = newFile.name + ' (optimized ' + Math.round(blob.size / 1024) + ' KB)';
+                          }
+                        }, 'image/jpeg', 0.85);
+                      } catch (err) {}
+                    }
+                  } else {
+                    nameLbl.textContent = 'No file chosen';
+                  }
                 });
               }
             </script>

@@ -526,8 +526,8 @@
 
 /* Opsloom brand dynamic overrides */
 :root {
-  --brand-primary: #7E22CE;
-  --brand-secondary: #F59E0B;
+  --brand-primary: var(--brand-primary, #1554FF);
+  --brand-secondary: var(--brand-secondary, #F59E0B);
   --opsloom-blue: var(--brand-primary);
   --opsloom-navy-rgb: 11 16 32;
   --opsloom-navy: #0B1020;
@@ -976,7 +976,7 @@ img, svg, canvas, video {
   height: 42px;
   padding: 0 16px;
   border-radius: 9999px;
-  background: linear-gradient(135deg, var(--brand-primary, #7E22CE), #1e1b4b);
+  background: linear-gradient(135deg, var(--brand-primary, #1554FF), #1e1b4b);
   box-shadow: 0 10px 24px -4px rgba(15, 23, 42, 0.42);
 }
 .app-mobile-bottom-nav {
@@ -1034,7 +1034,7 @@ img, svg, canvas, video {
     color: #94a3b8;
   }
   .app-mobile-bottom-item.is-active {
-    color: var(--brand-primary, #7E22CE);
+    color: var(--brand-primary, #1554FF);
   }
   .dark .app-mobile-bottom-item.is-active {
     color: var(--brand-secondary, #F59E0B);

@@ -35,10 +35,10 @@
   {% set raw_sec_color = (active_company.secondary_color if active_company and active_company.secondary_color else '#F59E0B')|lower %}
   {% set safe_sec_color = '#F59E0B' if raw_sec_color in ['#ffffff', '#fff', 'white'] else raw_sec_color %}
   <style id="companyThemeStyles">
-    :root {
-      --brand-primary: {{ active_company.primary_color if active_company and active_company.primary_color else '#7E22CE' }};
-      --brand-secondary: {{ safe_sec_color }};
-      --opsloom-blue: var(--brand-primary);
+    :root, :root:root, html {
+      --brand-primary: {{ active_company.primary_color if active_company and active_company.primary_color else '#1554FF' }} !important;
+      --brand-secondary: {{ safe_sec_color }} !important;
+      --opsloom-blue: var(--brand-primary) !important;
     }
     /* Brand Primary Color Takeover across whole application */
     .bg-blue-600, .bg-blue-500, .bg-blue-700, .bg-ueal-purple, .btn-primary, .auth-primary, .bg-primary,
@@ -83,7 +83,7 @@
   {% block page_styles %}{% endblock %}
 </head>
 
-<body class="bg-background-light dark:bg-dark-base text-slate-800 dark:text-slate-100 transition-colors duration-200 {% if request.args.get("print") in ["1", "true", "yes"] %}report-screen-print-mode{% endif %}" {% if request.args.get("autoprint") in ["1", "true", "yes"] %}data-auto-print="1"{% endif %}>
+<body class="bg-background-light dark:bg-dark-base text-slate-800 dark:text-slate-100 {% if request.args.get("print") in ["1", "true", "yes"] %}report-screen-print-mode{% endif %}" {% if request.args.get("autoprint") in ["1", "true", "yes"] %}data-auto-print="1"{% endif %}>
   <div class="app-container">
     {% include "partials/sidebar.html" %}
     <div id="appSidebarOverlay" class="app-sidebar-overlay" onclick="closeAppSidebar()"></div>
