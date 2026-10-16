@@ -677,7 +677,7 @@ function getCompanyAuditTrail(companyId) {
 
 async function syncStoreFromDatabase() {
   try {
-    const [companies, assets, users, breakdowns, maint, inv, bin, notifs, audit] = await Promise.all([
+    const [companies, assets, users, breakdowns, maint, inv, bin, notifs, audit, sysSettings, techs] = await Promise.all([
       dal.getCompanies(),
       dal.getAssets(),
       dal.getUsers(),
@@ -686,7 +686,9 @@ async function syncStoreFromDatabase() {
       dal.getInventoryParts(),
       dal.getRecycleBin(),
       dal.getNotifications(),
-      dal.getAuditTrail()
+      dal.getAuditTrail(),
+      dal.getSystemSettings(),
+      dal.getTechnicians()
     ]);
     if (companies && companies.length) store.COMPANIES = companies;
     if (assets) store.ASSETS = assets;
@@ -697,9 +699,31 @@ async function syncStoreFromDatabase() {
     if (bin) store.RECYCLE_BIN = bin;
     if (notifs) store.SYSTEM_NOTIFICATIONS = notifs;
     if (audit) store.AUDIT_TRAIL = audit;
+    if (techs && techs.length) store.TECHNICIAN_DIRECTORY = techs;
+
+    if (sysSettings && typeof sysSettings === 'object') {
+      const { custom_roles, internal_messages, draft_messages, outbox_messages, active_company_id, ...cleanSettings } = sysSettings;
+      store.SYSTEM_SETTINGS = { ...store.SYSTEM_SETTINGS, ...cleanSettings };
+      if (Array.isArray(custom_roles) && custom_roles.length > 0) {
+        store.CUSTOM_ROLES = custom_roles;
+      }
+      if (Array.isArray(internal_messages) && internal_messages.length > 0) {
+        store.INTERNAL_MESSAGES = internal_messages;
+      }
+      if (Array.isArray(draft_messages) && draft_messages.length > 0) {
+        store.DRAFT_MESSAGES = draft_messages;
+      }
+      if (Array.isArray(outbox_messages) && outbox_messages.length > 0) {
+        store.OUTBOX_MESSAGES = outbox_messages;
+      }
+      if (active_company_id && (store.COMPANIES || []).some(c => c && c.id === active_company_id)) {
+        store.ACTIVE_COMPANY_ID = active_company_id;
+      }
+    }
+
     delete store.WORKSPACE_DATA;
     activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
-    console.log(`[PostgreSQL Sync]: Loaded ${store.COMPANIES?.length || 0} companies, ${store.ASSETS?.length || 0} assets, ${store.ADMIN_USERS?.length || 0} users.`);
+    console.log(`[PostgreSQL Sync]: Loaded ${store.COMPANIES?.length || 0} companies, ${store.ASSETS?.length || 0} assets, ${store.ADMIN_USERS?.length || 0} users, ${store.TECHNICIAN_DIRECTORY?.length || 0} technicians, settings synchronized.`);
   } catch (err) {
     console.warn('[syncStoreFromDatabase Error]:', err.message);
   }
@@ -739,11 +763,22 @@ syncStoreFromDatabase().then(() => {
   activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
 }).catch(e => console.error('Initial DB sync error:', e.message));
 
-function saveStore() {
-  // Business data is saved transactionally to PostgreSQL Cloud SQL via dal.js.
-  // We do NOT write to datastore.json or backups to prevent data resurrection.
+async function saveStore() {
   store.initialized = true;
   store.revision = (Number(store.revision) || 1) + 1;
+  try {
+    const payload = {
+      ...(store.SYSTEM_SETTINGS || {}),
+      custom_roles: Array.isArray(store.CUSTOM_ROLES) ? store.CUSTOM_ROLES : DEFAULT_CUSTOM_ROLES,
+      internal_messages: (store.INTERNAL_MESSAGES || []).slice(0, 100),
+      draft_messages: (store.DRAFT_MESSAGES || []).slice(0, 50),
+      outbox_messages: (store.OUTBOX_MESSAGES || []).slice(0, 50),
+      active_company_id: store.ACTIVE_COMPANY_ID || 'comp-001'
+    };
+    await dal.upsertSystemSettings(payload);
+  } catch (err) {
+    console.warn('[saveStore Error]: Could not persist system settings to PostgreSQL:', err.message);
+  }
 }
 
 function hydrateStoreFromClientSnapshot(rawSnap) {
@@ -3830,7 +3865,7 @@ app.all(['/settings/companies/:id/delete', '/api/companies/:id/delete'], async (
   }
 });
 
-app.all('/set-company', (req, res) => {
+app.all('/set-company', async (req, res) => {
   const companyId = req.query?.company_id || req.body?.company_id;
   const actor = getCurrentActor(req);
   const isAdmin = (actor.role || '').toLowerCase() === 'administrator' || (Array.isArray(actor.permissions) && (actor.permissions.includes('all') || actor.permissions.includes('companies')));
@@ -3844,7 +3879,11 @@ app.all('/set-company', (req, res) => {
   if (company) {
     store.ACTIVE_COMPANY_ID = company.id;
     activateWorkspaceBucket(company.id);
-    saveStore();
+    if (actor && actor.id) {
+      actor.company_id = company.id;
+      try { await dal.upsertUser(actor); } catch (e) {}
+    }
+    await saveStore();
     setSafeCookie(req, res, 'opsloom_ws_id', company.id);
     res.clearCookie('current_company_id', { path: '/' });
     logAudit('Workspace Switched', `Switched active organization workspace to ${company.name} (${company.code})`, 'companies', '/settings/companies', 'info', actor);
@@ -7700,7 +7739,7 @@ app.get(['/settings', '/settings/admin'], (req, res) => {
   });
 });
 
-app.post('/settings/admin/save', (req, res) => {
+app.post('/settings/admin/save', async (req, res) => {
   const incoming = { ...req.body };
   if (typeof incoming.default_report_recipients === 'string') {
     incoming.default_report_recipients = incoming.default_report_recipients.split(',').map(s => s.trim()).filter(Boolean);
@@ -7728,9 +7767,8 @@ app.post('/settings/admin/save', (req, res) => {
     if (actor && actor.id !== 'USR-001') {
       updateUserPasswordEverywhere(actor, newAdminPass);
     }
-  } else {
-    saveStore();
   }
+  await saveStore();
 
   if (lockAfterSave) {
     res.clearCookie('opsloom_user', { path: '/' });
@@ -7752,7 +7790,7 @@ app.post('/settings/admin/save', (req, res) => {
   res.redirect('/settings/admin');
 });
 
-app.post(['/settings/kpi-targets/save', '/settings/admin/kpi-targets/save', '/api/kpi-targets/save'], (req, res) => {
+app.post(['/settings/kpi-targets/save', '/settings/admin/kpi-targets/save', '/api/kpi-targets/save'], async (req, res) => {
   const actor = getCurrentActor(req);
   const caps = resolveUserCapabilities(actor);
   if (!caps.can_adjust_kpi_targets) {
@@ -7792,7 +7830,12 @@ app.post(['/settings/kpi-targets/save', '/settings/admin/kpi-targets/save', '/ap
     updated_at: getSystemNowIso()
   };
 
-  saveStore();
+  try {
+    await dal.upsertCompany(comp);
+  } catch (e) {
+    console.warn('DAL upsertCompany in kpi-targets error:', e.message);
+  }
+  await saveStore();
   logAudit(
     'Company KPI Targets & Budgets Updated',
     `${actor.name} (${actor.role}) updated KPI attainment levels & budgets for ${comp.name} (${comp.code}): Uptime SLA ${comp.kpi_targets.uptime_target_pct}%, PM SLA ${comp.kpi_targets.pm_compliance_target_pct}%, Monthly Budget KES ${comp.kpi_targets.monthly_maintenance_budget.toLocaleString()}.`,
@@ -8072,42 +8115,64 @@ app.get('/settings/technicians', (req, res) => {
   });
 });
 
-app.post('/settings/technicians/create', (req, res) => {
+app.post('/settings/technicians/create', async (req, res) => {
+  const activeComp = resolveActiveWorkspaceForRequest(req);
   const tech = {
     id: 'TECH-' + Math.floor(100 + Math.random() * 900),
+    company_id: activeComp.id || 'comp-001',
     name: req.body.name,
     role: req.body.role || 'Field Engineer',
     discipline: req.body.discipline || 'Mechanical',
+    department: req.body.department || 'Engineering',
     phone: req.body.phone || '',
     email: req.body.email || '',
-    active: true
+    active: true,
+    status: 'Active'
   };
+  try {
+    await dal.upsertTechnician(tech);
+  } catch (e) {
+    console.warn('DAL upsertTechnician error:', e.message);
+  }
+  if (!store.TECHNICIAN_DIRECTORY) store.TECHNICIAN_DIRECTORY = [];
   store.TECHNICIAN_DIRECTORY.push(tech);
-  saveStore();
+  await saveStore();
   logAudit('Technician Added', `Added ${tech.name} to technician directory`, 'technicians', '/settings/technicians');
   flash('success', 'Technician registered.');
   res.redirect('/settings/technicians');
 });
 
-app.post('/settings/technicians/:tech_id/toggle', (req, res) => {
-  const tech = store.TECHNICIAN_DIRECTORY.find(t => t.id === req.params.tech_id);
+app.post('/settings/technicians/:tech_id/toggle', async (req, res) => {
+  const tech = (store.TECHNICIAN_DIRECTORY || []).find(t => t.id === req.params.tech_id);
   if (tech) {
     tech.active = !tech.active;
-    saveStore();
+    tech.status = tech.active ? 'Active' : 'Inactive';
+    try {
+      await dal.upsertTechnician(tech);
+    } catch (e) {
+      console.warn('DAL upsertTechnician toggle error:', e.message);
+    }
+    await saveStore();
     flash('info', `Status updated for ${tech.name}.`);
   }
   res.redirect('/settings/technicians');
 });
 
-app.post('/settings/technicians/:tech_id/delete', (req, res) => {
-  const idx = store.TECHNICIAN_DIRECTORY.findIndex(t => t.id === req.params.tech_id);
+app.post('/settings/technicians/:tech_id/delete', async (req, res) => {
+  const idx = (store.TECHNICIAN_DIRECTORY || []).findIndex(t => t.id === req.params.tech_id);
   if (idx !== -1) {
     const deleted = store.TECHNICIAN_DIRECTORY.splice(idx, 1)[0];
+    try {
+      await dal.deleteTechnician(req.params.tech_id);
+    } catch (e) {
+      console.warn('DAL deleteTechnician error:', e.message);
+    }
     const actor = getCurrentActor(req);
     moveToRecycleBin('technician', `${deleted.name} (${deleted.id})`, deleted.id, deleted, actor.name, {
       deleted_by_email: actor.email,
       deleted_by_role: actor.role
     });
+    await saveStore();
     logAudit('Technician Removed', `Moved technician ${deleted.name} to Admin Recycle Bin`, 'technicians', '/settings/recycle-bin', 'warning');
     flash('success', 'Technician moved to Admin Recycle Bin.');
   }
@@ -8295,7 +8360,7 @@ app.post('/settings/admin-users/reset-requests/:msg_id/dismiss', (req, res) => {
   res.redirect('/settings/admin-users');
 });
 
-app.post(['/settings/admin-users/roles/save', '/settings/roles/save', '/api/roles/save'], (req, res) => {
+app.post(['/settings/admin-users/roles/save', '/settings/roles/save', '/api/roles/save'], async (req, res) => {
   seedInitialDataIfEmpty();
   if (!Array.isArray(store.CUSTOM_ROLES)) {
     store.CUSTOM_ROLES = JSON.parse(JSON.stringify(DEFAULT_CUSTOM_ROLES));
@@ -8354,7 +8419,7 @@ app.post(['/settings/admin-users/roles/save', '/settings/roles/save', '/api/role
 
   // Propagate updated role permissions to users assigned to this role if requested or if role name changed
   if (req.body.sync_assigned_users === '1' || oldRoleName) {
-    (store.ADMIN_USERS || []).forEach(u => {
+    for (const u of (store.ADMIN_USERS || [])) {
       if (u.role && (u.role === oldRoleName || u.role === targetRole.name)) {
         u.role = targetRole.name;
         if (req.body.sync_assigned_users === '1') {
@@ -8364,11 +8429,12 @@ app.post(['/settings/admin-users/roles/save', '/settings/roles/save', '/api/role
           u.can_adjust_kpi_targets = Boolean(targetRole.can_adjust_kpi_targets);
           u.access_scope = targetRole.access_scope;
         }
+        try { await dal.upsertUser(u); } catch (e) { console.warn('DAL upsertUser role sync error:', e.message); }
       }
-    });
+    }
   }
 
-  saveStore();
+  await saveStore();
   logAudit(isNew ? 'Custom Role Defined' : 'Role Definition Updated', `${isNew ? 'Created' : 'Updated'} role "${targetRole.name}" (${targetRole.modules.length} view / ${targetRole.edit_modules.length} edit modules).`, 'security', '/settings/admin-users');
   if (req.path === '/api/roles/save' || (req.headers.accept && req.headers.accept.includes('application/json'))) {
     return res.json({ ok: true, role: targetRole, custom_roles: store.CUSTOM_ROLES });
@@ -8377,7 +8443,7 @@ app.post(['/settings/admin-users/roles/save', '/settings/roles/save', '/api/role
   res.redirect(`/settings/admin-users?selected_role=${encodeURIComponent(targetRole.name)}#roleDefinitionsSection`);
 });
 
-app.post(['/settings/admin-users/roles/:role_id/delete', '/settings/roles/:role_id/delete'], (req, res) => {
+app.post(['/settings/admin-users/roles/:role_id/delete', '/settings/roles/:role_id/delete'], async (req, res) => {
   if (!Array.isArray(store.CUSTOM_ROLES)) return res.redirect('/settings/admin-users');
   const idx = store.CUSTOM_ROLES.findIndex(r => r.id === req.params.role_id);
   if (idx !== -1) {
@@ -8387,7 +8453,7 @@ app.post(['/settings/admin-users/roles/:role_id/delete', '/settings/roles/:role_
       return res.redirect('/settings/admin-users#roleDefinitionsSection');
     }
     store.CUSTOM_ROLES.splice(idx, 1);
-    saveStore();
+    await saveStore();
     logAudit('Role Definition Deleted', `Removed custom role "${role.name}"`, 'security', '/settings/admin-users', 'warning');
     flash('info', `Deleted role "${role.name}".`);
   }
@@ -8980,7 +9046,7 @@ app.get('/settings/profile', (req, res) => {
 app.post('/settings/profile/save', upload.fields([
   { name: 'profile_image', maxCount: 1 },
   { name: 'signature_image', maxCount: 1 }
-]), (req, res) => {
+]), async (req, res) => {
   if (store.ADMIN_USERS && store.ADMIN_USERS.length > 0) {
     const target = getCurrentActor(req);
     const incoming = { ...req.body };
@@ -9005,7 +9071,12 @@ app.post('/settings/profile/save', upload.fields([
     if (sigFile) {
       target.signature_image_url = fileToDataUrl(sigFile) || `/static/uploads/${sigFile.filename}`;
     }
-    saveStore();
+    try {
+      await dal.upsertUser(target);
+    } catch (e) {
+      console.warn('DAL upsertUser profile error:', e.message);
+    }
+    await saveStore();
     flash('success', newPassword ? 'Profile and login password updated permanently.' : 'Profile settings saved permanently.');
   }
   res.redirect('/settings/profile');

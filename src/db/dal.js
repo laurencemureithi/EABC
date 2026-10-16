@@ -1053,6 +1053,127 @@ async function getDiagnosticInfo() {
   }
 }
 
+// ----------------------------------------------------
+// TECHNICIANS
+// ----------------------------------------------------
+async function getTechnicians(companyId = null) {
+  try {
+    let sql = 'SELECT * FROM technicians';
+    const params = [];
+    if (companyId) {
+      sql += ' WHERE company_id = $1';
+      params.push(companyId);
+    }
+    sql += ' ORDER BY name ASC;';
+    const res = await query(sql, params);
+    if (res && res.rows) {
+      return res.rows.map(r => ({
+        id: r.id,
+        company_id: r.company_id || 'comp-001',
+        name: r.name,
+        email: r.email || '',
+        phone: r.phone || '',
+        role: r.specialization || r.department || 'Field Engineer',
+        discipline: r.specialization || 'Mechanical',
+        department: r.department || 'Engineering',
+        active: r.status !== 'Inactive',
+        status: r.status || 'Active',
+        created_at: r.created_at
+      }));
+    }
+  } catch (err) {
+    console.warn('[PostgreSQL getTechnicians Error]:', err.message);
+  }
+  return [];
+}
+
+async function upsertTechnician(t) {
+  try {
+    const sql = `
+      INSERT INTO technicians (id, company_id, name, email, phone, specialization, status, department, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ON CONFLICT (id) DO UPDATE SET
+        company_id = EXCLUDED.company_id,
+        name = EXCLUDED.name,
+        email = EXCLUDED.email,
+        phone = EXCLUDED.phone,
+        specialization = EXCLUDED.specialization,
+        status = EXCLUDED.status,
+        department = EXCLUDED.department
+      RETURNING *;
+    `;
+    const statusVal = t.active === false || t.status === 'Inactive' ? 'Inactive' : 'Active';
+    const params = [
+      t.id,
+      t.company_id || 'comp-001',
+      t.name,
+      t.email || '',
+      t.phone || '',
+      t.discipline || t.specialization || t.role || 'Mechanical',
+      statusVal,
+      t.department || 'Engineering',
+      t.created_at || new Date().toISOString()
+    ];
+    return await query(sql, params);
+  } catch (err) {
+    console.error('[PostgreSQL upsertTechnician Error]:', err.message);
+    throw err;
+  }
+}
+
+async function deleteTechnician(id) {
+  try {
+    return await query('DELETE FROM technicians WHERE id = $1 RETURNING *;', [id]);
+  } catch (err) {
+    console.error('[PostgreSQL deleteTechnician Error]:', err.message);
+    throw err;
+  }
+}
+
+// ----------------------------------------------------
+// SYSTEM SETTINGS & APPLICATION STATE
+// ----------------------------------------------------
+async function getSystemSettings() {
+  try {
+    const res = await query('SELECT * FROM system_settings WHERE id = $1 LIMIT 1;', ['global']);
+    if (res && res.rows && res.rows[0]) {
+      const row = res.rows[0];
+      let parsed = {};
+      try {
+        parsed = typeof row.settings_json === 'string' ? JSON.parse(row.settings_json) : (row.settings_json || {});
+      } catch (e) {
+        console.warn('Could not parse settings_json:', e.message);
+      }
+      return {
+        ...parsed,
+        _updated_at: row.updated_at
+      };
+    }
+  } catch (err) {
+    console.warn('[PostgreSQL getSystemSettings Error]:', err.message);
+  }
+  return null;
+}
+
+async function upsertSystemSettings(settingsObj) {
+  try {
+    const nowIso = new Date().toISOString();
+    const jsonStr = typeof settingsObj === 'string' ? settingsObj : JSON.stringify(settingsObj);
+    const sql = `
+      INSERT INTO system_settings (id, settings_json, updated_at)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (id) DO UPDATE SET
+        settings_json = EXCLUDED.settings_json,
+        updated_at = EXCLUDED.updated_at
+      RETURNING *;
+    `;
+    return await query(sql, ['global', jsonStr, nowIso]);
+  } catch (err) {
+    console.error('[PostgreSQL upsertSystemSettings Error]:', err.message);
+    throw err;
+  }
+}
+
 module.exports = {
   getPool,
   isAvailable,
@@ -1080,6 +1201,11 @@ module.exports = {
   getUserById,
   upsertUser,
   deleteUser,
+  getTechnicians,
+  upsertTechnician,
+  deleteTechnician,
+  getSystemSettings,
+  upsertSystemSettings,
   getRecycleBin,
   addToRecycleBin,
   removeFromRecycleBin,
@@ -1095,3 +1221,4 @@ module.exports = {
   addAudit,
   getDiagnosticInfo
 };
+
