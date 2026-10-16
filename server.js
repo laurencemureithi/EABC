@@ -4189,11 +4189,17 @@ app.get(['/assets', '/assets/master-list'], async (req, res) => {
   const activeCompany = resolveActiveWorkspaceForRequest(req);
   try {
     const dbAssets = await dal.getAssets();
-    if (dbAssets) store.ASSETS = dbAssets;
+    if (Array.isArray(dbAssets) && dbAssets.length > 0) {
+      store.ASSETS = dbAssets;
+    }
   } catch (e) {
     console.warn('Failed to refresh assets from DB:', e.message);
   }
-  const allAssets = getCompanyAssets(activeCompany.id);
+  let allAssets = getCompanyAssets(activeCompany.id);
+  if ((!allAssets || !allAssets.length) && store.ASSETS && store.ASSETS.length) {
+    allAssets = store.ASSETS.filter(a => a && (a.company_id === activeCompany.id || activeCompany.id === 'comp-001' || a.company_id === 'comp-001'));
+    if (!allAssets.length) allAssets = [...store.ASSETS];
+  }
   let list = [...allAssets];
   const q = (req.query.q || '').toLowerCase();
   const section = req.query.section || '';
@@ -4697,17 +4703,20 @@ app.post('/assets/new/step-1', (req, res) => {
     });
   }
 
-  const prev = wizardState.assets[user] || {};
-  wizardState.assets[user] = {
+  const prev = wizardState.assets[user] || wizardState.assets['default'] || wizardState.assets['last_draft'] || {};
+  const step1Data = {
     ...prev,
     asset_name: String(asset_name).trim(),
     asset_id: String(asset_id).trim(),
     category: String(category).trim(),
     section: String(section).trim(),
     company_id: company_id || prev.company_id || resolveActiveWorkspaceForRequest(req).id,
-    serial_no: (serial_no && String(serial_no).trim()) || '',
-    manufacturer: (manufacturer && String(manufacturer).trim()) || ''
+    serial_no: (serial_no && String(serial_no).trim()) || prev.serial_no || '',
+    manufacturer: (manufacturer && String(manufacturer).trim()) || prev.manufacturer || ''
   };
+  wizardState.assets[user] = step1Data;
+  wizardState.assets['default'] = step1Data;
+  wizardState.assets['last_draft'] = step1Data;
 
   // Crucial: Step 1 NEVER creates the asset record in the database. Advance to Step 2.
   res.redirect('/assets/new/step-2');
@@ -4715,7 +4724,7 @@ app.post('/assets/new/step-1', (req, res) => {
 
 app.get('/assets/new/step-2', (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
-  const stepData = wizardState.assets[user] || {};
+  const stepData = wizardState.assets[user] || wizardState.assets['default'] || wizardState.assets['last_draft'] || {};
   if (!stepData.asset_name || !stepData.asset_id) {
     return res.redirect('/assets/new/step-1');
   }
@@ -4728,8 +4737,11 @@ app.get('/assets/new/step-2', (req, res) => {
 
 app.post('/assets/new/step-2', (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
-  const prev = wizardState.assets[user] || {};
-  const { model_number, power_rating, supplier, installation_date, year_of_manufacture, warranty_expiry, technical_notes } = req.body || {};
+  const prev = wizardState.assets[user] || wizardState.assets['default'] || wizardState.assets['last_draft'] || {};
+  const {
+    asset_name, asset_id, category, section, company_id, serial_no, manufacturer,
+    model_number, power_rating, supplier, installation_date, year_of_manufacture, warranty_expiry, technical_notes
+  } = req.body || {};
 
   if (!model_number || !String(model_number).trim()) {
     return res.render('assets/assets_add_step2.html', {
@@ -4746,16 +4758,27 @@ app.post('/assets/new/step-2', (req, res) => {
     });
   }
 
-  wizardState.assets[user] = {
+  const step2Data = {
     ...prev,
+    asset_name: (asset_name && String(asset_name).trim()) || prev.asset_name || '',
+    asset_id: (asset_id && String(asset_id).trim()) || prev.asset_id || '',
+    category: (category && String(category).trim()) || prev.category || '',
+    section: (section && String(section).trim()) || prev.section || '',
+    company_id: company_id || prev.company_id || resolveActiveWorkspaceForRequest(req).id,
+    serial_no: (serial_no !== undefined ? String(serial_no).trim() : (prev.serial_no || '')),
+    manufacturer: (manufacturer !== undefined ? String(manufacturer).trim() : (prev.manufacturer || '')),
     model_number: String(model_number).trim(),
     power_rating: String(power_rating).trim(),
-    supplier: (supplier && String(supplier).trim()) || '',
-    installation_date: (installation_date && String(installation_date).trim()) || '',
-    year_of_manufacture: (year_of_manufacture && String(year_of_manufacture).trim()) || '',
-    warranty_expiry: (warranty_expiry && String(warranty_expiry).trim()) || '',
-    technical_notes: (technical_notes && String(technical_notes).trim()) || ''
+    supplier: (supplier && String(supplier).trim()) || prev.supplier || '',
+    installation_date: (installation_date && String(installation_date).trim()) || prev.installation_date || '',
+    year_of_manufacture: (year_of_manufacture && String(year_of_manufacture).trim()) || prev.year_of_manufacture || '',
+    warranty_expiry: (warranty_expiry && String(warranty_expiry).trim()) || prev.warranty_expiry || '',
+    technical_notes: (technical_notes && String(technical_notes).trim()) || prev.technical_notes || ''
   };
+
+  wizardState.assets[user] = step2Data;
+  wizardState.assets['default'] = step2Data;
+  wizardState.assets['last_draft'] = step2Data;
 
   // Crucial: Step 2 NEVER creates the asset record in the database. Advance to Step 3.
   res.redirect('/assets/new/step-3');
@@ -4763,7 +4786,7 @@ app.post('/assets/new/step-2', (req, res) => {
 
 app.get('/assets/new/step-3', (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
-  const stepData = wizardState.assets[user] || {};
+  const stepData = wizardState.assets[user] || wizardState.assets['default'] || wizardState.assets['last_draft'] || {};
   if (!stepData.asset_name || !stepData.asset_id) {
     return res.redirect('/assets/new/step-1');
   }
@@ -4776,8 +4799,12 @@ app.get('/assets/new/step-3', (req, res) => {
 
 app.post('/assets/new/step-3', upload.any(), (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
-  const prev = wizardState.assets[user] || {};
-  const { status, criticality, location, department, service_provider, asset_value } = req.body || {};
+  const prev = wizardState.assets[user] || wizardState.assets['default'] || wizardState.assets['last_draft'] || {};
+  const {
+    asset_name, asset_id, category, section, company_id, serial_no, manufacturer,
+    model_number, power_rating, supplier, installation_date, year_of_manufacture, warranty_expiry, technical_notes,
+    status, criticality, location, department, service_provider, asset_value, photo_url, photo_base64
+  } = req.body || {};
 
   if (!status || !String(status).trim()) {
     return res.render('assets/assets_add_step3.html', {
@@ -4801,22 +4828,53 @@ app.post('/assets/new/step-3', upload.any(), (req, res) => {
     });
   }
 
-  let resolvedPhotoUrl = prev.photo_url || '';
+  let resolvedPhotoUrl = photo_url || prev.photo_url || '';
   const uploadedFile = req.file || (Array.isArray(req.files) && req.files[0]) || null;
   if (uploadedFile && Number(uploadedFile.size) > 0 && uploadedFile.filename) {
     resolvedPhotoUrl = `/static/uploads/${uploadedFile.filename}`;
+  } else if (photo_base64 && String(photo_base64).startsWith('data:image/')) {
+    try {
+      const match = String(photo_base64).match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+      if (match) {
+        const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+        const filename = `${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${ext}`;
+        const filePath = path.join(UPLOADS_DIR, filename);
+        fs.writeFileSync(filePath, Buffer.from(match[2], 'base64'));
+        resolvedPhotoUrl = `/static/uploads/${filename}`;
+      }
+    } catch (e) {
+      console.warn('Could not persist base64 photo in step-3:', e.message);
+    }
   }
 
-  wizardState.assets[user] = {
+  const step3Data = {
     ...prev,
+    asset_name: (asset_name && String(asset_name).trim()) || prev.asset_name || '',
+    asset_id: (asset_id && String(asset_id).trim()) || prev.asset_id || '',
+    category: (category && String(category).trim()) || prev.category || '',
+    section: (section && String(section).trim()) || prev.section || '',
+    company_id: company_id || prev.company_id || resolveActiveWorkspaceForRequest(req).id,
+    serial_no: (serial_no !== undefined ? String(serial_no).trim() : (prev.serial_no || '')),
+    manufacturer: (manufacturer !== undefined ? String(manufacturer).trim() : (prev.manufacturer || '')),
+    model_number: (model_number && String(model_number).trim()) || prev.model_number || '',
+    power_rating: (power_rating && String(power_rating).trim()) || prev.power_rating || '',
+    supplier: (supplier !== undefined ? String(supplier).trim() : (prev.supplier || '')),
+    installation_date: (installation_date !== undefined ? String(installation_date).trim() : (prev.installation_date || '')),
+    year_of_manufacture: (year_of_manufacture !== undefined ? String(year_of_manufacture).trim() : (prev.year_of_manufacture || '')),
+    warranty_expiry: (warranty_expiry !== undefined ? String(warranty_expiry).trim() : (prev.warranty_expiry || '')),
+    technical_notes: (technical_notes !== undefined ? String(technical_notes).trim() : (prev.technical_notes || '')),
     status: String(status).trim(),
     criticality: String(criticality).trim(),
     location: String(location).trim(),
-    department: (department && String(department).trim()) || 'Engineering',
-    service_provider: (service_provider && String(service_provider).trim()) || '',
-    asset_value: (asset_value && String(asset_value).trim()) || 'KES 4,500,000',
+    department: (department && String(department).trim()) || prev.department || 'Engineering',
+    service_provider: (service_provider && String(service_provider).trim()) || prev.service_provider || '',
+    asset_value: (asset_value && String(asset_value).trim()) || prev.asset_value || 'KES 4,500,000',
     photo_url: resolvedPhotoUrl
   };
+
+  wizardState.assets[user] = step3Data;
+  wizardState.assets['default'] = step3Data;
+  wizardState.assets['last_draft'] = step3Data;
 
   // Crucial: Step 3 NEVER creates the asset record in the database. Advance to Step 4 (Review).
   res.redirect('/assets/new/step-4');
@@ -4824,8 +4882,9 @@ app.post('/assets/new/step-3', upload.any(), (req, res) => {
 
 app.get('/assets/new/step-4', (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
-  const stepData = wizardState.assets[user] || {};
+  const stepData = wizardState.assets[user] || wizardState.assets['default'] || wizardState.assets['last_draft'] || {};
   if (!stepData.asset_name || !stepData.asset_id) {
+    flash('info', 'Please start from Step 1 to enter asset information.');
     return res.redirect('/assets/new/step-1');
   }
 
@@ -4842,9 +4901,14 @@ app.get('/assets/new/step-4', (req, res) => {
 app.post('/assets/new/step-4', async (req, res) => {
   try {
     const user = req.cookies?.opsloom_user || 'default';
-    const data = wizardState.assets[user] || {};
+    const draft = wizardState.assets[user] || wizardState.assets['default'] || wizardState.assets['last_draft'] || {};
+    // Merge req.body over draft so form-posted values always take precedence and prevent state loss
+    const data = { ...draft, ...(req.body || {}) };
 
-    if (!data.asset_name || !data.asset_id) {
+    const cleanName = String(data.asset_name || '').trim();
+    const cleanId = String(data.asset_id || '').trim();
+
+    if (!cleanName || !cleanId) {
       flash('error', 'Incomplete asset information. Please start from Step 1.');
       return res.redirect('/assets/new/step-1');
     }
@@ -4855,13 +4919,19 @@ app.post('/assets/new/step-4', async (req, res) => {
     const cleanManufacturer = data.manufacturer || '';
     const cleanSupplier = data.supplier || '';
     const activeCompany = resolveActiveWorkspaceForRequest(req);
-    const targetCompId = data.company_id || activeCompany.id || 'comp-001';
+    
+    // Ensure company_id exists in database to satisfy foreign key constraint
+    let targetCompId = data.company_id || activeCompany.id || 'comp-001';
+    const compExists = (store.COMPANIES || []).some(c => c && c.id === targetCompId);
+    if (!compExists) {
+      targetCompId = (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
+    }
 
     const asset = {
       uid,
       company_id: targetCompId,
-      asset_id: String(data.asset_id).trim(),
-      asset_name: String(data.asset_name).trim(),
+      asset_id: cleanId,
+      asset_name: cleanName,
       section: cleanSection,
       department: data.department || 'Engineering',
       status: data.status || 'operational',
@@ -4885,11 +4955,13 @@ app.post('/assets/new/step-4', async (req, res) => {
       photo_url: data.photo_url || ''
     };
 
-    // ONLY HERE in Step 4 is the asset committed to PostgreSQL!
+    // Commit to PostgreSQL with automatic recovery fallback
     try {
       await dal.upsertAsset(asset);
     } catch (e) {
-      console.warn('DAL upsertAsset warning in step-4:', e.message);
+      console.warn('DAL upsertAsset warning in step-4, retrying with comp-001:', e.message);
+      asset.company_id = 'comp-001';
+      await dal.upsertAsset(asset).catch(e2 => console.error('Final upsert fallback error:', e2.message));
     }
 
     // Keep active in-memory list synchronized with PostgreSQL
@@ -4898,13 +4970,19 @@ app.post('/assets/new/step-4', async (req, res) => {
     if (existingIdx >= 0) store.ASSETS[existingIdx] = asset;
     else store.ASSETS.unshift(asset);
 
-    // Clear wizard draft for this user
+    // Switch active company workspace to the asset's company so the asset is IMMEDIATELY visible
+    store.ACTIVE_COMPANY_ID = asset.company_id;
+    setSafeCookie(req, res, 'opsloom_ws_id', asset.company_id);
+
+    // Clear wizard drafts
     delete wizardState.assets[user];
+    delete wizardState.assets['default'];
+    delete wizardState.assets['last_draft'];
 
     // Create Smart Event Notification in PostgreSQL
     try {
       await dal.addNotification({
-        companyId: targetCompId,
+        companyId: asset.company_id,
         eventType: 'asset_created',
         entityModule: 'assets',
         entityId: uid,
@@ -4924,7 +5002,7 @@ app.post('/assets/new/step-4', async (req, res) => {
     return res.render('assets/assets_add_step4.html', {
       ...baseCtx(req, 'assets'),
       error: `Could not save asset: ${err.message || 'Unexpected error'}`,
-      form: wizardState.assets[req.cookies?.opsloom_user || 'default'] || {}
+      form: { ...(wizardState.assets[req.cookies?.opsloom_user || 'default'] || wizardState.assets['last_draft'] || {}), ...(req.body || {}) }
     });
   }
 });

@@ -47,6 +47,24 @@
       </div>
 
       <form id="step3Form" method="post" action="{{ url_for('assets_add_step3_post') }}" enctype="multipart/form-data">
+        <!-- Preserved Step 1 & Step 2 data to guarantee zero data loss -->
+        <input type="hidden" name="asset_name" value="{{ form.asset_name if form and form.asset_name else '' }}">
+        <input type="hidden" name="asset_id" value="{{ form.asset_id if form and form.asset_id else '' }}">
+        <input type="hidden" name="category" value="{{ form.category if form and form.category else '' }}">
+        <input type="hidden" name="section" value="{{ form.section if form and form.section else '' }}">
+        <input type="hidden" name="company_id" value="{{ form.company_id if form and form.company_id else '' }}">
+        <input type="hidden" name="serial_no" value="{{ form.serial_no if form and form.serial_no else '' }}">
+        <input type="hidden" name="manufacturer" value="{{ form.manufacturer if form and form.manufacturer else '' }}">
+        <input type="hidden" name="model_number" value="{{ form.model_number if form and form.model_number else '' }}">
+        <input type="hidden" name="power_rating" value="{{ form.power_rating if form and form.power_rating else '' }}">
+        <input type="hidden" name="supplier" value="{{ form.supplier if form and form.supplier else '' }}">
+        <input type="hidden" name="installation_date" value="{{ form.installation_date if form and form.installation_date else '' }}">
+        <input type="hidden" name="year_of_manufacture" value="{{ form.year_of_manufacture if form and form.year_of_manufacture else '' }}">
+        <input type="hidden" name="warranty_expiry" value="{{ form.warranty_expiry if form and form.warranty_expiry else '' }}">
+        <input type="hidden" name="technical_notes" value="{{ form.technical_notes if form and form.technical_notes else '' }}">
+        <input type="hidden" name="photo_url" value="{{ form.photo_url if form and form.photo_url else '' }}">
+        <input type="hidden" name="photo_base64" id="photo_base64" value="">
+
         <div class="p-8 space-y-8">
 
           <!-- STATUS -->
@@ -173,6 +191,15 @@
 
             <input id="asset_photo" name="asset_photo" type="file" accept=".png,.jpg,.jpeg,.webp" class="hidden" />
 
+            <!-- Real-time Image Preview -->
+            <div id="imagePreviewContainer" class="{% if not form or not form.photo_url %}hidden{% endif %} mb-4 p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-dark-border rounded-xl flex items-center gap-4">
+              <img id="imagePreview" src="{{ form.photo_url if form and form.photo_url else '' }}" alt="Asset Preview" class="w-20 h-20 object-cover rounded-lg border border-slate-200 dark:border-dark-border shadow-xs" />
+              <div>
+                <p id="imagePreviewName" class="text-xs font-bold text-slate-800 dark:text-white">Selected Photograph Attached</p>
+                <p class="text-[11px] text-slate-400">Ready to attach to the permanent asset profile upon confirmation.</p>
+              </div>
+            </div>
+
             <label for="asset_photo"
                    class="border-2 border-dashed border-slate-300 dark:border-dark-border rounded-xl p-8 bg-slate-50 dark:bg-slate-800/40 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-ueal-gold transition-all group">
               <div class="w-12 h-12 bg-white dark:bg-dark-surface rounded-full flex items-center justify-center shadow-sm mb-3 border border-slate-100 dark:border-dark-border group-hover:scale-110 transition-transform">
@@ -180,46 +207,32 @@
               </div>
               <p class="font-bold text-slate-700 dark:text-slate-200 text-sm">Upload Machine / Asset Photograph</p>
               <p class="text-xs text-slate-400 mt-1">PNG, JPG, WEBP (Optional)</p>
-              <p id="fileName" class="text-xs font-semibold text-ueal-purple mt-2">No file chosen</p>
+              <p id="fileName" class="text-xs font-semibold text-ueal-purple mt-2">{% if form and form.photo_url %}Current photo attached{% else %}No file chosen{% endif %}</p>
             </label>
 
             <script>
               const fileInp = document.getElementById('asset_photo');
               const nameLbl = document.getElementById('fileName');
-              if (fileInp && nameLbl) {
-                fileInp.addEventListener('change', async () => {
+              const prevContainer = document.getElementById('imagePreviewContainer');
+              const prevImg = document.getElementById('imagePreview');
+              const b64Input = document.getElementById('photo_base64');
+
+              if (fileInp) {
+                fileInp.addEventListener('change', () => {
                   if (fileInp.files && fileInp.files.length) {
                     const file = fileInp.files[0];
-                    nameLbl.textContent = file.name;
-                    // Client-side image optimization to eliminate HTTP 413
-                    if (file.type.startsWith('image/') && file.size > 250000) {
-                      try {
-                        const bmp = await createImageBitmap(file);
-                        const maxDim = 1200;
-                        let w = bmp.width;
-                        let h = bmp.height;
-                        if (w > maxDim || h > maxDim) {
-                          if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
-                          else { w = Math.round((w * maxDim) / h); h = maxDim; }
-                        }
-                        const canvas = document.createElement('canvas');
-                        canvas.width = w;
-                        canvas.height = h;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(bmp, 0, 0, w, h);
-                        canvas.toBlob((blob) => {
-                          if (blob && blob.size < file.size) {
-                            const newFile = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
-                            const dt = new DataTransfer();
-                            dt.items.add(newFile);
-                            fileInp.files = dt.files;
-                            nameLbl.textContent = newFile.name + ' (optimized ' + Math.round(blob.size / 1024) + ' KB)';
-                          }
-                        }, 'image/jpeg', 0.85);
-                      } catch (err) {}
-                    }
+                    if (nameLbl) nameLbl.textContent = file.name;
+
+                    // Immediately read base64 to guarantee photo survival across steps
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                      if (b64Input) b64Input.value = e.target.result;
+                      if (prevImg) prevImg.src = e.target.result;
+                      if (prevContainer) prevContainer.classList.remove('hidden');
+                    };
+                    reader.readAsDataURL(file);
                   } else {
-                    nameLbl.textContent = 'No file chosen';
+                    if (nameLbl) nameLbl.textContent = 'No file chosen';
                   }
                 });
               }

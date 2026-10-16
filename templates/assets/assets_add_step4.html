@@ -194,8 +194,30 @@
         {% endif %}
       </div>
 
-      <!-- FINAL SAVE FORM -->
+      <!-- FINAL SAVE FORM WITH FULL ATTRIBUTES -->
       <form id="saveAssetFinalForm" method="post" action="{{ url_for('assets_add_step4_post') }}">
+        <input type="hidden" name="asset_name" value="{{ form.asset_name if form and form.asset_name else '' }}">
+        <input type="hidden" name="asset_id" value="{{ form.asset_id if form and form.asset_id else '' }}">
+        <input type="hidden" name="category" value="{{ form.category if form and form.category else '' }}">
+        <input type="hidden" name="section" value="{{ form.section if form and form.section else '' }}">
+        <input type="hidden" name="company_id" value="{{ form.company_id if form and form.company_id else '' }}">
+        <input type="hidden" name="serial_no" value="{{ form.serial_no if form and form.serial_no else '' }}">
+        <input type="hidden" name="manufacturer" value="{{ form.manufacturer if form and form.manufacturer else '' }}">
+        <input type="hidden" name="model_number" value="{{ form.model_number if form and form.model_number else '' }}">
+        <input type="hidden" name="power_rating" value="{{ form.power_rating if form and form.power_rating else '' }}">
+        <input type="hidden" name="supplier" value="{{ form.supplier if form and form.supplier else '' }}">
+        <input type="hidden" name="installation_date" value="{{ form.installation_date if form and form.installation_date else '' }}">
+        <input type="hidden" name="year_of_manufacture" value="{{ form.year_of_manufacture if form and form.year_of_manufacture else '' }}">
+        <input type="hidden" name="warranty_expiry" value="{{ form.warranty_expiry if form and form.warranty_expiry else '' }}">
+        <input type="hidden" name="technical_notes" value="{{ form.technical_notes if form and form.technical_notes else '' }}">
+        <input type="hidden" name="status" value="{{ form.status if form and form.status else 'operational' }}">
+        <input type="hidden" name="criticality" value="{{ form.criticality if form and form.criticality else 'A' }}">
+        <input type="hidden" name="location" value="{{ form.location if form and form.location else '' }}">
+        <input type="hidden" name="department" value="{{ form.department if form and form.department else 'Engineering' }}">
+        <input type="hidden" name="service_provider" value="{{ form.service_provider if form and form.service_provider else '' }}">
+        <input type="hidden" name="asset_value" value="{{ form.asset_value if form and form.asset_value else 'KES 4,500,000' }}">
+        <input type="hidden" name="photo_url" value="{{ form.photo_url if form and form.photo_url else '' }}">
+
         <div class="p-6 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-dark-border flex items-center justify-between">
           <a href="{{ url_for('assets_add_step3_get') }}"
              class="px-6 py-2.5 rounded-lg text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors flex items-center gap-2">
@@ -203,11 +225,11 @@
             Previous Step
           </a>
 
-          <!-- ONLY this button is type="submit" to create the asset in PostgreSQL -->
+          <!-- Confirms and commits the asset directly to PostgreSQL -->
           <button id="btnSaveAsset" type="submit"
                   class="bg-emerald-600 hover:bg-emerald-700 text-white px-9 py-3 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-md active:scale-95">
             <span class="material-symbols-outlined text-lg">check_circle</span>
-            Save Asset
+            Confirm &amp; Save Asset
           </button>
         </div>
       </form>

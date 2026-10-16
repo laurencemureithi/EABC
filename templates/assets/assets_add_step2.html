@@ -45,6 +45,15 @@
       </div>
 
       <form id="step2Form" method="post" action="{{ url_for('assets_add_step2_post') }}">
+        <!-- Preserved Step 1 data -->
+        <input type="hidden" name="asset_name" value="{{ form.asset_name if form and form.asset_name else '' }}">
+        <input type="hidden" name="asset_id" value="{{ form.asset_id if form and form.asset_id else '' }}">
+        <input type="hidden" name="category" value="{{ form.category if form and form.category else '' }}">
+        <input type="hidden" name="section" value="{{ form.section if form and form.section else '' }}">
+        <input type="hidden" name="company_id" value="{{ form.company_id if form and form.company_id else '' }}">
+        <input type="hidden" name="serial_no" value="{{ form.serial_no if form and form.serial_no else '' }}">
+        <input type="hidden" name="manufacturer" value="{{ form.manufacturer if form and form.manufacturer else '' }}">
+
         <div class="p-8">
           <div class="mb-8">
             <h2 class="text-lg font-bold text-slate-900 dark:text-white">Technical Specifications &amp; Engineering Info</h2>
