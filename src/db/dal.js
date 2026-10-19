@@ -7,8 +7,6 @@ const { Pool } = require('pg');
 let pool = null;
 
 // ---- Pool management & safe query helpers ----
-let pool = null;
-
 function getPool() {
   if (pool) return pool;
 
@@ -20,7 +18,6 @@ function getPool() {
 
   // Try to reuse the central pool from src/db/index.js (if present)
   try {
-    // require relative to this file
     const indexDb = require('./index');
     if (indexDb && typeof indexDb.createPool === 'function') {
       pool = indexDb.createPool();
@@ -29,7 +26,6 @@ function getPool() {
         return pool;
       }
     }
-    // If indexDb exports a pool property, prefer that
     if (indexDb && indexDb.pool) {
       pool = indexDb.pool;
       global._postgresPool = pool;
@@ -47,7 +43,7 @@ function getPool() {
   const database = process.env.SQL_DB_NAME || process.env.PGDATABASE;
 
   if (connectionString) {
-    pool = new (require('pg').Pool)({
+    pool = new Pool({
       connectionString,
       max: 15,
       connectionTimeoutMillis: 10000,
@@ -64,7 +60,7 @@ function getPool() {
     if (process.env.PGPORT && !String(host).startsWith('/')) {
       cfg.port = parseInt(process.env.PGPORT, 10);
     }
-    pool = new (require('pg').Pool)(cfg);
+    pool = new Pool(cfg);
   }
 
   if (!pool) {
@@ -1247,4 +1243,3 @@ module.exports = {
   addAudit,
   getDiagnosticInfo
 };
-
