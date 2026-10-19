@@ -61,7 +61,7 @@ logger.info('Applying security hardening...');
 configureSecurityHeaders(app);
 const { apiLimiter, loginLimiter } = configureRateLimiting(app);
 configureInputSanitization(app);
-configueCORS(app);
+configureCORS(app);
 
 /**
  * PHASE 4: SESSION MANAGEMENT
@@ -85,10 +85,11 @@ if (process.env.SESSION_STORE === 'redis') {
 } else {
   // Fallback to memory store (NOT for production!)
   if (process.env.NODE_ENV === 'production') {
-    logger.warn('WARNING: Using memory session store in production - configure REDIS_URL');
+    logger.warn('WARNING: Using memory session store in production - configure REDIS_URL or use a persistent store');
   }
   const MemoryStore = require('memorystore')(session);
-  sessionStore = new MemoryStore();
+  // keep in-memory for dev, but enable periodic pruning; not recommended for multi-process or production
+  sessionStore = new MemoryStore({ checkPeriod: 24 * 60 * 60 * 1000 }); // prune expired sessions every 24h
 }
 
 app.use(session({
@@ -238,7 +239,7 @@ const server = app.listen(PORT, HOST, () => {
   logger.info(`   URL: http://${HOST}:${PORT}`);
   logger.info(`   Environment: ${process.env.NODE_ENV}`);
   logger.info(`   Session Store: ${process.env.SESSION_STORE || 'memory'}`);
-  logger.info(`   Database: ${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`);
+  logger.info(`   Database: ${process.env.SQL_HOST || process.env.DB_HOST || 'unknown host'}:${process.env.SQL_PORT || process.env.DB_PORT || '5432'}/${process.env.SQL_DB_NAME || process.env.DB_NAME || 'unknown DB'}`);
 });
 
 /**
@@ -252,8 +253,16 @@ process.on('SIGTERM', async () => {
     logger.info('HTTP server closed');
     
     try {
-      await db.pool.end();
-      logger.info('Database connection pool closed');
+      // Prefer global._postgresPool if present, otherwise attempt db.pool if exported
+      if (global._postgresPool && typeof global._postgresPool.end === 'function') {
+        await global._postgresPool.end();
+        logger.info('Database connection pool closed (global._postgresPool)');
+      } else if (db && db.pool && typeof db.pool.end === 'function') {
+        await db.pool.end();
+        logger.info('Database connection pool closed (db.pool)');
+      } else {
+        logger.info('No database pool found to close');
+      }
     } catch (error) {
       logger.error('Error closing database', { error: error.message });
     }
