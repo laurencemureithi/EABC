@@ -6,28 +6,54 @@ const { Pool } = require('pg');
 
 let pool = null;
 
+// ---- Pool management & safe query helpers ----
+let pool = null;
+
 function getPool() {
   if (pool) return pool;
 
+  // Reuse a cached global pool if already set
   if (global._postgresPool) {
     pool = global._postgresPool;
     return pool;
   }
 
+  // Try to reuse the central pool from src/db/index.js (if present)
+  try {
+    // require relative to this file
+    const indexDb = require('./index');
+    if (indexDb && typeof indexDb.createPool === 'function') {
+      pool = indexDb.createPool();
+      if (pool) {
+        global._postgresPool = pool;
+        return pool;
+      }
+    }
+    // If indexDb exports a pool property, prefer that
+    if (indexDb && indexDb.pool) {
+      pool = indexDb.pool;
+      global._postgresPool = pool;
+      return pool;
+    }
+  } catch (e) {
+    // ignore require errors; we'll attempt to build a pool from env below
+  }
+
+  // Build from well-known env vars
+  const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
   const host = process.env.SQL_HOST || process.env.PGHOST;
   const user = process.env.SQL_USER || process.env.PGUSER;
   const password = process.env.SQL_PASSWORD || process.env.PGPASSWORD;
   const database = process.env.SQL_DB_NAME || process.env.PGDATABASE;
-  const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 
   if (connectionString) {
-    pool = new Pool({
+    pool = new (require('pg').Pool)({
       connectionString,
       max: 15,
       connectionTimeoutMillis: 10000,
     });
   } else if (host && user && database) {
-    const config = {
+    const cfg = {
       host,
       user,
       password: password || '',
@@ -35,47 +61,47 @@ function getPool() {
       max: 15,
       connectionTimeoutMillis: 10000,
     };
-    if (process.env.PGPORT && !host.startsWith('/')) {
-      config.port = parseInt(process.env.PGPORT, 10);
+    if (process.env.PGPORT && !String(host).startsWith('/')) {
+      cfg.port = parseInt(process.env.PGPORT, 10);
     }
-    pool = new Pool(config);
+    pool = new (require('pg').Pool)(cfg);
   }
 
-  if (pool) {
-    global._postgresPool = pool;
-    pool.on('error', (err) => {
-      console.error('[PostgreSQL Pool Error]:', err.message);
-    });
+  if (!pool) {
+    // Fail fast - avoid silent fallbacks that hide misconfiguration
+    throw new Error('PostgreSQL pool is not configured: set DATABASE_URL or SQL_HOST/SQL_USER/SQL_DB_NAME (or ensure src/db/index exports createPool)');
   }
+
+  // cache globally
+  global._postgresPool = pool;
+
+  pool.on('error', (err) => {
+    console.error('[PostgreSQL Pool Error]:', err && err.message ? err.message : err);
+  });
+
   return pool;
 }
 
 function isAvailable() {
-  return Boolean(getPool());
+  try {
+    return Boolean(getPool());
+  } catch (e) {
+    return false;
+  }
 }
 
 async function query(sql, params = []) {
-  const p = getPool();
-  if (p) {
-    try {
-      return await p.query(sql, params);
-    } catch (err) {
-      console.error('[PostgreSQL Query Error]:', err.message, 'SQL:', sql);
-      throw err;
-    }
+  const p = getPool(); // will throw if unconfigured
+  try {
+    return await p.query(sql, params);
+  } catch (err) {
+    console.error('[PostgreSQL Query Error]:', err && err.message ? err.message : err, 'SQL:', sql);
+    throw err;
   }
-  console.warn('[PostgreSQL Pool Warning]: Pool is not configured or available for query:', sql);
-  return { rows: [], rowCount: 0 };
 }
 
 async function withTransaction(fn) {
-  const p = getPool();
-  if (!p) {
-    console.warn('[PostgreSQL Pool Warning]: withTransaction called but pool is not available.');
-    return await fn({
-      query: async (sql, params) => query(sql, params)
-    });
-  }
+  const p = getPool(); // will throw if unconfigured
   const client = await p.connect();
   try {
     await client.query('BEGIN');
@@ -83,7 +109,7 @@ async function withTransaction(fn) {
     await client.query('COMMIT');
     return result;
   } catch (err) {
-    await client.query('ROLLBACK');
+    try { await client.query('ROLLBACK'); } catch (e) { /* ignore */ }
     throw err;
   } finally {
     client.release();
