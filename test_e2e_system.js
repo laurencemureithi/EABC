@@ -496,7 +496,13 @@ async function runTests() {
   assert.strictEqual(restoredAssetRows.rows.length, 1, 'Asset must be restored to PostgreSQL assets table');
   console.log('   ✅ Asset successfully restored from Recycle Bin back into PostgreSQL active assets\n');
 
-  // Clean up restored asset, test part, test user to keep DB clean
+  // Clean up restored asset, test breakdown, test task, test part, test user, and test workspace
+  if (loggedBd && loggedBd.breakdown_id) {
+    await dal.query('DELETE FROM breakdowns WHERE breakdown_id = $1;', [loggedBd.breakdown_id]);
+  }
+  if (createdPm && createdPm.task_id) {
+    await dal.query('DELETE FROM maintenance_tasks WHERE task_id = $1;', [createdPm.task_id]);
+  }
   await dal.query('DELETE FROM assets WHERE uid = $1;', [createdAsset.uid]);
   await dal.query('DELETE FROM recycle_bin WHERE primary_id = $1;', [createdAsset.uid]);
   await dal.query('DELETE FROM inventory_parts WHERE sku = $1;', [testPartSku]);

@@ -761,6 +761,24 @@
         try {
           localStorage.removeItem('opsloom_master_state_v1');
         } catch (e) {}
+
+        // Resilient session and workspace preservation for iframe environments
+        try {
+          var currentWs = '{{ active_company.id if active_company else "" }}';
+          var currentUser = '{{ user.id if user else "" }}';
+          if (currentWs) localStorage.setItem('opsloom_cached_ws_id', currentWs);
+          if (currentUser) localStorage.setItem('opsloom_cached_user_id', currentUser);
+
+          var getCk = function(name) {
+            var m = document.cookie.match(new RegExp('(^|; )' + name + '=([^;]*)'));
+            return m ? decodeURIComponent(m[2]) : null;
+          };
+          if (!getCk('opsloom_ws_id') && localStorage.getItem('opsloom_cached_ws_id')) {
+            var cWs = localStorage.getItem('opsloom_cached_ws_id');
+            var isHttps = location.protocol === 'https:';
+            document.cookie = 'opsloom_ws_id=' + cWs + '; path=/; max-age=31536000;' + (isHttps ? ' SameSite=None; Secure' : ' SameSite=Lax');
+          }
+        } catch (e) {}
       } catch (e) {}
     })();
 

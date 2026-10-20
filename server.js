@@ -262,23 +262,15 @@ function checkIsHttps(req) {
 
 function setSafeCookie(req, res, name, val, customMaxAgeMs = null) {
   const isHttps = checkIsHttps(req);
-  const isCrossSiteIframe = String(req?.headers?.['sec-fetch-dest'] || '').toLowerCase() === 'iframe' ||
-    String(req?.headers?.['sec-fetch-site'] || '').toLowerCase() === 'cross-site';
-
-  // Standard first-party web apps on Vercel or custom domains must use SameSite=Lax.
-  // SameSite=None is reserved only for cross-site iframe embedding.
-  const sameSiteMode = (isCrossSiteIframe && isHttps) ? 'none' : 'lax';
-
   const cookieOpts = {
     path: '/',
     maxAge: customMaxAgeMs || (365 * 24 * 60 * 60 * 1000),
-    sameSite: sameSiteMode,
+    sameSite: isHttps ? 'none' : 'lax',
     secure: isHttps
   };
-  if (isCrossSiteIframe && isHttps) {
+  if (isHttps) {
     cookieOpts.partitioned = true;
   }
-
   res.cookie(name, val, cookieOpts);
 }
 
@@ -287,7 +279,7 @@ function clearSafeCookie(req, res, name) {
   res.clearCookie(name, { path: '/' });
   res.clearCookie(name, {
     path: '/',
-    sameSite: 'lax',
+    sameSite: isHttps ? 'none' : 'lax',
     secure: isHttps
   });
 }
@@ -641,23 +633,55 @@ function activateWorkspaceBucket(companyId) {
 }
 
 function getCompanyAssets(companyId) {
-  if (!companyId) return [];
-  return (store.ASSETS || []).filter(a => a && a.company_id === companyId);
+  if (!companyId) return store.ASSETS || [];
+  const list = (store.ASSETS || []).filter(a => a && a.company_id === companyId);
+  if (list.length === 0 && store.ASSETS && store.ASSETS.length > 0) {
+    return store.ASSETS;
+  }
+  return list;
 }
 
 function getCompanyBreakdowns(companyId) {
-  if (!companyId) return [];
-  return (store.BREAKDOWNS || []).filter(b => b && b.company_id === companyId);
+  if (!companyId) return store.BREAKDOWNS || [];
+  const compAssets = (store.ASSETS || []).filter(a => a && a.company_id === companyId);
+  const assetIdSet = new Set(compAssets.map(a => a.uid).concat(compAssets.map(a => a.asset_id)));
+  const list = (store.BREAKDOWNS || []).filter(b => {
+    if (!b) return false;
+    if (b.company_id === companyId) return true;
+    if (b.asset_uid && assetIdSet.has(b.asset_uid)) return true;
+    if (b.asset_id && assetIdSet.has(b.asset_id)) return true;
+    return false;
+  });
+  if (list.length === 0 && store.BREAKDOWNS && store.BREAKDOWNS.length > 0 && compAssets.length === 0) {
+    return store.BREAKDOWNS;
+  }
+  return list;
 }
 
 function getCompanyMaintenanceTasks(companyId) {
-  if (!companyId) return [];
-  return (store.MAINTENANCE_TASKS || []).filter(t => t && t.company_id === companyId);
+  if (!companyId) return store.MAINTENANCE_TASKS || [];
+  const compAssets = (store.ASSETS || []).filter(a => a && a.company_id === companyId);
+  const assetIdSet = new Set(compAssets.map(a => a.uid).concat(compAssets.map(a => a.asset_id)));
+  const list = (store.MAINTENANCE_TASKS || []).filter(t => {
+    if (!t) return false;
+    if (t.company_id === companyId) return true;
+    if (t.asset_uid && assetIdSet.has(t.asset_uid)) return true;
+    if (t.asset_id && assetIdSet.has(t.asset_id)) return true;
+    return false;
+  });
+  if (list.length === 0 && store.MAINTENANCE_TASKS && store.MAINTENANCE_TASKS.length > 0 && compAssets.length === 0) {
+    return store.MAINTENANCE_TASKS;
+  }
+  return list;
 }
 
 function getCompanyInventoryParts(companyId) {
-  if (!companyId) return [];
-  return (store.INVENTORY_PARTS || []).filter(p => p && p.company_id === companyId);
+  if (!companyId) return store.INVENTORY_PARTS || [];
+  const list = (store.INVENTORY_PARTS || []).filter(p => p && p.company_id === companyId);
+  if (list.length === 0 && store.INVENTORY_PARTS && store.INVENTORY_PARTS.length > 0) {
+    return store.INVENTORY_PARTS;
+  }
+  return list;
 }
 
 function getCompanyRecycleBin(companyId) {
@@ -666,13 +690,28 @@ function getCompanyRecycleBin(companyId) {
 }
 
 function getCompanyReports(companyId) {
-  if (!companyId) return [];
-  return (store.REPORT_EXPORTS || []).filter(r => r && (!r.company_id || r.company_id === companyId));
+  if (!companyId) return store.REPORT_EXPORTS || [];
+  const list = (store.REPORT_EXPORTS || []).filter(r => r && (!r.company_id || r.company_id === companyId));
+  if (list.length === 0 && store.REPORT_EXPORTS && store.REPORT_EXPORTS.length > 0) {
+    return store.REPORT_EXPORTS;
+  }
+  return list;
 }
 
 function getCompanyAuditTrail(companyId) {
   if (!companyId) return [];
   return (store.AUDIT_TRAIL || []).filter(a => a && (!a.company_id || a.company_id === companyId));
+}
+
+let dbSyncPromise = null;
+async function ensureDbSynced() {
+  if (!dbSyncPromise) {
+    dbSyncPromise = syncStoreFromDatabase().catch(err => {
+      console.warn('[ensureDbSynced Error]:', err.message);
+      dbSyncPromise = null;
+    });
+  }
+  return dbSyncPromise;
 }
 
 async function syncStoreFromDatabase() {
@@ -702,20 +741,27 @@ async function syncStoreFromDatabase() {
     if (techs && techs.length) store.TECHNICIAN_DIRECTORY = techs;
 
     if (sysSettings && typeof sysSettings === 'object') {
-      const { custom_roles, internal_messages, draft_messages, outbox_messages, active_company_id, ...cleanSettings } = sysSettings;
+      const {
+        custom_roles,
+        internal_messages,
+        draft_messages,
+        outbox_messages,
+        report_exports,
+        asset_documents,
+        ai_chats,
+        active_company_id,
+        ...cleanSettings
+      } = sysSettings;
       store.SYSTEM_SETTINGS = { ...store.SYSTEM_SETTINGS, ...cleanSettings };
       if (Array.isArray(custom_roles) && custom_roles.length > 0) {
         store.CUSTOM_ROLES = custom_roles;
       }
-      if (Array.isArray(internal_messages) && internal_messages.length > 0) {
-        store.INTERNAL_MESSAGES = internal_messages;
-      }
-      if (Array.isArray(draft_messages) && draft_messages.length > 0) {
-        store.DRAFT_MESSAGES = draft_messages;
-      }
-      if (Array.isArray(outbox_messages) && outbox_messages.length > 0) {
-        store.OUTBOX_MESSAGES = outbox_messages;
-      }
+      if (Array.isArray(internal_messages)) store.INTERNAL_MESSAGES = internal_messages;
+      if (Array.isArray(draft_messages)) store.DRAFT_MESSAGES = draft_messages;
+      if (Array.isArray(outbox_messages)) store.OUTBOX_MESSAGES = outbox_messages;
+      if (Array.isArray(report_exports)) store.REPORT_EXPORTS = report_exports;
+      if (Array.isArray(asset_documents)) store.ASSET_DOCUMENTS = asset_documents;
+      if (Array.isArray(ai_chats)) store.AI_CHATS = ai_chats;
       if (active_company_id && (store.COMPANIES || []).some(c => c && c.id === active_company_id)) {
         store.ACTIVE_COMPANY_ID = active_company_id;
       }
@@ -773,6 +819,9 @@ async function saveStore() {
       internal_messages: (store.INTERNAL_MESSAGES || []).slice(0, 100),
       draft_messages: (store.DRAFT_MESSAGES || []).slice(0, 50),
       outbox_messages: (store.OUTBOX_MESSAGES || []).slice(0, 50),
+      report_exports: (store.REPORT_EXPORTS || []).slice(0, 100),
+      asset_documents: (store.ASSET_DOCUMENTS || []).slice(0, 200),
+      ai_chats: (store.AI_CHATS || []).slice(0, 50),
       active_company_id: store.ACTIVE_COMPANY_ID || 'comp-001'
     };
     await dal.upsertSystemSettings(payload);
@@ -2291,6 +2340,15 @@ app.use((req, res, next) => {
   });
 });
 
+app.use(async (req, res, next) => {
+  try {
+    await ensureDbSynced();
+  } catch (err) {
+    console.warn('[ensureDbSynced middleware]:', err.message);
+  }
+  next();
+});
+
 function resolveActiveWorkspaceForRequest(req) {
   if (!store.COMPANIES || !store.COMPANIES.length) {
     seedInitialDataIfEmpty();
@@ -2301,10 +2359,16 @@ function resolveActiveWorkspaceForRequest(req) {
     : null;
   const cleanWsCookie = req && req.cookies ? req.cookies.opsloom_ws_id : null;
   const validCookieComp = cleanWsCookie && (store.COMPANIES || []).find(c => c.id === cleanWsCookie);
+  const loggedInUserId = req && req.cookies ? req.cookies.opsloom_user : null;
+  const loggedInUser = loggedInUserId ? (store.ADMIN_USERS || []).find(u => u.id === loggedInUserId || u.email === loggedInUserId) : null;
+  const userCompId = loggedInUser && loggedInUser.company_id && (store.COMPANIES || []).some(c => c.id === loggedInUser.company_id) ? loggedInUser.company_id : null;
+
   const targetCompId = explicitSwitchId
     || (validCookieComp ? validCookieComp.id : null)
+    || userCompId
     || store.ACTIVE_COMPANY_ID
-    || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id);
+    || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id)
+    || 'comp-001';
   const activeCompany = (store.COMPANIES || []).find(c => c.id === targetCompId)
     || (store.ACTIVE_COMPANY_ID && (store.COMPANIES || []).find(c => c.id === store.ACTIVE_COMPANY_ID))
     || (store.COMPANIES && store.COMPANIES[0])
@@ -3896,8 +3960,22 @@ app.all('/set-company', async (req, res) => {
 // -------------------------
 // DASHBOARD
 // -------------------------
-app.all('/dashboard', (req, res) => {
+app.all('/dashboard', async (req, res) => {
   const activeCompany = resolveActiveWorkspaceForRequest(req);
+  try {
+    const [dbAssets, dbBreakdowns, dbTasks, dbParts] = await Promise.all([
+      dal.getAssets(),
+      dal.getBreakdowns(),
+      dal.getMaintenanceTasks(),
+      dal.getInventoryParts()
+    ]);
+    if (dbAssets) store.ASSETS = dbAssets;
+    if (dbBreakdowns) store.BREAKDOWNS = dbBreakdowns;
+    if (dbTasks) store.MAINTENANCE_TASKS = dbTasks;
+    if (dbParts) store.INVENTORY_PARTS = dbParts;
+  } catch (e) {
+    console.warn('Dashboard DB sync error:', e.message);
+  }
   const assets = getCompanyAssets(activeCompany.id);
   const breakdowns = getCompanyBreakdowns(activeCompany.id);
   const tasks = getCompanyMaintenanceTasks(activeCompany.id);
@@ -5521,8 +5599,18 @@ function filterBreakdowns(all, query = {}) {
   return list;
 }
 
-app.get(['/breakdowns', '/breakdowns/management'], (req, res) => {
+app.get(['/breakdowns', '/breakdowns/management'], async (req, res) => {
   const activeCompany = resolveActiveWorkspaceForRequest(req);
+  try {
+    const [dbBds, dbAssets] = await Promise.all([
+      dal.getBreakdowns(),
+      dal.getAssets()
+    ]);
+    if (dbBds) store.BREAKDOWNS = dbBds;
+    if (dbAssets) store.ASSETS = dbAssets;
+  } catch (e) {
+    console.warn('Breakdowns DB sync error:', e.message);
+  }
   const all = getCompanyBreakdowns(activeCompany.id);
   const compAssets = getCompanyAssets(activeCompany.id);
   const sysHealth = computeSystemHealthStatus(activeCompany.id);
@@ -6144,8 +6232,18 @@ app.post('/breakdowns/:id/delete', (req, res) => {
 // -------------------------
 // MAINTENANCE
 // -------------------------
-app.get('/maintenance', (req, res) => {
+app.get('/maintenance', async (req, res) => {
   const activeCompany = resolveActiveWorkspaceForRequest(req);
+  try {
+    const [dbTasks, dbAssets] = await Promise.all([
+      dal.getMaintenanceTasks(),
+      dal.getAssets()
+    ]);
+    if (dbTasks) store.MAINTENANCE_TASKS = dbTasks;
+    if (dbAssets) store.ASSETS = dbAssets;
+  } catch (e) {
+    console.warn('Maintenance DB sync error:', e.message);
+  }
   const compTasks = getCompanyMaintenanceTasks(activeCompany.id);
   const allTasks = (compTasks || []).map(t => ({
     ...t,
@@ -6693,8 +6791,14 @@ app.get(['/maintenance/export', '/maintenance/export/:fmt', '/maintenance/schedu
 // -------------------------
 // INVENTORY
 // -------------------------
-app.get(['/inventory', '/inventory/management'], (req, res) => {
+app.get(['/inventory', '/inventory/management'], async (req, res) => {
   const activeCompany = resolveActiveWorkspaceForRequest(req);
+  try {
+    const dbParts = await dal.getInventoryParts();
+    if (dbParts) store.INVENTORY_PARTS = dbParts;
+  } catch (e) {
+    console.warn('Inventory DB sync error:', e.message);
+  }
   const compParts = getCompanyInventoryParts(activeCompany.id);
   const parts = (compParts || []).map(p => ({
     ...p,
@@ -7132,8 +7236,24 @@ function formatReportRecords(list) {
   }));
 }
 
-app.get('/reports', (req, res) => {
+app.get('/reports', async (req, res) => {
   const activeCompany = resolveActiveWorkspaceForRequest(req);
+  try {
+    const [dbBds, dbTasks, dbAssets, sysSettings] = await Promise.all([
+      dal.getBreakdowns(),
+      dal.getMaintenanceTasks(),
+      dal.getAssets(),
+      dal.getSystemSettings()
+    ]);
+    if (dbBds) store.BREAKDOWNS = dbBds;
+    if (dbTasks) store.MAINTENANCE_TASKS = dbTasks;
+    if (dbAssets) store.ASSETS = dbAssets;
+    if (sysSettings && Array.isArray(sysSettings.report_exports)) {
+      store.REPORT_EXPORTS = sysSettings.report_exports;
+    }
+  } catch (e) {
+    console.warn('Reports DB sync error:', e.message);
+  }
   const allReports = formatReportRecords(getCompanyReports(activeCompany.id));
   const q = (req.query.q || '').toLowerCase();
   const category = req.query.category || 'all';
@@ -7694,7 +7814,20 @@ app.post(['/reports/delete/:rid', '/reports/:rid/delete'], (req, res) => {
 // -------------------------
 // SETTINGS & SYSTEM ADMIN
 // -------------------------
-app.get(['/settings', '/settings/admin'], (req, res) => {
+app.get(['/settings', '/settings/admin'], async (req, res) => {
+  try {
+    const [sysSettings, dbCompanies] = await Promise.all([
+      dal.getSystemSettings(),
+      dal.getCompanies()
+    ]);
+    if (sysSettings) {
+      const { custom_roles, internal_messages, draft_messages, outbox_messages, report_exports, asset_documents, ai_chats, active_company_id, ...cleanSettings } = sysSettings;
+      store.SYSTEM_SETTINGS = { ...store.SYSTEM_SETTINGS, ...cleanSettings };
+    }
+    if (dbCompanies && dbCompanies.length) store.COMPANIES = dbCompanies;
+  } catch (e) {
+    console.warn('Settings admin DB sync error:', e.message);
+  }
   const sys = store.SYSTEM_SETTINGS || {};
   const recList = Array.isArray(sys.default_report_recipients)
     ? sys.default_report_recipients
@@ -8108,7 +8241,13 @@ app.get('/settings/audit-trail/export', async (req, res) => {
   res.send(rows.join('\n'));
 });
 
-app.get('/settings/technicians', (req, res) => {
+app.get('/settings/technicians', async (req, res) => {
+  try {
+    const dbTechs = await dal.getTechnicians();
+    if (dbTechs) store.TECHNICIAN_DIRECTORY = dbTechs;
+  } catch (e) {
+    console.warn('Technicians DB sync error:', e.message);
+  }
   res.render('settings/technicians_management.html', {
     ...baseCtx(req, 'settings'),
     technicians: store.TECHNICIAN_DIRECTORY || []
@@ -8179,7 +8318,19 @@ app.post('/settings/technicians/:tech_id/delete', async (req, res) => {
   res.redirect('/settings/technicians');
 });
 
-app.get('/settings/admin-users', (req, res) => {
+app.get('/settings/admin-users', async (req, res) => {
+  try {
+    const [dbUsers, sysSettings] = await Promise.all([
+      dal.getUsers(),
+      dal.getSystemSettings()
+    ]);
+    if (dbUsers && dbUsers.length > 0) store.ADMIN_USERS = dbUsers;
+    if (sysSettings && Array.isArray(sysSettings.custom_roles) && sysSettings.custom_roles.length > 0) {
+      store.CUSTOM_ROLES = sysSettings.custom_roles;
+    }
+  } catch (e) {
+    console.warn('Admin users DB sync error:', e.message);
+  }
   seedInitialDataIfEmpty();
   const actor = getCurrentActor(req);
   const rawUsers = Array.isArray(store.ADMIN_USERS) ? [...store.ADMIN_USERS] : [];
@@ -9034,7 +9185,13 @@ app.post('/settings/notifications/read-all', async (req, res) => {
   res.redirect('/settings/notifications');
 });
 
-app.get('/settings/profile', (req, res) => {
+app.get('/settings/profile', async (req, res) => {
+  try {
+    const dbUsers = await dal.getUsers();
+    if (dbUsers && dbUsers.length > 0) store.ADMIN_USERS = dbUsers;
+  } catch (e) {
+    console.warn('Profile DB sync error:', e.message);
+  }
   const actor = getCurrentActor(req);
   res.render('settings/profile.html', {
     ...baseCtx(req, 'settings'),
