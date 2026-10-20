@@ -9,20 +9,40 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-const pool = new Pool({
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD,
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || 'eabc_prod',
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-});
+const host = process.env.SQL_HOST || process.env.PGHOST || process.env.DB_HOST;
+const user = process.env.SQL_USER || process.env.PGUSER || process.env.DB_USER;
+const password = process.env.SQL_PASSWORD || process.env.PGPASSWORD || process.env.DB_PASSWORD;
+const database = process.env.SQL_DB_NAME || process.env.PGDATABASE || process.env.DB_NAME;
+const port = process.env.PGPORT || process.env.DB_PORT || process.env.SQL_PORT;
+const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+
+let pool;
+if (global._postgresPool) {
+  pool = global._postgresPool;
+} else if (connectionString) {
+  pool = new Pool({
+    connectionString,
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+  });
+  global._postgresPool = pool;
+} else {
+  pool = new Pool({
+    user: user || 'postgres',
+    password: password || '',
+    host: host || 'localhost',
+    port: port ? parseInt(port, 10) : 5432,
+    database: database || 'cloud_sql_development_database',
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+  });
+  global._postgresPool = pool;
+}
 
 pool.on('error', (err, client) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
+  console.error('[Database Pool Error]:', err && err.message ? err.message : err);
 });
 
 pool.on('connect', (client) => {

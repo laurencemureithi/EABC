@@ -14,11 +14,14 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
     "@types/pg": "^8.23.1",
     "autoprefixer": "^10.4.23",
     "drizzle-kit": "^0.31.11",
     "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.17"
+    "tailwindcss": "^3.4.17",
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
