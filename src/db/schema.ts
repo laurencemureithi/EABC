@@ -93,6 +93,15 @@ export const breakdowns = pgTable('breakdowns', {
   durationMins: integer('duration_mins'),
   resolvedAt: text('resolved_at'),
   createdAt: text('created_at'),
+  costTotal: text('cost_total').default('0'),
+  costSubtotal: text('cost_subtotal').default('0'),
+  costVatPct: text('cost_vat_pct').default('16'),
+  costVatAmount: text('cost_vat_amount').default('0'),
+  cost: text('cost').default('0'),
+  downtimeHours: text('downtime_hours').default('0'),
+  rcaJson: text('rca_json'),
+  progressLogJson: text('progress_log_json'),
+  mediaJson: text('media_json'),
 });
 
 export const maintenanceTasks = pgTable('maintenance_tasks', {
@@ -114,6 +123,10 @@ export const maintenanceTasks = pgTable('maintenance_tasks', {
   completedAt: text('completed_at'),
   completionNotes: text('completion_notes'),
   createdAt: text('created_at'),
+  cost: text('cost').default('0'),
+  costTotal: text('cost_total').default('0'),
+  invoiceUrl: text('invoice_url'),
+  invoiceName: text('invoice_name'),
 });
 
 export const inventoryParts = pgTable('inventory_parts', {
@@ -135,6 +148,9 @@ export const inventoryParts = pgTable('inventory_parts', {
   photoUrl: text('photo_url'),
   docUrl: text('doc_url'),
   createdAt: text('created_at'),
+  quantityOnHand: integer('quantity_on_hand'),
+  reorderLevel: integer('reorder_level'),
+  unitCost: text('unit_cost'),
 });
 
 export const recycleBin = pgTable('recycle_bin', {
@@ -199,3 +215,69 @@ export const notifications = pgTable('notifications', {
   createdAt: text('created_at').notNull(),
 });
 
+export const reports = pgTable('reports', {
+  id: text('id').primaryKey(),
+  companyId: text('company_id'),
+  name: text('name').notNull(),
+  reportTitle: text('report_title'),
+  category: text('category'),
+  categoryKey: text('category_key'),
+  department: text('department'),
+  scopeMode: text('scope_mode'),
+  startDate: text('start_date'),
+  endDate: text('end_date'),
+  period: text('period'),
+  format: text('format').default('PDF'),
+  status: text('status').default('READY'),
+  createdAt: text('created_at'),
+  createdAtFmt: text('created_at_fmt'),
+  generatedLabel: text('generated_label'),
+  userName: text('user_name'),
+  execNotes: text('exec_notes'),
+  dataJson: text('data_json'),
+});
+
+export const assetDocuments = pgTable('asset_documents', {
+  id: text('id').primaryKey(),
+  uid: text('uid'),
+  assetUid: text('asset_uid').notNull(),
+  companyId: text('company_id'),
+  title: text('title').notNull(),
+  docName: text('doc_name'),
+  category: text('category').default('Manual'),
+  version: text('version').default('v1.0'),
+  owner: text('owner'),
+  expiryDate: text('expiry_date'),
+  reviewDate: text('review_date'),
+  description: text('description'),
+  fileUrl: text('file_url'),
+  uploadedAt: text('uploaded_at'),
+});
+
+export const assetSpareParts = pgTable('asset_spare_parts', {
+  id: text('id').primaryKey(),
+  assetUid: text('asset_uid').notNull(),
+  companyId: text('company_id'),
+  partName: text('part_name').notNull(),
+  partNumber: text('part_number'),
+  quantity: integer('quantity').default(1),
+  criticality: text('criticality').default('A'),
+  leadTimeDays: integer('lead_time_days').default(7),
+  supplier: text('supplier'),
+  createdAt: text('created_at'),
+});
+
+export const messages = pgTable('messages', {
+  id: text('id').primaryKey(),
+  companyId: text('company_id'),
+  folder: text('folder').default('inbox'),
+  senderName: text('sender_name'),
+  senderEmail: text('sender_email'),
+  recipientEmail: text('recipient_email'),
+  subject: text('subject').notNull(),
+  content: text('content'),
+  category: text('category'),
+  priority: text('priority').default('Normal'),
+  isRead: boolean('is_read').default(false),
+  createdAt: text('created_at'),
+});

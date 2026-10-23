@@ -32,7 +32,8 @@ function getAiClient() {
 
 const app = express();
 app.set('trust proxy', 1);
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT, 10) || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 const isVercel = Boolean(process.env.VERCEL);
 process.env.TZ = process.env.TZ || 'Africa/Nairobi';
 
@@ -634,54 +635,38 @@ function activateWorkspaceBucket(companyId) {
 
 function getCompanyAssets(companyId) {
   if (!companyId) return store.ASSETS || [];
-  const list = (store.ASSETS || []).filter(a => a && a.company_id === companyId);
-  if (list.length === 0 && store.ASSETS && store.ASSETS.length > 0) {
-    return store.ASSETS;
-  }
-  return list;
+  return (store.ASSETS || []).filter(a => a && a.company_id === companyId);
 }
 
 function getCompanyBreakdowns(companyId) {
   if (!companyId) return store.BREAKDOWNS || [];
   const compAssets = (store.ASSETS || []).filter(a => a && a.company_id === companyId);
   const assetIdSet = new Set(compAssets.map(a => a.uid).concat(compAssets.map(a => a.asset_id)));
-  const list = (store.BREAKDOWNS || []).filter(b => {
+  return (store.BREAKDOWNS || []).filter(b => {
     if (!b) return false;
     if (b.company_id === companyId) return true;
     if (b.asset_uid && assetIdSet.has(b.asset_uid)) return true;
     if (b.asset_id && assetIdSet.has(b.asset_id)) return true;
     return false;
   });
-  if (list.length === 0 && store.BREAKDOWNS && store.BREAKDOWNS.length > 0 && compAssets.length === 0) {
-    return store.BREAKDOWNS;
-  }
-  return list;
 }
 
 function getCompanyMaintenanceTasks(companyId) {
   if (!companyId) return store.MAINTENANCE_TASKS || [];
   const compAssets = (store.ASSETS || []).filter(a => a && a.company_id === companyId);
   const assetIdSet = new Set(compAssets.map(a => a.uid).concat(compAssets.map(a => a.asset_id)));
-  const list = (store.MAINTENANCE_TASKS || []).filter(t => {
+  return (store.MAINTENANCE_TASKS || []).filter(t => {
     if (!t) return false;
     if (t.company_id === companyId) return true;
     if (t.asset_uid && assetIdSet.has(t.asset_uid)) return true;
     if (t.asset_id && assetIdSet.has(t.asset_id)) return true;
     return false;
   });
-  if (list.length === 0 && store.MAINTENANCE_TASKS && store.MAINTENANCE_TASKS.length > 0 && compAssets.length === 0) {
-    return store.MAINTENANCE_TASKS;
-  }
-  return list;
 }
 
 function getCompanyInventoryParts(companyId) {
   if (!companyId) return store.INVENTORY_PARTS || [];
-  const list = (store.INVENTORY_PARTS || []).filter(p => p && p.company_id === companyId);
-  if (list.length === 0 && store.INVENTORY_PARTS && store.INVENTORY_PARTS.length > 0) {
-    return store.INVENTORY_PARTS;
-  }
-  return list;
+  return (store.INVENTORY_PARTS || []).filter(p => p && p.company_id === companyId);
 }
 
 function getCompanyRecycleBin(companyId) {
@@ -691,11 +676,31 @@ function getCompanyRecycleBin(companyId) {
 
 function getCompanyReports(companyId) {
   if (!companyId) return store.REPORT_EXPORTS || [];
-  const list = (store.REPORT_EXPORTS || []).filter(r => r && (!r.company_id || r.company_id === companyId));
-  if (list.length === 0 && store.REPORT_EXPORTS && store.REPORT_EXPORTS.length > 0) {
-    return store.REPORT_EXPORTS;
-  }
-  return list;
+  return (store.REPORT_EXPORTS || []).filter(r => r && (!r.company_id || r.company_id === companyId));
+}
+
+function getCompanyAssetDocuments(companyId) {
+  if (!companyId) return store.ASSET_DOCUMENTS || [];
+  const compAssets = (store.ASSETS || []).filter(a => a && a.company_id === companyId);
+  const assetIdSet = new Set(compAssets.map(a => a.uid).concat(compAssets.map(a => a.asset_id)));
+  return (store.ASSET_DOCUMENTS || []).filter(d => {
+    if (!d) return false;
+    if (d.company_id === companyId) return true;
+    if (d.asset_uid && assetIdSet.has(d.asset_uid)) return true;
+    return false;
+  });
+}
+
+function getCompanySpareParts(companyId) {
+  if (!companyId) return store.SPARE_PARTS || [];
+  const compAssets = (store.ASSETS || []).filter(a => a && a.company_id === companyId);
+  const assetIdSet = new Set(compAssets.map(a => a.uid).concat(compAssets.map(a => a.asset_id)));
+  return (store.SPARE_PARTS || []).filter(s => {
+    if (!s) return false;
+    if (s.company_id === companyId) return true;
+    if (s.asset_uid && assetIdSet.has(s.asset_uid)) return true;
+    return false;
+  });
 }
 
 function getCompanyAuditTrail(companyId) {
@@ -704,8 +709,11 @@ function getCompanyAuditTrail(companyId) {
 }
 
 let dbSyncPromise = null;
-async function ensureDbSynced() {
-  if (!dbSyncPromise) {
+let lastDbSyncEpoch = 0;
+async function ensureDbSynced(force = false) {
+  const now = Date.now();
+  if (force || !dbSyncPromise || (now - lastDbSyncEpoch > 1500)) {
+    lastDbSyncEpoch = now;
     dbSyncPromise = syncStoreFromDatabase().catch(err => {
       console.warn('[ensureDbSynced Error]:', err.message);
       dbSyncPromise = null;
@@ -716,7 +724,7 @@ async function ensureDbSynced() {
 
 async function syncStoreFromDatabase() {
   try {
-    const [companies, assets, users, breakdowns, maint, inv, bin, notifs, audit, sysSettings, techs] = await Promise.all([
+    const [companies, assets, users, breakdowns, maint, inv, bin, notifs, audit, sysSettings, techs, dbReports, dbDocs, dbSpares, dbMsgs] = await Promise.all([
       dal.getCompanies(),
       dal.getAssets(),
       dal.getUsers(),
@@ -727,7 +735,11 @@ async function syncStoreFromDatabase() {
       dal.getNotifications(),
       dal.getAuditTrail(),
       dal.getSystemSettings(),
-      dal.getTechnicians()
+      dal.getTechnicians(),
+      dal.getReports(),
+      dal.getAssetDocuments(),
+      dal.getSpareParts(),
+      dal.getMessages()
     ]);
     if (companies && companies.length) store.COMPANIES = companies;
     if (assets) store.ASSETS = assets;
@@ -739,6 +751,14 @@ async function syncStoreFromDatabase() {
     if (notifs) store.SYSTEM_NOTIFICATIONS = notifs;
     if (audit) store.AUDIT_TRAIL = audit;
     if (techs && techs.length) store.TECHNICIAN_DIRECTORY = techs;
+    if (dbReports) store.REPORT_EXPORTS = dbReports;
+    if (dbDocs) store.ASSET_DOCUMENTS = dbDocs;
+    if (dbSpares) store.SPARE_PARTS = dbSpares;
+    if (dbMsgs && dbMsgs.length) {
+      store.INTERNAL_MESSAGES = dbMsgs.filter(m => m.folder === 'inbox' || !m.folder);
+      store.DRAFT_MESSAGES = dbMsgs.filter(m => m.folder === 'draft');
+      store.OUTBOX_MESSAGES = dbMsgs.filter(m => m.folder === 'outbox');
+    }
 
     if (sysSettings && typeof sysSettings === 'object') {
       const {
@@ -756,11 +776,8 @@ async function syncStoreFromDatabase() {
       if (Array.isArray(custom_roles) && custom_roles.length > 0) {
         store.CUSTOM_ROLES = custom_roles;
       }
-      if (Array.isArray(internal_messages)) store.INTERNAL_MESSAGES = internal_messages;
-      if (Array.isArray(draft_messages)) store.DRAFT_MESSAGES = draft_messages;
-      if (Array.isArray(outbox_messages)) store.OUTBOX_MESSAGES = outbox_messages;
-      if (Array.isArray(report_exports)) store.REPORT_EXPORTS = report_exports;
-      if (Array.isArray(asset_documents)) store.ASSET_DOCUMENTS = asset_documents;
+      if ((!dbReports || !dbReports.length) && Array.isArray(report_exports)) store.REPORT_EXPORTS = report_exports;
+      if ((!dbDocs || !dbDocs.length) && Array.isArray(asset_documents)) store.ASSET_DOCUMENTS = asset_documents;
       if (Array.isArray(ai_chats)) store.AI_CHATS = ai_chats;
       if (active_company_id && (store.COMPANIES || []).some(c => c && c.id === active_company_id)) {
         store.ACTIVE_COMPANY_ID = active_company_id;
@@ -769,7 +786,7 @@ async function syncStoreFromDatabase() {
 
     delete store.WORKSPACE_DATA;
     activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
-    console.log(`[PostgreSQL Sync]: Loaded ${store.COMPANIES?.length || 0} companies, ${store.ASSETS?.length || 0} assets, ${store.ADMIN_USERS?.length || 0} users, ${store.TECHNICIAN_DIRECTORY?.length || 0} technicians, settings synchronized.`);
+    console.log(`[PostgreSQL Sync]: Loaded ${store.COMPANIES?.length || 0} companies, ${store.ASSETS?.length || 0} assets, ${store.BREAKDOWNS?.length || 0} breakdowns, ${store.MAINTENANCE_TASKS?.length || 0} tasks, ${store.INVENTORY_PARTS?.length || 0} parts, ${store.REPORT_EXPORTS?.length || 0} reports.`);
   } catch (err) {
     console.warn('[syncStoreFromDatabase Error]:', err.message);
   }
@@ -954,6 +971,9 @@ function logAudit(action, detail, module = 'general', href = '/dashboard', sever
       store.WORKSPACE_DATA[activeCompId].AUDIT_TRAIL.pop();
     }
   }
+  try {
+    dal.addAudit(item).catch(e => console.warn('DAL addAudit async warning:', e.message));
+  } catch (e) {}
   saveStore();
 }
 
@@ -992,6 +1012,16 @@ function createSystemNotification(options = {}) {
       store.WORKSPACE_DATA[targetCompId].SYSTEM_NOTIFICATIONS.unshift(notif);
     }
   }
+  try {
+    dal.addNotification({
+      companyId: targetCompId,
+      eventType: 'system_alert',
+      entityModule: 'general',
+      title: notif.title,
+      message: notif.message,
+      severity: notif.kind || 'info'
+    }).catch(e => console.warn('DAL addNotification async warning:', e.message));
+  } catch (e) {}
   saveStore();
   return notif;
 }
@@ -2353,20 +2383,21 @@ function resolveActiveWorkspaceForRequest(req) {
   if (!store.COMPANIES || !store.COMPANIES.length) {
     seedInitialDataIfEmpty();
   }
-  // Strictly honor workspace switching ONLY on /set-company, and lock to the user's opsloom_ws_id session cookie across all module navigation.
-  const explicitSwitchId = (req && req.path === '/set-company')
-    ? (req.query?.company_id || req.body?.company_id)
-    : null;
+  const queryCompId = req && (req.query?.company_id || req.body?.company_id);
+  const headerCompId = req && req.headers ? (req.headers['x-company-id'] || req.headers['x-workspace-id']) : null;
   const cleanWsCookie = req && req.cookies ? req.cookies.opsloom_ws_id : null;
-  const validCookieComp = cleanWsCookie && (store.COMPANIES || []).find(c => c.id === cleanWsCookie);
+  const explicitCompId = queryCompId || headerCompId || cleanWsCookie;
+  const validExplicitComp = explicitCompId && (store.COMPANIES || []).find(c => c.id === explicitCompId);
+
   const loggedInUserId = req && req.cookies ? req.cookies.opsloom_user : null;
   const loggedInUser = loggedInUserId ? (store.ADMIN_USERS || []).find(u => u.id === loggedInUserId || u.email === loggedInUserId) : null;
   const userCompId = loggedInUser && loggedInUser.company_id && (store.COMPANIES || []).some(c => c.id === loggedInUser.company_id) ? loggedInUser.company_id : null;
 
-  const targetCompId = explicitSwitchId
-    || (validCookieComp ? validCookieComp.id : null)
+  const targetCompId = (req && req.activeCompany && req.activeCompany.id ? req.activeCompany.id : null)
+    || (validExplicitComp ? validExplicitComp.id : null)
     || userCompId
     || store.ACTIVE_COMPANY_ID
+    || (store.COMPANIES && store.COMPANIES.some(c => c.id === 'comp-001') ? 'comp-001' : null)
     || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id)
     || 'comp-001';
   const activeCompany = (store.COMPANIES || []).find(c => c.id === targetCompId)
@@ -2757,6 +2788,9 @@ app.use((req, res, next) => {
     p.startsWith('/login/') ||
     p === '/logout' ||
     p === '/lock' ||
+    p === '/health' ||
+    p === '/api/health' ||
+    p === '/api/ping' ||
     p === '/api/system/clock-sync' ||
     p === '/api/system/hydrate-state' ||
     p.startsWith('/static') ||
@@ -3286,8 +3320,11 @@ app.post('/login', (req, res) => {
   const timeoutMins = getSessionTimeoutMinutes();
   const timeoutMs = timeoutMins * 60 * 1000;
 
-  // Strictly match registered user in store.ADMIN_USERS
-  const user = (store.ADMIN_USERS || []).find(u => (u.email || '').trim().toLowerCase() === cleanEmail);
+  // Match registered user or primary admin alias in store.ADMIN_USERS
+  const user = (store.ADMIN_USERS || []).find(u => 
+    (u.email || '').trim().toLowerCase() === cleanEmail ||
+    ((cleanEmail === 'laurencemureithi1999@gmail.com' || cleanEmail === 'laurence@opsloom.co.ke') && (u.id === 'USR-001' || (u.email && u.email.toLowerCase() === ADMIN_PRIMARY_EMAIL)))
+  );
   if (!user) {
     logAudit('Failed Login Attempt', `Unrecognized email login attempt: ${cleanEmail || 'empty'}`, 'security', '/login', 'warning');
     flash('error', 'Invalid company email or password. Please verify your credentials.');
@@ -3300,7 +3337,7 @@ app.post('/login', (req, res) => {
     return res.redirect('/login');
   }
 
-  const isPrimaryAdminUser = user.id === 'USR-001' || cleanEmail === ADMIN_PRIMARY_EMAIL;
+  const isPrimaryAdminUser = user.id === 'USR-001' || cleanEmail === ADMIN_PRIMARY_EMAIL || cleanEmail === 'laurencemureithi1999@gmail.com';
   const expectedPassword = isPrimaryAdminUser
     ? String(store.SYSTEM_SETTINGS?.admin_login_password || user.password || 'Admin@123').trim()
     : String(user.password !== undefined && user.password !== '' ? user.password : 'Admin@123').trim();
@@ -4076,35 +4113,94 @@ app.all('/dashboard', async (req, res) => {
     severity: b.severity || 'High'
   }));
 
-  // Strategic AI-Driven Action Feed
-  const action_feed = [
-    {
+  // Strategic Action Feed strictly derived from persisted company records
+  const action_feed = [];
+  if (activeBds[0]) {
+    action_feed.push({
       icon: 'build_circle',
-      title: activeBds[0] ? `Resolve ${activeBds[0].breakdown_id}: ${activeBds[0].asset_name}` : 'Inspect Critical Class-A Rotary Fillers',
+      title: `Resolve ${activeBds[0].breakdown_id}: ${activeBds[0].asset_name}`,
       meta: 'HIGH PRIORITY',
-      body: activeBds[0]
-        ? `${activeBds[0].incident_title} in ${activeBds[0].section} section requires immediate technician containment to restore line availability.`
-        : 'All Class-A sterile filling assets are online. Verify 30-day lubrication and seal integrity.',
-      href: activeBds[0] ? `/breakdowns/${activeBds[0].breakdown_id}` : '/breakdowns',
+      body: `${activeBds[0].incident_title || 'Equipment incident'} in ${activeBds[0].section || 'plant'} section requires technician containment to restore line availability.`,
+      href: `/breakdowns/${activeBds[0].breakdown_id}`,
       cta: 'Open Breakdown Control'
-    },
-    {
+    });
+  } else if (assets.length > 0) {
+    action_feed.push({
+      icon: 'verified',
+      title: 'Equipment Operational',
+      meta: 'STATUS NORMAL',
+      body: `All ${assets.length} registered asset(s) in this workspace are online without active breakdown stoppages.`,
+      href: '/assets',
+      cta: 'View Asset Register'
+    });
+  } else {
+    action_feed.push({
+      icon: 'add_circle',
+      title: 'Register Equipment & Assets',
+      meta: 'SETUP REQUIRED',
+      body: 'No equipment registered in this workspace yet. Add your critical machines to begin tracking reliability.',
+      href: '/assets/new/step-1',
+      cta: 'Register First Asset'
+    });
+  }
+
+  if (lowStockCount + outOfStockCount > 0) {
+    action_feed.push({
       icon: 'inventory_2',
       title: `Replenish ${lowStockCount + outOfStockCount} Low / Stockout Spare Parts`,
       meta: 'SPARES BUFFER',
-      body: `${outOfStockCount} stockout(s) and ${lowStockCount} low-stock SKU(s) identified (including Solid State Relays & Pneumatic Cylinders).`,
-      href: '/inventory?stock_state=low',
+      body: `${outOfStockCount} stockout(s) and ${lowStockCount} low-stock SKU(s) identified. Replenish buffers to prevent line stoppages.`,
+      href: '/inventory?stock_state=low_stock',
       cta: 'Review Spares Buffer'
-    },
-    {
-      icon: 'event_repeat',
-      title: overduePm > 0 ? `Close ${overduePm} Overdue Preventive Work Order(s)` : 'Maintain Preventive Schedule Cadence',
+    });
+  } else if (parts.length > 0) {
+    action_feed.push({
+      icon: 'inventory_2',
+      title: 'Spare Parts Buffer Healthy',
+      meta: 'STOCK OPTIMAL',
+      body: `All ${parts.length} spare part SKUs are maintained above safety reorder thresholds.`,
+      href: '/inventory',
+      cta: 'View Inventory'
+    });
+  } else {
+    action_feed.push({
+      icon: 'inventory_2',
+      title: 'Enroll Spare Parts',
+      meta: 'SETUP',
+      body: 'No inventory parts registered in this workspace yet. Enroll critical spare parts to monitor safety stock.',
+      href: '/inventory/new/step-1',
+      cta: 'Add Spare Part'
+    });
+  }
+
+  if (overduePm > 0) {
+    action_feed.push({
+      icon: 'event_busy',
+      title: `Close ${overduePm} Overdue Preventive Work Order(s)`,
       meta: `PM SLA ${pmCompliance}%`,
-      body: `Closing overdue preventive tasks across Pharma and Nutraceuticals protects fleet MTBF and prevents seal/bearing trips.`,
+      body: `Closing overdue preventive tasks protects fleet MTBF and prevents unexpected equipment stoppages.`,
+      href: '/maintenance?status=overdue',
+      cta: 'Open PM Schedule'
+    });
+  } else if (tasks.length > 0) {
+    action_feed.push({
+      icon: 'event_repeat',
+      title: 'Preventive Schedule on Track',
+      meta: `PM SLA ${pmCompliance}%`,
+      body: `${completedTasks} PM task(s) completed and ${upcomingTasks} upcoming work orders scheduled.`,
       href: '/maintenance',
       cta: 'Open PM Schedule'
-    }
-  ];
+    });
+  } else {
+    action_feed.push({
+      icon: 'calendar_add_on',
+      title: 'Schedule Preventive Maintenance',
+      meta: 'SCHEDULE CADENCE',
+      body: 'Create preventive maintenance routines to prevent unscheduled downtime and track technician execution.',
+      href: '/maintenance/schedule',
+      cta: 'Schedule Maintenance'
+    });
+  }
 
   const financialExposure = Math.round(totalDowntime * 18500);
   const companyTargets = getCompanyKpiTargets(activeCompany.id);
@@ -5316,12 +5412,84 @@ app.post('/assets/:asset_uid/spareparts/:spare_id/delete', (req, res) => {
 app.get('/assets/:asset_uid/spare-parts', (req, res) => {
   const asset = findAssetByUidOrId(req.params.asset_uid);
   if (!asset) return res.redirect('/assets');
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  const allParts = getCompanyInventoryParts(activeCompany.id);
+
+  // Link parts by asset_uid, asset_id, or compatible_assets (array or string)
+  let linked = allParts.filter(p => {
+    if (!p) return false;
+    if (p.asset_uid === asset.uid || p.asset_id === asset.asset_id) return true;
+    if (Array.isArray(p.compatible_assets) && (p.compatible_assets.includes(asset.asset_id) || p.compatible_assets.includes(asset.uid) || p.compatible_assets.includes(asset.asset_name))) return true;
+    if (typeof p.compatible_assets === 'string' && (p.compatible_assets.includes(asset.asset_id) || p.compatible_assets.includes(asset.asset_name))) return true;
+    return false;
+  });
+
+  // If no parts specifically linked yet, show plant parts so table is populated and technician has quick access
+  if (linked.length === 0 && allParts.length > 0) {
+    linked = allParts;
+  }
+
+  const q = (req.query.q || '').trim().toLowerCase();
+  const cat = req.query.category || '';
+  const stockState = req.query.stock_state || '';
+
+  let filtered = linked;
+  if (q) {
+    filtered = filtered.filter(p =>
+      (p.part_name && p.part_name.toLowerCase().includes(q)) ||
+      (p.sku && p.sku.toLowerCase().includes(q)) ||
+      (p.supplier && p.supplier.toLowerCase().includes(q)) ||
+      (p.storage_location && p.storage_location.toLowerCase().includes(q))
+    );
+  }
+  if (cat) {
+    filtered = filtered.filter(p => (p.category || '').toLowerCase() === cat.toLowerCase());
+  }
+  if (stockState === 'healthy') {
+    filtered = filtered.filter(p => Number(p.qty || 0) > Number(p.min_qty || 0));
+  } else if (stockState === 'low_stock') {
+    filtered = filtered.filter(p => Number(p.qty || 0) > 0 && Number(p.qty || 0) <= Number(p.min_qty || 0));
+  } else if (stockState === 'out_of_stock') {
+    filtered = filtered.filter(p => Number(p.qty || 0) <= 0);
+  }
+
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const per_page = Math.max(1, parseInt(req.query.per_page, 10) || 10);
+  const total = filtered.length;
+  const total_pages = Math.max(1, Math.ceil(total / per_page));
+  const paginated = filtered.slice((page - 1) * per_page, page * per_page);
+
+  const pages = [];
+  for (let i = 1; i <= total_pages; i++) pages.push(i);
+
+  const categories = Array.from(new Set(allParts.map(p => p.category).filter(Boolean))).sort();
+  const totalValue = linked.reduce((sum, p) => sum + (Number(p.qty || 0) * Number(p.unit_price || p.unit_cost || 0)), 0);
+
+  const kpis = {
+    total_linked_parts: linked.length,
+    critical_spares: linked.filter(p => p.is_critical || p.criticality === 'High' || p.criticality === 'Critical').length,
+    low_stock_alerts: linked.filter(p => Number(p.qty || 0) > 0 && Number(p.qty || 0) <= Number(p.min_qty || 0)).length,
+    out_of_stock: linked.filter(p => Number(p.qty || 0) <= 0).length,
+    total_inventory_value: `KES ${totalValue.toLocaleString()}`
+  };
+
   res.render('assets/assets_spare_parts.html', {
     ...baseCtx(req, 'assets'),
     asset,
     active_tab: 'spare_parts',
-    parts: store.INVENTORY_PARTS || [],
-    spares: store.INVENTORY_PARTS || []
+    linked_parts: paginated,
+    parts: paginated,
+    spares: paginated,
+    total,
+    page,
+    per_page,
+    total_pages,
+    pages,
+    kpis,
+    categories,
+    selected_category: cat,
+    selected_stock_state: stockState,
+    q: req.query.q || ''
   });
 });
 
@@ -5486,11 +5654,28 @@ app.get(['/assets/:asset_uid/maintenance-history/export/:fmt', '/assets/:asset_u
 app.get('/assets/:asset_uid/documents', (req, res) => {
   const asset = findAssetByUidOrId(req.params.asset_uid);
   if (!asset) return res.redirect('/assets');
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  const allDocs = getCompanyAssetDocuments(activeCompany.id);
+  let docs = allDocs.filter(d => d && (d.asset_uid === asset.uid || d.asset_uid === asset.asset_id));
+  if (docs.length === 0 && allDocs.length > 0) {
+    docs = allDocs;
+  }
+  const formattedDocs = docs.map(d => ({
+    ...d,
+    uid: d.uid || d.id,
+    id: d.id || d.uid,
+    name: d.name || d.title || d.doc_name || 'Document',
+    title: d.title || d.doc_name || d.name || 'Document',
+    file_path: d.file_path || d.file_url || '',
+    category: d.category || 'OEM MANUAL',
+    version: d.version || 'v1.0'
+  }));
+
   res.render('assets/assets_documents.html', {
     ...baseCtx(req, 'assets'),
     asset,
     active_tab: 'documents',
-    documents: store.ASSET_DOCUMENTS || []
+    documents: formattedDocs
   });
 });
 
@@ -5503,24 +5688,34 @@ app.get('/assets/:asset_uid/documents/upload', (req, res) => {
   });
 });
 
-app.post('/assets/:asset_uid/documents/upload', upload.any(), (req, res) => {
+app.post('/assets/:asset_uid/documents/upload', upload.any(), async (req, res) => {
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
   const uploadedFile = req.file || (Array.isArray(req._allUploadedFiles) && req._allUploadedFiles[0]) || null;
   const dataUrl = fileToDataUrl(uploadedFile);
   const doc = {
     id: 'doc-' + Date.now(),
     uid: 'doc-' + Date.now(),
     asset_uid: req.params.asset_uid,
+    company_id: activeCompany.id,
     title: req.body.doc_name || req.body.title || (uploadedFile ? uploadedFile.originalname : 'Document'),
     doc_name: req.body.doc_name || req.body.title || (uploadedFile ? uploadedFile.originalname : 'Document'),
-    category: req.body.category || 'Manual',
+    name: req.body.doc_name || req.body.title || (uploadedFile ? uploadedFile.originalname : 'Document'),
+    category: req.body.category || 'OEM MANUAL',
     version: req.body.version || 'v1.0',
     owner: req.body.owner || 'Engineering Team',
     expiry_date: req.body.expiry_date || '',
     review_date: req.body.review_date || '',
     description: req.body.description || '',
     file_url: dataUrl || (uploadedFile ? `/static/uploads/${uploadedFile.filename}` : ''),
+    file_path: dataUrl || (uploadedFile ? `/static/uploads/${uploadedFile.filename}` : ''),
+    file_ext: uploadedFile ? path.extname(uploadedFile.originalname).replace('.', '') : 'pdf',
     uploaded_at: getSystemNowIso()
   };
+  try {
+    await dal.upsertAssetDocument(doc);
+  } catch (e) {
+    console.warn('DAL upsertAssetDocument error:', e.message);
+  }
   if (!store.ASSET_DOCUMENTS) store.ASSET_DOCUMENTS = [];
   store.ASSET_DOCUMENTS.push(doc);
   saveStore();
@@ -5528,7 +5723,10 @@ app.post('/assets/:asset_uid/documents/upload', upload.any(), (req, res) => {
   res.redirect(`/assets/${req.params.asset_uid}/documents`);
 });
 
-app.post('/assets/:asset_uid/documents/:doc_uid/delete', (req, res) => {
+app.post('/assets/:asset_uid/documents/:doc_uid/delete', async (req, res) => {
+  try {
+    await dal.deleteAssetDocument(req.params.doc_uid);
+  } catch (e) {}
   if (!store.ASSET_DOCUMENTS) store.ASSET_DOCUMENTS = [];
   const idx = store.ASSET_DOCUMENTS.findIndex(d => (d.uid || d.id) === req.params.doc_uid);
   if (idx !== -1) {
@@ -7161,7 +7359,7 @@ app.get('/inventory/:part_uid/adjust', (req, res) => {
   });
 });
 
-app.post('/inventory/:part_uid/adjust', (req, res) => {
+app.post('/inventory/:part_uid/adjust', async (req, res) => {
   const part = store.INVENTORY_PARTS.find(p => p.uid === req.params.part_uid);
   if (part) {
     const delta = Number(req.body.delta || req.body.qty_change || 0);
@@ -7171,6 +7369,11 @@ app.post('/inventory/:part_uid/adjust', (req, res) => {
       part.qty = Math.max(0, Number(part.qty || 0) + delta);
     }
     part.quantity_on_hand = part.qty;
+    try {
+      await dal.upsertInventoryPart(part);
+    } catch (e) {
+      console.warn('DAL upsertInventoryPart adjust error:', e.message);
+    }
     saveStore();
     logAudit('Stock Adjusted', `Updated stock for ${part.part_name} (${part.sku}) to ${part.qty}`, 'inventory', `/inventory/${part.uid}`);
     flash('success', `Stock updated for ${part.part_name}.`);
@@ -7188,13 +7391,21 @@ app.get('/inventory/:part_uid/edit', (req, res) => {
   });
 });
 
-app.post('/inventory/:part_uid/edit', (req, res) => {
+app.post('/inventory/:part_uid/edit', async (req, res) => {
   const part = store.INVENTORY_PARTS.find(p => p.uid === req.params.part_uid);
   if (part) {
     Object.assign(part, req.body);
     part.qty = Number(part.qty || 0);
     part.min_qty = Number(part.min_qty || 0);
     part.unit_price = Number(part.unit_price || 0);
+    part.quantity_on_hand = part.qty;
+    part.reorder_level = part.min_qty;
+    part.unit_cost = String(part.unit_price);
+    try {
+      await dal.upsertInventoryPart(part);
+    } catch (e) {
+      console.warn('DAL upsertInventoryPart edit error:', e.message);
+    }
     saveStore();
     logAudit('Part Updated', `Updated spare part ${part.part_name}`, 'inventory', `/inventory/${part.uid}`);
     flash('success', 'Part details saved.');
@@ -7403,7 +7614,8 @@ app.get('/reports/generate/step3', (req, res) => {
   });
 });
 
-app.post('/reports/generate/step3', (req, res) => {
+app.post('/reports/generate/step3', async (req, res) => {
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
   const user = req.cookies?.opsloom_user || 'default';
   const data = { ...(wizardState.reports[user] || {}), ...req.body };
   const rid = 'rep-' + Date.now();
@@ -7418,6 +7630,7 @@ app.post('/reports/generate/step3', (req, res) => {
   const catDisplay = categoryLabels[catKey] || data.category || 'Strategic & Financial ROI';
   const report = {
     id: rid,
+    company_id: activeCompany.id,
     name: `${data.report_title || catDisplay} • ${data.start_date || '2026-09-01'} to ${data.end_date || '2026-09-30'}`,
     report_title: data.report_title || `${catDisplay} Intelligence`,
     category: catDisplay,
@@ -7433,8 +7646,14 @@ app.post('/reports/generate/step3', (req, res) => {
     created_at_fmt: formatSystemTimestamp(getSystemNowIso()),
     generated_label: formatSystemTimestamp(getSystemNowIso()),
     user_name: req.cookies?.opsloom_user || 'Laurence Magondu',
-    exec_notes: data.exec_notes || ''
+    exec_notes: data.exec_notes || '',
+    data_json: JSON.stringify(data)
   };
+  try {
+    await dal.upsertReport(report);
+  } catch (e) {
+    console.warn('DAL upsertReport error:', e.message);
+  }
   store.REPORT_EXPORTS.unshift(report);
   delete wizardState.reports[user];
   logAudit('Report Generated', `Generated ${report.name}`, 'reports', `/reports/view/${rid}`);
@@ -7799,14 +8018,19 @@ app.get('/reports/export/:rid/:fmt', async (req, res) => {
   res.send(rows.join('\n'));
 });
 
-app.post(['/reports/delete/:rid', '/reports/:rid/delete'], (req, res) => {
-  const idx = (store.REPORT_EXPORTS || []).findIndex(r => r.id === req.params.rid);
+app.post(['/reports/delete/:rid', '/reports/:rid/delete'], async (req, res) => {
+  const rid = req.params.rid;
+  try {
+    await dal.deleteReport(rid);
+  } catch (e) {}
+  const idx = (store.REPORT_EXPORTS || []).findIndex(r => r.id === rid);
   if (idx !== -1) {
     const deleted = store.REPORT_EXPORTS.splice(idx, 1)[0];
     moveToRecycleBin('report', `${deleted.report_title || deleted.name} (${deleted.id})`, deleted.id, deleted);
     logAudit('Report Deleted', `Moved report ${deleted.id} to Admin Recycle Bin`, 'reports', '/settings/recycle-bin', 'warning');
     flash('success', 'Report export moved to Admin Recycle Bin.');
   }
+  saveStore();
   const ref = req.get('Referrer') || '';
   res.redirect(ref.includes('/history') ? '/reports/history' : '/reports');
 });
@@ -9411,10 +9635,58 @@ app.post(['/settings/help', '/settings/help/request'], (req, res) => {
 });
 
 // -------------------------
+// HEALTH & READINESS PROBE
+// -------------------------
+app.get(['/health', '/api/ping'], async (req, res) => {
+  let dbConnected = false;
+  let dbLatencyMs = 0;
+  let poolStats = {};
+  try {
+    const start = Date.now();
+    await dal.query('SELECT 1;');
+    dbLatencyMs = Date.now() - start;
+    dbConnected = true;
+    try {
+      const pool = dal.getPool();
+      if (pool) {
+        poolStats = {
+          total: pool.totalCount || 0,
+          idle: pool.idleCount || 0,
+          waiting: pool.waitingCount || 0
+        };
+      }
+    } catch (pe) {}
+  } catch (err) {
+    dbConnected = false;
+  }
+  const status = dbConnected ? 'healthy' : 'degraded';
+  const statusCode = dbConnected ? 200 : 503;
+  return res.status(statusCode).json({
+    status,
+    database: dbConnected ? 'connected' : 'disconnected',
+    latency_ms: dbLatencyMs,
+    pool: poolStats,
+    uptime_seconds: Math.floor(process.uptime()),
+    timestamp: getSystemNowIso()
+  });
+});
+
+// -------------------------
 // LIVE APIS (FOR POLLING & CHARTS)
 // -------------------------
-app.get(['/api/system/health', '/api/health', '/api/live/dashboard/kpis'], (req, res) => {
+app.get(['/api/system/health', '/api/live/dashboard/kpis'], async (req, res) => {
   const activeCompany = resolveActiveWorkspaceForRequest(req);
+  try {
+    const [assets, bds, tasks] = await Promise.all([
+      dal.getAssets(),
+      dal.getBreakdowns(),
+      dal.getMaintenanceTasks()
+    ]);
+    if (assets) store.ASSETS = assets;
+    if (bds) store.BREAKDOWNS = bds;
+    if (tasks) store.MAINTENANCE_TASKS = tasks;
+  } catch (e) {}
+
   const sysHealth = computeSystemHealthStatus(activeCompany.id);
   const breakdowns = getCompanyBreakdowns(activeCompany.id);
   const tasks = getCompanyMaintenanceTasks(activeCompany.id);
@@ -9439,8 +9711,17 @@ app.get(['/api/system/health', '/api/health', '/api/live/dashboard/kpis'], (req,
   });
 });
 
-app.get(['/api/live/breakdowns/kpis', '/api/breakdowns/kpi'], (req, res) => {
+app.get(['/api/live/breakdowns/kpis', '/api/breakdowns/kpi'], async (req, res) => {
   const activeCompany = resolveActiveWorkspaceForRequest(req);
+  try {
+    const [bds, assets] = await Promise.all([
+      dal.getBreakdowns(),
+      dal.getAssets()
+    ]);
+    if (bds) store.BREAKDOWNS = bds;
+    if (assets) store.ASSETS = assets;
+  } catch (e) {}
+
   const breakdowns = getCompanyBreakdowns(activeCompany.id);
   const active = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved').length;
   const totalDowntime = breakdowns.reduce((acc, b) => acc + calculateDowntimeHours(b), 0);
@@ -9497,8 +9778,13 @@ app.get('/api/breakdowns/frequency', (req, res) => {
   });
 });
 
-app.get('/api/live/maintenance/kpis', (req, res) => {
+app.get('/api/live/maintenance/kpis', async (req, res) => {
   const activeCompany = resolveActiveWorkspaceForRequest(req);
+  try {
+    const tasks = await dal.getMaintenanceTasks();
+    if (tasks) store.MAINTENANCE_TASKS = tasks;
+  } catch (e) {}
+
   const tasks = getCompanyMaintenanceTasks(activeCompany.id);
   const total = tasks.length;
   const overdue = tasks.filter(t => t.status === 'overdue').length;
@@ -9518,8 +9804,17 @@ app.get('/api/live/maintenance/kpis', (req, res) => {
   });
 });
 
-app.get(['/api/live/reports/kpis', '/api/live/reports-kpis'], (req, res) => {
+app.get(['/api/live/reports/kpis', '/api/live/reports-kpis'], async (req, res) => {
   const activeCompany = resolveActiveWorkspaceForRequest(req);
+  try {
+    const [tasks, bds] = await Promise.all([
+      dal.getMaintenanceTasks(),
+      dal.getBreakdowns()
+    ]);
+    if (tasks) store.MAINTENANCE_TASKS = tasks;
+    if (bds) store.BREAKDOWNS = bds;
+  } catch (e) {}
+
   const targets = getCompanyKpiTargets(activeCompany.id);
   const sysHealth = computeSystemHealthStatus(activeCompany.id);
   const tasks = getCompanyMaintenanceTasks(activeCompany.id);
@@ -10077,7 +10372,26 @@ module.exports = app;
 
 // Start Server in standalone / development environment
 if (!process.env.VERCEL) {
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[AI Studio] Opsloom server running on http://0.0.0.0:${PORT}`);
+  const server = app.listen(PORT, HOST, () => {
+    console.log(`[AI Studio] Opsloom server running on http://${HOST}:${PORT}`);
   });
+
+  const handleShutdown = async (signal) => {
+    console.log(`[System]: ${signal} received. Starting graceful shutdown...`);
+    server.close(async () => {
+      try {
+        const pool = dal.getPool();
+        if (pool) await pool.end();
+        console.log('[System]: PostgreSQL pool closed cleanly.');
+      } catch (e) {}
+      process.exit(0);
+    });
+    setTimeout(() => {
+      console.warn('[System]: Forceful shutdown timeout reached.');
+      process.exit(1);
+    }, 5000).unref();
+  };
+
+  process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+  process.on('SIGINT', () => handleShutdown('SIGINT'));
 }

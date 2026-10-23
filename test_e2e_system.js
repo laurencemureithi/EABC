@@ -2,7 +2,7 @@ const http = require('http');
 const assert = require('assert');
 const dal = require('./src/db/dal');
 
-const BASE_URL = 'http://127.0.0.1:3000';
+const BASE_URL = process.env.BASE_URL || (process.env.PORT ? `http://127.0.0.1:${process.env.PORT}` : 'http://127.0.0.1:3000');
 
 function request(options, postData = null) {
   return new Promise((resolve, reject) => {

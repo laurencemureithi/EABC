@@ -116,10 +116,12 @@
 {% block page_scripts %}
 <script>
 (function(){
-  const url = {{ url_for('api_live_reports_kpis')|tojson }};
+  const baseApiUrl = {{ url_for('api_live_reports_kpis')|tojson }};
+  const activeCompanyId = '{{ active_company.id if active_company else "comp-001" }}';
+  const url = baseApiUrl + '?company_id=' + encodeURIComponent(activeCompanyId);
   async function refreshKpis(){
     try{
-      const r = await fetch(url, {headers: {'X-Requested-With':'XMLHttpRequest'}});
+      const r = await fetch(url, { credentials: 'include', headers: {'X-Requested-With':'XMLHttpRequest'} });
       if(!r.ok) return;
       const k = await r.json();
       const ids = {reportsOeeScore:k.oee_score,reportsOeeDelta:k.oee_delta,reportsPmCompliance:k.pm_compliance,reportsPmTarget:k.pm_target,reportsMttrTrend:k.mttr_trend,reportsMttrAvg:k.mttr_avg,reportsMtdSpend:k.mtd_spend,reportsBudgetPct:k.budget_pct,reportsBudgetLimit:k.budget_limit};
@@ -128,7 +130,7 @@
     }catch(e){}
   }
   refreshKpis();
-  setInterval(refreshKpis, 1000);
+  setInterval(refreshKpis, 20000);
 })();
 </script>
 {% endblock %}

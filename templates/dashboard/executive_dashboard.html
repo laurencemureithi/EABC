@@ -475,7 +475,9 @@
 {% block page_scripts %}
 <script>
 (function(){
-  const url = {{ url_for('api_live_dashboard_kpis')|tojson }};
+  const baseApiUrl = {{ url_for('api_live_dashboard_kpis')|tojson }};
+  const activeCompanyId = '{{ active_company.id if active_company else "comp-001" }}';
+  const url = baseApiUrl + '?company_id=' + encodeURIComponent(activeCompanyId);
   const money = n => 'KES ' + Number(n || 0).toLocaleString(undefined, {maximumFractionDigits:0});
   function setText(id, value){ const el = document.getElementById(id); if(el) el.textContent = value; }
   function setBadge(uptime, target, sysHealth){
@@ -512,7 +514,7 @@
   }
   async function refreshKpis(){
     try{
-      const r = await fetch(url, {cache:'no-store', headers:{'X-Requested-With':'XMLHttpRequest'}});
+      const r = await fetch(url, { credentials: 'include', cache: 'no-store', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
       if(!r.ok) return;
       const k = await r.json();
       setText('dashboardUptimeRate', Number(k.uptime_rate || 0).toFixed(1));
@@ -529,7 +531,7 @@
     }catch(e){}
   }
   refreshKpis();
-  setInterval(refreshKpis, 5000);
+  setInterval(refreshKpis, 20000);
 
   (function(){
     const canvas = document.getElementById('dashboardDowntimeChart');

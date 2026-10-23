@@ -293,7 +293,7 @@ async function getAssets(companyId = null) {
     sql += ' WHERE company_id = $1';
     params.push(companyId);
   }
-  sql += ' ORDER BY registered_at DESC, asset_id ASC;';
+  sql += ' ORDER BY created_at DESC NULLS LAST, registered_at DESC, asset_id ASC;';
   const res = await query(sql, params);
   if (res && res.rows) {
     return res.rows.map(r => ({
@@ -849,13 +849,42 @@ async function getBreakdowns(companyId = null) {
   }
   sql += ' ORDER BY reported_dt DESC;';
   const res = await query(sql, params);
-  return res && res.rows ? res.rows : [];
+  if (res && res.rows) {
+    return res.rows.map(r => ({
+      ...r,
+      cost: Number(r.cost || r.cost_total || 0),
+      cost_total: Number(r.cost_total || r.cost || 0),
+      cost_subtotal: Number(r.cost_subtotal || 0),
+      cost_vat_pct: Number(r.cost_vat_pct || 16),
+      cost_vat_amount: Number(r.cost_vat_amount || 0),
+      downtime_hours: Number(r.downtime_hours || 0),
+      duration_mins: Number(r.duration_mins || 0),
+      rca: r.rca_json ? (typeof r.rca_json === 'string' ? JSON.parse(r.rca_json) : r.rca_json) : {},
+      progress_log: r.progress_log_json ? (typeof r.progress_log_json === 'string' ? JSON.parse(r.progress_log_json) : r.progress_log_json) : [],
+      media: r.media_json ? (typeof r.media_json === 'string' ? JSON.parse(r.media_json) : r.media_json) : []
+    }));
+  }
+  return [];
 }
 
 async function upsertBreakdown(b) {
   const sql = `
-    INSERT INTO breakdowns (breakdown_id, company_id, asset_uid, asset_id, asset_name, incident_title, section, department, reported_dt, failure_category, severity, symptoms, technician_name, technician_phone, technician_email, status, notes, duration_mins, resolved_at, created_at)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+    INSERT INTO breakdowns (
+      breakdown_id, company_id, asset_uid, asset_id, asset_name, incident_title,
+      section, department, reported_dt, failure_category, severity, symptoms,
+      technician_name, technician_phone, technician_email, status, notes,
+      duration_mins, resolved_at, created_at,
+      cost_total, cost_subtotal, cost_vat_pct, cost_vat_amount, cost,
+      downtime_hours, rca_json, progress_log_json, media_json
+    )
+    VALUES (
+      $1, $2, $3, $4, $5, $6,
+      $7, $8, $9, $10, $11, $12,
+      $13, $14, $15, $16, $17,
+      $18, $19, $20,
+      $21, $22, $23, $24, $25,
+      $26, $27, $28, $29
+    )
     ON CONFLICT (breakdown_id) DO UPDATE SET
       company_id = EXCLUDED.company_id,
       asset_uid = EXCLUDED.asset_uid,
@@ -874,15 +903,35 @@ async function upsertBreakdown(b) {
       status = EXCLUDED.status,
       notes = EXCLUDED.notes,
       duration_mins = EXCLUDED.duration_mins,
-      resolved_at = EXCLUDED.resolved_at
+      resolved_at = EXCLUDED.resolved_at,
+      cost_total = EXCLUDED.cost_total,
+      cost_subtotal = EXCLUDED.cost_subtotal,
+      cost_vat_pct = EXCLUDED.cost_vat_pct,
+      cost_vat_amount = EXCLUDED.cost_vat_amount,
+      cost = EXCLUDED.cost,
+      downtime_hours = EXCLUDED.downtime_hours,
+      rca_json = EXCLUDED.rca_json,
+      progress_log_json = EXCLUDED.progress_log_json,
+      media_json = EXCLUDED.media_json
     RETURNING *;
   `;
+  const costTot = String(b.cost_total || b.cost || 0);
+  const costSub = String(b.cost_subtotal || b.cost || 0);
+  const vatPct = String(b.cost_vat_pct !== undefined ? b.cost_vat_pct : 16);
+  const vatAmt = String(b.cost_vat_amount || Math.round(Number(costSub) * (Number(vatPct) / 100)));
+  const dtHours = String(b.downtime_hours || 0);
+  const rcaStr = b.rca ? (typeof b.rca === 'string' ? b.rca : JSON.stringify(b.rca)) : null;
+  const progStr = b.progress_log ? (typeof b.progress_log === 'string' ? b.progress_log : JSON.stringify(b.progress_log)) : null;
+  const mediaStr = b.media ? (typeof b.media === 'string' ? b.media : JSON.stringify(b.media)) : null;
+
   const params = [
     b.breakdown_id, b.company_id || 'comp-001', b.asset_uid || '', b.asset_id, b.asset_name,
     b.incident_title, b.section || '', b.department || '', b.reported_dt || new Date().toISOString(),
     b.failure_category || '', b.severity || 'Medium', b.symptoms || '', b.technician_name || '',
     b.technician_phone || '', b.technician_email || '', b.status || 'Open', b.notes || '',
-    b.duration_mins || 0, b.resolved_at || '', b.created_at || new Date().toISOString()
+    Number(b.duration_mins) || 0, b.resolved_at || '', b.created_at || new Date().toISOString(),
+    costTot, costSub, vatPct, vatAmt, costTot,
+    dtHours, rcaStr, progStr, mediaStr
   ];
   return await query(sql, params);
 }
@@ -900,13 +949,32 @@ async function getMaintenanceTasks(companyId = null) {
   }
   sql += ' ORDER BY due_date ASC;';
   const res = await query(sql, params);
-  return res && res.rows ? res.rows : [];
+  if (res && res.rows) {
+    return res.rows.map(r => ({
+      ...r,
+      cost: Number(r.cost || r.cost_total || 0),
+      cost_total: Number(r.cost_total || r.cost || 0),
+      invoice_url: r.invoice_url || '',
+      invoice_name: r.invoice_name || ''
+    }));
+  }
+  return [];
 }
 
 async function upsertMaintenanceTask(t) {
   const sql = `
-    INSERT INTO maintenance_tasks (task_id, company_id, asset_uid, asset_id, asset_name, maintenance_type, frequency, section, technician, task_title, task_description, due_date, status, priority, notes, completed_at, completion_notes, created_at)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+    INSERT INTO maintenance_tasks (
+      task_id, company_id, asset_uid, asset_id, asset_name, maintenance_type,
+      frequency, section, technician, task_title, task_description, due_date,
+      status, priority, notes, completed_at, completion_notes, created_at,
+      cost, cost_total, invoice_url, invoice_name
+    )
+    VALUES (
+      $1, $2, $3, $4, $5, $6,
+      $7, $8, $9, $10, $11, $12,
+      $13, $14, $15, $16, $17, $18,
+      $19, $20, $21, $22
+    )
     ON CONFLICT (task_id) DO UPDATE SET
       company_id = EXCLUDED.company_id,
       asset_uid = EXCLUDED.asset_uid,
@@ -923,15 +991,21 @@ async function upsertMaintenanceTask(t) {
       priority = EXCLUDED.priority,
       notes = EXCLUDED.notes,
       completed_at = EXCLUDED.completed_at,
-      completion_notes = EXCLUDED.completion_notes
+      completion_notes = EXCLUDED.completion_notes,
+      cost = EXCLUDED.cost,
+      cost_total = EXCLUDED.cost_total,
+      invoice_url = EXCLUDED.invoice_url,
+      invoice_name = EXCLUDED.invoice_name
     RETURNING *;
   `;
+  const costTot = String(t.cost_total || t.cost || 0);
   const params = [
     t.task_id, t.company_id || 'comp-001', t.asset_uid || '', t.asset_id, t.asset_name,
     t.maintenance_type || 'Preventive', t.frequency || 'Monthly', t.section || '', t.technician || '',
     t.task_title || '', t.task_description || '', t.due_date || '', t.status || 'Scheduled',
     t.priority || 'Medium', t.notes || '', t.completed_at || '', t.completion_notes || '',
-    t.created_at || new Date().toISOString()
+    t.created_at || new Date().toISOString(),
+    costTot, costTot, t.invoice_url || '', t.invoice_name || ''
   ];
   return await query(sql, params);
 }
@@ -949,13 +1023,34 @@ async function getInventoryParts(companyId = null) {
   }
   sql += ' ORDER BY part_name ASC;';
   const res = await query(sql, params);
-  return res && res.rows ? res.rows : [];
+  if (res && res.rows) {
+    return res.rows.map(r => ({
+      ...r,
+      qty: Number(r.qty !== undefined ? r.qty : (r.quantity_on_hand || 0)),
+      quantity_on_hand: Number(r.quantity_on_hand !== undefined ? r.quantity_on_hand : (r.qty || 0)),
+      min_qty: Number(r.min_qty !== undefined ? r.min_qty : (r.reorder_level || 5)),
+      reorder_level: Number(r.reorder_level !== undefined ? r.reorder_level : (r.min_qty || 5)),
+      unit_price: Number(r.unit_price !== undefined ? r.unit_price : (r.unit_cost || 0)),
+      unit_cost: String(r.unit_cost !== undefined ? r.unit_cost : (r.unit_price || '0'))
+    }));
+  }
+  return [];
 }
 
 async function upsertInventoryPart(p) {
   const sql = `
-    INSERT INTO inventory_parts (uid, company_id, part_name, sku, category, qty, min_qty, storage_location, unit_price, supplier, lead_time_days, is_critical, manufacturer, model_number, tech_specs, photo_url, doc_url, created_at)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+    INSERT INTO inventory_parts (
+      uid, company_id, part_name, sku, category, qty, min_qty,
+      storage_location, unit_price, supplier, lead_time_days, is_critical,
+      manufacturer, model_number, tech_specs, photo_url, doc_url, created_at,
+      quantity_on_hand, reorder_level, unit_cost
+    )
+    VALUES (
+      $1, $2, $3, $4, $5, $6, $7,
+      $8, $9, $10, $11, $12,
+      $13, $14, $15, $16, $17, $18,
+      $19, $20, $21
+    )
     ON CONFLICT (uid) DO UPDATE SET
       company_id = EXCLUDED.company_id,
       part_name = EXCLUDED.part_name,
@@ -972,14 +1067,21 @@ async function upsertInventoryPart(p) {
       model_number = EXCLUDED.model_number,
       tech_specs = EXCLUDED.tech_specs,
       photo_url = EXCLUDED.photo_url,
-      doc_url = EXCLUDED.doc_url
+      doc_url = EXCLUDED.doc_url,
+      quantity_on_hand = EXCLUDED.quantity_on_hand,
+      reorder_level = EXCLUDED.reorder_level,
+      unit_cost = EXCLUDED.unit_cost
     RETURNING *;
   `;
+  const quantityVal = Number(p.qty !== undefined ? p.qty : (p.quantity_on_hand || 0));
+  const minVal = Number(p.min_qty !== undefined ? p.min_qty : (p.reorder_level || 5));
+  const unitPriceVal = String(p.unit_price !== undefined ? p.unit_price : (p.unit_cost || '0'));
   const params = [
     p.uid, p.company_id || 'comp-001', p.part_name, p.sku, p.category || 'Mechanical',
-    p.qty || 0, p.min_qty || 0, p.storage_location || '', p.unit_price || '', p.supplier || '',
-    p.lead_time_days || 0, Boolean(p.is_critical), p.manufacturer || '', p.model_number || '',
-    p.tech_specs || '', p.photo_url || '', p.doc_url || '', p.created_at || new Date().toISOString()
+    quantityVal, minVal, p.storage_location || '', unitPriceVal, p.supplier || '',
+    Number(p.lead_time_days) || 0, Boolean(p.is_critical), p.manufacturer || '', p.model_number || '',
+    p.tech_specs || '', p.photo_url || '', p.doc_url || '', p.created_at || new Date().toISOString(),
+    quantityVal, minVal, unitPriceVal
   ];
   return await query(sql, params);
 }
@@ -1196,6 +1298,224 @@ async function upsertSystemSettings(settingsObj) {
   }
 }
 
+async function getReports(companyId = null) {
+  let sql = 'SELECT * FROM reports';
+  const params = [];
+  if (companyId) {
+    sql += ' WHERE company_id = $1 OR company_id IS NULL';
+    params.push(companyId);
+  }
+  sql += ' ORDER BY created_at DESC;';
+  const res = await query(sql, params);
+  if (res && res.rows) {
+    return res.rows.map(r => ({
+      ...r,
+      data: r.data_json ? (typeof r.data_json === 'string' ? JSON.parse(r.data_json) : r.data_json) : null
+    }));
+  }
+  return [];
+}
+
+async function getReportById(id) {
+  if (!id) return null;
+  const res = await query('SELECT * FROM reports WHERE id = $1 LIMIT 1;', [id]);
+  if (res && res.rows && res.rows[0]) {
+    const r = res.rows[0];
+    return {
+      ...r,
+      data: r.data_json ? (typeof r.data_json === 'string' ? JSON.parse(r.data_json) : r.data_json) : null
+    };
+  }
+  return null;
+}
+
+async function upsertReport(r) {
+  const sql = `
+    INSERT INTO reports (
+      id, company_id, name, report_title, category, category_key,
+      department, scope_mode, start_date, end_date, period, format,
+      status, created_at, created_at_fmt, generated_label, user_name, exec_notes, data_json
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+    ON CONFLICT (id) DO UPDATE SET
+      company_id = EXCLUDED.company_id,
+      name = EXCLUDED.name,
+      report_title = EXCLUDED.report_title,
+      category = EXCLUDED.category,
+      category_key = EXCLUDED.category_key,
+      department = EXCLUDED.department,
+      scope_mode = EXCLUDED.scope_mode,
+      start_date = EXCLUDED.start_date,
+      end_date = EXCLUDED.end_date,
+      period = EXCLUDED.period,
+      format = EXCLUDED.format,
+      status = EXCLUDED.status,
+      exec_notes = EXCLUDED.exec_notes,
+      data_json = EXCLUDED.data_json
+    RETURNING *;
+  `;
+  const params = [
+    r.id, r.company_id || 'comp-001', r.name, r.report_title || r.name,
+    r.category || 'Strategic & Financial ROI', r.category_key || 'strategic_roi',
+    r.department || 'Engineering', r.scope_mode || 'department',
+    r.start_date || '', r.end_date || '', r.period || '', r.format || 'PDF',
+    r.status || 'READY', r.created_at || new Date().toISOString(),
+    r.created_at_fmt || r.created_at || new Date().toISOString(),
+    r.generated_label || '', r.user_name || 'Administrator',
+    r.exec_notes || '', r.data ? JSON.stringify(r.data) : (r.data_json || null)
+  ];
+  return await query(sql, params);
+}
+
+async function deleteReport(id) {
+  return await query('DELETE FROM reports WHERE id = $1 RETURNING *;', [id]);
+}
+
+async function getAssetDocuments(assetUid = null, companyId = null) {
+  let sql = 'SELECT * FROM asset_documents WHERE 1=1';
+  const params = [];
+  if (assetUid) {
+    params.push(assetUid);
+    sql += ` AND asset_uid = $${params.length}`;
+  }
+  if (companyId) {
+    params.push(companyId);
+    sql += ` AND (company_id = $${params.length} OR company_id IS NULL)`;
+  }
+  sql += ' ORDER BY uploaded_at DESC;';
+  const res = await query(sql, params);
+  const rows = res && res.rows ? res.rows : [];
+  return rows.map(r => ({
+    ...r,
+    id: r.id || r.uid,
+    uid: r.uid || r.id,
+    name: r.doc_name || r.title || 'Document',
+    title: r.title || r.doc_name || 'Document',
+    file_path: r.file_url || '',
+    file_url: r.file_url || '',
+    size_label: 'PDF / Spec'
+  }));
+}
+
+async function upsertAssetDocument(d) {
+  const sql = `
+    INSERT INTO asset_documents (id, uid, asset_uid, company_id, title, doc_name, category, version, owner, expiry_date, review_date, description, file_url, uploaded_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+    ON CONFLICT (id) DO UPDATE SET
+      title = EXCLUDED.title,
+      doc_name = EXCLUDED.doc_name,
+      category = EXCLUDED.category,
+      version = EXCLUDED.version,
+      owner = EXCLUDED.owner,
+      expiry_date = EXCLUDED.expiry_date,
+      review_date = EXCLUDED.review_date,
+      description = EXCLUDED.description,
+      file_url = EXCLUDED.file_url
+    RETURNING *;
+  `;
+  const params = [
+    d.id || d.uid, d.uid || d.id, d.asset_uid, d.company_id || 'comp-001',
+    d.title || d.doc_name || 'Document', d.doc_name || d.title || 'Document',
+    d.category || 'Manual', d.version || 'v1.0', d.owner || 'Engineering Team',
+    d.expiry_date || '', d.review_date || '', d.description || '',
+    d.file_url || '', d.uploaded_at || new Date().toISOString()
+  ];
+  return await query(sql, params);
+}
+
+async function deleteAssetDocument(id) {
+  return await query('DELETE FROM asset_documents WHERE id = $1 OR uid = $1 RETURNING *;', [id]);
+}
+
+async function getSpareParts(assetUid = null, companyId = null) {
+  let sql = 'SELECT * FROM asset_spare_parts WHERE 1=1';
+  const params = [];
+  if (assetUid) {
+    params.push(assetUid);
+    sql += ` AND asset_uid = $${params.length}`;
+  }
+  if (companyId) {
+    params.push(companyId);
+    sql += ` AND (company_id = $${params.length} OR company_id IS NULL)`;
+  }
+  sql += ' ORDER BY created_at DESC;';
+  const res = await query(sql, params);
+  const rows = res && res.rows ? res.rows : [];
+  return rows.map(r => ({
+    ...r,
+    id: r.id,
+    uid: r.id,
+    qty: Number(r.quantity || 0),
+    min_qty: 2,
+    lead_time_days: Number(r.lead_time_days || 7)
+  }));
+}
+
+async function upsertSparePart(sp) {
+  const sql = `
+    INSERT INTO asset_spare_parts (id, asset_uid, company_id, part_name, part_number, quantity, criticality, lead_time_days, supplier, created_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    ON CONFLICT (id) DO UPDATE SET
+      part_name = EXCLUDED.part_name,
+      part_number = EXCLUDED.part_number,
+      quantity = EXCLUDED.quantity,
+      criticality = EXCLUDED.criticality,
+      lead_time_days = EXCLUDED.lead_time_days,
+      supplier = EXCLUDED.supplier
+    RETURNING *;
+  `;
+  const params = [
+    sp.id || `spare-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+    sp.asset_uid, sp.company_id || 'comp-001', sp.part_name, sp.part_number || sp.sku || '',
+    Number(sp.quantity) || 1, sp.criticality || 'A', Number(sp.lead_time_days) || 7,
+    sp.supplier || '', sp.created_at || new Date().toISOString()
+  ];
+  return await query(sql, params);
+}
+
+async function deleteSparePart(id) {
+  return await query('DELETE FROM asset_spare_parts WHERE id = $1 RETURNING *;', [id]);
+}
+
+async function getMessages(folder = null, companyId = null) {
+  let sql = 'SELECT * FROM messages WHERE 1=1';
+  const params = [];
+  if (folder) {
+    params.push(folder);
+    sql += ` AND folder = $${params.length}`;
+  }
+  if (companyId) {
+    params.push(companyId);
+    sql += ` AND (company_id = $${params.length} OR company_id IS NULL)`;
+  }
+  sql += ' ORDER BY created_at DESC;';
+  const res = await query(sql, params);
+  return res && res.rows ? res.rows : [];
+}
+
+async function upsertMessage(m) {
+  const sql = `
+    INSERT INTO messages (id, company_id, folder, sender_name, sender_email, recipient_email, subject, content, category, priority, is_read, created_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    ON CONFLICT (id) DO UPDATE SET
+      folder = EXCLUDED.folder,
+      is_read = EXCLUDED.is_read
+    RETURNING *;
+  `;
+  const params = [
+    m.id || `msg-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+    m.company_id || 'comp-001', m.folder || 'inbox', m.sender_name || 'System',
+    m.sender_email || '', m.recipient_email || '', m.subject || '',
+    m.content || '', m.category || 'General', m.priority || 'Normal',
+    Boolean(m.is_read), m.created_at || new Date().toISOString()
+  ];
+  return await query(sql, params);
+}
+
+async function deleteMessage(id) {
+  return await query('DELETE FROM messages WHERE id = $1 RETURNING *;', [id]);
+}
+
 module.exports = {
   getPool,
   isAvailable,
@@ -1241,5 +1561,19 @@ module.exports = {
   dismissNotification,
   getAuditTrail,
   addAudit,
+  getReports,
+  getReportById,
+  upsertReport,
+  deleteReport,
+  getAssetDocuments,
+  upsertAssetDocument,
+  deleteAssetDocument,
+  getSpareParts,
+  upsertSparePart,
+  deleteSparePart,
+  getMessages,
+  upsertMessage,
+  deleteMessage,
   getDiagnosticInfo
 };
+

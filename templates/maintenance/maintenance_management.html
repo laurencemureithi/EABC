@@ -830,12 +830,14 @@
 {% block page_scripts %}
 <script>
 (function(){
-  const url = {{ url_for('api_live_maintenance_kpis')|tojson }};
+  const baseApiUrl = {{ url_for('api_live_maintenance_kpis')|tojson }};
+  const activeCompanyId = '{{ active_company.id if active_company else "comp-001" }}';
+  const url = baseApiUrl + '?company_id=' + encodeURIComponent(activeCompanyId);
   const circ = 125.6;
   function setText(id, value){ const el = document.getElementById(id); if(el) el.textContent = value; }
   async function refreshKpis(){
     try{
-      const r = await fetch(url, {cache:'no-store', headers:{'X-Requested-With':'XMLHttpRequest'}});
+      const r = await fetch(url, { credentials: 'include', cache:'no-store', headers:{'X-Requested-With':'XMLHttpRequest'} });
       if(!r.ok) return;
       const k = await r.json();
       setText('maintenanceKpiPmMonth', Number(k.kpi_total_pm_month || 0));
@@ -850,7 +852,7 @@
     }catch(e){}
   }
   refreshKpis();
-  setInterval(refreshKpis, 1000);
+  setInterval(refreshKpis, 20000);
 })();
 </script>
 {% endblock %}
