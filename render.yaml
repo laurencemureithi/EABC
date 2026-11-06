@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: eabc-staging
+    runtime: node
+    plan: 0.5c-512mb
+    region: frankfurt
+    buildCommand: npm install
+    preDeployCommand: npm run db:migrate
+    startCommand: npm start
+    healthCheckPath: /health
+    disk:
+      name: eabc-staging-uploads
+      mountPath: /var/data
+      sizeGB: 5
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: TZ
+        value: Africa/Nairobi
+      - key: DATABASE_URL
+        fromDatabase:
+          name: eabc-staging-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_LOGIN_PASSWORD
+        sync: false
+      - key: ADMIN_PRIMARY_EMAIL
+        value: opsloom.ke@gmail.com
+      - key: UPLOADS_DIR
+        value: /var/data/uploads
+      - key: WORKSPACE_SERIAL_GUARD
+        value: "true"
+
+databases:
+  - name: eabc-staging-db
+    databaseName: eabc_staging
+    user: eabc_staging_user
+    plan: 0.5c-1g
+    diskSizeGB: 5
+    ipAllowList: []
+    region: frankfurt

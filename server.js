@@ -5,6 +5,8 @@ try {
 const express = require('express');
 const nunjucks = require('nunjucks');
 const cookieParser = require('cookie-parser');
+const helmet = require('helmet');
+const { rateLimit } = require('express-rate-limit');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -32,6 +34,28 @@ function getAiClient() {
 
 const app = express();
 app.set('trust proxy', 1);
+app.disable('x-powered-by');
+app.use(helmet({
+  contentSecurityPolicy: false, // Existing templates use controlled inline scripts/styles; CSP needs a separate nonce migration.
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: false,
+  hsts: (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging')
+    ? { maxAge: 31536000, includeSubDomains: true }
+    : false
+}));
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+const apiRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 600,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skip: req => req.path === '/health' || req.path === '/system/health'
+});
+app.use('/api', apiRateLimiter);
 const PORT = parseInt(process.env.PORT, 10) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const isVercel = Boolean(process.env.VERCEL);
@@ -165,7 +189,24 @@ const candidateStaticDirs = [
 const STATIC_DIR = candidateStaticDirs.find(d => {
   try { return fs.existsSync(d) && fs.statSync(d).isDirectory(); } catch (e) { return false; }
 }) || path.join(__dirname, 'static');
-const UPLOADS_DIR = isVercel ? '/tmp/uploads' : path.join(STATIC_DIR, 'uploads');
+const UPLOADS_DIR = process.env.UPLOADS_DIR || (isVercel ? '/tmp/uploads' : path.join(STATIC_DIR, 'uploads'));
+if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') {
+  if (isVercel || !process.env.UPLOADS_DIR || !path.isAbsolute(UPLOADS_DIR) || UPLOADS_DIR.startsWith('/tmp/')) {
+    throw new Error('Production/staging requires UPLOADS_DIR to point to a durable persistent disk; Vercel and /tmp uploads are not supported.');
+  }
+  if (String(process.env.SESSION_SECRET || '').length < 32) {
+    throw new Error('Production/staging requires SESSION_SECRET with at least 32 characters.');
+  }
+  if (!process.env.DATABASE_URL && !(process.env.SQL_HOST && process.env.SQL_USER && process.env.SQL_DB_NAME)) {
+    throw new Error('Production/staging requires DATABASE_URL or SQL_HOST, SQL_USER and SQL_DB_NAME.');
+  }
+  if (String(process.env.ADMIN_LOGIN_PASSWORD || '').length < 12) {
+    throw new Error('Production/staging requires a unique ADMIN_LOGIN_PASSWORD of at least 12 characters.');
+  }
+  if (process.env.WORKSPACE_SERIAL_GUARD !== 'true') {
+    throw new Error('WORKSPACE_SERIAL_GUARD=true is required until request-scoped tenant isolation replaces global workspace state.');
+  }
+}
 
 try {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -178,15 +219,28 @@ try {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.png';
+    const ext = path.extname(path.basename(file.originalname || '')).toLowerCase() || '.bin';
     cb(null, `${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`);
   }
 });
+const ALLOWED_UPLOAD_EXTENSIONS = new Set([
+  '.png', '.jpg', '.jpeg', '.webp', '.gif', '.pdf', '.doc', '.docx',
+  '.xls', '.xlsx', '.ppt', '.pptx', '.csv', '.txt', '.dwg', '.dxf',
+  '.step', '.stp', '.stl', '.zip'
+]);
 const rawUpload = multer({
   storage,
   limits: {
     fileSize: 25 * 1024 * 1024,
-    fieldSize: 25 * 1024 * 1024
+    fieldSize: 25 * 1024 * 1024,
+    files: 10
+  },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(path.basename(file.originalname || '')).toLowerCase();
+    if (!ALLOWED_UPLOAD_EXTENSIONS.has(ext)) {
+      return cb(new Error(`Unsupported upload type: ${ext || 'unknown'}.`));
+    }
+    return cb(null, true);
   }
 });
 
@@ -250,6 +304,23 @@ function fileToDataUrl(file) {
   }
 }
 
+// Password storage and signed session helpers are isolated and unit-tested.
+const authSecurity = require('./src/security/auth-security');
+const { hashPassword, isPasswordHash, verifyPassword } = authSecurity;
+function sessionSigningSecret() {
+  const secret = process.env.SESSION_SECRET || '';
+  if ((process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') && secret.length < 32) {
+    throw new Error('SESSION_SECRET must contain at least 32 characters in production/staging.');
+  }
+  return secret || 'local-development-only-session-secret-change-me';
+}
+function signSessionUserId(userId, expiresAt) {
+  return authSecurity.signSessionUserId(userId, expiresAt, sessionSigningSecret());
+}
+function verifySessionUserId(token) {
+  return authSecurity.verifySessionUserId(token, sessionSigningSecret());
+}
+
 function checkIsHttps(req) {
   if (isVercel) return true;
   try {
@@ -263,16 +334,18 @@ function checkIsHttps(req) {
 
 function setSafeCookie(req, res, name, val, customMaxAgeMs = null) {
   const isHttps = checkIsHttps(req);
+  const maxAge = customMaxAgeMs || (name === 'opsloom_user' ? 30 * 60 * 1000 : 365 * 24 * 60 * 60 * 1000);
   const cookieOpts = {
     path: '/',
-    maxAge: customMaxAgeMs || (365 * 24 * 60 * 60 * 1000),
-    sameSite: isHttps ? 'none' : 'lax',
-    secure: isHttps
+    maxAge,
+    sameSite: 'lax',
+    secure: isHttps,
+    httpOnly: name === 'opsloom_user'
   };
-  if (isHttps) {
-    cookieOpts.partitioned = true;
-  }
-  res.cookie(name, val, cookieOpts);
+  const cookieValue = name === 'opsloom_user'
+    ? signSessionUserId(val, Date.now() + maxAge)
+    : val;
+  res.cookie(name, cookieValue, cookieOpts);
 }
 
 function clearSafeCookie(req, res, name) {
@@ -341,7 +414,7 @@ let store = {
       id: 'USR-001',
       name: 'Laurence Magondu',
       email: 'opsloom.ke@gmail.com',
-      password: 'Admin@123',
+      password: process.env.ADMIN_LOGIN_PASSWORD ? hashPassword(process.env.ADMIN_LOGIN_PASSWORD) : ((process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') ? '' : hashPassword('Admin@123')),
       role: 'Administrator',
       access_scope: 'Full System',
       department: 'Engineering',
@@ -512,7 +585,7 @@ function seedInitialDataIfEmpty() {
       id: 'USR-001',
       name: 'Laurence Magondu',
       email: 'opsloom.ke@gmail.com',
-      password: 'Admin@123',
+      password: process.env.ADMIN_LOGIN_PASSWORD ? hashPassword(process.env.ADMIN_LOGIN_PASSWORD) : ((process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') ? '' : hashPassword('Admin@123')),
       role: 'Administrator',
       access_scope: 'Full System',
       department: 'Engineering',
@@ -531,7 +604,7 @@ function seedInitialDataIfEmpty() {
       profile_image_url: ''
     });
   } else if (!primaryAdmin.password) {
-    primaryAdmin.password = store.SYSTEM_SETTINGS?.admin_login_password || 'Admin@123';
+    primaryAdmin.password = store.SYSTEM_SETTINGS?.admin_login_password || ((process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') ? '' : hashPassword('Admin@123'));
   } else if (store.SYSTEM_SETTINGS?.admin_login_password && primaryAdmin.password !== store.SYSTEM_SETTINGS.admin_login_password) {
     primaryAdmin.password = store.SYSTEM_SETTINGS.admin_login_password;
   }
@@ -633,6 +706,13 @@ function activateWorkspaceBucket(companyId) {
   return comp || { id: effectiveId, name: 'Workspace', code: 'WKS' };
 }
 
+function mergeCompanyScopedRows(existingRows, incomingRows, companyId = global._currentCompanyId || null) {
+  if (!Array.isArray(incomingRows)) return Array.isArray(existingRows) ? existingRows : [];
+  if (!companyId) return incomingRows;
+  const retained = (Array.isArray(existingRows) ? existingRows : []).filter(row => row && row.company_id !== companyId);
+  return retained.concat(incomingRows);
+}
+
 function getCompanyAssets(companyId) {
   if (!companyId) return store.ASSETS || [];
   return (store.ASSETS || []).filter(a => a && a.company_id === companyId);
@@ -644,7 +724,7 @@ function getCompanyBreakdowns(companyId) {
   const assetIdSet = new Set(compAssets.map(a => a.uid).concat(compAssets.map(a => a.asset_id)));
   return (store.BREAKDOWNS || []).filter(b => {
     if (!b) return false;
-    if (b.company_id === companyId) return true;
+    if (b.company_id) return b.company_id === companyId;
     if (b.asset_uid && assetIdSet.has(b.asset_uid)) return true;
     if (b.asset_id && assetIdSet.has(b.asset_id)) return true;
     return false;
@@ -657,7 +737,7 @@ function getCompanyMaintenanceTasks(companyId) {
   const assetIdSet = new Set(compAssets.map(a => a.uid).concat(compAssets.map(a => a.asset_id)));
   return (store.MAINTENANCE_TASKS || []).filter(t => {
     if (!t) return false;
-    if (t.company_id === companyId) return true;
+    if (t.company_id) return t.company_id === companyId;
     if (t.asset_uid && assetIdSet.has(t.asset_uid)) return true;
     if (t.asset_id && assetIdSet.has(t.asset_id)) return true;
     return false;
@@ -670,13 +750,13 @@ function getCompanyInventoryParts(companyId) {
 }
 
 function getCompanyRecycleBin(companyId) {
-  if (!companyId) return [];
-  return (store.RECYCLE_BIN || []).filter(r => r && (!r.company_id || r.company_id === companyId || r.entity_type === 'company' || r.entity_type === 'workspace'));
+  if (!companyId) return store.RECYCLE_BIN || [];
+  return (store.RECYCLE_BIN || []).filter(r => r && r.company_id === companyId);
 }
 
 function getCompanyReports(companyId) {
   if (!companyId) return store.REPORT_EXPORTS || [];
-  return (store.REPORT_EXPORTS || []).filter(r => r && (!r.company_id || r.company_id === companyId));
+  return (store.REPORT_EXPORTS || []).filter(r => r && r.company_id === companyId);
 }
 
 function getCompanyAssetDocuments(companyId) {
@@ -685,7 +765,7 @@ function getCompanyAssetDocuments(companyId) {
   const assetIdSet = new Set(compAssets.map(a => a.uid).concat(compAssets.map(a => a.asset_id)));
   return (store.ASSET_DOCUMENTS || []).filter(d => {
     if (!d) return false;
-    if (d.company_id === companyId) return true;
+    if (d.company_id) return d.company_id === companyId;
     if (d.asset_uid && assetIdSet.has(d.asset_uid)) return true;
     return false;
   });
@@ -697,15 +777,15 @@ function getCompanySpareParts(companyId) {
   const assetIdSet = new Set(compAssets.map(a => a.uid).concat(compAssets.map(a => a.asset_id)));
   return (store.SPARE_PARTS || []).filter(s => {
     if (!s) return false;
-    if (s.company_id === companyId) return true;
+    if (s.company_id) return s.company_id === companyId;
     if (s.asset_uid && assetIdSet.has(s.asset_uid)) return true;
     return false;
   });
 }
 
 function getCompanyAuditTrail(companyId) {
-  if (!companyId) return [];
-  return (store.AUDIT_TRAIL || []).filter(a => a && (!a.company_id || a.company_id === companyId));
+  if (!companyId) return store.AUDIT_TRAIL || [];
+  return (store.AUDIT_TRAIL || []).filter(a => a && a.company_id === companyId);
 }
 
 let dbSyncPromise = null;
@@ -715,8 +795,9 @@ async function ensureDbSynced(force = false) {
   if (force || !dbSyncPromise || (now - lastDbSyncEpoch > 1500)) {
     lastDbSyncEpoch = now;
     dbSyncPromise = syncStoreFromDatabase().catch(err => {
-      console.warn('[ensureDbSynced Error]:', err.message);
+      console.error('[ensureDbSynced Error]:', err.message);
       dbSyncPromise = null;
+      throw err;
     });
   }
   return dbSyncPromise;
@@ -725,21 +806,21 @@ async function ensureDbSynced(force = false) {
 async function syncStoreFromDatabase() {
   try {
     const [companies, assets, users, breakdowns, maint, inv, bin, notifs, audit, sysSettings, techs, dbReports, dbDocs, dbSpares, dbMsgs] = await Promise.all([
-      dal.getCompanies(),
-      dal.getAssets(),
-      dal.getUsers(),
-      dal.getBreakdowns(),
-      dal.getMaintenanceTasks(),
-      dal.getInventoryParts(),
-      dal.getRecycleBin(),
-      dal.getNotifications(),
-      dal.getAuditTrail(),
+      dal.getCompanies(null),
+      dal.getAssets(null),
+      dal.getUsers(null),
+      dal.getBreakdowns(null),
+      dal.getMaintenanceTasks(null),
+      dal.getInventoryParts(null),
+      dal.getRecycleBin(null),
+      dal.getNotifications(null, null),
+      dal.getAuditTrail(null),
       dal.getSystemSettings(),
-      dal.getTechnicians(),
-      dal.getReports(),
-      dal.getAssetDocuments(),
-      dal.getSpareParts(),
-      dal.getMessages()
+      dal.getTechnicians(null),
+      dal.getReports(null),
+      dal.getAssetDocuments(null, null),
+      dal.getSpareParts(null, null),
+      dal.getMessages(null, null)
     ]);
     if (companies && companies.length) store.COMPANIES = companies;
     if (assets) store.ASSETS = assets;
@@ -782,13 +863,28 @@ async function syncStoreFromDatabase() {
       if (active_company_id && (store.COMPANIES || []).some(c => c && c.id === active_company_id)) {
         store.ACTIVE_COMPANY_ID = active_company_id;
       }
+      if (store.SYSTEM_SETTINGS.admin_login_password && !isPasswordHash(store.SYSTEM_SETTINGS.admin_login_password)) {
+        const legacyAdminPassword = String(store.SYSTEM_SETTINGS.admin_login_password);
+        const replacementPassword = legacyAdminPassword === 'Admin@123' && process.env.ADMIN_LOGIN_PASSWORD
+          ? process.env.ADMIN_LOGIN_PASSWORD
+          : legacyAdminPassword;
+        const migratedHash = hashPassword(replacementPassword);
+        store.SYSTEM_SETTINGS.admin_login_password = migratedHash;
+        const primaryAdmin = (store.ADMIN_USERS || []).find(u => u && u.id === 'USR-001');
+        if (primaryAdmin) {
+          primaryAdmin.password = migratedHash;
+          await dal.upsertUser(primaryAdmin);
+        }
+        await saveStore();
+      }
     }
 
     delete store.WORKSPACE_DATA;
     activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
     console.log(`[PostgreSQL Sync]: Loaded ${store.COMPANIES?.length || 0} companies, ${store.ASSETS?.length || 0} assets, ${store.BREAKDOWNS?.length || 0} breakdowns, ${store.MAINTENANCE_TASKS?.length || 0} tasks, ${store.INVENTORY_PARTS?.length || 0} parts, ${store.REPORT_EXPORTS?.length || 0} reports.`);
   } catch (err) {
-    console.warn('[syncStoreFromDatabase Error]:', err.message);
+    console.error('[syncStoreFromDatabase Error]:', err.message);
+    throw err;
   }
 }
 
@@ -820,11 +916,14 @@ function purgeLegacySeededResetNoise() {
   delete store.WORKSPACE_DATA;
 }
 
-// Startup: Synchronize from authoritative PostgreSQL database
-syncStoreFromDatabase().then(() => {
+// Startup: Synchronize from authoritative PostgreSQL database. Requests await this
+// same promise, avoiding a second concurrent hydration of process-global workspace state.
+lastDbSyncEpoch = Date.now();
+dbSyncPromise = syncStoreFromDatabase().then(() => {
   purgeLegacySeededResetNoise();
   activateWorkspaceBucket(store.ACTIVE_COMPANY_ID);
-}).catch(e => console.error('Initial DB sync error:', e.message));
+});
+dbSyncPromise.catch(e => console.error('Initial DB sync error:', e.message));
 
 async function saveStore() {
   store.initialized = true;
@@ -842,8 +941,12 @@ async function saveStore() {
       active_company_id: store.ACTIVE_COMPANY_ID || 'comp-001'
     };
     await dal.upsertSystemSettings(payload);
+    delete store._PERSISTENCE_FAILURE;
+    return true;
   } catch (err) {
-    console.warn('[saveStore Error]: Could not persist system settings to PostgreSQL:', err.message);
+    store._PERSISTENCE_FAILURE = { at: new Date().toISOString(), message: err.message };
+    console.error('[saveStore CRITICAL]: PostgreSQL persistence failed; subsequent staging/production requests will be blocked:', err.message);
+    return false;
   }
 }
 
@@ -852,10 +955,13 @@ function hydrateStoreFromClientSnapshot(rawSnap) {
   return false;
 }
 
-function buildClientSyncSnapshot() {
+function buildClientSyncSnapshot(req = null) {
   flushBoundWorkspaceToBucket();
+  const snapshotActor = req ? getCurrentActor(req) : null;
+  const isPlatformSnapshot = Boolean(snapshotActor && (snapshotActor.id === 'USR-001' || snapshotActor.is_platform_admin === true));
+  const snapshotCompanyId = snapshotActor?.company_id || global._currentCompanyId || null;
   // Strip sensitive passwords before client sync so they never leak into browser localStorage
-  const sanitizedUsers = (store.ADMIN_USERS || []).map(u => {
+  const sanitizedUsers = (store.ADMIN_USERS || []).filter(u => isPlatformSnapshot || (snapshotCompanyId && u.company_id === snapshotCompanyId)).map(u => {
     const copy = { ...u };
     delete copy.password;
     return copy;
@@ -869,7 +975,7 @@ function buildClientSyncSnapshot() {
     saved_at_ms: Number(store.saved_at_ms) || Date.now(),
     saved_at: store.saved_at || getSystemNowIso(),
     ACTIVE_COMPANY_ID: store.ACTIVE_COMPANY_ID || 'comp-001',
-    COMPANIES: (store.COMPANIES || []).map(c => ({
+    COMPANIES: (store.COMPANIES || []).filter(c => isPlatformSnapshot || (snapshotCompanyId && c.id === snapshotCompanyId)).map(c => ({
       id: c.id,
       name: c.name,
       code: c.code,
@@ -886,8 +992,8 @@ function buildClientSyncSnapshot() {
     CUSTOM_ROLES: store.CUSTOM_ROLES || [],
     ADMIN_USERS: sanitizedUsers,
     SYSTEM_SETTINGS: sanitizedSettings,
-    INTERNAL_MESSAGES: (store.INTERNAL_MESSAGES || []).slice(0, 20),
-    SYSTEM_NOTIFICATIONS: (store.SYSTEM_NOTIFICATIONS || []).slice(0, 15)
+    INTERNAL_MESSAGES: (store.INTERNAL_MESSAGES || []).filter(m => isPlatformSnapshot || (snapshotCompanyId && m.company_id === snapshotCompanyId)).slice(0, 20),
+    SYSTEM_NOTIFICATIONS: (store.SYSTEM_NOTIFICATIONS || []).filter(n => isPlatformSnapshot || (snapshotCompanyId && n.company_id === snapshotCompanyId)).slice(0, 15)
   };
 }
 
@@ -2358,7 +2464,17 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(cookieParser('opsloom-secret-key'));
+app.use(cookieParser(process.env.COOKIE_PARSER_SECRET || process.env.SESSION_SECRET || 'local-development-only-cookie-parser-secret'));
+app.use((req, res, next) => {
+  const rawSession = req.cookies?.opsloom_user;
+  const verifiedUserId = verifySessionUserId(rawSession);
+  if (verifiedUserId) req.cookies.opsloom_user = verifiedUserId;
+  else if (rawSession) {
+    delete req.cookies.opsloom_user;
+    res.clearCookie('opsloom_user', { path: '/', sameSite: 'lax', secure: checkIsHttps(req), httpOnly: true });
+  }
+  next();
+});
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(express.json({ limit: '25mb' }));
 app.use((req, res, next) => {
@@ -2377,13 +2493,51 @@ app.use((req, res, next) => {
   });
 });
 
+// The current application still has legacy process-global active-workspace state.
+// Until the DAL and all route handlers become request-scoped, staging/single-instance
+// deployments must serialize business requests to prevent overlapping tenant context.
+let workspaceRequestTail = Promise.resolve();
+let workspaceRequestsQueued = 0;
+app.use(async (req, res, next) => {
+  if (process.env.WORKSPACE_SERIAL_GUARD !== 'true') return next();
+  if (workspaceRequestsQueued >= 50) {
+    return res.status(503).json({ ok: false, error: 'The workspace is busy. Please retry shortly.' });
+  }
+  workspaceRequestsQueued += 1;
+  const previous = workspaceRequestTail;
+  let release;
+  workspaceRequestTail = new Promise(resolve => { release = resolve; });
+  await previous;
+  workspaceRequestsQueued -= 1;
+  let released = false;
+  const finish = () => {
+    if (released) return;
+    released = true;
+    release();
+  };
+  res.once('finish', finish);
+  res.once('close', finish);
+  next();
+});
+
+
 app.use(async (req, res, next) => {
   try {
     await ensureDbSynced();
+    if ((process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') && store._PERSISTENCE_FAILURE) {
+      return res.status(503).json({ ok: false, error: 'The service is paused because a previous database write failed. An administrator must verify database health before retrying.' });
+    }
+    next();
   } catch (err) {
-    console.warn('[ensureDbSynced middleware]:', err.message);
+    console.error('[database readiness]: request blocked because PostgreSQL sync failed:', err.message);
+    if (req.path === '/health' || req.path === '/api/health' || req.path === '/api/ping') {
+      return res.status(503).json({ ok: false, status: 'not_ready', dependency: 'database' });
+    }
+    if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') {
+      return res.status(503).json({ ok: false, error: 'The service is temporarily unavailable because the database is not ready. Please retry shortly.' });
+    }
+    return next();
   }
-  next();
 });
 
 function resolveActiveWorkspaceForRequest(req) {
@@ -2400,13 +2554,14 @@ function resolveActiveWorkspaceForRequest(req) {
   const loggedInUser = loggedInUserId ? (store.ADMIN_USERS || []).find(u => u.id === loggedInUserId || u.email === loggedInUserId) : null;
   const userCompId = loggedInUser && loggedInUser.company_id && (store.COMPANIES || []).some(c => c.id === loggedInUser.company_id) ? loggedInUser.company_id : null;
 
-  const targetCompId = (req && req.activeCompany && req.activeCompany.id ? req.activeCompany.id : null)
-    || (validExplicitComp ? validExplicitComp.id : null)
-    || userCompId
-    || store.ACTIVE_COMPANY_ID
-    || (store.COMPANIES && store.COMPANIES.some(c => c.id === 'comp-001') ? 'comp-001' : null)
-    || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id)
-    || 'comp-001';
+  const isPlatformAdmin = Boolean(loggedInUser && (loggedInUser.id === 'USR-001' || loggedInUser.is_platform_admin === true));
+  const targetCompId = isPlatformAdmin
+    ? ((req && req.activeCompany && req.activeCompany.id ? req.activeCompany.id : null)
+      || (validExplicitComp ? validExplicitComp.id : null)
+      || userCompId
+      || store.ACTIVE_COMPANY_ID
+      || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id))
+    : (userCompId || null);
   const activeCompany = (store.COMPANIES || []).find(c => c.id === targetCompId)
     || (store.ACTIVE_COMPANY_ID && (store.COMPANIES || []).find(c => c.id === store.ACTIVE_COMPANY_ID))
     || (store.COMPANIES && store.COMPANIES[0])
@@ -2576,28 +2731,30 @@ function computeSystemHealthStatus(companyId = null) {
     };
   } catch (err) {
     console.error('Error computing system health status:', err);
+    const fallbackCompanyId = companyId || store.ACTIVE_COMPANY_ID || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
+    const fallbackAssets = getCompanyAssets(fallbackCompanyId);
     return {
-      state: 'stable',
-      badge: 'SYSTEM STABLE',
-      uptime_rate: 98.4,
-      uptime_target: 85.0,
-      pm_compliance_target: 90.0,
-      mttr_target_hours: 2.0,
-      mtbf_target_hours: 120.0,
-      monthly_maintenance_budget: 2500000,
-      spares_inventory_budget: 1500000,
-      kpi_targets: getCompanyKpiTargets(),
-      operational_assets: (store.ASSETS || []).length,
+      state: 'unknown',
+      badge: 'DATA UNAVAILABLE',
+      uptime_rate: 0,
+      uptime_target: 0,
+      pm_compliance_target: 0,
+      mttr_target_hours: 0,
+      mtbf_target_hours: 0,
+      monthly_maintenance_budget: 0,
+      spares_inventory_budget: 0,
+      kpi_targets: {},
+      operational_assets: 0,
       maintenance_assets: 0,
       oos_assets: 0,
-      total_assets: (store.ASSETS || []).length,
+      total_assets: fallbackAssets.length,
       active_breakdowns: 0,
       critical_open_breakdowns: 0,
       overdue_pm: 0,
-      pm_compliance: 95.0,
+      pm_compliance: 0,
       out_of_stock: 0,
-      driver_short: 'System operational within nominal parameters',
-      driver_summary: 'All monitored modules and assets are reporting normal operational telemetry.',
+      driver_short: 'Operational metrics are unavailable because the calculation failed.',
+      driver_summary: 'No performance conclusion can be made until the underlying data is available and verified.',
       rules: []
     };
   }
@@ -2636,6 +2793,10 @@ app.use((req, res, next) => {
 
 // Authoritative Diagnostic Endpoint proving PostgreSQL database usage
 app.get(['/api/system/diagnostic', '/api/diagnostic', '/diagnostic'], async (req, res) => {
+  const diagnosticActor = getCurrentActor(req);
+  if (!(diagnosticActor && (diagnosticActor.id === 'USR-001' || diagnosticActor.is_platform_admin === true))) {
+    return res.status(403).json({ ok: false, error: 'Platform administrator access required.' });
+  }
   try {
     const diag = await dal.getDiagnosticInfo();
     const acceptsText = req.query?.format === 'text' || String(req.headers.accept || '').includes('text/plain');
@@ -2669,19 +2830,18 @@ app.post('/api/system/hydrate-state', (req, res) => {
 app.post('/api/system/clock-sync', (req, res) => {
   const clientNowMs = Number(req.body?.client_now_ms || req.body?._client_now_ms || 0);
   const clientTz = String(req.body?.client_tz || req.body?._client_tz || '').trim();
-  if (clientNowMs > 1700000000000) {
-    runtimeClientClockOffsetMs = clientNowMs - Date.now();
-    setSafeCookie(req, res, 'opsloom_client_now_ms', String(clientNowMs));
-    setSafeCookie(req, res, 'opsloom_clock_offset_ms', String(runtimeClientClockOffsetMs));
-    if (store.SYSTEM_SETTINGS) {
-      store.SYSTEM_SETTINGS.client_clock_offset_ms = runtimeClientClockOffsetMs;
-    }
-  }
-  if (clientTz && clientTz.includes('/')) {
-    runtimeClientTimezone = clientTz;
-    setSafeCookie(req, res, 'opsloom_tz', clientTz);
-    if (store.SYSTEM_SETTINGS && !store.SYSTEM_SETTINGS.timezone_locked) {
-      store.SYSTEM_SETTINGS.timezone = clientTz;
+  // Browser clocks are untrusted. Never let a public request shift server timestamps.
+  runtimeClientClockOffsetMs = 0;
+  if (clientTz && clientTz.length <= 64) {
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: clientTz }).format(new Date());
+      runtimeClientTimezone = clientTz;
+      setSafeCookie(req, res, 'opsloom_tz', clientTz);
+      if (req.cookies?.opsloom_user && store.SYSTEM_SETTINGS && !store.SYSTEM_SETTINGS.timezone_locked) {
+        store.SYSTEM_SETTINGS.timezone = clientTz;
+      }
+    } catch (_) {
+      return res.status(400).json({ ok: false, error: 'Invalid timezone.' });
     }
   }
   res.json({
@@ -2691,6 +2851,37 @@ app.post('/api/system/clock-sync', (req, res) => {
     system_time_iso: getSystemNowIso(),
     system_time_display: formatSystemTimestamp(getSystemNowIso(), true)
   });
+});
+
+function uploadBelongsToCompany(fileName, companyId) {
+  if (!fileName || !companyId) return false;
+  const seen = new Set();
+  const scan = (value, inheritedCompanyId = null) => {
+    if (!value || typeof value !== 'object') return false;
+    if (seen.has(value)) return false;
+    seen.add(value);
+    const ownCompanyId = value.company_id || value.companyId || ((value.id && (value.primary_color || value.code) && (value.logo_light_url || value.logo_dark_url)) ? value.id : inheritedCompanyId);
+    for (const [key, child] of Object.entries(value)) {
+      if (typeof child === 'string' && child.includes(fileName) && ownCompanyId === companyId) return true;
+      if (child && typeof child === 'object' && scan(child, ownCompanyId)) return true;
+    }
+    return false;
+  };
+  return scan(store);
+}
+
+// Uploaded business files must never be anonymously served or cross tenant boundaries.
+app.use(['/static/uploads', '/uploads'], (req, res, next) => {
+  const userId = req.cookies?.opsloom_user;
+  const user = userId && (store.ADMIN_USERS || []).find(u => u && u.id === userId && u.active !== false);
+  if (!user) return res.status(401).send('Authentication required');
+  const fileName = path.basename(decodeURIComponent(req.path || ''));
+  const isSystemAdmin = user.id === 'USR-001' || user.is_platform_admin === true;
+  if (!isSystemAdmin && !uploadBelongsToCompany(fileName, user.company_id)) {
+    return res.status(404).send('File not found');
+  }
+  req.authenticatedUploadUser = user;
+  next();
 });
 
 // Serve static assets with multi-path resolution
@@ -2799,12 +2990,10 @@ app.use((req, res, next) => {
     p === '/api/health' ||
     p === '/api/ping' ||
     p === '/api/system/clock-sync' ||
-    p === '/api/system/hydrate-state' ||
-    p.startsWith('/static') ||
+    (p.startsWith('/static') && !p.startsWith('/static/uploads')) ||
     p.startsWith('/vendor') ||
     p.startsWith('/css') ||
     p.startsWith('/brand') ||
-    p.startsWith('/uploads') ||
     p === '/favicon.ico'
   ) {
     return next();
@@ -2814,9 +3003,7 @@ app.use((req, res, next) => {
   const timeoutMins = getSessionTimeoutMinutes();
   const timeoutMs = timeoutMins * 60 * 1000;
   const nowMs = Date.now();
-  const isCompanyBrandSaveApi = p === '/api/companies/save-logo' || p === '/api/companies/save' || p === '/settings/companies/save';
-
-  if (!uid && !isCompanyBrandSaveApi) {
+  if (!uid) {
     if (p === '/api/index.js' || p === '/api/index' || p === '/api' || p === '/api/') {
       return res.redirect(303, '/login');
     }
@@ -2830,8 +3017,7 @@ app.use((req, res, next) => {
   }
 
   // Verify user account still exists and is active
-  const matchedUser = (store.ADMIN_USERS || []).find(u => u && (u.id === uid || (u.email && u.email.toLowerCase() === String(uid).toLowerCase())))
-    || (isCompanyBrandSaveApi ? ((store.ADMIN_USERS || [])[0] || { id: 'USR-001', role: 'Administrator', active: true, permissions: ['all'], edit_permissions: ['all'], delete_permissions: ['all'] }) : null);
+  const matchedUser = (store.ADMIN_USERS || []).find(u => u && (u.id === uid || (u.email && u.email.toLowerCase() === String(uid).toLowerCase())));
 
   if (!matchedUser || matchedUser.active === false) {
     res.clearCookie('opsloom_user', { path: '/' });
@@ -2842,7 +3028,7 @@ app.use((req, res, next) => {
   }
 
   const lastActiveRaw = Number(req.cookies?.opsloom_last_active || 0);
-  if (!isCompanyBrandSaveApi && lastActiveRaw > 0 && (nowMs - lastActiveRaw) > timeoutMs) {
+  if (lastActiveRaw > 0 && (nowMs - lastActiveRaw) > timeoutMs) {
     res.clearCookie('opsloom_user', { path: '/' });
     res.clearCookie('opsloom_role', { path: '/' });
     res.clearCookie('opsloom_last_active', { path: '/' });
@@ -2855,16 +3041,13 @@ app.use((req, res, next) => {
   }
 
   // Strictly enforce workspace isolation per request
-  const isAdminUser = (matchedUser.role || '').toLowerCase() === 'administrator' || (Array.isArray(matchedUser.permissions) && (matchedUser.permissions.includes('all') || matchedUser.permissions.includes('companies')));
-  
-  let targetWsId = req.query?.company_id || req.cookies?.opsloom_ws_id;
-  if (!isAdminUser) {
-    // Non-admin user is STRICTLY locked to their assigned company
-    targetWsId = matchedUser.company_id || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
-  } else {
-    if (!targetWsId || !store.COMPANIES.some(c => c && c.id === targetWsId)) {
-      targetWsId = matchedUser.company_id || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
+  const isPlatformAdmin = matchedUser.id === 'USR-001' || matchedUser.is_platform_admin === true;
+  let targetWsId = isPlatformAdmin ? (req.query?.company_id || req.cookies?.opsloom_ws_id) : matchedUser.company_id;
+  if (!targetWsId || !store.COMPANIES.some(c => c && c.id === targetWsId)) {
+    if (!isPlatformAdmin && !matchedUser.company_id) {
+      return res.status(403).json({ ok: false, error: 'Your account is not assigned to an organization. Contact your system administrator.' });
     }
+    targetWsId = matchedUser.company_id || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
   }
 
   const activeComp = (store.COMPANIES || []).find(c => c && c.id === targetWsId) || (store.COMPANIES && store.COMPANIES[0]);
@@ -2873,8 +3056,64 @@ app.use((req, res, next) => {
     setSafeCookie(req, res, 'opsloom_ws_id', activeComp.id);
     req.activeCompany = activeComp;
     req.workspaceId = activeComp.id;
+    global._currentCompanyId = isPlatformAdmin ? null : activeComp.id;
   }
   store._CURRENT_ACTOR = matchedUser;
+
+  // Reject direct record URLs that resolve to another tenant before legacy handlers
+  // inspect process-global arrays. Collection handlers use tenant-scoped DAL helpers.
+  if (!isPlatformAdmin) {
+    const parts = String(p || '').split('/').filter(Boolean);
+    let record = null;
+    let recordType = null;
+    let recordId = null;
+    const reserved = new Set(['new', 'add', 'export', 'dashboard', 'management', 'calendar', 'distribution', 'assets', 'frequency', 'success', 'history', 'generate', 'view', 'api', 'report', 'master-list', 'schedule']);
+    if (parts[0] === 'assets' && parts[1] && !reserved.has(parts[1])) {
+      recordType = 'asset'; recordId = parts[1];
+      record = (store.ASSETS || []).find(a => a && (a.uid === recordId || a.asset_id === recordId || a.id === recordId));
+    } else if (parts[0] === 'api' && parts[1] === 'assets' && parts[2] && !reserved.has(parts[2])) {
+      recordType = 'asset'; recordId = parts[2];
+      record = (store.ASSETS || []).find(a => a && (a.uid === recordId || a.asset_id === recordId || a.id === recordId));
+    } else if (parts[0] === 'breakdowns' && parts[1] && !reserved.has(parts[1])) {
+      recordType = 'breakdown'; recordId = parts[1];
+      record = (store.BREAKDOWNS || []).find(b => b && (b.breakdown_id === recordId || b.id === recordId));
+    } else if (parts[0] === 'maintenance' && parts[1] && !reserved.has(parts[1])) {
+      recordType = 'maintenance'; recordId = parts[1];
+      record = (store.MAINTENANCE_TASKS || []).find(t => t && (t.task_id === recordId || t.id === recordId));
+    } else if (parts[0] === 'inventory' && parts[1] && !reserved.has(parts[1])) {
+      recordType = 'inventory'; recordId = parts[1];
+      record = (store.INVENTORY_PARTS || []).find(part => part && ((part.uid || part.id) === recordId || part.sku === recordId));
+    } else if (parts[0] === 'reports' && parts[1] && !reserved.has(parts[1])) {
+      recordType = 'report'; recordId = parts[1] === 'view' ? parts[2] : parts[1];
+      record = recordId && (store.REPORT_EXPORTS || []).find(r => r && r.id === recordId);
+    }
+    if (record) {
+      let ownerCompanyId = record.company_id || null;
+      if (!ownerCompanyId && record.asset_uid) {
+        const linkedAsset = (store.ASSETS || []).find(a => a && (a.uid === record.asset_uid || a.asset_id === record.asset_uid));
+        ownerCompanyId = linkedAsset?.company_id || null;
+      }
+      if (ownerCompanyId !== activeComp.id) {
+        return res.status(404).send('Record not found');
+      }
+    }
+  }
+
+  // Browser session mutations must be same-origin. SameSite=Lax is an additional layer,
+  // not a replacement for origin validation on state-changing requests.
+  const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
+  const origin = req.get('origin');
+  if (isMutation && origin) {
+    try {
+      const originHost = new URL(origin).host;
+      const requestHost = String(req.get('host') || '').toLowerCase();
+      if (originHost.toLowerCase() !== requestHost) {
+        return res.status(403).json({ ok: false, error: 'Cross-origin request blocked.' });
+      }
+    } catch (_) {
+      return res.status(403).json({ ok: false, error: 'Invalid request origin.' });
+    }
+  }
 
   // Enforce Role-Based Module Access & Edit/Delete Restrictions
   const targetMod = resolvePathModule(p);
@@ -2975,8 +3214,9 @@ const ADMIN_PRIMARY_EMAIL = 'opsloom.ke@gmail.com';
 const ADMIN_RECOVERY_EMAIL = 'laurencemureithi1999@gmail.com';
 
 function updateUserPasswordEverywhere(identifier, newPassword) {
-  const cleanPass = String(newPassword || '').trim();
-  if (!cleanPass) return false;
+  const rawNewPass = String(newPassword || '');
+  if (rawNewPass.length < 12) return false;
+  const cleanPass = hashPassword(rawNewPass);
   if (!Array.isArray(store.ADMIN_USERS)) store.ADMIN_USERS = [];
 
   const idStr = typeof identifier === 'object' && identifier !== null
@@ -3062,12 +3302,13 @@ function baseCtx(req, activeNav = 'dashboard') {
 
   const userEmail = (actor.email || 'opsloom.ke@gmail.com').toLowerCase().trim();
   const userNotifs = (store.SYSTEM_NOTIFICATIONS || []).filter(n => {
-    if (!n) return false;
+    if (!n || n.company_id !== activeCompany.id) return false;
     if (n.recipient_email && n.recipient_email.toLowerCase().trim() !== userEmail) return false;
     return true;
   });
   const unreadNotifs = userNotifs.filter(n => !n.is_read).length;
   const unreadMsgs = (store.INTERNAL_MESSAGES || []).filter(m => {
+    if (!m || m.company_id !== activeCompany.id) return false;
     const recs = (m.recipient_emails || []).map(e => String(e).toLowerCase().trim());
     return (recs.includes(userEmail) || (m.recipient_email && m.recipient_email.toLowerCase().trim() === userEmail)) &&
       !(m.is_read_by || []).map(e => String(e).toLowerCase().trim()).includes(userEmail);
@@ -3102,7 +3343,7 @@ function baseCtx(req, activeNav = 'dashboard') {
     server_raw_epoch_ms: Date.now(),
     system_current_time_display: formatSystemTimestamp(getSystemNowIso(), true),
     system_timezone: getEffectiveTimezone(),
-    client_sync_snapshot: buildClientSyncSnapshot(),
+    client_sync_snapshot: buildClientSyncSnapshot(req),
     current_user_signature: {
       name: actor.signature_name || actor.name || 'Laurence Magondu',
       title: actor.signature_title || actor.role || 'Administrator',
@@ -3121,8 +3362,8 @@ function baseCtx(req, activeNav = 'dashboard') {
     current_department_parent: '',
     current_department_display: currentDept,
     current_user_avatar_url: actor.profile_image_url || null,
-    settings: store.SYSTEM_SETTINGS || {},
-    companies: (store.COMPANIES || []).map(ensureCompanyDesignation),
+    settings: (() => { const safe = { ...(store.SYSTEM_SETTINGS || {}) }; delete safe.admin_login_password; delete safe.smtp_pass; return safe; })(),
+    companies: (store.COMPANIES || []).filter(c => actor.id === 'USR-001' || actor.is_platform_admin === true || c.id === actor.company_id).map(ensureCompanyDesignation),
     active_company: activeCompany,
     print_company_logo: printCompanyLogo,
     print_company_name: activeCompany.name || 'Opsloom Kenya',
@@ -3312,7 +3553,27 @@ function detectUserAndWorkspaceByEmail(rawEmail, rawName = '', rawDept = '') {
   };
 }
 
-app.post('/login', (req, res) => {
+const loginAttemptBuckets = new Map();
+function loginRateLimit(req, res, next) {
+  const key = String(req.ip || req.socket?.remoteAddress || 'unknown').slice(0, 128);
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000;
+  const current = loginAttemptBuckets.get(key);
+  if (!current || now - current.startedAt >= windowMs) {
+    loginAttemptBuckets.set(key, { startedAt: now, count: 1 });
+    return next();
+  }
+  if (current.count >= 8) {
+    res.setHeader('Retry-After', String(Math.ceil((windowMs - (now - current.startedAt)) / 1000)));
+    return res.status(429).send('Too many sign-in attempts. Please wait 15 minutes before trying again.');
+  }
+  current.count += 1;
+  return next();
+}
+
+app.post('/login', loginRateLimit, async (req, res) => {
+  // Authentication lookup and password migration are identity-global, not tenant-scoped.
+  global._currentCompanyId = null;
   const { email, password, next: nextTarget } = req.body;
   const cleanEmail = (email || '').trim().toLowerCase();
   const rawPass = String(password || '');
@@ -3345,22 +3606,32 @@ app.post('/login', (req, res) => {
   }
 
   const isPrimaryAdminUser = user.id === 'USR-001' || cleanEmail === ADMIN_PRIMARY_EMAIL || cleanEmail === 'laurencemureithi1999@gmail.com';
-  const expectedPassword = isPrimaryAdminUser
-    ? String(store.SYSTEM_SETTINGS?.admin_login_password || user.password || 'Admin@123').trim()
-    : String(user.password !== undefined && user.password !== '' ? user.password : 'Admin@123').trim();
-
-  if (isPrimaryAdminUser && store.SYSTEM_SETTINGS?.admin_login_password && user.password !== store.SYSTEM_SETTINGS.admin_login_password) {
-    user.password = store.SYSTEM_SETTINGS.admin_login_password;
+  const configuredAdminPassword = String(process.env.ADMIN_LOGIN_PASSWORD || '');
+  const storedPassword = isPrimaryAdminUser
+    ? (user.password || store.SYSTEM_SETTINGS?.admin_login_password || '')
+    : String(user.password || '');
+  if ((process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') && isPrimaryAdminUser && !configuredAdminPassword && !storedPassword) {
+    return res.status(503).send('Administrator credentials have not been configured. Set ADMIN_LOGIN_PASSWORD securely before enabling sign-in.');
   }
-
-  const submittedTrimmed = rawPass.trim();
-  if (!submittedTrimmed || (rawPass !== expectedPassword && submittedTrimmed !== expectedPassword)) {
+  if ((process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') && isPrimaryAdminUser && rawPass === 'Admin@123' && !configuredAdminPassword) {
+    logAudit('Blocked Default Administrator Credential', 'Default administrator password was rejected in production.', 'security', '/login', 'warning');
+    flash('error', 'The default administrator password is disabled. Configure a unique administrator password before deployment.');
+    return res.redirect('/login');
+  }
+  const credentialToCheck = configuredAdminPassword && isPrimaryAdminUser && (!storedPassword || storedPassword === 'Admin@123') ? configuredAdminPassword : storedPassword;
+  if (!rawPass || !verifyPassword(rawPass, credentialToCheck)) {
     logAudit('Failed Login Attempt', `Incorrect password entered for ${user.email}.`, 'security', '/login', 'warning');
     flash('error', 'Invalid company email or password. Please verify your credentials.');
     return res.redirect('/login');
   }
+  if (!isPasswordHash(user.password) || (isPrimaryAdminUser && configuredAdminPassword && !isPasswordHash(user.password))) {
+    user.password = hashPassword(rawPass);
+    if (isPrimaryAdminUser && store.SYSTEM_SETTINGS) store.SYSTEM_SETTINGS.admin_login_password = user.password;
+    try { await dal.upsertUser(user); } catch (err) { console.error('[password migration] could not persist password hash:', err.message); }
+  }
 
   user.last_login_at = nowFmt;
+  loginAttemptBuckets.delete(String(req.ip || req.socket?.remoteAddress || 'unknown').slice(0, 128));
   saveStore();
 
   setSafeCookie(req, res, 'opsloom_user', user.id, timeoutMs);
@@ -3384,18 +3655,9 @@ app.post('/login', (req, res) => {
 });
 
 app.get('/login/google', (req, res) => {
-  seedInitialDataIfEmpty();
-  setSafeCookie(req, res, 'opsloom_user', 'USR-001');
-  setSafeCookie(req, res, 'opsloom_role', 'Administrator');
-  setSafeCookie(req, res, 'opsloom_last_active', String(Date.now()));
-  const preferredCompId = store.ACTIVE_COMPANY_ID || req.cookies?.opsloom_ws_id || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id);
-  if (preferredCompId) {
-    store.ACTIVE_COMPANY_ID = preferredCompId;
-    setSafeCookie(req, res, 'opsloom_ws_id', preferredCompId);
-  }
-  res.clearCookie('current_company_id', { path: '/' });
-  logAudit('Google sign-in', 'Laurence Magondu signed in via Google SSO.', 'security', '/dashboard');
-  res.redirect('/dashboard');
+  // This legacy endpoint granted administrator access without verifying an identity.
+  // Keep the route for compatibility, but fail closed until a real OIDC flow is configured.
+  return res.status(404).send('Google sign-in is not configured. Use your organization credentials.');
 });
 
 app.get('/logout', (req, res) => {
@@ -3425,6 +3687,7 @@ app.post('/api/session/ping', (req, res) => {
 });
 
 app.post('/login/forgot-password', (req, res) => {
+  global._currentCompanyId = null;
   const rawEmail = String(req.body.email || '').trim().toLowerCase();
   if (!rawEmail) {
     flash('info', 'Enter your account email below to request a password reset.');
@@ -3539,6 +3802,7 @@ app.post('/login/forgot-password', (req, res) => {
 });
 
 app.post('/login/reset-admin-password', (req, res) => {
+  global._currentCompanyId = null;
   const codeInput = String(req.body.reset_code || '').trim();
   const newPass = String(req.body.new_password || '').trim();
   const confirmPass = String(req.body.confirm_password || '').trim();
@@ -3555,8 +3819,8 @@ app.post('/login/reset-admin-password', (req, res) => {
     return res.redirect('/login?admin_reset=1');
   }
 
-  if (!newPass || newPass.length < 4) {
-    flash('error', 'Please enter a valid new password (at least 4 characters).');
+  if (!newPass || newPass.length < 12) {
+    flash('error', 'Use a password with at least 12 characters.');
     return res.redirect('/login?admin_reset=1');
   }
 
@@ -3581,6 +3845,7 @@ app.post('/login/reset-admin-password', (req, res) => {
 });
 
 app.post('/login/request-credentials', (req, res) => {
+  global._currentCompanyId = null;
   const rawEmail = String(req.body.email || '').trim().toLowerCase();
   const rawName = String(req.body.name || '').trim() || rawEmail || 'New User';
   const rawDept = String(req.body.department || 'Engineering').trim();
@@ -3646,7 +3911,14 @@ app.all('/set-department', (req, res) => {
 app.get(['/settings/companies', '/companies', '/admin/companies'], async (req, res) => {
   try {
     const dbCompanies = await dal.getCompanies();
-    if (dbCompanies && dbCompanies.length) store.COMPANIES = dbCompanies;
+    if (dbCompanies && dbCompanies.length) {
+      if (global._currentCompanyId) {
+        const refreshed = dbCompanies[0];
+        store.COMPANIES = (store.COMPANIES || []).map(c => c.id === refreshed.id ? refreshed : c);
+      } else {
+        store.COMPANIES = dbCompanies;
+      }
+    }
   } catch (e) {
     console.warn('Failed to refresh companies from DB:', e.message);
   }
@@ -3679,6 +3951,11 @@ app.post('/api/companies/save-logo', upload.single('logo_file'), async (req, res
   const target = store.COMPANIES.find(c => c.id === targetId) || store.COMPANIES[0];
   if (!target) {
     return res.status(404).json({ ok: false, error: 'Workspace not found' });
+  }
+  const logoActor = getCurrentActor(req);
+  const isPlatformAdminForLogo = logoActor && (logoActor.id === 'USR-001' || logoActor.is_platform_admin === true);
+  if (!isPlatformAdminForLogo && logoActor.company_id !== target.id) {
+    return res.status(403).json({ ok: false, error: 'You can only change branding for your assigned organization.' });
   }
 
   const uploadedFileDataUrl = req.file ? fileToDataUrl(req.file) : '';
@@ -3784,6 +4061,11 @@ app.post(['/settings/companies/save', '/api/companies/save'], upload.fields([
     logo_light_data_url, logo_dark_data_url,
     show_name_next_to_logo, logo_height, logo_width_pct, logo_alignment, logo_fit
   } = req.body || {};
+  const companyActor = getCurrentActor(req);
+  const isPlatformAdminForCompany = companyActor && (companyActor.id === 'USR-001' || companyActor.is_platform_admin === true);
+  if (!isPlatformAdminForCompany && (!id || id !== companyActor.company_id)) {
+    return res.status(403).json({ ok: false, error: 'Only the platform administrator can create organizations. You may edit only your assigned organization.' });
+  }
 
   let target = id ? store.COMPANIES.find(c => c.id === id) : null;
   const isNew = !target;
@@ -3914,6 +4196,10 @@ app.post(['/settings/companies/save', '/api/companies/save'], upload.fields([
 });
 
 app.all(['/settings/companies/:id/delete', '/api/companies/:id/delete'], async (req, res) => {
+  const actor = getCurrentActor(req);
+  if (!(actor && (actor.id === 'USR-001' || actor.is_platform_admin === true))) {
+    return res.status(403).json({ ok: false, error: 'Only the platform administrator can delete organization workspaces.' });
+  }
   const isJson = req.path.startsWith('/api/') || (req.headers.accept && req.headers.accept.includes('application/json'));
   if (store.COMPANIES && store.COMPANIES.length > 1) {
     const idx = store.COMPANIES.findIndex(c => c && c.id === req.params.id);
@@ -3976,9 +4262,9 @@ app.all(['/settings/companies/:id/delete', '/api/companies/:id/delete'], async (
 app.all('/set-company', async (req, res) => {
   const companyId = req.query?.company_id || req.body?.company_id;
   const actor = getCurrentActor(req);
-  const isAdmin = (actor.role || '').toLowerCase() === 'administrator' || (Array.isArray(actor.permissions) && (actor.permissions.includes('all') || actor.permissions.includes('companies')));
+  const isPlatformAdmin = actor && (actor.id === 'USR-001' || actor.is_platform_admin === true);
 
-  if (!isAdmin && actor.company_id && actor.company_id !== companyId) {
+  if (!isPlatformAdmin && (!actor.company_id || actor.company_id !== companyId)) {
     flash('error', 'Unauthorized: You are only permitted to access your assigned organization workspace.');
     return res.redirect('/dashboard');
   }
@@ -3987,10 +4273,7 @@ app.all('/set-company', async (req, res) => {
   if (company) {
     store.ACTIVE_COMPANY_ID = company.id;
     activateWorkspaceBucket(company.id);
-    if (actor && actor.id) {
-      actor.company_id = company.id;
-      try { await dal.upsertUser(actor); } catch (e) {}
-    }
+    global._currentCompanyId = isPlatformAdmin ? null : company.id;
     await saveStore();
     setSafeCookie(req, res, 'opsloom_ws_id', company.id);
     res.clearCookie('current_company_id', { path: '/' });
@@ -4013,10 +4296,10 @@ app.all('/dashboard', async (req, res) => {
       dal.getMaintenanceTasks(),
       dal.getInventoryParts()
     ]);
-    if (dbAssets) store.ASSETS = dbAssets;
-    if (dbBreakdowns) store.BREAKDOWNS = dbBreakdowns;
-    if (dbTasks) store.MAINTENANCE_TASKS = dbTasks;
-    if (dbParts) store.INVENTORY_PARTS = dbParts;
+    if (dbAssets) store.ASSETS = mergeCompanyScopedRows(store.ASSETS, dbAssets);
+    if (dbBreakdowns) store.BREAKDOWNS = mergeCompanyScopedRows(store.BREAKDOWNS, dbBreakdowns);
+    if (dbTasks) store.MAINTENANCE_TASKS = mergeCompanyScopedRows(store.MAINTENANCE_TASKS, dbTasks);
+    if (dbParts) store.INVENTORY_PARTS = mergeCompanyScopedRows(store.INVENTORY_PARTS, dbParts);
   } catch (e) {
     console.warn('Dashboard DB sync error:', e.message);
   }
@@ -4410,16 +4693,12 @@ app.get(['/assets', '/assets/master-list'], async (req, res) => {
   try {
     const dbAssets = await dal.getAssets();
     if (Array.isArray(dbAssets) && dbAssets.length > 0) {
-      store.ASSETS = dbAssets;
+      store.ASSETS = mergeCompanyScopedRows(store.ASSETS, dbAssets);
     }
   } catch (e) {
     console.warn('Failed to refresh assets from DB:', e.message);
   }
-  let allAssets = getCompanyAssets(activeCompany.id);
-  if ((!allAssets || !allAssets.length) && store.ASSETS && store.ASSETS.length) {
-    allAssets = store.ASSETS.filter(a => a && (a.company_id === activeCompany.id || activeCompany.id === 'comp-001' || a.company_id === 'comp-001'));
-    if (!allAssets.length) allAssets = [...store.ASSETS];
-  }
+  const allAssets = getCompanyAssets(activeCompany.id);
   let list = [...allAssets];
   const q = (req.query.q || '').toLowerCase();
   const section = req.query.section || '';
@@ -4558,10 +4837,10 @@ function buildAssetProfilePrintContext(req, rawAsset) {
     warranty_expiry: '2027-12-31',
     asset_value: 'KES 14,500,000',
     service_provider: `${(rawAsset && rawAsset.manufacturer) || 'OEM'} Certified Field Services East Africa`,
-    ...(rawAsset || (store.ASSETS && store.ASSETS[0]) || {})
+    ...(rawAsset || {})
   };
-  const assetBreakdowns = (store.BREAKDOWNS || []).filter(b => b.asset_uid === asset.uid || b.asset_id === asset.asset_id);
-  const assetTasks = (store.MAINTENANCE_TASKS || []).filter(t => t.asset_uid === asset.uid || t.asset_id === asset.asset_id);
+  const assetBreakdowns = getCompanyBreakdowns(asset.company_id).filter(b => b.asset_uid === asset.uid || b.asset_id === asset.asset_id);
+  const assetTasks = getCompanyMaintenanceTasks(asset.company_id).filter(t => t.asset_uid === asset.uid || t.asset_id === asset.asset_id);
 
   const maintTotal = assetTasks.reduce((s, t) => s + Number(t.cost_total || t.cost || 18500), 0) || 37000;
   const maintSub = Math.round(maintTotal / 1.16);
@@ -4579,7 +4858,7 @@ function buildAssetProfilePrintContext(req, rawAsset) {
   return {
     ...baseCtx(req, 'assets'),
     asset,
-    assets: store.ASSETS || [],
+    assets: getCompanyAssets(asset.company_id),
     mtbf_hours: 148.5,
     maintenance_cost_subtotal: maintSub,
     maintenance_cost_total: maintTotal,
@@ -4604,8 +4883,9 @@ function buildAssetProfilePrintContext(req, rawAsset) {
 }
 
 function buildMaintenanceSchedulePrintContext(req, customTasks = null) {
-  const allTasks = customTasks || store.MAINTENANCE_TASKS || [];
-  const allAssets = store.ASSETS || [];
+  const activeCompany = resolveActiveWorkspaceForRequest(req);
+  const allTasks = customTasks || getCompanyMaintenanceTasks(activeCompany.id);
+  const allAssets = getCompanyAssets(activeCompany.id);
   const selected_year = parseInt(req.query.year, 10) || 2026;
   const selected_section = req.query.section || '';
   const selected_type = req.query.type || '';
@@ -5227,12 +5507,12 @@ app.post('/assets/new/step-4', async (req, res) => {
   }
 });
 
-function findAssetByUidOrId(identifier) {
+function findAssetByUidOrId(identifier, companyId = global._currentCompanyId || null) {
   if (!identifier) return null;
   const clean = String(identifier).trim().toLowerCase();
   const cleanAlpha = clean.replace(/[^a-z0-9]/g, '');
   return (store.ASSETS || []).find(a => {
-    if (!a) return false;
+    if (!a || (companyId && a.company_id !== companyId)) return false;
     const aUid = String(a.uid || '').toLowerCase();
     const aId = String(a.asset_id || '').toLowerCase();
     const aLegacyId = String(a.id || '').toLowerCase();
@@ -5248,7 +5528,7 @@ function findAssetByUidOrId(identifier) {
 app.get('/assets/success/:asset_uid', (req, res) => {
   try {
     const rawId = req.params.asset_uid ? decodeURIComponent(req.params.asset_uid) : '';
-    const found = findAssetByUidOrId(rawId) || findAssetByUidOrId(req.params.asset_uid) || (store.ASSETS && store.ASSETS[0]);
+    const found = findAssetByUidOrId(rawId) || findAssetByUidOrId(req.params.asset_uid);
     if (!found) {
       flash('info', 'Asset was registered successfully.');
       return res.redirect('/assets');
@@ -5276,8 +5556,8 @@ app.get('/assets/:asset_uid', (req, res) => {
   const asset = findAssetByUidOrId(req.params.asset_uid);
   if (!asset) return res.redirect('/assets');
 
-  const assetBreakdowns = (store.BREAKDOWNS || []).filter(b => b.asset_uid === asset.uid || b.asset_id === asset.asset_id);
-  const assetTasks = (store.MAINTENANCE_TASKS || []).filter(t => t.asset_uid === asset.uid || t.asset_id === asset.asset_id);
+  const assetBreakdowns = getCompanyBreakdowns(asset.company_id).filter(b => b.asset_uid === asset.uid || b.asset_id === asset.asset_id);
+  const assetTasks = getCompanyMaintenanceTasks(asset.company_id).filter(t => t.asset_uid === asset.uid || t.asset_id === asset.asset_id);
   const printMode = req.query.print === '1';
 
   if (printMode) {
@@ -5317,7 +5597,9 @@ app.get('/assets/:asset_uid/edit', (req, res) => {
 app.post('/assets/:asset_uid/edit', upload.any(), async (req, res) => {
   const asset = findAssetByUidOrId(req.params.asset_uid);
   if (asset) {
+    const owningCompanyId = asset.company_id;
     Object.assign(asset, req.body);
+    asset.company_id = owningCompanyId;
     const uploadedFile = req.file || (Array.isArray(req._allUploadedFiles) && req._allUploadedFiles[0]) || null;
     const photoDataUrl = fileToDataUrl(uploadedFile);
     if (photoDataUrl) {
@@ -5354,7 +5636,7 @@ app.all(['/assets/:asset_uid/delete', '/assets/delete/:asset_uid', '/assets/dele
 
     if (target) {
       // Remove permanently from store.ASSETS
-      store.ASSETS = (store.ASSETS || []).filter(a => a && a.uid !== target.uid && a.asset_id !== target.asset_id);
+      store.ASSETS = (store.ASSETS || []).filter(a => a && (a.company_id !== target.company_id || (a.uid !== target.uid && a.asset_id !== target.asset_id)));
 
       try {
         await dal.deleteAsset(target.uid);
@@ -5400,7 +5682,7 @@ app.all(['/assets/:asset_uid/delete', '/assets/delete/:asset_uid', '/assets/dele
 });
 
 app.post('/assets/:asset_uid/spareparts/:spare_id/delete', (req, res) => {
-  const idx = (store.INVENTORY_PARTS || []).findIndex(p => (p.uid || p.id) === req.params.spare_id);
+  const idx = (store.INVENTORY_PARTS || []).findIndex(p => (p.uid || p.id) === req.params.spare_id && (!global._currentCompanyId || p.company_id === global._currentCompanyId));
   if (idx !== -1) {
     const deleted = store.INVENTORY_PARTS.splice(idx, 1)[0];
     try { dal.deleteInventoryPart(deleted.uid || deleted.id).catch(() => {}); } catch (e) {}
@@ -5501,9 +5783,10 @@ app.get('/assets/:asset_uid/spare-parts', (req, res) => {
 });
 
 app.get(['/assets/:asset_uid/spare-parts/export/:fmt', '/assets/:asset_uid/spare-parts/export'], async (req, res) => {
-  const asset = findAssetByUidOrId(req.params.asset_uid) || (store.ASSETS && store.ASSETS[0]) || {};
+  const asset = findAssetByUidOrId(req.params.asset_uid);
+  if (!asset) return res.status(404).send('Asset not found');
   const fmt = (req.params.fmt || req.query.format || req.query.fmt || 'csv').toLowerCase();
-  const parts = store.INVENTORY_PARTS || [];
+  const parts = getCompanySpareParts(asset.company_id);
 
   if (fmt === 'pptx' || fmt === 'powerpoint') {
     const critParts = parts.filter(p => p.is_critical).length;
@@ -5582,7 +5865,7 @@ app.get(['/assets/:asset_uid/spare-parts/export/:fmt', '/assets/:asset_uid/spare
 app.get('/assets/:asset_uid/maintenance-history', (req, res) => {
   const asset = findAssetByUidOrId(req.params.asset_uid);
   if (!asset) return res.redirect('/assets');
-  const tasks = (store.MAINTENANCE_TASKS || []).filter(t => t.asset_uid === asset.uid || t.asset_id === asset.asset_id);
+  const tasks = getCompanyMaintenanceTasks(asset.company_id).filter(t => t.asset_uid === asset.uid || t.asset_id === asset.asset_id);
   res.render('assets/assets_maintenance_history.html', {
     ...baseCtx(req, 'assets'),
     asset,
@@ -5593,9 +5876,10 @@ app.get('/assets/:asset_uid/maintenance-history', (req, res) => {
 });
 
 app.get(['/assets/:asset_uid/maintenance-history/export/:fmt', '/assets/:asset_uid/maintenance-history/export'], async (req, res) => {
-  const asset = findAssetByUidOrId(req.params.asset_uid) || (store.ASSETS && store.ASSETS[0]) || {};
+  const asset = findAssetByUidOrId(req.params.asset_uid);
+  if (!asset) return res.status(404).send('Asset not found');
   const fmt = (req.params.fmt || req.query.format || req.query.fmt || 'csv').toLowerCase();
-  const tasks = (store.MAINTENANCE_TASKS || []).filter(t => !asset.uid || t.asset_uid === asset.uid || t.asset_id === asset.asset_id);
+  const tasks = getCompanyMaintenanceTasks(asset.company_id).filter(t => !asset.uid || t.asset_uid === asset.uid || t.asset_id === asset.asset_id);
 
   if (fmt === 'pptx' || fmt === 'powerpoint') {
     const compCount = tasks.filter(t => t.status === 'completed').length;
@@ -5813,7 +6097,7 @@ app.post('/assets/:asset_uid/documents/:doc_uid/delete', async (req, res) => {
 app.get('/assets/:asset_uid/breakdowns', (req, res) => {
   const asset = findAssetByUidOrId(req.params.asset_uid);
   if (!asset) return res.redirect('/assets');
-  const bds = (store.BREAKDOWNS || []).filter(b => b.asset_uid === asset.uid || b.asset_id === asset.asset_id);
+  const bds = getCompanyBreakdowns(asset.company_id).filter(b => b.asset_uid === asset.uid || b.asset_id === asset.asset_id);
   res.render('assets/assets_breakdowns.html', {
     ...baseCtx(req, 'assets'),
     asset,
@@ -5872,8 +6156,8 @@ app.get(['/breakdowns', '/breakdowns/management'], async (req, res) => {
       dal.getBreakdowns(),
       dal.getAssets()
     ]);
-    if (dbBds) store.BREAKDOWNS = dbBds;
-    if (dbAssets) store.ASSETS = dbAssets;
+    if (dbBds) store.BREAKDOWNS = mergeCompanyScopedRows(store.BREAKDOWNS, dbBds);
+    if (dbAssets) store.ASSETS = mergeCompanyScopedRows(store.ASSETS, dbAssets);
   } catch (e) {
     console.warn('Breakdowns DB sync error:', e.message);
   }
@@ -5942,7 +6226,7 @@ app.get('/breakdowns/new/step1', (req, res) => {
   res.render('breakdowns/log_breakdown_step1.html', {
     ...baseCtx(req, 'breakdowns'),
     assets: getCompanyAssets(activeCompany.id),
-    technicians: store.TECHNICIAN_DIRECTORY || [],
+    technicians: (store.TECHNICIAN_DIRECTORY || []).filter(t => t && (!global._currentCompanyId || t.company_id === global._currentCompanyId)),
     step_data: wizardState.breakdowns[req.cookies?.opsloom_user || 'default'] || {}
   });
 });
@@ -5957,7 +6241,7 @@ app.get('/breakdowns/new/step-2', (req, res) => {
   res.render('breakdowns/log_breakdown_step2.html', {
     ...baseCtx(req, 'breakdowns'),
     step_data: wizardState.breakdowns[req.cookies?.opsloom_user || 'default'] || {},
-    technicians: store.TECHNICIAN_DIRECTORY || []
+    technicians: (store.TECHNICIAN_DIRECTORY || []).filter(t => t && (!global._currentCompanyId || t.company_id === global._currentCompanyId))
   });
 });
 
@@ -5966,7 +6250,7 @@ app.post('/breakdowns/new/step-2', async (req, res) => {
   const data = { ...wizardState.breakdowns[user], ...req.body };
   const bdId = 'BD-' + new Date().getFullYear() + '-' + Math.floor(100 + Math.random() * 900);
   const activeCompany = resolveActiveWorkspaceForRequest(req);
-  const asset = (store.ASSETS || []).find(a => a && (a.uid === data.asset_uid || a.asset_id === data.asset_id)) || {};
+  const asset = getCompanyAssets(activeCompany.id).find(a => a && (a.uid === data.asset_uid || a.asset_id === data.asset_id)) || {};
   const targetCompanyId = asset.company_id || activeCompany.id || 'comp-001';
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10);
@@ -6010,8 +6294,9 @@ app.post('/breakdowns/new/step-2', async (req, res) => {
 });
 
 app.get('/breakdowns/success/:id', (req, res) => {
-  const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id) || store.BREAKDOWNS[0] || {};
-  const asset = store.ASSETS.find(a => (breakdown.asset_id && a.asset_id === breakdown.asset_id) || (breakdown.asset_name && a.asset_name === breakdown.asset_name)) || null;
+  const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id && (!global._currentCompanyId || b.company_id === global._currentCompanyId));
+  if (!breakdown) return res.status(404).send('Breakdown record not found');
+  const asset = store.ASSETS.find(a => a && a.company_id === breakdown.company_id && ((breakdown.asset_id && a.asset_id === breakdown.asset_id) || (breakdown.asset_name && a.asset_name === breakdown.asset_name))) || null;
   const techName = breakdown.technician_name || breakdown.technician || 'Unassigned Technician';
   const techInitials = techName.split(' ').map(w => w[0]).filter(Boolean).join('').slice(0, 2).toUpperCase() || 'NA';
   const reportedLabel = breakdown.reported_time
@@ -6086,7 +6371,7 @@ function renderBreakdownView(req, res, breakdown, print_mode = false) {
     cost_total: costTotal,
     progress_log: breakdown.progress_log || [],
     rca: breakdown.rca || null,
-    technicians: store.TECHNICIAN_DIRECTORY || [],
+    technicians: (store.TECHNICIAN_DIRECTORY || []).filter(t => t && (!global._currentCompanyId || t.company_id === global._currentCompanyId)),
     media: breakdown.media || [],
     print_mode: Boolean(print_mode || req.query.print === '1')
   });
@@ -6218,7 +6503,7 @@ app.get('/breakdowns/frequency/export', async (req, res) => {
   const fmt = (req.query.format || req.query.fmt || 'pdf').toLowerCase();
   const range = (req.query.range || '7d').toLowerCase();
   const notes = req.query.notes || '';
-  const breakdowns = store.BREAKDOWNS || [];
+  const breakdowns = getCompanyBreakdowns(global._currentCompanyId);
 
   let labels = [];
   let values = [];
@@ -6349,19 +6634,19 @@ app.get('/breakdowns/assets', (req, res) => {
 });
 
 app.get('/breakdowns/:id', (req, res) => {
-  const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
+  const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id && (!global._currentCompanyId || b.company_id === global._currentCompanyId));
   if (!breakdown) return res.redirect('/breakdowns');
   renderBreakdownView(req, res, breakdown, req.query.print === '1');
 });
 
 app.get('/breakdowns/:id/print', (req, res) => {
-  const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
+  const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id && (!global._currentCompanyId || b.company_id === global._currentCompanyId));
   if (!breakdown) return res.redirect('/breakdowns');
   renderBreakdownView(req, res, breakdown, true);
 });
 
 app.get('/breakdowns/:id/update', (req, res) => {
-  const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
+  const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id && (!global._currentCompanyId || b.company_id === global._currentCompanyId));
   if (!breakdown) return res.redirect('/breakdowns');
   const costSubtotal = Number(breakdown.cost_subtotal || breakdown.cost || 24000);
   const costVatPct = Number(breakdown.cost_vat_pct !== undefined ? breakdown.cost_vat_pct : 16);
@@ -6385,14 +6670,16 @@ app.get('/breakdowns/:id/update', (req, res) => {
     cost_vat_pct: costVatPct,
     cost_vat_amount: costVat,
     cost_total: costTotal,
-    technicians: store.TECHNICIAN_DIRECTORY || []
+    technicians: (store.TECHNICIAN_DIRECTORY || []).filter(t => t && (!global._currentCompanyId || t.company_id === global._currentCompanyId))
   });
 });
 
 app.post('/breakdowns/:id/update', upload.array('media', 5), async (req, res) => {
-  const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
+  const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id && (!global._currentCompanyId || b.company_id === global._currentCompanyId));
   if (breakdown) {
+    const owningCompanyId = breakdown.company_id;
     Object.assign(breakdown, req.body);
+    breakdown.company_id = owningCompanyId;
     if (req.body.cost_subtotal !== undefined) {
       const sub = Number(req.body.cost_subtotal) || 0;
       const vatPct = Number(req.body.cost_vat_pct !== undefined ? req.body.cost_vat_pct : 16);
@@ -6422,7 +6709,7 @@ app.post('/breakdowns/:id/update', upload.array('media', 5), async (req, res) =>
     }
     let restoredAsset = null;
     if (breakdown.status === 'resolved' || breakdown.status === 'closed') {
-      const asset = store.ASSETS.find(a => a.uid === breakdown.asset_uid || a.asset_id === breakdown.asset_id);
+      const asset = store.ASSETS.find(a => a && a.company_id === breakdown.company_id && (a.uid === breakdown.asset_uid || a.asset_id === breakdown.asset_id));
       if (asset) {
         asset.status = 'operational';
         restoredAsset = asset;
@@ -6444,7 +6731,7 @@ app.post('/breakdowns/:id/update', upload.array('media', 5), async (req, res) =>
 });
 
 app.get('/breakdowns/:id/rca', (req, res) => {
-  const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
+  const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id && (!global._currentCompanyId || b.company_id === global._currentCompanyId));
   if (!breakdown) return res.redirect('/breakdowns');
   res.render('breakdowns/root_cause.html', {
     ...baseCtx(req, 'breakdowns'),
@@ -6456,7 +6743,7 @@ app.get('/breakdowns/:id/rca', (req, res) => {
 });
 
 app.post('/breakdowns/:id/rca', async (req, res) => {
-  const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
+  const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id && (!global._currentCompanyId || b.company_id === global._currentCompanyId));
   if (breakdown) {
     breakdown.rca = { ...(breakdown.rca || {}), ...req.body, updated_at: getSystemNowIso() };
     try {
@@ -6472,12 +6759,12 @@ app.post('/breakdowns/:id/rca', async (req, res) => {
 });
 
 app.post('/breakdowns/:id/close', async (req, res) => {
-  const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id);
+  const breakdown = store.BREAKDOWNS.find(b => b.breakdown_id === req.params.id && (!global._currentCompanyId || b.company_id === global._currentCompanyId));
   if (breakdown) {
     breakdown.status = 'resolved';
     breakdown.resolved_at = getSystemNowIso();
     breakdown.downtime_hours = calculateDowntimeHours(breakdown);
-    const asset = store.ASSETS.find(a => a.uid === breakdown.asset_uid);
+    const asset = store.ASSETS.find(a => a && a.company_id === breakdown.company_id && a.uid === breakdown.asset_uid);
     if (asset) asset.status = 'operational';
     try {
       await dal.upsertBreakdown(breakdown);
@@ -6494,7 +6781,7 @@ app.post('/breakdowns/:id/close', async (req, res) => {
 });
 
 app.post('/breakdowns/:id/delete', (req, res) => {
-  const idx = store.BREAKDOWNS.findIndex(b => b.breakdown_id === req.params.id);
+  const idx = store.BREAKDOWNS.findIndex(b => b.breakdown_id === req.params.id && (!global._currentCompanyId || b.company_id === global._currentCompanyId));
   if (idx !== -1) {
     const deleted = store.BREAKDOWNS.splice(idx, 1)[0];
     try { dal.deleteBreakdown(deleted.breakdown_id).catch(() => {}); } catch (e) {}
@@ -6524,8 +6811,8 @@ app.get('/maintenance', async (req, res) => {
       dal.getMaintenanceTasks(),
       dal.getAssets()
     ]);
-    if (dbTasks) store.MAINTENANCE_TASKS = dbTasks;
-    if (dbAssets) store.ASSETS = dbAssets;
+    if (dbTasks) store.MAINTENANCE_TASKS = mergeCompanyScopedRows(store.MAINTENANCE_TASKS, dbTasks);
+    if (dbAssets) store.ASSETS = mergeCompanyScopedRows(store.ASSETS, dbAssets);
   } catch (e) {
     console.warn('Maintenance DB sync error:', e.message);
   }
@@ -6611,13 +6898,13 @@ app.get('/maintenance', async (req, res) => {
     selected_due_from: dueFrom,
     selected_due_to: dueTo,
     technicians: techNames,
-    assets: store.ASSETS || []
+    assets: getCompanyAssets(global._currentCompanyId)
   });
 });
 
 app.get('/api/maintenance/distribution', (req, res) => {
-  const tasks = store.MAINTENANCE_TASKS || [];
-  const breakdowns = store.BREAKDOWNS || [];
+  const tasks = getCompanyMaintenanceTasks(global._currentCompanyId);
+  const breakdowns = getCompanyBreakdowns(global._currentCompanyId);
   const sections = SECTIONS;
   const pmSeries = sections.map(s => tasks.filter(t => t.section === s && (t.maintenance_type || 'PM') === 'PM').length);
   const cmSeries = sections.map(s => breakdowns.filter(b => b.section === s).length);
@@ -6642,8 +6929,8 @@ app.get('/maintenance/distribution/export', async (req, res) => {
   const assetFilter = req.query.asset_uid || '';
   const rangeLabel = (req.query.range || 'MTD').toUpperCase();
 
-  let tasks = [...(store.MAINTENANCE_TASKS || [])];
-  let breakdowns = [...(store.BREAKDOWNS || [])];
+  let tasks = [...getCompanyMaintenanceTasks(global._currentCompanyId)];
+  let breakdowns = [...getCompanyBreakdowns(global._currentCompanyId)];
   if (secFilter) {
     tasks = tasks.filter(t => t.section === secFilter);
     breakdowns = breakdowns.filter(b => b.section === secFilter);
@@ -6720,7 +7007,7 @@ app.get('/maintenance/distribution/export', async (req, res) => {
 app.get('/maintenance/schedule/step-1', (req, res) => {
   res.render('maintenance/schedule_step1.html', {
     ...baseCtx(req, 'maintenance'),
-    assets: store.ASSETS || [],
+    assets: getCompanyAssets(global._currentCompanyId),
     step_data: wizardState.maintenance[req.cookies?.opsloom_user || 'default'] || {}
   });
 });
@@ -6734,7 +7021,7 @@ app.post('/maintenance/schedule/step-1', (req, res) => {
 app.get('/maintenance/schedule/step-2', (req, res) => {
   res.render('maintenance/schedule_step2.html', {
     ...baseCtx(req, 'maintenance'),
-    technicians: store.TECHNICIAN_DIRECTORY || [],
+    technicians: (store.TECHNICIAN_DIRECTORY || []).filter(t => t && (!global._currentCompanyId || t.company_id === global._currentCompanyId)),
     step_data: wizardState.maintenance[req.cookies?.opsloom_user || 'default'] || {}
   });
 });
@@ -6757,7 +7044,7 @@ app.post('/maintenance/schedule/step-3', async (req, res) => {
   const user = req.cookies?.opsloom_user || 'default';
   const data = { ...wizardState.maintenance[user], ...req.body };
   const taskId = 'TASK-' + new Date().getFullYear() + '-' + Math.floor(100 + Math.random() * 900);
-  const asset = (store.ASSETS || []).find(a => a && (a.uid === data.asset_uid || a.asset_id === data.asset_id)) || {};
+  const asset = getCompanyAssets(activeCompany.id).find(a => a && (a.uid === data.asset_uid || a.asset_id === data.asset_id)) || {};
   const targetCompanyId = asset.company_id || activeCompany.id || 'comp-001';
 
   const task = {
@@ -6796,9 +7083,10 @@ app.get('/maintenance/schedule/success', (req, res) => {
   const taskId = req.query.task_id;
   const isCompleted = req.query.mode === 'completed';
   const task = taskId
-    ? (store.MAINTENANCE_TASKS.find(t => t.task_id === taskId) || store.MAINTENANCE_TASKS[store.MAINTENANCE_TASKS.length - 1])
-    : store.MAINTENANCE_TASKS[store.MAINTENANCE_TASKS.length - 1];
-  const asset = task ? store.ASSETS.find(a => (task.asset_id && a.asset_id === task.asset_id) || (task.asset_name && a.asset_name === task.asset_name) || (task.asset_uid && a.uid === task.asset_uid)) : null;
+    ? store.MAINTENANCE_TASKS.find(t => t.task_id === taskId && (!global._currentCompanyId || t.company_id === global._currentCompanyId))
+    : null;
+  if (!task) return res.status(404).send('Maintenance task not found');
+  const asset = task ? store.ASSETS.find(a => a && a.company_id === task.company_id && ((task.asset_id && a.asset_id === task.asset_id) || (task.asset_name && a.asset_name === task.asset_name) || (task.asset_uid && a.uid === task.asset_uid))) : null;
   const asset_photo_url = (asset && (asset.photo_url || asset.image_url)) || '';
 
   res.render('maintenance/schedule_success.html', {
@@ -6844,9 +7132,9 @@ app.get('/maintenance/assets', (req, res) => {
 
 app.get(['/maintenance/:task_id', '/maintenance/work-order/:work_order_id'], (req, res) => {
   const id = req.params.task_id || req.params.work_order_id;
-  const rawTask = store.MAINTENANCE_TASKS.find(t => t.task_id === id);
+  const rawTask = store.MAINTENANCE_TASKS.find(t => t.task_id === id && (!global._currentCompanyId || t.company_id === global._currentCompanyId));
   if (!rawTask) return res.redirect('/maintenance');
-  const asset = (store.ASSETS || []).find(a => a.uid === rawTask.asset_uid || a.asset_id === rawTask.asset_id) || {};
+  const asset = (store.ASSETS || []).find(a => a && a.company_id === rawTask.company_id && (a.uid === rawTask.asset_uid || a.asset_id === rawTask.asset_id)) || {};
   const task = {
     ...rawTask,
     cost_total: Number(rawTask.cost_total || rawTask.cost || 0),
@@ -6875,9 +7163,9 @@ app.get(['/maintenance/:task_id', '/maintenance/work-order/:work_order_id'], (re
 });
 
 app.get('/maintenance/:task_id/print', (req, res) => {
-  const rawTask = store.MAINTENANCE_TASKS.find(t => t.task_id === req.params.task_id);
+  const rawTask = store.MAINTENANCE_TASKS.find(t => t.task_id === req.params.task_id && (!global._currentCompanyId || t.company_id === global._currentCompanyId));
   if (!rawTask) return res.redirect('/maintenance');
-  const asset = (store.ASSETS || []).find(a => a.uid === rawTask.asset_uid || a.asset_id === rawTask.asset_id) || {};
+  const asset = (store.ASSETS || []).find(a => a && a.company_id === rawTask.company_id && (a.uid === rawTask.asset_uid || a.asset_id === rawTask.asset_id)) || {};
   const task = {
     ...rawTask,
     cost_total: Number(rawTask.cost_total || rawTask.cost || 0),
@@ -6893,7 +7181,7 @@ app.get('/maintenance/:task_id/print', (req, res) => {
 });
 
 app.get('/maintenance/:task_id/update', (req, res) => {
-  const task = store.MAINTENANCE_TASKS.find(t => t.task_id === req.params.task_id);
+  const task = store.MAINTENANCE_TASKS.find(t => t.task_id === req.params.task_id && (!global._currentCompanyId || t.company_id === global._currentCompanyId));
   if (!task) return res.redirect('/maintenance');
   const techList = store.TECHNICIAN_DIRECTORY || [];
   res.render('maintenance/update_task.html', {
@@ -6905,9 +7193,11 @@ app.get('/maintenance/:task_id/update', (req, res) => {
 });
 
 app.post('/maintenance/:task_id/update', upload.single('invoice'), async (req, res) => {
-  const task = store.MAINTENANCE_TASKS.find(t => t.task_id === req.params.task_id);
+  const task = store.MAINTENANCE_TASKS.find(t => t.task_id === req.params.task_id && (!global._currentCompanyId || t.company_id === global._currentCompanyId));
   if (task) {
+    const owningCompanyId = task.company_id;
     Object.assign(task, req.body);
+    task.company_id = owningCompanyId;
     if (req.body.cost !== undefined && req.body.cost !== '') {
       task.cost = Number(req.body.cost) || 0;
       task.cost_total = task.cost;
@@ -6932,7 +7222,7 @@ app.post('/maintenance/:task_id/update', upload.single('invoice'), async (req, r
 });
 
 app.post('/maintenance/:task_id/complete', async (req, res) => {
-  const task = store.MAINTENANCE_TASKS.find(t => t.task_id === req.params.task_id);
+  const task = store.MAINTENANCE_TASKS.find(t => t.task_id === req.params.task_id && (!global._currentCompanyId || t.company_id === global._currentCompanyId));
   if (task) {
     task.status = 'completed';
     task.completed_at = getSystemNowIso();
@@ -6950,7 +7240,7 @@ app.post('/maintenance/:task_id/complete', async (req, res) => {
 });
 
 app.post('/maintenance/:task_id/delete', (req, res) => {
-  const idx = store.MAINTENANCE_TASKS.findIndex(t => t.task_id === req.params.task_id);
+  const idx = store.MAINTENANCE_TASKS.findIndex(t => t.task_id === req.params.task_id && (!global._currentCompanyId || t.company_id === global._currentCompanyId));
   if (idx !== -1) {
     const deleted = store.MAINTENANCE_TASKS.splice(idx, 1)[0];
     try { dal.deleteMaintenanceTask(deleted.task_id).catch(() => {}); } catch (e) {}
@@ -6972,7 +7262,7 @@ app.post('/maintenance/:task_id/delete', (req, res) => {
 
 app.get(['/maintenance/export', '/maintenance/export/:fmt', '/maintenance/schedule/export'], async (req, res) => {
   const fmt = (req.params.fmt || req.query.format || req.query.fmt || 'csv').toLowerCase();
-  let list = [...(store.MAINTENANCE_TASKS || [])];
+  let list = [...getCompanyMaintenanceTasks(global._currentCompanyId)];
   const q = (req.query.q || '').trim().toLowerCase();
   const sec = req.query.section && req.query.section !== 'All' ? req.query.section : '';
   const type = req.query.type || '';
@@ -7090,7 +7380,7 @@ app.get(['/inventory', '/inventory/management'], async (req, res) => {
   const activeCompany = resolveActiveWorkspaceForRequest(req);
   try {
     const dbParts = await dal.getInventoryParts();
-    if (dbParts) store.INVENTORY_PARTS = dbParts;
+    if (dbParts) store.INVENTORY_PARTS = mergeCompanyScopedRows(store.INVENTORY_PARTS, dbParts);
   } catch (e) {
     console.warn('Inventory DB sync error:', e.message);
   }
@@ -7254,7 +7544,7 @@ app.post('/inventory/new/step-3', async (req, res) => {
 });
 
 app.get('/inventory/success/:part_uid', (req, res) => {
-  const part = (store.INVENTORY_PARTS || []).find(p => (p.uid || p.id) === req.params.part_uid) || (store.INVENTORY_PARTS && store.INVENTORY_PARTS[store.INVENTORY_PARTS.length - 1]);
+  const part = getCompanyInventoryParts(resolveActiveWorkspaceForRequest(req).id).find(p => (p.uid || p.id) === req.params.part_uid);
   if (!part) return res.redirect('/inventory');
   res.render('inventory/part_success.html', {
     ...baseCtx(req, 'inventory'),
@@ -7406,13 +7696,13 @@ app.get(['/inventory/export', '/inventory/export/:fmt'], async (req, res) => {
 });
 
 app.get('/inventory/:part_uid', (req, res) => {
-  const part = store.INVENTORY_PARTS.find(p => p.uid === req.params.part_uid);
+  const part = store.INVENTORY_PARTS.find(p => p.uid === req.params.part_uid && (!global._currentCompanyId || p.company_id === global._currentCompanyId));
   if (!part) return res.redirect('/inventory');
   const transactions = part.transactions || [
     { date: '2026-09-25', type: 'Stock Verification', qty_change: '+2', user: 'David Kimani', reference: 'Cycle Count Q3' },
     { date: '2026-09-18', type: 'Work Order Issue', qty_change: '-1', user: 'Peter Njoroge', reference: 'BD-2026-002' }
   ];
-  const linked_assets = (store.ASSETS || []).slice(0, 3);
+  const linked_assets = getCompanyAssets(resolveActiveWorkspaceForRequest(req).id).slice(0, 3);
   const qty = Number(part.qty || 0);
   const min_qty = Number(part.min_qty || 5);
   const target_qty = Math.max(min_qty * 2, qty + 5);
@@ -7456,7 +7746,7 @@ app.get('/inventory/:part_uid', (req, res) => {
 });
 
 app.get('/inventory/:part_uid/adjust', (req, res) => {
-  const part = store.INVENTORY_PARTS.find(p => p.uid === req.params.part_uid);
+  const part = store.INVENTORY_PARTS.find(p => p.uid === req.params.part_uid && (!global._currentCompanyId || p.company_id === global._currentCompanyId));
   if (!part) return res.redirect('/inventory');
   res.render('inventory/part_adjust.html', {
     ...baseCtx(req, 'inventory'),
@@ -7466,7 +7756,7 @@ app.get('/inventory/:part_uid/adjust', (req, res) => {
 });
 
 app.post('/inventory/:part_uid/adjust', async (req, res) => {
-  const part = store.INVENTORY_PARTS.find(p => p.uid === req.params.part_uid);
+  const part = store.INVENTORY_PARTS.find(p => p.uid === req.params.part_uid && (!global._currentCompanyId || p.company_id === global._currentCompanyId));
   if (part) {
     const delta = Number(req.body.delta || req.body.qty_change || 0);
     if (req.body.new_qty !== undefined && req.body.new_qty !== '') {
@@ -7488,7 +7778,7 @@ app.post('/inventory/:part_uid/adjust', async (req, res) => {
 });
 
 app.get('/inventory/:part_uid/edit', (req, res) => {
-  const part = store.INVENTORY_PARTS.find(p => p.uid === req.params.part_uid);
+  const part = store.INVENTORY_PARTS.find(p => p.uid === req.params.part_uid && (!global._currentCompanyId || p.company_id === global._currentCompanyId));
   if (!part) return res.redirect('/inventory');
   res.render('inventory/part_edit.html', {
     ...baseCtx(req, 'inventory'),
@@ -7498,9 +7788,11 @@ app.get('/inventory/:part_uid/edit', (req, res) => {
 });
 
 app.post('/inventory/:part_uid/edit', async (req, res) => {
-  const part = store.INVENTORY_PARTS.find(p => p.uid === req.params.part_uid);
+  const part = store.INVENTORY_PARTS.find(p => p.uid === req.params.part_uid && (!global._currentCompanyId || p.company_id === global._currentCompanyId));
   if (part) {
+    const owningCompanyId = part.company_id;
     Object.assign(part, req.body);
+    part.company_id = owningCompanyId;
     part.qty = Number(part.qty || 0);
     part.min_qty = Number(part.min_qty || 0);
     part.unit_price = Number(part.unit_price || 0);
@@ -7520,7 +7812,7 @@ app.post('/inventory/:part_uid/edit', async (req, res) => {
 });
 
 app.post('/inventory/:part_uid/delete', (req, res) => {
-  const idx = store.INVENTORY_PARTS.findIndex(p => (p.uid || p.id) === req.params.part_uid);
+  const idx = store.INVENTORY_PARTS.findIndex(p => (p.uid || p.id) === req.params.part_uid && (!global._currentCompanyId || p.company_id === global._currentCompanyId));
   if (idx !== -1) {
     const deleted = store.INVENTORY_PARTS.splice(idx, 1)[0];
     try { dal.deleteInventoryPart(deleted.uid || deleted.id).catch(() => {}); } catch (e) {}
@@ -7562,11 +7854,11 @@ app.get('/reports', async (req, res) => {
       dal.getAssets(),
       dal.getSystemSettings()
     ]);
-    if (dbBds) store.BREAKDOWNS = dbBds;
-    if (dbTasks) store.MAINTENANCE_TASKS = dbTasks;
-    if (dbAssets) store.ASSETS = dbAssets;
+    if (dbBds) store.BREAKDOWNS = mergeCompanyScopedRows(store.BREAKDOWNS, dbBds);
+    if (dbTasks) store.MAINTENANCE_TASKS = mergeCompanyScopedRows(store.MAINTENANCE_TASKS, dbTasks);
+    if (dbAssets) store.ASSETS = mergeCompanyScopedRows(store.ASSETS, dbAssets);
     if (sysSettings && Array.isArray(sysSettings.report_exports)) {
-      store.REPORT_EXPORTS = sysSettings.report_exports;
+      store.REPORT_EXPORTS = mergeCompanyScopedRows(store.REPORT_EXPORTS, sysSettings.report_exports);
     }
   } catch (e) {
     console.warn('Reports DB sync error:', e.message);
@@ -7692,7 +7984,7 @@ app.get('/reports/generate/step2', (req, res) => {
     ...baseCtx(req, 'reports'),
     wiz: wizardState.reports[user] || {},
     step_data: wizardState.reports[user] || {},
-    assets: store.ASSETS || []
+    assets: getCompanyAssets(global._currentCompanyId)
   });
 });
 
@@ -7768,7 +8060,8 @@ app.post('/reports/generate/step3', async (req, res) => {
 });
 
 app.get('/reports/generate/success', (req, res) => {
-  const report = store.REPORT_EXPORTS.find(r => r.id === req.query.rid) || store.REPORT_EXPORTS[0];
+  const report = getCompanyReports(global._currentCompanyId).find(r => r.id === req.query.rid);
+  if (!report) return res.status(404).send('Report not found');
   res.render('reports/reports_generate_success.html', {
     ...baseCtx(req, 'reports'),
     report,
@@ -7802,13 +8095,13 @@ function renderReportView(req, res, report) {
 }
 
 app.get(['/reports/view/:rid', '/reports/:rid'], (req, res) => {
-  const report = (store.REPORT_EXPORTS || []).find(r => r.id === req.params.rid) || (store.REPORT_EXPORTS || [])[0];
+  const report = getCompanyReports(resolveActiveWorkspaceForRequest(req).id).find(r => r.id === req.params.rid);
   if (!report) return res.redirect('/reports');
   renderReportView(req, res, report);
 });
 
 app.get('/reports/:rid/print', (req, res) => {
-  const report = (store.REPORT_EXPORTS || []).find(r => r.id === req.params.rid) || (store.REPORT_EXPORTS || [])[0];
+  const report = getCompanyReports(resolveActiveWorkspaceForRequest(req).id).find(r => r.id === req.params.rid);
   if (!report) return res.redirect('/reports');
   const analysis = buildReportAnalysis(report);
   res.render('reports/report_print.html', {
@@ -7820,7 +8113,8 @@ app.get('/reports/:rid/print', (req, res) => {
 });
 
 app.get('/reports/export/:rid/chart_data', (req, res) => {
-  const report = (store.REPORT_EXPORTS || []).find(r => r.id === req.params.rid) || (store.REPORT_EXPORTS || [])[0];
+  const report = getCompanyReports(resolveActiveWorkspaceForRequest(req).id).find(r => r.id === req.params.rid);
+  if (!report) return res.status(404).json({ ok: false, error: 'Report not found.' });
   const analysis = buildReportAnalysis(report);
   const grain = (req.query.grain || 'month').toLowerCase();
   if (grain === 'day') {
@@ -7845,7 +8139,7 @@ app.get('/reports/export/:rid/chart_data', (req, res) => {
 });
 
 app.get('/reports/export/:rid/:fmt', async (req, res) => {
-  const report = (store.REPORT_EXPORTS || []).find(r => r.id === req.params.rid) || (store.REPORT_EXPORTS || [])[0];
+  const report = getCompanyReports(resolveActiveWorkspaceForRequest(req).id).find(r => r.id === req.params.rid);
   if (!report) return res.redirect('/reports');
   const fmt = (req.params.fmt || 'pdf').toLowerCase();
   const analysis = buildReportAnalysis(report);
@@ -8129,7 +8423,7 @@ app.post(['/reports/delete/:rid', '/reports/:rid/delete'], async (req, res) => {
   try {
     await dal.deleteReport(rid);
   } catch (e) {}
-  const idx = (store.REPORT_EXPORTS || []).findIndex(r => r.id === rid);
+  const idx = (store.REPORT_EXPORTS || []).findIndex(r => r.id === rid && (!global._currentCompanyId || r.company_id === global._currentCompanyId));
   if (idx !== -1) {
     const deleted = store.REPORT_EXPORTS.splice(idx, 1)[0];
     moveToRecycleBin('report', `${deleted.report_title || deleted.name} (${deleted.id})`, deleted.id, deleted);
@@ -8154,7 +8448,10 @@ app.get(['/settings', '/settings/admin'], async (req, res) => {
       const { custom_roles, internal_messages, draft_messages, outbox_messages, report_exports, asset_documents, ai_chats, active_company_id, ...cleanSettings } = sysSettings;
       store.SYSTEM_SETTINGS = { ...store.SYSTEM_SETTINGS, ...cleanSettings };
     }
-    if (dbCompanies && dbCompanies.length) store.COMPANIES = dbCompanies;
+    if (dbCompanies && dbCompanies.length) {
+      if (global._currentCompanyId) { const refreshed = dbCompanies[0]; store.COMPANIES = (store.COMPANIES || []).map(c => c.id === refreshed.id ? refreshed : c); }
+      else store.COMPANIES = dbCompanies;
+    }
   } catch (e) {
     console.warn('Settings admin DB sync error:', e.message);
   }
@@ -8162,19 +8459,22 @@ app.get(['/settings', '/settings/admin'], async (req, res) => {
   const recList = Array.isArray(sys.default_report_recipients)
     ? sys.default_report_recipients
     : String(sys.default_report_recipients || '').split(',').map(s => s.trim()).filter(Boolean);
-  const unreadNotifs = (store.SYSTEM_NOTIFICATIONS || []).filter(n => !n.is_read).length;
-  const totalNotifs = (store.SYSTEM_NOTIFICATIONS || []).length;
-  const unreadMsgs = (store.INTERNAL_MESSAGES || []).filter(m => !m.is_read_by?.includes('opsloom.ke@gmail.com')).length;
-  const totalMsgs = (store.INTERNAL_MESSAGES || []).length;
-  const draftsCount = (store.DRAFT_MESSAGES || []).length;
-  const outboxCount = (store.OUTBOX_MESSAGES || []).length;
-  const adminUsers = store.ADMIN_USERS || [];
+  const currentActor = getCurrentActor(req);
+  const visibleNotifs = (store.SYSTEM_NOTIFICATIONS || []).filter(n => n && n.company_id === (currentActor.id === 'USR-001' ? store.ACTIVE_COMPANY_ID : currentActor.company_id));
+  const visibleMsgs = (store.INTERNAL_MESSAGES || []).filter(m => m && (!global._currentCompanyId || m.company_id === global._currentCompanyId));
+  const unreadNotifs = visibleNotifs.filter(n => !n.is_read).length;
+  const totalNotifs = visibleNotifs.length;
+  const unreadMsgs = visibleMsgs.filter(m => !m.is_read_by?.includes(String(currentActor.email || '').toLowerCase())).length;
+  const totalMsgs = visibleMsgs.length;
+  const draftsCount = (store.DRAFT_MESSAGES || []).filter(m => (m.sender_email || '').toLowerCase() === String(currentActor.email || '').toLowerCase()).length;
+  const outboxCount = (store.OUTBOX_MESSAGES || []).filter(m => (m.sender_email || '').toLowerCase() === String(currentActor.email || '').toLowerCase()).length;
+  const adminUsers = (store.ADMIN_USERS || []).filter(u => !global._currentCompanyId || u.company_id === global._currentCompanyId);
   const activeUsersCount = adminUsers.filter(u => u.active !== false).length;
-  const techs = store.TECHNICIAN_DIRECTORY || [];
+  const techs = (store.TECHNICIAN_DIRECTORY || []).filter(t => !global._currentCompanyId || t.company_id === global._currentCompanyId);
   const activeTechsCount = techs.filter(t => t.active !== false).length;
-  const auditLogs = store.AUDIT_TRAIL || [];
+  const auditLogs = getCompanyAuditTrail(global._currentCompanyId);
   const securityEventsCount = auditLogs.filter(a => a.module === 'security' || a.module === 'settings' || a.severity === 'warning').length;
-  const companiesCount = (store.COMPANIES || []).length;
+  const companiesCount = (store.COMPANIES || []).filter(c => !global._currentCompanyId || c.id === global._currentCompanyId).length;
 
   res.render('settings/settings_admin.html', {
     ...baseCtx(req, 'settings'),
@@ -8196,7 +8496,7 @@ app.get(['/settings', '/settings/admin'], async (req, res) => {
     total_messages_count: totalMsgs,
     drafts_count: draftsCount,
     outbox_count: outboxCount,
-    recycle_bin_count: (store.RECYCLE_BIN || []).length,
+    recycle_bin_count: getCompanyRecycleBin(global._currentCompanyId).length,
     recipients_count: recList.length || 1,
     smtp_configured: Boolean(sys.smtp_host && sys.smtp_user)
   });
@@ -8218,6 +8518,10 @@ app.post('/settings/admin/save', async (req, res) => {
 
   // If Admin updated their login password from Settings & Admin
   const newAdminPass = (incoming.admin_new_password || '').trim();
+  if (newAdminPass && newAdminPass.length < 12) {
+    flash('error', 'Use an administrator password with at least 12 characters.');
+    return res.redirect('/settings/admin');
+  }
   const lockAfterSave = incoming.lock_after_save === '1';
   delete incoming.admin_new_password;
   delete incoming.lock_after_save;
@@ -8321,11 +8625,11 @@ app.post(['/settings/kpi-targets/save', '/settings/admin/kpi-targets/save', '/ap
 app.get('/settings/recycle-bin', async (req, res) => {
   try {
     const dbBin = await dal.getRecycleBin();
-    if (dbBin) store.RECYCLE_BIN = dbBin;
+    if (dbBin) store.RECYCLE_BIN = mergeCompanyScopedRows(store.RECYCLE_BIN, dbBin);
   } catch (e) {
     console.warn('DAL getRecycleBin error:', e.message);
   }
-  const all = (store.RECYCLE_BIN || []).map(item => ({
+  const all = getCompanyRecycleBin(global._currentCompanyId).map(item => ({
     ...item,
     bin_id: item.bin_id || item.id,
     identifier: item.identifier || item.primary_id || item.entity_id || item.id,
@@ -8391,7 +8695,7 @@ app.post(['/settings/recycle-bin/:bin_id/delete', '/settings/recycle-bin/:bin_id
     console.warn('DAL removeFromRecycleBin purge error:', e.message);
   }
   if (!store.RECYCLE_BIN) store.RECYCLE_BIN = [];
-  const idx = store.RECYCLE_BIN.findIndex(x => (x.bin_id || x.id) === reqBinId || x.primary_id === reqBinId);
+  const idx = store.RECYCLE_BIN.findIndex(x => (!global._currentCompanyId || x.company_id === global._currentCompanyId) && ((x.bin_id || x.id) === reqBinId || x.primary_id === reqBinId));
   if (idx !== -1) {
     store.RECYCLE_BIN.splice(idx, 1);
   }
@@ -8402,13 +8706,16 @@ app.post(['/settings/recycle-bin/:bin_id/delete', '/settings/recycle-bin/:bin_id
 });
 
 app.post('/settings/recycle-bin/empty', async (req, res) => {
-  const count = (store.RECYCLE_BIN || []).length;
+  const count = getCompanyRecycleBin(global._currentCompanyId).length;
   try {
-    await dal.query('DELETE FROM recycle_bin;');
+    if (global._currentCompanyId) await dal.query('DELETE FROM recycle_bin WHERE company_id = $1;', [global._currentCompanyId]);
+    else await dal.query('DELETE FROM recycle_bin;');
   } catch (e) {
     console.warn('DAL empty recycle_bin error:', e.message);
   }
-  store.RECYCLE_BIN = [];
+  store.RECYCLE_BIN = global._currentCompanyId
+    ? (store.RECYCLE_BIN || []).filter(item => item && item.company_id !== global._currentCompanyId)
+    : [];
   saveStore();
   logAudit('Recycle Bin Emptied', `Permanently purged ${count} item(s) from Admin Recycle Bin`, 'settings', '/settings/recycle-bin', 'warning');
   flash('info', 'Admin Recycle Bin has been permanently emptied.');
@@ -8416,7 +8723,7 @@ app.post('/settings/recycle-bin/empty', async (req, res) => {
 });
 
 function getFilteredAuditRows(req) {
-  const all = (store.AUDIT_TRAIL || []).map(a => ({
+  const all = getCompanyAuditTrail(global._currentCompanyId).map(a => ({
     ...a,
     time_display: formatSystemTimestamp(a.created_at || getSystemNowIso(), true),
     user_name: a.user_name || 'Laurence Magondu',
@@ -8574,13 +8881,13 @@ app.get('/settings/audit-trail/export', async (req, res) => {
 app.get('/settings/technicians', async (req, res) => {
   try {
     const dbTechs = await dal.getTechnicians();
-    if (dbTechs) store.TECHNICIAN_DIRECTORY = dbTechs;
+    if (dbTechs) store.TECHNICIAN_DIRECTORY = mergeCompanyScopedRows(store.TECHNICIAN_DIRECTORY, dbTechs);
   } catch (e) {
     console.warn('Technicians DB sync error:', e.message);
   }
   res.render('settings/technicians_management.html', {
     ...baseCtx(req, 'settings'),
-    technicians: store.TECHNICIAN_DIRECTORY || []
+    technicians: (store.TECHNICIAN_DIRECTORY || []).filter(t => t && (!global._currentCompanyId || t.company_id === global._currentCompanyId))
   });
 });
 
@@ -8612,7 +8919,7 @@ app.post('/settings/technicians/create', async (req, res) => {
 });
 
 app.post('/settings/technicians/:tech_id/toggle', async (req, res) => {
-  const tech = (store.TECHNICIAN_DIRECTORY || []).find(t => t.id === req.params.tech_id);
+  const tech = (store.TECHNICIAN_DIRECTORY || []).find(t => t.id === req.params.tech_id && t.company_id === global._currentCompanyId);
   if (tech) {
     tech.active = !tech.active;
     tech.status = tech.active ? 'Active' : 'Inactive';
@@ -8628,7 +8935,7 @@ app.post('/settings/technicians/:tech_id/toggle', async (req, res) => {
 });
 
 app.post('/settings/technicians/:tech_id/delete', async (req, res) => {
-  const idx = (store.TECHNICIAN_DIRECTORY || []).findIndex(t => t.id === req.params.tech_id);
+  const idx = (store.TECHNICIAN_DIRECTORY || []).findIndex(t => t.id === req.params.tech_id && t.company_id === global._currentCompanyId);
   if (idx !== -1) {
     const deleted = store.TECHNICIAN_DIRECTORY.splice(idx, 1)[0];
     try {
@@ -8654,7 +8961,7 @@ app.get('/settings/admin-users', async (req, res) => {
       dal.getUsers(),
       dal.getSystemSettings()
     ]);
-    if (dbUsers && dbUsers.length > 0) store.ADMIN_USERS = dbUsers;
+    if (Array.isArray(dbUsers)) store.ADMIN_USERS = mergeCompanyScopedRows(store.ADMIN_USERS, dbUsers);
     if (sysSettings && Array.isArray(sysSettings.custom_roles) && sysSettings.custom_roles.length > 0) {
       store.CUSTOM_ROLES = sysSettings.custom_roles;
     }
@@ -8663,13 +8970,13 @@ app.get('/settings/admin-users', async (req, res) => {
   }
   seedInitialDataIfEmpty();
   const actor = getCurrentActor(req);
-  const rawUsers = Array.isArray(store.ADMIN_USERS) ? [...store.ADMIN_USERS] : [];
+  const rawUsers = (Array.isArray(store.ADMIN_USERS) ? [...store.ADMIN_USERS] : []).filter(u => !global._currentCompanyId || u.company_id === global._currentCompanyId);
   if (actor && !rawUsers.some(u => u.id === actor.id || (u.email && actor.email && u.email.toLowerCase() === actor.email.toLowerCase()))) {
     rawUsers.unshift({
       id: actor.id || 'USR-001',
       name: actor.name || 'Laurence Magondu',
       email: actor.email || 'opsloom.ke@gmail.com',
-      password: actor.password || 'Admin@123',
+      password: undefined,
       role: actor.role || 'Administrator',
       access_scope: 'Full System',
       department: actor.department || 'Engineering',
@@ -8719,6 +9026,8 @@ app.get('/settings/admin-users', async (req, res) => {
   });
 
   const user_rows = rawUsers.map(u => {
+    const safeUser = { ...u };
+    delete safeUser.password;
     const comp = (store.COMPANIES || []).find(c => c.id === u.company_id) || (store.COMPANIES && store.COMPANIES[0]) || {};
     const roleDef = getRoleDefinition(u.role);
     const perms = Array.isArray(u.permissions) && u.permissions.length
@@ -8743,7 +9052,7 @@ app.get('/settings/admin-users', async (req, res) => {
       editPerms.includes('all')
     );
     return {
-      ...u,
+      ...safeUser,
       is_current_user: isCurrentUser,
       active: u.active !== false,
       company_name: u.company_name || comp.name || 'Ultravetis East Africa Ltd',
@@ -9012,8 +9321,8 @@ app.post('/settings/admin-users/create', async (req, res) => {
   const existingId = (req.body.user_id || '').trim();
   const cleanEmail = (req.body.email || '').trim();
   let target = existingId
-    ? store.ADMIN_USERS.find(u => u.id === existingId)
-    : (cleanEmail ? store.ADMIN_USERS.find(u => (u.email || '').toLowerCase() === cleanEmail.toLowerCase()) : null);
+    ? store.ADMIN_USERS.find(u => u.id === existingId && (!global._currentCompanyId || u.company_id === global._currentCompanyId))
+    : (cleanEmail ? store.ADMIN_USERS.find(u => (u.email || '').toLowerCase() === cleanEmail.toLowerCase() && (!global._currentCompanyId || u.company_id === global._currentCompanyId)) : null);
   const isNew = !target;
 
   if (isNew) {
@@ -9029,16 +9338,24 @@ app.post('/settings/admin-users/create', async (req, res) => {
   target.email = (req.body.email || target.email || '').trim();
   const submittedUserPass = req.body.password ? String(req.body.password).trim() : '';
   if (submittedUserPass) {
-    target.password = submittedUserPass;
+    if (submittedUserPass.length < 12) {
+      flash('error', 'New passwords must contain at least 12 characters.');
+      return res.redirect('/settings/admin-users');
+    }
+    target.password = hashPassword(submittedUserPass);
   } else if (!target.password) {
-    target.password = (target.id === 'USR-001' || (target.email || '').toLowerCase() === ADMIN_PRIMARY_EMAIL)
-      ? (store.SYSTEM_SETTINGS?.admin_login_password || 'Admin@123')
-      : 'Admin@123';
+    // New accounts without an explicitly assigned password remain unusable until
+    // the administrator provisions credentials through the approved reset process.
+    target.password = hashPassword(crypto.randomBytes(32).toString('hex'));
   }
   target.role = role;
   target.access_scope = role === 'Administrator' ? 'Full System' : (req.body.access_scope || (roleDef && roleDef.access_scope) || 'Department');
   target.department = req.body.department || target.department || 'Engineering';
-  target.company_id = req.body.company_id || target.company_id || store.ACTIVE_COMPANY_ID || 'comp-001';
+  const provisioningActor = getCurrentActor(req);
+  const isPlatformProvisioner = provisioningActor && (provisioningActor.id === 'USR-001' || provisioningActor.is_platform_admin === true);
+  target.company_id = isPlatformProvisioner
+    ? (req.body.company_id || target.company_id || store.ACTIVE_COMPANY_ID || 'comp-001')
+    : (provisioningActor.company_id || target.company_id || store.ACTIVE_COMPANY_ID || 'comp-001');
   target.permissions = perms;
   target.edit_permissions = editPerms;
   target.delete_permissions = deletePerms;
@@ -9069,7 +9386,7 @@ app.post('/settings/admin-users/create', async (req, res) => {
 });
 
 app.post('/settings/admin-users/:user_id/toggle', async (req, res) => {
-  const user = (store.ADMIN_USERS || []).find(u => u.id === req.params.user_id);
+  const user = (store.ADMIN_USERS || []).find(u => u.id === req.params.user_id && (!global._currentCompanyId || u.company_id === global._currentCompanyId));
   if (user) {
     user.active = !user.active;
     try { await dal.upsertUser(user); } catch (e) { console.warn('DAL upsertUser toggle error:', e.message); }
@@ -9081,7 +9398,7 @@ app.post('/settings/admin-users/:user_id/toggle', async (req, res) => {
 });
 
 app.post('/settings/admin-users/:user_id/delete', async (req, res) => {
-  const idx = (store.ADMIN_USERS || []).findIndex(u => u.id === req.params.user_id);
+  const idx = (store.ADMIN_USERS || []).findIndex(u => u.id === req.params.user_id && (!global._currentCompanyId || u.company_id === global._currentCompanyId));
   if (idx !== -1) {
     if (store.ADMIN_USERS.length <= 1) {
       flash('error', 'Cannot delete the primary system administrator account.');
@@ -9103,7 +9420,7 @@ app.post('/settings/admin-users/:user_id/delete', async (req, res) => {
 app.get('/settings/messages', (req, res) => {
   const actor = getCurrentActor(req);
   const currentUserEmail = (actor.email || 'opsloom.ke@gmail.com').toLowerCase().trim();
-  const allMsgs = (store.INTERNAL_MESSAGES || []).map(m => {
+  const allMsgs = (store.INTERNAL_MESSAGES || []).filter(m => m && (!global._currentCompanyId || m.company_id === global._currentCompanyId)).map(m => {
     const recList = Array.isArray(m.recipient_emails)
       ? m.recipient_emails
       : (m.recipient_email ? [m.recipient_email] : []);
@@ -9164,7 +9481,7 @@ app.get('/settings/messages', (req, res) => {
   const openMessage = folderMsgs.find(m => m.id === selectedId) || allMsgs.find(m => m.id === selectedId) || folderMsgs[0] || null;
 
   if (openMessage && (folder === 'inbox' || folder === 'sent')) {
-    const rawMsg = (store.INTERNAL_MESSAGES || []).find(m => m.id === openMessage.id);
+    const rawMsg = (store.INTERNAL_MESSAGES || []).find(m => m.id === openMessage.id && (!global._currentCompanyId || m.company_id === global._currentCompanyId));
     if (rawMsg) {
       if (!Array.isArray(rawMsg.is_read_by)) rawMsg.is_read_by = [];
       const readLower = rawMsg.is_read_by.map(e => String(e).toLowerCase().trim());
@@ -9228,12 +9545,13 @@ app.post('/settings/messages/send', (req, res) => {
   if (!recipients.length) recipients.push(senderEmail);
 
   if (req.body.draft_id && store.DRAFT_MESSAGES) {
-    store.DRAFT_MESSAGES = store.DRAFT_MESSAGES.filter(d => d.id !== req.body.draft_id);
+    store.DRAFT_MESSAGES = store.DRAFT_MESSAGES.filter(d => d.id !== req.body.draft_id || (d.sender_email || '').toLowerCase() !== senderEmail.toLowerCase());
   }
 
   if (actionType === 'draft') {
     const draft = {
       id: 'draft-' + Date.now(),
+      company_id: actor.company_id,
       sender_email: senderEmail,
       recipient_emails: recipients,
       subject: req.body.subject || '(Untitled Draft)',
@@ -9251,6 +9569,7 @@ app.post('/settings/messages/send', (req, res) => {
   if (actionType === 'outbox') {
     const outMsg = {
       id: 'out-' + Date.now(),
+      company_id: actor.company_id,
       sender_email: senderEmail,
       sender_name: senderName,
       recipient_emails: recipients,
@@ -9268,6 +9587,7 @@ app.post('/settings/messages/send', (req, res) => {
 
   const msg = {
     id: 'msg-' + Date.now(),
+    company_id: actor.company_id,
     thread_id: req.body.thread_id || ('thread-' + Date.now()),
     sender_email: senderEmail,
     sender_name: senderName,
@@ -9309,7 +9629,7 @@ app.post('/settings/messages/send', (req, res) => {
 app.post('/settings/messages/outbox/:id/send', (req, res) => {
   const actor = getCurrentActor(req);
   if (!store.OUTBOX_MESSAGES) store.OUTBOX_MESSAGES = [];
-  const idx = store.OUTBOX_MESSAGES.findIndex(o => o.id === req.params.id);
+  const idx = store.OUTBOX_MESSAGES.findIndex(o => o.id === req.params.id && (o.sender_email || '').toLowerCase() === String(actor.email || '').toLowerCase());
   if (idx !== -1) {
     const queued = store.OUTBOX_MESSAGES.splice(idx, 1)[0];
     const sent = {
@@ -9333,7 +9653,7 @@ app.post('/settings/messages/outbox/:id/send', (req, res) => {
 app.post('/settings/messages/:msg_id/delete', (req, res) => {
   const folder = (req.query.folder || 'inbox').toLowerCase();
   if (folder === 'drafts' && store.DRAFT_MESSAGES) {
-    const dIdx = store.DRAFT_MESSAGES.findIndex(d => d.id === req.params.msg_id);
+    const dIdx = store.DRAFT_MESSAGES.findIndex(d => d.id === req.params.msg_id && (d.sender_email || '').toLowerCase() === String(getCurrentActor(req).email || '').toLowerCase());
     if (dIdx !== -1) {
       const deleted = store.DRAFT_MESSAGES.splice(dIdx, 1)[0];
       moveToRecycleBin('message', `Draft: ${deleted.subject || 'Untitled'} (${deleted.id})`, deleted.id, deleted);
@@ -9343,7 +9663,7 @@ app.post('/settings/messages/:msg_id/delete', (req, res) => {
     }
   }
   if (folder === 'outbox' && store.OUTBOX_MESSAGES) {
-    const oIdx = store.OUTBOX_MESSAGES.findIndex(o => o.id === req.params.msg_id);
+    const oIdx = store.OUTBOX_MESSAGES.findIndex(o => o.id === req.params.msg_id && (o.sender_email || '').toLowerCase() === String(getCurrentActor(req).email || '').toLowerCase());
     if (oIdx !== -1) {
       const deleted = store.OUTBOX_MESSAGES.splice(oIdx, 1)[0];
       moveToRecycleBin('message', `Outbox: ${deleted.subject || 'Queued'} (${deleted.id})`, deleted.id, deleted);
@@ -9353,7 +9673,7 @@ app.post('/settings/messages/:msg_id/delete', (req, res) => {
     }
   }
   if (!store.INTERNAL_MESSAGES) store.INTERNAL_MESSAGES = [];
-  const idx = store.INTERNAL_MESSAGES.findIndex(m => m.id === req.params.msg_id);
+  const idx = store.INTERNAL_MESSAGES.findIndex(m => m.id === req.params.msg_id && (!global._currentCompanyId || m.company_id === global._currentCompanyId));
   if (idx !== -1) {
     const deleted = store.INTERNAL_MESSAGES.splice(idx, 1)[0];
     moveToRecycleBin('message', `${deleted.subject || 'Message'} (${deleted.id})`, deleted.id, deleted);
@@ -9365,7 +9685,7 @@ app.post('/settings/messages/:msg_id/delete', (req, res) => {
 
 app.post('/settings/messages/draft/:draft_id/delete', (req, res) => {
   if (!store.DRAFT_MESSAGES) store.DRAFT_MESSAGES = [];
-  const idx = store.DRAFT_MESSAGES.findIndex(d => d.id === req.params.draft_id);
+  const idx = store.DRAFT_MESSAGES.findIndex(d => d.id === req.params.draft_id && (d.sender_email || '').toLowerCase() === String(getCurrentActor(req).email || '').toLowerCase());
   if (idx !== -1) {
     const deleted = store.DRAFT_MESSAGES.splice(idx, 1)[0];
     const actor = getCurrentActor(req);
@@ -9381,7 +9701,7 @@ app.post('/settings/messages/draft/:draft_id/delete', (req, res) => {
 
 app.post('/settings/messages/outbox/:outbox_id/delete', (req, res) => {
   if (!store.OUTBOX_MESSAGES) store.OUTBOX_MESSAGES = [];
-  const idx = store.OUTBOX_MESSAGES.findIndex(o => o.id === req.params.outbox_id);
+  const idx = store.OUTBOX_MESSAGES.findIndex(o => o.id === req.params.outbox_id && (o.sender_email || '').toLowerCase() === String(getCurrentActor(req).email || '').toLowerCase());
   if (idx !== -1) {
     const deleted = store.OUTBOX_MESSAGES.splice(idx, 1)[0];
     const actor = getCurrentActor(req);
@@ -9400,15 +9720,15 @@ app.get(['/settings/notifications', '/notifications'], async (req, res) => {
   const activeComp = resolveActiveWorkspaceForRequest(req);
   try {
     const dbNotifs = await dal.getNotifications(actor.id, activeComp.id);
-    if (dbNotifs) store.SYSTEM_NOTIFICATIONS = dbNotifs;
+    if (dbNotifs) store.SYSTEM_NOTIFICATIONS = mergeCompanyScopedRows(store.SYSTEM_NOTIFICATIONS, dbNotifs, activeComp.id);
   } catch (e) {
     console.warn('Failed to load notifications from DB:', e.message);
   }
   const userEmail = (actor.email || '').toLowerCase().trim();
   const notifs = (store.SYSTEM_NOTIFICATIONS || []).filter(n => {
     if (!n) return false;
-    if (n.company_id && n.company_id !== activeComp.id && n.company_id !== 'comp-001' && actor.role !== 'Administrator') return false;
-    if (n.recipient_email && n.recipient_email.toLowerCase().trim() !== userEmail && actor.role !== 'Administrator') return false;
+    if (n.company_id !== activeComp.id) return false;
+    if (n.recipient_email && n.recipient_email.toLowerCase().trim() !== userEmail && actor.id !== 'USR-001') return false;
     return true;
   });
   res.render('settings/notifications.html', {
@@ -9445,7 +9765,7 @@ app.all(['/settings/notifications/:nid/delete', '/notifications/:nid/delete', '/
     await dal.dismissNotification(nid);
   } catch (e) {}
   if (Array.isArray(store.SYSTEM_NOTIFICATIONS)) {
-    const idx = store.SYSTEM_NOTIFICATIONS.findIndex(item => item && item.id === nid);
+    const idx = store.SYSTEM_NOTIFICATIONS.findIndex(item => item && item.id === nid && (!global._currentCompanyId || item.company_id === global._currentCompanyId));
     if (idx !== -1) {
       store.SYSTEM_NOTIFICATIONS.splice(idx, 1);
     }
@@ -9462,7 +9782,7 @@ app.post(['/notifications/:nid/dismiss', '/settings/notifications/:nid/dismiss']
   try {
     await dal.markNotificationRead(req.params.nid);
   } catch (e) {}
-  const n = (store.SYSTEM_NOTIFICATIONS || []).find(item => item.id === req.params.nid);
+  const n = (store.SYSTEM_NOTIFICATIONS || []).find(item => item.id === req.params.nid && (!global._currentCompanyId || item.company_id === global._currentCompanyId));
   if (n) {
     n.is_read = true;
     n.should_toast = false;
@@ -9473,11 +9793,12 @@ app.post(['/notifications/:nid/dismiss', '/settings/notifications/:nid/dismiss']
 
 app.post('/settings/notifications/:nid/toggle', async (req, res) => {
   try {
-    await dal.query('UPDATE notifications SET is_read = NOT is_read WHERE id = $1;', [req.params.nid]);
+    if (global._currentCompanyId) await dal.query('UPDATE notifications SET is_read = NOT is_read WHERE id = $1 AND company_id = $2;', [req.params.nid, global._currentCompanyId]);
+    else await dal.query('UPDATE notifications SET is_read = NOT is_read WHERE id = $1;', [req.params.nid]);
   } catch (e) {
     console.warn('DAL toggle error:', e.message);
   }
-  const n = (store.SYSTEM_NOTIFICATIONS || []).find(item => item.id === req.params.nid);
+  const n = (store.SYSTEM_NOTIFICATIONS || []).find(item => item.id === req.params.nid && (!global._currentCompanyId || item.company_id === global._currentCompanyId));
   if (n) {
     n.is_read = !n.is_read;
     n.should_toast = false;
@@ -9490,7 +9811,7 @@ app.get('/settings/notifications/:nid/open', async (req, res) => {
   try {
     await dal.markNotificationRead(req.params.nid);
   } catch (e) {}
-  const n = (store.SYSTEM_NOTIFICATIONS || []).find(item => item.id === req.params.nid);
+  const n = (store.SYSTEM_NOTIFICATIONS || []).find(item => item.id === req.params.nid && (!global._currentCompanyId || item.company_id === global._currentCompanyId));
   if (n) {
     n.is_read = true;
     n.should_toast = false;
@@ -9502,11 +9823,12 @@ app.get('/settings/notifications/:nid/open', async (req, res) => {
 
 app.post('/settings/notifications/read-all', async (req, res) => {
   try {
-    await dal.query('UPDATE notifications SET is_read = true WHERE is_read = false;');
+    if (global._currentCompanyId) await dal.query('UPDATE notifications SET is_read = true WHERE is_read = false AND company_id = $1;', [global._currentCompanyId]);
+    else await dal.query('UPDATE notifications SET is_read = true WHERE is_read = false;')
   } catch (e) {
     console.warn('DAL read-all error:', e.message);
   }
-  (store.SYSTEM_NOTIFICATIONS || []).forEach(n => {
+  (store.SYSTEM_NOTIFICATIONS || []).filter(n => !global._currentCompanyId || n.company_id === global._currentCompanyId).forEach(n => {
     n.is_read = true;
     n.should_toast = false;
   });
@@ -9518,7 +9840,7 @@ app.post('/settings/notifications/read-all', async (req, res) => {
 app.get('/settings/profile', async (req, res) => {
   try {
     const dbUsers = await dal.getUsers();
-    if (dbUsers && dbUsers.length > 0) store.ADMIN_USERS = dbUsers;
+    if (Array.isArray(dbUsers)) store.ADMIN_USERS = mergeCompanyScopedRows(store.ADMIN_USERS, dbUsers);
   } catch (e) {
     console.warn('Profile DB sync error:', e.message);
   }
@@ -9546,6 +9868,10 @@ app.post('/settings/profile/save', upload.fields([
     delete incoming.remove_profile_image;
 
     Object.assign(target, incoming);
+    if (newPassword && newPassword.length < 12) {
+      flash('error', 'Use a password with at least 12 characters.');
+      return res.redirect('/settings/profile');
+    }
     if (newPassword) {
       updateUserPasswordEverywhere(target, newPassword);
       logAudit('Password Updated', `${target.name} (${target.email}) updated their account password.`, 'security', '/settings/profile');
@@ -9681,7 +10007,7 @@ app.get('/settings/help', (req, res) => {
     : SYSTEM_HELP_ARTICLES;
 
   const support_requests = (store.INTERNAL_MESSAGES || [])
-    .filter(m => m.category === 'Admin Support' || (m.subject && m.subject.startsWith('[Support Request]')))
+    .filter(m => (!global._currentCompanyId || m.company_id === global._currentCompanyId) && (m.category === 'Admin Support' || (m.subject && m.subject.startsWith('[Support Request]'))))
     .map(m => ({
       id: m.id,
       subject: (m.subject || '').replace(/^\[Support Request\]\s*/i, ''),
@@ -9788,9 +10114,9 @@ app.get(['/api/system/health', '/api/live/dashboard/kpis'], async (req, res) => 
       dal.getBreakdowns(),
       dal.getMaintenanceTasks()
     ]);
-    if (assets) store.ASSETS = assets;
-    if (bds) store.BREAKDOWNS = bds;
-    if (tasks) store.MAINTENANCE_TASKS = tasks;
+    if (assets) store.ASSETS = mergeCompanyScopedRows(store.ASSETS, assets);
+    if (bds) store.BREAKDOWNS = mergeCompanyScopedRows(store.BREAKDOWNS, bds);
+    if (tasks) store.MAINTENANCE_TASKS = mergeCompanyScopedRows(store.MAINTENANCE_TASKS, tasks);
   } catch (e) {}
 
   const sysHealth = computeSystemHealthStatus(activeCompany.id);
@@ -9824,8 +10150,8 @@ app.get(['/api/live/breakdowns/kpis', '/api/breakdowns/kpi'], async (req, res) =
       dal.getBreakdowns(),
       dal.getAssets()
     ]);
-    if (bds) store.BREAKDOWNS = bds;
-    if (assets) store.ASSETS = assets;
+    if (bds) store.BREAKDOWNS = mergeCompanyScopedRows(store.BREAKDOWNS, bds);
+    if (assets) store.ASSETS = mergeCompanyScopedRows(store.ASSETS, assets);
   } catch (e) {}
 
   const breakdowns = getCompanyBreakdowns(activeCompany.id);
@@ -9888,7 +10214,7 @@ app.get('/api/live/maintenance/kpis', async (req, res) => {
   const activeCompany = resolveActiveWorkspaceForRequest(req);
   try {
     const tasks = await dal.getMaintenanceTasks();
-    if (tasks) store.MAINTENANCE_TASKS = tasks;
+    if (tasks) store.MAINTENANCE_TASKS = mergeCompanyScopedRows(store.MAINTENANCE_TASKS, tasks);
   } catch (e) {}
 
   const tasks = getCompanyMaintenanceTasks(activeCompany.id);
@@ -9917,8 +10243,8 @@ app.get(['/api/live/reports/kpis', '/api/live/reports-kpis'], async (req, res) =
       dal.getMaintenanceTasks(),
       dal.getBreakdowns()
     ]);
-    if (tasks) store.MAINTENANCE_TASKS = tasks;
-    if (bds) store.BREAKDOWNS = bds;
+    if (tasks) store.MAINTENANCE_TASKS = mergeCompanyScopedRows(store.MAINTENANCE_TASKS, tasks);
+    if (bds) store.BREAKDOWNS = mergeCompanyScopedRows(store.BREAKDOWNS, bds);
   } catch (e) {}
 
   const targets = getCompanyKpiTargets(activeCompany.id);
@@ -9946,7 +10272,7 @@ app.get(['/api/live/reports/kpis', '/api/live/reports-kpis'], async (req, res) =
 
 app.get('/api/maintenance/technicians', (req, res) => {
   const activeCompany = resolveActiveWorkspaceForRequest(req);
-  const techs = store.TECHNICIAN_DIRECTORY || [];
+  const techs = (store.TECHNICIAN_DIRECTORY || []).filter(t => !global._currentCompanyId || t.company_id === global._currentCompanyId);
   const tasks = getCompanyMaintenanceTasks(activeCompany.id);
   const rows = techs.map(t => {
     const activeTasks = tasks.filter(m => m.technician === t.name && m.status !== 'completed');
@@ -9973,7 +10299,7 @@ app.get('/api/technicians/workload', (req, res) => {
   const activeCompany = resolveActiveWorkspaceForRequest(req);
   const tasks = getCompanyMaintenanceTasks(activeCompany.id);
   const breakdowns = getCompanyBreakdowns(activeCompany.id);
-  const list = (store.TECHNICIAN_DIRECTORY || []).map(t => {
+  const list = (store.TECHNICIAN_DIRECTORY || []).filter(t => !global._currentCompanyId || t.company_id === global._currentCompanyId).map(t => {
     const assignedTasks = tasks.filter(m => m.technician === t.name && m.status !== 'completed').length;
     const assignedBds = breakdowns.filter(b => b.technician_name === t.name && b.status !== 'closed' && b.status !== 'resolved').length;
     return {
@@ -9997,13 +10323,13 @@ app.get('/api/technicians/workload', (req, res) => {
 
 app.get('/api/technicians/:id/profile', (req, res) => {
   const id = req.params.id;
-  const tech = (store.TECHNICIAN_DIRECTORY || []).find(t => t.id === id || t.name === id);
+  const tech = (store.TECHNICIAN_DIRECTORY || []).find(t => (t.id === id || t.name === id) && (!global._currentCompanyId || t.company_id === global._currentCompanyId));
   if (!tech) {
     return res.status(404).json({ error: 'Technician not found' });
   }
 
-  const tasks = (store.MAINTENANCE_TASKS || []).filter(m => m.technician === tech.name);
-  const breakdowns = (store.BREAKDOWNS || []).filter(b => b.technician_name === tech.name);
+  const tasks = getCompanyMaintenanceTasks(global._currentCompanyId).filter(m => m.technician === tech.name);
+  const breakdowns = getCompanyBreakdowns(global._currentCompanyId).filter(b => b.technician_name === tech.name);
   
   const openPm = tasks.filter(t => t.status !== 'completed').length;
   const activeBds = breakdowns.filter(b => b.status !== 'closed' && b.status !== 'resolved').length;
@@ -10047,7 +10373,7 @@ app.get('/api/technicians/:id/profile', (req, res) => {
 app.get('/reports/api/assets', (req, res) => {
   const section = req.query.section;
   const dept = req.query.department;
-  let list = store.ASSETS || [];
+  let list = getCompanyAssets(global._currentCompanyId);
   if (dept) {
     list = list.filter(a => !a.department || a.department.toLowerCase() === dept.toLowerCase());
   }
@@ -10069,9 +10395,10 @@ app.get('/reports/api/assets', (req, res) => {
 
 app.get('/api/ai/preview', (req, res) => {
   const { type, id } = req.query;
-  const asset = (store.ASSETS || []).find(a => a.uid === id || a.asset_id === id || a.id === id || a.code === id) || (store.ASSETS || [])[0];
-  const bd = (store.BREAKDOWNS || []).find(b => b.breakdown_id === id || b.id === id);
-  const task = (store.MAINTENANCE_TASKS || []).find(t => t.id === id || t.task_id === id);
+  const asset = getCompanyAssets(global._currentCompanyId).find(a => a.uid === id || a.asset_id === id || a.id === id || a.code === id);
+  const bd = getCompanyBreakdowns(global._currentCompanyId).find(b => b.breakdown_id === id || b.id === id);
+  const task = getCompanyMaintenanceTasks(global._currentCompanyId).find(t => t.id === id || t.task_id === id);
+  if (!id || (!asset && !bd && !task)) return res.status(404).json({ ok: false, error: 'Requested operational record was not found in your organization.' });
 
   if (type === 'breakdown' && bd) {
     return res.json({
@@ -10132,47 +10459,42 @@ function formatAiChatEntry(c) {
 }
 
 app.get('/api/ai/chats', (req, res) => {
-  res.json({
-    chats: (store.AI_CHATS || []).slice(0, 30).map(formatAiChatEntry)
-  });
+  const visibleChats = (store.AI_CHATS || []).filter(c => !global._currentCompanyId || c.company_id === global._currentCompanyId);
+  res.json({ chats: visibleChats.slice(0, 30).map(formatAiChatEntry) });
 });
 
 app.delete('/api/ai/chats/:id', (req, res) => {
   if (!store.AI_CHATS) store.AI_CHATS = [];
-  const idx = store.AI_CHATS.findIndex(c => c.id === req.params.id);
+  const idx = store.AI_CHATS.findIndex(c => c.id === req.params.id && (!global._currentCompanyId || c.company_id === global._currentCompanyId));
   if (idx !== -1) {
     const deleted = store.AI_CHATS.splice(idx, 1)[0];
     moveToRecycleBin('ai_chat', `AI Chat: ${deleted.title || deleted.query}`, deleted.id, deleted);
   }
-  res.json({ ok: true, chats: (store.AI_CHATS || []).map(formatAiChatEntry) });
+  res.json({ ok: true, chats: (store.AI_CHATS || []).filter(c => !global._currentCompanyId || c.company_id === global._currentCompanyId).map(formatAiChatEntry) });
 });
 
 app.post('/api/ai/chats/:id/delete', (req, res) => {
   if (!store.AI_CHATS) store.AI_CHATS = [];
-  const idx = store.AI_CHATS.findIndex(c => c.id === req.params.id);
+  const idx = store.AI_CHATS.findIndex(c => c.id === req.params.id && (!global._currentCompanyId || c.company_id === global._currentCompanyId));
   if (idx !== -1) {
     const deleted = store.AI_CHATS.splice(idx, 1)[0];
     moveToRecycleBin('ai_chat', `AI Chat: ${deleted.title || deleted.query}`, deleted.id, deleted);
   }
-  res.json({ ok: true, chats: (store.AI_CHATS || []).map(formatAiChatEntry) });
+  res.json({ ok: true, chats: (store.AI_CHATS || []).filter(c => !global._currentCompanyId || c.company_id === global._currentCompanyId).map(formatAiChatEntry) });
 });
 
 app.post('/api/ai/chats/clear', (req, res) => {
-  const existing = store.AI_CHATS || [];
-  existing.forEach(c => {
-    moveToRecycleBin('ai_chat', `AI Chat: ${c.title || c.query}`, c.id, c);
-  });
-  store.AI_CHATS = [];
+  const existing = (store.AI_CHATS || []).filter(c => !global._currentCompanyId || c.company_id === global._currentCompanyId);
+  existing.forEach(c => moveToRecycleBin('ai_chat', `AI Chat: ${c.title || c.query}`, c.id, c));
+  store.AI_CHATS = (store.AI_CHATS || []).filter(c => global._currentCompanyId && c.company_id !== global._currentCompanyId);
   saveStore();
   res.json({ ok: true, chats: [] });
 });
 
 app.delete('/api/ai/chats', (req, res) => {
-  const existing = store.AI_CHATS || [];
-  existing.forEach(c => {
-    moveToRecycleBin('ai_chat', `AI Chat: ${c.title || c.query}`, c.id, c);
-  });
-  store.AI_CHATS = [];
+  const existing = (store.AI_CHATS || []).filter(c => !global._currentCompanyId || c.company_id === global._currentCompanyId);
+  existing.forEach(c => moveToRecycleBin('ai_chat', `AI Chat: ${c.title || c.query}`, c.id, c));
+  store.AI_CHATS = (store.AI_CHATS || []).filter(c => global._currentCompanyId && c.company_id !== global._currentCompanyId);
   saveStore();
   res.json({ ok: true, chats: [] });
 });
@@ -10189,15 +10511,14 @@ app.post('/api/ai/query', async (req, res) => {
   const isKpiExplanation = /(explain|what\s*(is|are|do)|mean|meaning|simple terms|plain english|value for money|roi|kpi|metric|mttr|mtbf|oee|availability)/i.test(lowerPrompt) &&
     !action && !lowerPrompt.includes('diagnose_fleet');
 
-  const totalAssets = (store.ASSETS || []).length;
-  const activeBds = (store.BREAKDOWNS || []).filter(b => b.status !== 'closed' && b.status !== 'resolved');
-  const lowSpares = (store.INVENTORY_PARTS || []).filter(p => Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) <= Number(p.min_qty !== undefined ? p.min_qty : p.reorder_level || 0));
-  const openTasks = (store.MAINTENANCE_TASKS || []).filter(t => t.status !== 'completed');
+  const activeCompForAi = resolveActiveWorkspaceForRequest(req);
+  const totalAssets = getCompanyAssets(activeCompForAi.id).length;
+  const activeBds = getCompanyBreakdowns(activeCompForAi.id).filter(b => b.status !== 'closed' && b.status !== 'resolved');
+  const lowSpares = getCompanyInventoryParts(activeCompForAi.id).filter(p => Number(p.qty !== undefined ? p.qty : p.quantity_on_hand || 0) <= Number(p.min_qty !== undefined ? p.min_qty : p.reorder_level || 0));
+  const openTasks = getCompanyMaintenanceTasks(activeCompForAi.id).filter(t => t.status !== 'completed');
   const overdueTasks = openTasks.filter(t => t.status === 'overdue');
 
   let resultPayload = null;
-
-  const activeCompForAi = resolveActiveWorkspaceForRequest(req);
   const aiClient = getAiClient();
   if (aiClient) {
     try {
@@ -10471,7 +10792,7 @@ RECOMMENDED ENGINEERING ACTIONS:
         query: promptInput,
         summary: `${lowSpares.length} critical spare part SKU(s) require immediate replenishment action.`,
         metrics: [
-          { label: 'Total SKUs', value: String((store.INVENTORY_PARTS || []).length) },
+          { label: 'Total SKUs', value: String(getCompanyInventoryParts(activeCompForAi.id).length) },
           { label: 'Low Stock Alerts', value: String(lowSpares.length) },
           { label: 'Stock Coverage', value: '89.5%' }
         ],
@@ -10520,6 +10841,7 @@ RECOMMENDED ENGINEERING ACTIONS:
 
   const chatEntry = formatAiChatEntry({
     id: 'chat-' + Date.now(),
+    company_id: activeCompForAi.id,
     title: resultPayload.title,
     prompt: promptInput,
     query: promptInput,
@@ -10537,7 +10859,7 @@ RECOMMENDED ENGINEERING ACTIONS:
   return res.json({
     ...chatEntry,
     chat: chatEntry,
-    chats: store.AI_CHATS.slice(0, 20).map(formatAiChatEntry)
+    chats: store.AI_CHATS.filter(c => c.company_id === activeCompForAi.id).slice(0, 20).map(formatAiChatEntry)
   });
 });
 
@@ -10565,8 +10887,12 @@ app.use((err, req, res, next) => {
   if (res.headersSent) {
     return next(err);
   }
+  const isProductionLike = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging';
+  if (err && err.code === 'TENANT_SCOPE_VIOLATION') {
+    return res.status(403).json({ ok: false, error: 'You are not authorized to access records belonging to another organization.' });
+  }
   if (req.path.startsWith('/api/') || (req.headers.accept && req.headers.accept.includes('application/json'))) {
-    return res.status(500).json({ ok: false, error: err.message || 'Internal Server Error' });
+    return res.status(500).json({ ok: false, error: isProductionLike ? 'An unexpected server error occurred. Reference the server logs for the request.' : (err.message || 'Internal Server Error') });
   }
   // Deliver a clean user-facing HTML notice instead of repeating redirects that cause ERR_TOO_MANY_REDIRECTS
   return res.status(500).send(`<!DOCTYPE html>
@@ -10584,7 +10910,7 @@ app.use((err, req, res, next) => {
       <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
     </div>
     <h1 class="text-xl font-bold text-white mb-2">Workspace Request Notice</h1>
-    <p class="text-sm text-slate-400 mb-6">${err?.message ? String(err.message).replace(/</g, '&lt;') : 'An issue was encountered while processing your request.'}</p>
+    <p class="text-sm text-slate-400 mb-6">${isProductionLike ? 'An unexpected server error occurred. Please contact your system administrator if the problem continues.' : (err?.message ? String(err.message).replace(/</g, '&lt;') : 'An issue was encountered while processing your request.')}</p>
     <div class="flex gap-3 justify-center">
       <a href="/dashboard" class="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold transition">Return to Dashboard</a>
       <a href="/login" class="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm font-semibold transition">Sign In Again</a>

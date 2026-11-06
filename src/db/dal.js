@@ -3,6 +3,7 @@ try {
 } catch (e) {}
 
 const { Pool } = require('pg');
+const { tenantCompanyId } = require('../security/tenant-scope');
 
 let pool = null;
 
@@ -86,6 +87,7 @@ function isAvailable() {
   }
 }
 
+
 async function query(sql, params = []) {
   const p = getPool(); // will throw if unconfigured
   try {
@@ -115,8 +117,12 @@ async function withTransaction(fn) {
 // ----------------------------------------------------
 // COMPANIES (WORKSPACES)
 // ----------------------------------------------------
-async function getCompanies() {
-  const res = await query('SELECT * FROM companies ORDER BY (id = \'comp-001\') DESC, name ASC;');
+async function getCompanies(companyId = global._currentCompanyId || null) {
+  const params = [];
+  let sql = 'SELECT * FROM companies';
+  if (companyId) { sql += ' WHERE id = $1'; params.push(companyId); }
+  sql += " ORDER BY (id = 'comp-001') DESC, name ASC;";
+  const res = await query(sql, params);
   if (res && res.rows) {
     return res.rows.map(r => ({
       id: r.id,
@@ -144,7 +150,8 @@ async function getCompanies() {
 
 async function getCompanyById(id) {
   if (!id) return null;
-  const res = await query('SELECT * FROM companies WHERE id = $1 LIMIT 1;', [id]);
+  const scope = global._currentCompanyId || null;
+  const res = await query(scope ? 'SELECT * FROM companies WHERE id = $1 AND id = $2 LIMIT 1;' : 'SELECT * FROM companies WHERE id = $1 LIMIT 1;', scope ? [id, scope] : [id]);
   if (res && res.rows && res.rows[0]) {
     const r = res.rows[0];
     return {
@@ -286,7 +293,7 @@ async function deleteCompany(id, actor = {}) {
 // ----------------------------------------------------
 // ASSETS
 // ----------------------------------------------------
-async function getAssets(companyId = null) {
+async function getAssets(companyId = global._currentCompanyId || null) {
   let sql = 'SELECT * FROM assets';
   const params = [];
   if (companyId) {
@@ -328,7 +335,8 @@ async function getAssets(companyId = null) {
 
 async function getAssetByUid(identifier) {
   if (!identifier) return null;
-  const res = await query('SELECT * FROM assets WHERE uid = $1 OR asset_id = $1 LIMIT 1;', [identifier]);
+  const scope = global._currentCompanyId || null;
+  const res = await query(scope ? 'SELECT * FROM assets WHERE (uid = $1 OR asset_id = $1) AND company_id = $2 LIMIT 1;' : 'SELECT * FROM assets WHERE uid = $1 OR asset_id = $1 LIMIT 1;', scope ? [identifier, scope] : [identifier]);
   if (res && res.rows && res.rows[0]) {
     const r = res.rows[0];
     return {
@@ -390,7 +398,7 @@ async function upsertAsset(a) {
     RETURNING *;
   `;
   const params = [
-    a.uid, a.company_id || 'comp-001', a.asset_id, a.asset_name,
+    a.uid, tenantCompanyId(a.company_id, global._currentCompanyId || null, 'asset'), a.asset_id, a.asset_name,
     a.section || 'General', a.department || 'Engineering', a.status || 'operational', a.criticality || 'A',
     a.serial_no || '', a.manufacturer || '', a.model_number || '', a.power_rating || '',
     a.supplier || '', a.installation_date || '', a.year_of_manufacture || '', a.warranty_expiry || '',
@@ -403,7 +411,8 @@ async function upsertAsset(a) {
 async function deleteAsset(uid, actor = {}) {
   return await withTransaction(async (client) => {
     // 1. Fetch asset record
-    const existing = await client.query('SELECT * FROM assets WHERE uid = $1 OR asset_id = $1 LIMIT 1;', [uid]);
+    const activeCompanyId = global._currentCompanyId || null;
+    const existing = await client.query(activeCompanyId ? 'SELECT * FROM assets WHERE (uid = $1 OR asset_id = $1) AND company_id = $2 LIMIT 1;' : 'SELECT * FROM assets WHERE uid = $1 OR asset_id = $1 LIMIT 1;', activeCompanyId ? [uid, activeCompanyId] : [uid]);
     if (!existing || !existing.rows || !existing.rows.length) {
       return null;
     }
@@ -434,7 +443,7 @@ async function deleteAsset(uid, actor = {}) {
     ]);
 
     // 3. Delete from assets
-    const delRes = await client.query('DELETE FROM assets WHERE uid = $1 OR asset_id = $1 RETURNING *;', [uid]);
+    const delRes = await client.query(activeCompanyId ? 'DELETE FROM assets WHERE (uid = $1 OR asset_id = $1) AND company_id = $2 RETURNING *;' : 'DELETE FROM assets WHERE uid = $1 OR asset_id = $1 RETURNING *;', activeCompanyId ? [uid, activeCompanyId] : [uid]);
 
     // 4. Create event-driven notification
     const notifId = `notif-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
@@ -461,11 +470,11 @@ async function deleteAsset(uid, actor = {}) {
 // ----------------------------------------------------
 // RECYCLE BIN & LIFECYCLE
 // ----------------------------------------------------
-async function getRecycleBin(companyId = null) {
+async function getRecycleBin(companyId = global._currentCompanyId || null) {
   let sql = 'SELECT * FROM recycle_bin';
   const params = [];
   if (companyId) {
-    sql += ' WHERE company_id = $1 OR company_id IS NULL';
+    sql += ' WHERE company_id = $1';
     params.push(companyId);
   }
   sql += ' ORDER BY deleted_at_iso DESC, id DESC;';
@@ -501,7 +510,7 @@ async function addToRecycleBin(item) {
   `;
   const bid = item.bin_id || item.id || `bin-${Date.now()}`;
   const params = [
-    bid, item.company_id || null, item.entity_type, item.entity_label, item.primary_id || item.identifier || bid,
+    bid, item.company_id ? tenantCompanyId(item.company_id, global._currentCompanyId || null, 'recycle-bin record') : (global._currentCompanyId || null), item.entity_type, item.entity_label, item.primary_id || item.identifier || bid,
     item.deleted_by || item.deleted_by_name || 'Administrator', item.deleted_by_email || '', item.deleted_by_role || '',
     item.deleted_at || new Date().toLocaleDateString(), item.deleted_at_iso || new Date().toISOString(),
     JSON.stringify(item.record || {}), item.summary || ''
@@ -510,12 +519,14 @@ async function addToRecycleBin(item) {
 }
 
 async function removeFromRecycleBin(id) {
-  return await query('DELETE FROM recycle_bin WHERE id = $1 OR primary_id = $1 RETURNING *;', [id]);
+  const scope = global._currentCompanyId || null;
+  return await query(scope ? 'DELETE FROM recycle_bin WHERE (id = $1 OR primary_id = $1) AND company_id = $2 RETURNING *;' : 'DELETE FROM recycle_bin WHERE id = $1 OR primary_id = $1 RETURNING *;', scope ? [id, scope] : [id]);
 }
 
 async function restoreFromRecycleBin(binId, actor = {}) {
   return await withTransaction(async (client) => {
-    const res = await client.query('SELECT * FROM recycle_bin WHERE id = $1 OR primary_id = $1 LIMIT 1;', [binId]);
+    const activeCompanyId = global._currentCompanyId || null;
+    const res = await client.query(activeCompanyId ? 'SELECT * FROM recycle_bin WHERE (id = $1 OR primary_id = $1) AND company_id = $2 LIMIT 1;' : 'SELECT * FROM recycle_bin WHERE id = $1 OR primary_id = $1 LIMIT 1;', activeCompanyId ? [binId, activeCompanyId] : [binId]);
     if (!res || !res.rows || !res.rows.length) {
       throw new Error(`Recycle bin item "${binId}" not found.`);
     }
@@ -589,7 +600,7 @@ async function restoreFromRecycleBin(binId, actor = {}) {
     }
 
     // Delete from recycle_bin
-    await client.query('DELETE FROM recycle_bin WHERE id = $1;', [binId]);
+    await client.query(activeCompanyId ? 'DELETE FROM recycle_bin WHERE id = $1 AND company_id = $2;' : 'DELETE FROM recycle_bin WHERE id = $1;', activeCompanyId ? [binId, activeCompanyId] : [binId]);
 
     // Create event-driven notification
     const notifId = `notif-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
@@ -599,7 +610,7 @@ async function restoreFromRecycleBin(binId, actor = {}) {
     `, [
       notifId,
       null,
-      item.company_id || 'comp-001',
+      (item.company_id ? tenantCompanyId(item.company_id, global._currentCompanyId || null, 'recycle-bin notification') : (activeCompanyId || 'comp-001')),
       `${item.entity_type}_restored`,
       item.entity_type === 'company' ? 'companies' : (item.entity_type === 'asset' ? 'assets' : 'general'),
       item.primary_id,
@@ -616,7 +627,7 @@ async function restoreFromRecycleBin(binId, actor = {}) {
 // ----------------------------------------------------
 // USERS
 // ----------------------------------------------------
-async function getUsers(companyId = null) {
+async function getUsers(companyId = global._currentCompanyId || null) {
   let sql = 'SELECT * FROM users';
   const params = [];
   if (companyId) {
@@ -687,7 +698,8 @@ async function getUserByEmail(email) {
 
 async function getUserById(id) {
   if (!id) return null;
-  const res = await query('SELECT * FROM users WHERE id = $1 OR uid = $1 LIMIT 1;', [id]);
+  const scope = global._currentCompanyId || null;
+  const res = await query(scope ? 'SELECT * FROM users WHERE (id = $1 OR uid = $1) AND company_id = $2 LIMIT 1;' : 'SELECT * FROM users WHERE id = $1 OR uid = $1 LIMIT 1;', scope ? [id, scope] : [id]);
   if (res && res.rows && res.rows[0]) {
     const r = res.rows[0];
     return {
@@ -745,7 +757,7 @@ async function upsertUser(u) {
   const params = [
     u.id, u.uid || u.id, u.email, u.name, u.password || null,
     u.role || 'Staff Member', u.access_scope || 'Standard', u.department || 'Engineering',
-    u.company_id || 'comp-001', u.active !== false,
+    tenantCompanyId(u.company_id, global._currentCompanyId || null, 'user'), u.active !== false,
     JSON.stringify(u.permissions || []), JSON.stringify(u.edit_permissions || []), JSON.stringify(u.delete_permissions || []),
     u.signature_name || u.name, u.signature_title || u.role, u.signature_font || 'Inter',
     u.signature_color || '#1554FF', u.signature_style || 'formal',
@@ -756,18 +768,19 @@ async function upsertUser(u) {
 }
 
 async function deleteUser(id) {
-  return await query('DELETE FROM users WHERE id = $1 RETURNING *;', [id]);
+  const scope = global._currentCompanyId || null;
+  return await query(scope ? 'DELETE FROM users WHERE id = $1 AND company_id = $2 RETURNING *;' : 'DELETE FROM users WHERE id = $1 RETURNING *;', scope ? [id, scope] : [id]);
 }
 
 // ----------------------------------------------------
 // NOTIFICATIONS (EVENT-DRIVEN & REAL SMART NOTIFICATIONS)
 // ----------------------------------------------------
-async function getNotifications(userId = null, companyId = null) {
+async function getNotifications(userId = null, companyId = global._currentCompanyId || null) {
   let sql = 'SELECT * FROM notifications WHERE 1=1';
   const params = [];
   if (companyId) {
     params.push(companyId);
-    sql += ` AND (company_id = $${params.length} OR company_id = 'comp-001' OR company_id IS NULL)`;
+    sql += ` AND company_id = $${params.length}`;
   }
   if (userId) {
     params.push(userId);
@@ -778,12 +791,12 @@ async function getNotifications(userId = null, companyId = null) {
   return res && res.rows ? res.rows : [];
 }
 
-async function getUnreadNotificationCount(userId = null, companyId = null) {
+async function getUnreadNotificationCount(userId = null, companyId = global._currentCompanyId || null) {
   let sql = 'SELECT COUNT(*) FROM notifications WHERE is_read = false';
   const params = [];
   if (companyId) {
     params.push(companyId);
-    sql += ` AND (company_id = $${params.length} OR company_id = 'comp-001' OR company_id IS NULL)`;
+    sql += ` AND company_id = $${params.length}`;
   }
   if (userId) {
     params.push(userId);
@@ -801,15 +814,15 @@ async function addNotification({ userId, companyId, eventType, entityModule, ent
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false, false, $10)
     RETURNING *;
   `;
-  return await query(sql, [notifId, userId || null, companyId || 'comp-001', eventType, entityModule, entityId || null, title, message, severity, nowIso]);
+  return await query(sql, [notifId, userId || null, tenantCompanyId(companyId, global._currentCompanyId || null, 'notification'), eventType, entityModule, entityId || null, title, message, severity, nowIso]);
 }
 
-async function getRecentToasts(userId = null, companyId = null) {
+async function getRecentToasts(userId = null, companyId = global._currentCompanyId || null) {
   let sql = 'SELECT * FROM notifications WHERE is_toasted = false';
   const params = [];
   if (companyId) {
     params.push(companyId);
-    sql += ` AND (company_id = $${params.length} OR company_id = 'comp-001' OR company_id IS NULL)`;
+    sql += ` AND company_id = $${params.length}`;
   }
   if (userId) {
     params.push(userId);
@@ -826,21 +839,24 @@ async function getRecentToasts(userId = null, companyId = null) {
 }
 
 async function markNotificationRead(id) {
-  return await query('UPDATE notifications SET is_read = true WHERE id = $1 RETURNING *;', [id]);
+  const scope = global._currentCompanyId || null;
+  return await query(scope ? 'UPDATE notifications SET is_read = true WHERE id = $1 AND company_id = $2 RETURNING *;' : 'UPDATE notifications SET is_read = true WHERE id = $1 RETURNING *;', scope ? [id, scope] : [id]);
 }
 
 async function markNotificationToasted(id) {
-  return await query('UPDATE notifications SET is_toasted = true WHERE id = $1 RETURNING *;', [id]);
+  const scope = global._currentCompanyId || null;
+  return await query(scope ? 'UPDATE notifications SET is_toasted = true WHERE id = $1 AND company_id = $2 RETURNING *;' : 'UPDATE notifications SET is_toasted = true WHERE id = $1 RETURNING *;', scope ? [id, scope] : [id]);
 }
 
 async function dismissNotification(id) {
-  return await query('DELETE FROM notifications WHERE id = $1 RETURNING *;', [id]);
+  const scope = global._currentCompanyId || null;
+  return await query(scope ? 'DELETE FROM notifications WHERE id = $1 AND company_id = $2 RETURNING *;' : 'DELETE FROM notifications WHERE id = $1 RETURNING *;', scope ? [id, scope] : [id]);
 }
 
 // ----------------------------------------------------
 // BREAKDOWNS, MAINTENANCE, INVENTORY
 // ----------------------------------------------------
-async function getBreakdowns(companyId = null) {
+async function getBreakdowns(companyId = global._currentCompanyId || null) {
   let sql = 'SELECT * FROM breakdowns';
   const params = [];
   if (companyId) {
@@ -925,7 +941,7 @@ async function upsertBreakdown(b) {
   const mediaStr = b.media ? (typeof b.media === 'string' ? b.media : JSON.stringify(b.media)) : null;
 
   const params = [
-    b.breakdown_id, b.company_id || 'comp-001', b.asset_uid || '', b.asset_id, b.asset_name,
+    b.breakdown_id, tenantCompanyId(b.company_id, global._currentCompanyId || null, 'breakdown'), b.asset_uid || '', b.asset_id, b.asset_name,
     b.incident_title, b.section || '', b.department || '', b.reported_dt || new Date().toISOString(),
     b.failure_category || '', b.severity || 'Medium', b.symptoms || '', b.technician_name || '',
     b.technician_phone || '', b.technician_email || '', b.status || 'Open', b.notes || '',
@@ -937,10 +953,11 @@ async function upsertBreakdown(b) {
 }
 
 async function deleteBreakdown(id) {
-  return await query('DELETE FROM breakdowns WHERE breakdown_id = $1 RETURNING *;', [id]);
+  const scope = global._currentCompanyId || null;
+  return await query(scope ? 'DELETE FROM breakdowns WHERE breakdown_id = $1 AND company_id = $2 RETURNING *;' : 'DELETE FROM breakdowns WHERE breakdown_id = $1 RETURNING *;', scope ? [id, scope] : [id]);
 }
 
-async function getMaintenanceTasks(companyId = null) {
+async function getMaintenanceTasks(companyId = global._currentCompanyId || null) {
   let sql = 'SELECT * FROM maintenance_tasks';
   const params = [];
   if (companyId) {
@@ -1000,7 +1017,7 @@ async function upsertMaintenanceTask(t) {
   `;
   const costTot = String(t.cost_total || t.cost || 0);
   const params = [
-    t.task_id, t.company_id || 'comp-001', t.asset_uid || '', t.asset_id, t.asset_name,
+    t.task_id, tenantCompanyId(t.company_id, global._currentCompanyId || null, 'maintenance task'), t.asset_uid || '', t.asset_id, t.asset_name,
     t.maintenance_type || 'Preventive', t.frequency || 'Monthly', t.section || '', t.technician || '',
     t.task_title || '', t.task_description || '', t.due_date || '', t.status || 'Scheduled',
     t.priority || 'Medium', t.notes || '', t.completed_at || '', t.completion_notes || '',
@@ -1011,10 +1028,11 @@ async function upsertMaintenanceTask(t) {
 }
 
 async function deleteMaintenanceTask(id) {
-  return await query('DELETE FROM maintenance_tasks WHERE task_id = $1 RETURNING *;', [id]);
+  const scope = global._currentCompanyId || null;
+  return await query(scope ? 'DELETE FROM maintenance_tasks WHERE task_id = $1 AND company_id = $2 RETURNING *;' : 'DELETE FROM maintenance_tasks WHERE task_id = $1 RETURNING *;', scope ? [id, scope] : [id]);
 }
 
-async function getInventoryParts(companyId = null) {
+async function getInventoryParts(companyId = global._currentCompanyId || null) {
   let sql = 'SELECT * FROM inventory_parts';
   const params = [];
   if (companyId) {
@@ -1077,7 +1095,7 @@ async function upsertInventoryPart(p) {
   const minVal = Number(p.min_qty !== undefined ? p.min_qty : (p.reorder_level || 5));
   const unitPriceVal = String(p.unit_price !== undefined ? p.unit_price : (p.unit_cost || '0'));
   const params = [
-    p.uid, p.company_id || 'comp-001', p.part_name, p.sku, p.category || 'Mechanical',
+    p.uid, tenantCompanyId(p.company_id, global._currentCompanyId || null, 'inventory part'), p.part_name, p.sku, p.category || 'Mechanical',
     quantityVal, minVal, p.storage_location || '', unitPriceVal, p.supplier || '',
     Number(p.lead_time_days) || 0, Boolean(p.is_critical), p.manufacturer || '', p.model_number || '',
     p.tech_specs || '', p.photo_url || '', p.doc_url || '', p.created_at || new Date().toISOString(),
@@ -1087,17 +1105,18 @@ async function upsertInventoryPart(p) {
 }
 
 async function deleteInventoryPart(uid) {
-  return await query('DELETE FROM inventory_parts WHERE uid = $1 OR sku = $1 RETURNING *;', [uid]);
+  const scope = global._currentCompanyId || null;
+  return await query(scope ? 'DELETE FROM inventory_parts WHERE (uid = $1 OR sku = $1) AND company_id = $2 RETURNING *;' : 'DELETE FROM inventory_parts WHERE uid = $1 OR sku = $1 RETURNING *;', scope ? [uid, scope] : [uid]);
 }
 
 // ----------------------------------------------------
 // AUDIT TRAIL
 // ----------------------------------------------------
-async function getAuditTrail(companyId = null, limit = 100) {
+async function getAuditTrail(companyId = global._currentCompanyId || null, limit = 100) {
   let sql = 'SELECT * FROM audit_trail';
   const params = [];
   if (companyId) {
-    sql += ' WHERE company_id = $1 OR company_id IS NULL';
+    sql += ' WHERE company_id = $1';
     params.push(companyId);
   }
   sql += ` ORDER BY created_at DESC LIMIT ${Number(limit) || 100};`;
@@ -1114,7 +1133,7 @@ async function addAudit(entry) {
   const aid = entry.id || `aud-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
   const nowIso = entry.created_at || new Date().toISOString();
   return await query(sql, [
-    aid, entry.company_id || 'comp-001', entry.action, entry.detail, entry.module || 'general',
+    aid, tenantCompanyId(entry.company_id, global._currentCompanyId || null, 'audit event'), entry.action, entry.detail, entry.module || 'general',
     entry.href || '/dashboard', entry.severity || 'info', entry.user_name || 'System Administrator',
     entry.user_email || 'opsloom.ke@gmail.com', entry.user_role || 'Administrator', nowIso
   ]);
@@ -1180,7 +1199,7 @@ async function getDiagnosticInfo() {
 // ----------------------------------------------------
 // TECHNICIANS
 // ----------------------------------------------------
-async function getTechnicians(companyId = null) {
+async function getTechnicians(companyId = global._currentCompanyId || null) {
   try {
     let sql = 'SELECT * FROM technicians';
     const params = [];
@@ -1193,7 +1212,7 @@ async function getTechnicians(companyId = null) {
     if (res && res.rows) {
       return res.rows.map(r => ({
         id: r.id,
-        company_id: r.company_id || 'comp-001',
+        company_id: tenantCompanyId(r.company_id, global._currentCompanyId || null, 'technician'),
         name: r.name,
         email: r.email || '',
         phone: r.phone || '',
@@ -1229,7 +1248,7 @@ async function upsertTechnician(t) {
     const statusVal = t.active === false || t.status === 'Inactive' ? 'Inactive' : 'Active';
     const params = [
       t.id,
-      t.company_id || 'comp-001',
+      tenantCompanyId(t.company_id, global._currentCompanyId || null, 'technician'),
       t.name,
       t.email || '',
       t.phone || '',
@@ -1247,7 +1266,8 @@ async function upsertTechnician(t) {
 
 async function deleteTechnician(id) {
   try {
-    return await query('DELETE FROM technicians WHERE id = $1 RETURNING *;', [id]);
+    const scope = global._currentCompanyId || null;
+  return await query(scope ? 'DELETE FROM technicians WHERE id = $1 AND company_id = $2 RETURNING *;' : 'DELETE FROM technicians WHERE id = $1 RETURNING *;', scope ? [id, scope] : [id]);
   } catch (err) {
     console.error('[PostgreSQL deleteTechnician Error]:', err.message);
     throw err;
@@ -1298,11 +1318,11 @@ async function upsertSystemSettings(settingsObj) {
   }
 }
 
-async function getReports(companyId = null) {
+async function getReports(companyId = global._currentCompanyId || null) {
   let sql = 'SELECT * FROM reports';
   const params = [];
   if (companyId) {
-    sql += ' WHERE company_id = $1 OR company_id IS NULL';
+    sql += ' WHERE company_id = $1';
     params.push(companyId);
   }
   sql += ' ORDER BY created_at DESC;';
@@ -1318,7 +1338,8 @@ async function getReports(companyId = null) {
 
 async function getReportById(id) {
   if (!id) return null;
-  const res = await query('SELECT * FROM reports WHERE id = $1 LIMIT 1;', [id]);
+  const scope = global._currentCompanyId || null;
+  const res = await query(scope ? 'SELECT * FROM reports WHERE id = $1 AND company_id = $2 LIMIT 1;' : 'SELECT * FROM reports WHERE id = $1 LIMIT 1;', scope ? [id, scope] : [id]);
   if (res && res.rows && res.rows[0]) {
     const r = res.rows[0];
     return {
@@ -1355,7 +1376,7 @@ async function upsertReport(r) {
     RETURNING *;
   `;
   const params = [
-    r.id, r.company_id || 'comp-001', r.name, r.report_title || r.name,
+    r.id, tenantCompanyId(r.company_id, global._currentCompanyId || null, 'report'), r.name, r.report_title || r.name,
     r.category || 'Strategic & Financial ROI', r.category_key || 'strategic_roi',
     r.department || 'Engineering', r.scope_mode || 'department',
     r.start_date || '', r.end_date || '', r.period || '', r.format || 'PDF',
@@ -1368,10 +1389,11 @@ async function upsertReport(r) {
 }
 
 async function deleteReport(id) {
-  return await query('DELETE FROM reports WHERE id = $1 RETURNING *;', [id]);
+  const scope = global._currentCompanyId || null;
+  return await query(scope ? 'DELETE FROM reports WHERE id = $1 AND company_id = $2 RETURNING *;' : 'DELETE FROM reports WHERE id = $1 RETURNING *;', scope ? [id, scope] : [id]);
 }
 
-async function getAssetDocuments(assetUid = null, companyId = null) {
+async function getAssetDocuments(assetUid = null, companyId = global._currentCompanyId || null) {
   let sql = 'SELECT * FROM asset_documents WHERE 1=1';
   const params = [];
   if (assetUid) {
@@ -1380,7 +1402,7 @@ async function getAssetDocuments(assetUid = null, companyId = null) {
   }
   if (companyId) {
     params.push(companyId);
-    sql += ` AND (company_id = $${params.length} OR company_id IS NULL)`;
+    sql += ` AND company_id = $${params.length}`;
   }
   sql += ' ORDER BY uploaded_at DESC;';
   const res = await query(sql, params);
@@ -1414,7 +1436,7 @@ async function upsertAssetDocument(d) {
     RETURNING *;
   `;
   const params = [
-    d.id || d.uid, d.uid || d.id, d.asset_uid, d.company_id || 'comp-001',
+    d.id || d.uid, d.uid || d.id, d.asset_uid, tenantCompanyId(d.company_id, global._currentCompanyId || null, 'asset document'),
     d.title || d.doc_name || 'Document', d.doc_name || d.title || 'Document',
     d.category || 'Manual', d.version || 'v1.0', d.owner || 'Engineering Team',
     d.expiry_date || '', d.review_date || '', d.description || '',
@@ -1424,10 +1446,11 @@ async function upsertAssetDocument(d) {
 }
 
 async function deleteAssetDocument(id) {
-  return await query('DELETE FROM asset_documents WHERE id = $1 OR uid = $1 RETURNING *;', [id]);
+  const scope = global._currentCompanyId || null;
+  return await query(scope ? 'DELETE FROM asset_documents WHERE (id = $1 OR uid = $1) AND company_id = $2 RETURNING *;' : 'DELETE FROM asset_documents WHERE id = $1 OR uid = $1 RETURNING *;', scope ? [id, scope] : [id]);
 }
 
-async function getSpareParts(assetUid = null, companyId = null) {
+async function getSpareParts(assetUid = null, companyId = global._currentCompanyId || null) {
   let sql = 'SELECT * FROM asset_spare_parts WHERE 1=1';
   const params = [];
   if (assetUid) {
@@ -1436,7 +1459,7 @@ async function getSpareParts(assetUid = null, companyId = null) {
   }
   if (companyId) {
     params.push(companyId);
-    sql += ` AND (company_id = $${params.length} OR company_id IS NULL)`;
+    sql += ` AND company_id = $${params.length}`;
   }
   sql += ' ORDER BY created_at DESC;';
   const res = await query(sql, params);
@@ -1466,7 +1489,7 @@ async function upsertSparePart(sp) {
   `;
   const params = [
     sp.id || `spare-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
-    sp.asset_uid, sp.company_id || 'comp-001', sp.part_name, sp.part_number || sp.sku || '',
+    sp.asset_uid, tenantCompanyId(sp.company_id, global._currentCompanyId || null, 'spare part'), sp.part_name, sp.part_number || sp.sku || '',
     Number(sp.quantity) || 1, sp.criticality || 'A', Number(sp.lead_time_days) || 7,
     sp.supplier || '', sp.created_at || new Date().toISOString()
   ];
@@ -1474,10 +1497,11 @@ async function upsertSparePart(sp) {
 }
 
 async function deleteSparePart(id) {
-  return await query('DELETE FROM asset_spare_parts WHERE id = $1 RETURNING *;', [id]);
+  const scope = global._currentCompanyId || null;
+  return await query(scope ? 'DELETE FROM asset_spare_parts WHERE id = $1 AND company_id = $2 RETURNING *;' : 'DELETE FROM asset_spare_parts WHERE id = $1 RETURNING *;', scope ? [id, scope] : [id]);
 }
 
-async function getMessages(folder = null, companyId = null) {
+async function getMessages(folder = null, companyId = global._currentCompanyId || null) {
   let sql = 'SELECT * FROM messages WHERE 1=1';
   const params = [];
   if (folder) {
@@ -1486,7 +1510,7 @@ async function getMessages(folder = null, companyId = null) {
   }
   if (companyId) {
     params.push(companyId);
-    sql += ` AND (company_id = $${params.length} OR company_id IS NULL)`;
+    sql += ` AND company_id = $${params.length}`;
   }
   sql += ' ORDER BY created_at DESC;';
   const res = await query(sql, params);
@@ -1504,7 +1528,7 @@ async function upsertMessage(m) {
   `;
   const params = [
     m.id || `msg-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
-    m.company_id || 'comp-001', m.folder || 'inbox', m.sender_name || 'System',
+    tenantCompanyId(m.company_id, global._currentCompanyId || null, 'message'), m.folder || 'inbox', m.sender_name || 'System',
     m.sender_email || '', m.recipient_email || '', m.subject || '',
     m.content || '', m.category || 'General', m.priority || 'Normal',
     Boolean(m.is_read), m.created_at || new Date().toISOString()
@@ -1513,7 +1537,8 @@ async function upsertMessage(m) {
 }
 
 async function deleteMessage(id) {
-  return await query('DELETE FROM messages WHERE id = $1 RETURNING *;', [id]);
+  const scope = global._currentCompanyId || null;
+  return await query(scope ? 'DELETE FROM messages WHERE id = $1 AND company_id = $2 RETURNING *;' : 'DELETE FROM messages WHERE id = $1 RETURNING *;', scope ? [id, scope] : [id]);
 }
 
 module.exports = {

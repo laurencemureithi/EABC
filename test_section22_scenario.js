@@ -88,8 +88,8 @@ async function runScenario() {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
   }, {
-    email: 'opsloom.ke@gmail.com',
-    password: 'Admin@123'
+    email: process.env.E2E_ADMIN_EMAIL || process.env.ADMIN_PRIMARY_EMAIL || 'opsloom.ke@gmail.com',
+    password: process.env.E2E_ADMIN_PASSWORD || process.env.ADMIN_LOGIN_PASSWORD || 'Admin@123'
   });
   assertRedirect(loginRes, 'Admin login redirect');
   adminSession = parseCookies(loginRes);
@@ -377,8 +377,8 @@ async function runScenario() {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
   }, {
-    email: 'opsloom.ke@gmail.com',
-    password: 'Admin@123'
+    email: process.env.E2E_ADMIN_EMAIL || process.env.ADMIN_PRIMARY_EMAIL || 'opsloom.ke@gmail.com',
+    password: process.env.E2E_ADMIN_PASSWORD || process.env.ADMIN_LOGIN_PASSWORD || 'Admin@123'
   });
   adminSession = { ...adminSession, ...parseCookies(reAdminLogin), opsloom_ws_id: wsA.id };
   
@@ -553,8 +553,8 @@ async function runScenario() {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
   }, {
-    email: 'opsloom.ke@gmail.com',
-    password: 'Admin@123'
+    email: process.env.E2E_ADMIN_EMAIL || process.env.ADMIN_PRIMARY_EMAIL || 'opsloom.ke@gmail.com',
+    password: process.env.E2E_ADMIN_PASSWORD || process.env.ADMIN_LOGIN_PASSWORD || 'Admin@123'
   });
   assertRedirect(finalLogin);
   const finalSession = parseCookies(finalLogin);

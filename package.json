@@ -7,10 +7,14 @@
     "build": "echo 'Build successful'",
     "dev": "node server.js",
     "start": "node server.js",
-    "lint": "node --check server.js",
+    "lint": "node scripts/check-syntax.js",
     "test": "node test_e2e_system.js",
     "db:migrate": "node scripts/migrate.js",
-    "db:seed": "node scripts/seed.js"
+    "db:seed": "node scripts/seed.js",
+    "test:security": "node test_security_hardening.js",
+    "test:all": "npm run test:security && npm test",
+    "test:staging": "npm run test:security && node test_e2e_system.js && node test_extended_e2e.js && node test_confirmations_and_ai.js && node test_all_9_parts.js && node test_section22_scenario.js && node test_issue6_profile.js",
+    "db:audit": "node scripts/audit-tenant-data.js"
   },
   "keywords": [],
   "author": "",
@@ -42,6 +46,15 @@
     "nunjucks": "^3.2.4",
     "pg": "^8.23.1",
     "pptxgenjs": "^4.0.1",
-    "sqlite3": "^6.0.1"
+    "sqlite3": "^6.0.1",
+    "compression": "^1.8.1",
+    "cors": "^2.8.5",
+    "express-mongo-sanitize": "^2.2.0",
+    "express-rate-limit": "^8.2.1",
+    "express-session": "^1.18.2",
+    "helmet": "^8.1.0"
+  },
+  "engines": {
+    "node": ">=22 <23"
   }
 }
