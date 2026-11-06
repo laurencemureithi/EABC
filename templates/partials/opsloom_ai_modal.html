@@ -130,10 +130,10 @@ function renderStructuredAiCard(data) {
   const title = escapeHtml(data.title || 'AI Reliability Synthesis');
   const timestamp = escapeHtml(data.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   const structured = data.structured || {};
-  const summary = structured.summary || '';
-  const metrics = Array.isArray(structured.metrics) ? structured.metrics : [];
-  const sections = Array.isArray(structured.sections) ? structured.sections : [];
-  const recommendations = Array.isArray(structured.recommendations) ? structured.recommendations : [];
+  const summary = data.summary || structured.summary || '';
+  const metrics = Array.isArray(data.metrics) ? data.metrics : (Array.isArray(structured.metrics) ? structured.metrics : []);
+  const sections = Array.isArray(data.sections) ? data.sections : (Array.isArray(structured.sections) ? structured.sections : []);
+  const recommendations = Array.isArray(data.recommendations) ? data.recommendations : (Array.isArray(structured.recommendations) ? structured.recommendations : []);
 
   // Fallback parser if plain text analysis was returned
   let fallbackBullets = [];

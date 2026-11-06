@@ -68,7 +68,7 @@
         <div class="col-span-2">
           <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Document Name</label>
           <div class="flex items-center justify-between gap-3">
-            <p class="text-sm font-bold text-slate-900 dark:text-white">{{ doc.name or "—" }}</p>
+            <p class="text-sm font-bold text-slate-900 dark:text-white">{{ doc.name or doc.title or "—" }}</p>
 
             {# Status badge #}
             {% set st = (doc.status or 'draft')|lower %}

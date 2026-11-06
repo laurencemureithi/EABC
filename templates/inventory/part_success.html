@@ -1,0 +1,116 @@
+{% extends "layouts/base.html" %}
+{% block title %}Part Enrolled Successfully • Opsloom{% endblock %}
+{% block main_wrapper_class %}bg-[#F9FAFB] dark:bg-slate-950{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-8 px-4">
+  <div class="flex flex-col items-center text-center mb-8">
+    <div class="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-950/40 border-4 border-white dark:border-slate-900 flex items-center justify-center shadow-md mb-4">
+      <span class="material-symbols-outlined text-5xl text-emerald-600 dark:text-emerald-400">check_circle</span>
+    </div>
+
+    <h1 class="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Spare Part Successfully Enrolled</h1>
+    <p class="text-slate-600 dark:text-slate-300 font-medium mt-2 max-w-lg">
+      <span class="font-bold text-ueal-purple dark:text-ueal-gold">{{ part.part_name }}</span> (SKU: {{ part.sku }}) has been securely registered into the central inventory database.
+    </p>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden mb-8">
+    <div class="p-6 md:p-8">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-100 dark:border-slate-800">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Catalog Record</span>
+            {% if part.is_critical %}
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/50">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                Critical Spare
+              </span>
+            {% else %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                Standard Component
+              </span>
+            {% endif %}
+          </div>
+          <h2 class="text-2xl font-black text-slate-900 dark:text-white">{{ part.part_name }}</h2>
+          <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5">SKU: <span class="font-mono text-slate-700 dark:text-slate-200">{{ part.sku }}</span> • Category: <span class="text-slate-700 dark:text-slate-200">{{ part.category }}</span></p>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <div class="text-right">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Initial Valuation</p>
+            <p class="text-xl font-black text-slate-900 dark:text-white">{{ ((part.qty or 0) * (part.unit_price or 0))|kes2 }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-6 pt-6">
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+          <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Stock on Hand</p>
+          <div class="flex items-baseline gap-1.5">
+            <span class="text-2xl font-black text-slate-900 dark:text-white">{{ part.qty or 0 }}</span>
+            <span class="text-xs font-semibold text-slate-500">units</span>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1">Min Threshold: {{ part.min_qty or 5 }}</p>
+        </div>
+
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+          <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Unit Price</p>
+          <div class="flex items-baseline gap-1">
+            <span class="text-xl font-black text-slate-900 dark:text-white">{{ (part.unit_price or 0)|kes2 }}</span>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1">Direct Procurement Cost</p>
+        </div>
+
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+          <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Storage Location</p>
+          <div class="flex items-center gap-1.5 mt-0.5">
+            <span class="material-symbols-outlined text-base text-ueal-purple dark:text-ueal-gold">warehouse</span>
+            <span class="text-sm font-extrabold text-slate-900 dark:text-white">{{ part.storage_location or "Bin A-01" }}</span>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1">Central Warehouse</p>
+        </div>
+
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+          <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Supplier & Lead Time</p>
+          <div class="text-xs font-extrabold text-slate-900 dark:text-white truncate" title="{{ part.supplier }}">
+            {{ part.supplier or "OEM Partner" }}
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1">{{ part.lead_time_days or 7 }} Days Estimated Restock</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-slate-50 dark:bg-slate-800/80 px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+        <span class="material-symbols-outlined text-emerald-600 text-base">verified</span>
+        <span>Audit entry logged & available in real-time inventory counts</span>
+      </div>
+      <button type="button" onclick="window.print()" class="text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-ueal-purple dark:hover:text-ueal-gold flex items-center gap-1 transition-colors">
+        <span class="material-symbols-outlined text-base">print</span>
+        Print Stock Record
+      </button>
+    </div>
+  </div>
+
+  <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+    <a href="{{ url_for('inventory_detail', uid=part.uid) if part.uid else '/inventory' }}"
+       class="w-full sm:w-auto px-8 py-3.5 bg-ueal-gold text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:brightness-105 transition-all shadow-lg shadow-ueal-gold/25 active:scale-[0.98]">
+      <span class="material-symbols-outlined text-lg">visibility</span>
+      VIEW PART RECORD
+    </a>
+
+    <a href="{{ url_for('inventory') }}"
+       class="w-full sm:w-auto px-8 py-3.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm active:scale-[0.98]">
+      <span class="material-symbols-outlined text-lg">inventory_2</span>
+      INVENTORY CATALOG
+    </a>
+
+    <a href="{{ url_for('inventory_add_step1_get') }}"
+       class="w-full sm:w-auto px-8 py-3.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm active:scale-[0.98]">
+      <span class="material-symbols-outlined text-lg">add_circle</span>
+      ENROLL ANOTHER PART
+    </a>
+  </div>
+</div>
+{% endblock %}

@@ -1,5 +1,5 @@
 {% extends "layouts/base.html" %}
-{% block title %}Maintenance Scheduled • Opsloom{% endblock %}
+{% block title %}{% if isCompleted or task.status == 'completed' %}Task Completed Successfully • Opsloom{% else %}Maintenance Scheduled • Opsloom{% endif %}{% endblock %}
 {% block main_wrapper_class %}bg-[#F9FAFB]{% endblock %}
 
 {% block content %}
@@ -9,8 +9,13 @@
       <span class="material-symbols-outlined text-4xl text-green-600">check_circle</span>
     </div>
 
-    <h1 class="text-3xl font-extrabold text-slate-900 mt-5">Maintenance Task Successfully Scheduled</h1>
-    <p class="text-slate-500 font-medium mt-2">The new preventive maintenance cycle has been registered and assigned.</p>
+    {% if isCompleted or task.status == 'completed' %}
+      <h1 class="text-3xl font-extrabold text-slate-900 mt-5">Maintenance Work Order Successfully Executed</h1>
+      <p class="text-slate-500 font-medium mt-2">The service protocol has been validated, equipment signed off, and maintenance records updated.</p>
+    {% else %}
+      <h1 class="text-3xl font-extrabold text-slate-900 mt-5">Maintenance Task Successfully Scheduled</h1>
+      <p class="text-slate-500 font-medium mt-2">The new preventive maintenance cycle has been registered and assigned.</p>
+    {% endif %}
   </div>
 
   <!-- tighter + more "original UI" proportions -->
@@ -83,10 +88,18 @@
   </div>
 
   <div class="mt-7 flex flex-col sm:flex-row items-center justify-center gap-4 max-w-3xl mx-auto">
-    <a href="{{ url_for('maintenance_calendar') }}"
+    {% if task and task.task_id %}
+    <a href="{{ url_for('maintenance_task_detail', task_id=task.task_id) }}"
        class="w-full sm:w-auto px-8 py-3 bg-ueal-gold text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 hover:bg-[#C5A02E] transition-all shadow-lg shadow-ueal-gold/20">
+      <span class="material-symbols-outlined text-lg">description</span>
+      VIEW WORK ORDER
+    </a>
+    {% endif %}
+
+    <a href="{{ url_for('maintenance_calendar') }}"
+       class="w-full sm:w-auto px-8 py-3 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-all shadow-sm">
       <span class="material-symbols-outlined text-lg">calendar_month</span>
-      GO TO MAINTENANCE CALENDAR
+      MAINTENANCE CALENDAR
     </a>
 
     <a href="{{ url_for('maintenance_schedule_step1') }}"
