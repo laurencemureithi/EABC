@@ -1,7 +1,7 @@
 /**
- * EABC ENTERPRISE SERVER - PRODUCTION READY
- * Replaces legacy server.js with hardened, modular architecture
- * Drop-in replacement with all security, KPI, and audit features integrated
+ * LEGACY EXPERIMENTAL SERVER — NOT THE APPLICATION ENTRY POINT
+ * This file is not wired to package.json, is not maintained with the active server,
+ * and must not be used for staging or production deployment. Use server.js only.
  * 
  * Usage: node server-enterprise.js
  * Environment: Set .env variables before running

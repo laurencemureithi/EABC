@@ -33,6 +33,19 @@ function getAiClient() {
 }
 
 const app = express();
+
+function safeLocalRedirect(target, fallback = '/dashboard') {
+  try {
+    const raw = String(target || '');
+    if (!raw.startsWith('/')) return fallback;
+    const parsed = new URL(raw, 'http://eabc.local');
+    if (parsed.origin !== 'http://eabc.local') return fallback;
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch (_) {
+    return fallback;
+  }
+}
+
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(helmet({
@@ -873,7 +886,10 @@ async function syncStoreFromDatabase() {
         const primaryAdmin = (store.ADMIN_USERS || []).find(u => u && u.id === 'USR-001');
         if (primaryAdmin) {
           primaryAdmin.password = migratedHash;
-          await dal.upsertUser(primaryAdmin);
+          const previousTenantId = global._currentCompanyId;
+          global._currentCompanyId = primaryAdmin.company_id || 'comp-001';
+          try { await dal.upsertUser(primaryAdmin); }
+          finally { global._currentCompanyId = previousTenantId; }
         }
         await saveStore();
       }
@@ -1054,6 +1070,7 @@ function logAudit(action, detail, module = 'general', href = '/dashboard', sever
     severity,
     href,
     workspace_id: activeCompId,
+    company_id: activeCompId,
     created_at: nowIso,
     time_display: formatSystemTimestamp(nowIso, true),
     user_name: userName,
@@ -1161,7 +1178,7 @@ async function sendEmailDelivery({ to, cc, subject, text, html, attachments = []
         pass
       },
       tls: {
-        rejectUnauthorized: false
+        rejectUnauthorized: process.env.SMTP_TLS_REJECT_UNAUTHORIZED !== 'false'
       }
     });
 
@@ -2509,6 +2526,12 @@ app.use(async (req, res, next) => {
   workspaceRequestTail = new Promise(resolve => { release = resolve; });
   await previous;
   workspaceRequestsQueued -= 1;
+  // Each request starts with an unprivileged tenant context. Authentication
+  // middleware below may grant platform-admin scope for this request only.
+  global._platformAdminTenantAccess = false;
+  global._currentCompanyId = store.ACTIVE_COMPANY_ID
+    || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id)
+    || null;
   let released = false;
   const finish = () => {
     if (released) return;
@@ -2870,6 +2893,21 @@ function uploadBelongsToCompany(fileName, companyId) {
   return scan(store);
 }
 
+// Generated operational reports can contain confidential company information.
+// Keep report exports private just like uploaded business documents.
+app.use(['/static/exports/reports', '/exports/reports'], (req, res, next) => {
+  const userId = req.cookies?.opsloom_user;
+  const user = userId && (store.ADMIN_USERS || []).find(u => u && u.id === userId && u.active !== false);
+  if (!user) return res.status(401).send('Authentication required');
+  const fileName = path.basename(decodeURIComponent(req.path || ''));
+  const isSystemAdmin = user.id === 'USR-001' || user.is_platform_admin === true;
+  if (!isSystemAdmin && !uploadBelongsToCompany(fileName, user.company_id)) {
+    return res.status(404).send('File not found');
+  }
+  req.authenticatedReportUser = user;
+  next();
+});
+
 // Uploaded business files must never be anonymously served or cross tenant boundaries.
 app.use(['/static/uploads', '/uploads'], (req, res, next) => {
   const userId = req.cookies?.opsloom_user;
@@ -2990,7 +3028,7 @@ app.use((req, res, next) => {
     p === '/api/health' ||
     p === '/api/ping' ||
     p === '/api/system/clock-sync' ||
-    (p.startsWith('/static') && !p.startsWith('/static/uploads')) ||
+    (p.startsWith('/static') && !p.startsWith('/static/uploads') && !p.startsWith('/static/exports/reports')) ||
     p.startsWith('/vendor') ||
     p.startsWith('/css') ||
     p.startsWith('/brand') ||
@@ -3042,12 +3080,19 @@ app.use((req, res, next) => {
 
   // Strictly enforce workspace isolation per request
   const isPlatformAdmin = matchedUser.id === 'USR-001' || matchedUser.is_platform_admin === true;
+  global._platformAdminTenantAccess = isPlatformAdmin;
   let targetWsId = isPlatformAdmin ? (req.query?.company_id || req.cookies?.opsloom_ws_id) : matchedUser.company_id;
   if (!targetWsId || !store.COMPANIES.some(c => c && c.id === targetWsId)) {
-    if (!isPlatformAdmin && !matchedUser.company_id) {
-      return res.status(403).json({ ok: false, error: 'Your account is not assigned to an organization. Contact your system administrator.' });
+    if (!isPlatformAdmin) {
+      return res.status(403).json({
+        ok: false,
+        error: 'Your account is not assigned to a valid organization. Contact your system administrator.'
+      });
     }
-    targetWsId = matchedUser.company_id || (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || 'comp-001';
+    targetWsId = (store.COMPANIES && store.COMPANIES[0] && store.COMPANIES[0].id) || null;
+    if (!targetWsId) {
+      return res.status(503).json({ ok: false, error: 'No organization workspace is configured.' });
+    }
   }
 
   const activeComp = (store.COMPANIES || []).find(c => c && c.id === targetWsId) || (store.COMPANIES && store.COMPANIES[0]);
@@ -3213,9 +3258,9 @@ function getCurrentActor(req) {
 const ADMIN_PRIMARY_EMAIL = 'opsloom.ke@gmail.com';
 const ADMIN_RECOVERY_EMAIL = 'laurencemureithi1999@gmail.com';
 
-function updateUserPasswordEverywhere(identifier, newPassword) {
+async function updateUserPasswordEverywhere(identifier, newPassword) {
   const rawNewPass = String(newPassword || '');
-  if (rawNewPass.length < 12) return false;
+  if (rawNewPass.length < 12) throw new Error('Use a password with at least 12 characters.');
   const cleanPass = hashPassword(rawNewPass);
   if (!Array.isArray(store.ADMIN_USERS)) store.ADMIN_USERS = [];
 
@@ -3235,30 +3280,36 @@ function updateUserPasswordEverywhere(identifier, newPassword) {
       String(identifier.email || '').trim().toLowerCase() === ADMIN_PRIMARY_EMAIL
     ));
 
-  let updated = false;
-  store.ADMIN_USERS.forEach(u => {
-    if (!u) return;
+  const matchedUsers = store.ADMIN_USERS.filter(u => {
+    if (!u) return false;
     const uId = String(u.id || '').trim();
     const uEmail = String(u.email || '').trim().toLowerCase();
-    if (
-      (idStr && uId === idStr) ||
-      (emailStr && uEmail === emailStr) ||
-      (isPrimaryAdmin && (uId === 'USR-001' || uEmail === ADMIN_PRIMARY_EMAIL))
-    ) {
-      u.password = cleanPass;
-      updated = true;
-      try { dal.upsertUser(u).catch(() => {}); } catch (e) {}
-    }
+    return (idStr && uId === idStr)
+      || (emailStr && uEmail === emailStr)
+      || (isPrimaryAdmin && (uId === 'USR-001' || uEmail === ADMIN_PRIMARY_EMAIL));
   });
+
+  if (!matchedUsers.length) throw new Error('The target user account could not be found.');
+
+  for (const user of matchedUsers) {
+    user.password = cleanPass;
+    const previousTenantId = global._currentCompanyId;
+    if (user.company_id) global._currentCompanyId = user.company_id;
+    try {
+      await dal.upsertUser(user);
+    } finally {
+      global._currentCompanyId = previousTenantId;
+    }
+  }
 
   if (isPrimaryAdmin) {
     if (!store.SYSTEM_SETTINGS) store.SYSTEM_SETTINGS = {};
     store.SYSTEM_SETTINGS.admin_login_password = cleanPass;
-    updated = true;
   }
 
-  saveStore();
-  return updated;
+  const persisted = await saveStore();
+  if (!persisted) throw new Error('The password hash could not be persisted to PostgreSQL.');
+  return true;
 }
 
 function baseCtx(req, activeNav = 'dashboard') {
@@ -3573,13 +3624,13 @@ function loginRateLimit(req, res, next) {
 
 app.post('/login', loginRateLimit, async (req, res) => {
   // Authentication lookup and password migration are identity-global, not tenant-scoped.
-  global._currentCompanyId = null;
   const { email, password, next: nextTarget } = req.body;
   const cleanEmail = (email || '').trim().toLowerCase();
   const rawPass = String(password || '');
-  const safeNext = (nextTarget && String(nextTarget).startsWith('/') && !String(nextTarget).startsWith('//') && !String(nextTarget).startsWith('/login') && String(nextTarget) !== '/')
-    ? String(nextTarget)
-    : '/dashboard';
+  const safeNextCandidate = safeLocalRedirect(nextTarget);
+  const safeNext = safeNextCandidate.startsWith('/login') || safeNextCandidate === '/'
+    ? '/dashboard'
+    : safeNextCandidate;
   const nowFmt = formatSystemTimestamp(getSystemNowIso());
 
   // Ensure store has seeded users without overwriting any modified passwords
@@ -3627,7 +3678,11 @@ app.post('/login', loginRateLimit, async (req, res) => {
   if (!isPasswordHash(user.password) || (isPrimaryAdminUser && configuredAdminPassword && !isPasswordHash(user.password))) {
     user.password = hashPassword(rawPass);
     if (isPrimaryAdminUser && store.SYSTEM_SETTINGS) store.SYSTEM_SETTINGS.admin_login_password = user.password;
-    try { await dal.upsertUser(user); } catch (err) { console.error('[password migration] could not persist password hash:', err.message); }
+    const previousTenantId = global._currentCompanyId;
+    global._currentCompanyId = user.company_id || previousTenantId;
+    try { await dal.upsertUser(user); }
+    catch (err) { console.error('[password migration] could not persist password hash:', err.message); }
+    finally { global._currentCompanyId = previousTenantId; }
   }
 
   user.last_login_at = nowFmt;
@@ -3686,8 +3741,7 @@ app.post('/api/session/ping', (req, res) => {
   res.json({ ok: true, active_at: nowMs, timeout_minutes: timeoutMins });
 });
 
-app.post('/login/forgot-password', (req, res) => {
-  global._currentCompanyId = null;
+app.post('/login/forgot-password', loginRateLimit, async (req, res) => {
   const rawEmail = String(req.body.email || '').trim().toLowerCase();
   if (!rawEmail) {
     flash('info', 'Enter your account email below to request a password reset.');
@@ -3696,8 +3750,21 @@ app.post('/login/forgot-password', (req, res) => {
 
   // Admin account (opsloom.ke@gmail.com) -> revert a 6-digit reset code to laurencemureithi1999@gmail.com
   if (rawEmail === ADMIN_PRIMARY_EMAIL || rawEmail === ADMIN_RECOVERY_EMAIL) {
-    const resetCode = String(Math.floor(100000 + Math.random() * 900000));
+    const resetCode = String(crypto.randomInt(100000, 1000000));
     const nowIso = getSystemNowIso();
+    const resetSubject = `Opsloom Admin Password Reset Code (${resetCode})`;
+    const resetBody = `A password reset was requested for ${ADMIN_PRIMARY_EMAIL}. Your one-time recovery code is ${resetCode}. It expires in 15 minutes. If you did not request this, ignore this email.`;
+    const delivery = await sendEmailDelivery({
+      to: ADMIN_RECOVERY_EMAIL,
+      subject: resetSubject,
+      text: resetBody
+    });
+    if (!delivery.ok) {
+      store.ADMIN_RESET_STATE = null;
+      flash('error', 'The recovery email could not be sent. Contact your system administrator or configure SMTP before using password recovery.');
+      return res.redirect('/login?forgot=1');
+    }
+
     store.ADMIN_RESET_STATE = {
       admin_email: ADMIN_PRIMARY_EMAIL,
       recovery_email: ADMIN_RECOVERY_EMAIL,
@@ -3712,21 +3779,22 @@ app.post('/login/forgot-password', (req, res) => {
       sender_name: 'Opsloom Security Core',
       sender_email: ADMIN_PRIMARY_EMAIL,
       recipient_emails: [ADMIN_RECOVERY_EMAIL],
-      subject: `Opsloom Admin Password Reset Code (${resetCode})`,
-      body: `Administrator password reset requested for ${ADMIN_PRIMARY_EMAIL}. Your 6-digit recovery reset code reverted to ${ADMIN_RECOVERY_EMAIL} is: ${resetCode} (valid for 15 minutes).`,
+      subject: resetSubject,
+      body: resetBody,
       created_at: nowIso,
-      delivery_status: 'sent'
+      delivery_status: 'sent',
+      provider_message_id: delivery.messageId || ''
     });
 
     logAudit(
-      'Admin Reset Code Reverted',
-      `Generated 6-digit password reset code for ${ADMIN_PRIMARY_EMAIL} and reverted to ${ADMIN_RECOVERY_EMAIL}.`,
+      'Admin Reset Code Emailed',
+      `Emailed a one-time password reset code for ${ADMIN_PRIMARY_EMAIL} to the configured recovery address.`,
       'security',
       '/login',
       'warning'
     );
     saveStore();
-    flash('info', `Admin reset code for ${ADMIN_PRIMARY_EMAIL} has been reverted to ${ADMIN_RECOVERY_EMAIL}. Enter the 6-digit code below to set your new password.`);
+    flash('info', `A recovery code has been sent to ${ADMIN_RECOVERY_EMAIL}. Enter it below within 15 minutes.`);
     return res.redirect('/login?admin_reset=1');
   }
 
@@ -3801,8 +3869,7 @@ app.post('/login/forgot-password', (req, res) => {
   return res.redirect(`/login?contact_admin=1&user_email=${encodeURIComponent(rawEmail)}&user_name=${encodeURIComponent(resolvedName)}&workspace_name=${encodeURIComponent(workspaceLabel)}`);
 });
 
-app.post('/login/reset-admin-password', (req, res) => {
-  global._currentCompanyId = null;
+app.post('/login/reset-admin-password', loginRateLimit, async (req, res) => {
   const codeInput = String(req.body.reset_code || '').trim();
   const newPass = String(req.body.new_password || '').trim();
   const confirmPass = String(req.body.confirm_password || '').trim();
@@ -3829,9 +3896,14 @@ app.post('/login/reset-admin-password', (req, res) => {
     return res.redirect('/login?admin_reset=1');
   }
 
-  updateUserPasswordEverywhere(ADMIN_PRIMARY_EMAIL, newPass);
+  try {
+    await updateUserPasswordEverywhere(ADMIN_PRIMARY_EMAIL, newPass);
+  } catch (error) {
+    console.error('[admin password reset] persistence failed:', error.message);
+    return res.status(503).send('The password could not be securely saved. The recovery code remains valid; please retry or contact support.');
+  }
   store.ADMIN_RESET_STATE = null;
-  saveStore();
+  await saveStore();
 
   logAudit(
     'Admin Password Reset Completed',
@@ -3845,7 +3917,6 @@ app.post('/login/reset-admin-password', (req, res) => {
 });
 
 app.post('/login/request-credentials', (req, res) => {
-  global._currentCompanyId = null;
   const rawEmail = String(req.body.email || '').trim().toLowerCase();
   const rawName = String(req.body.name || '').trim() || rawEmail || 'New User';
   const rawDept = String(req.body.department || 'Engineering').trim();
@@ -3901,8 +3972,8 @@ app.all('/set-department', (req, res) => {
   store.ACTIVE_DEPARTMENT = dept;
   saveStore();
   setSafeCookie(req, res, 'current_department', dept);
-  const next = req.body?.next || req.query?.next || req.header('Referer') || '/dashboard';
-  res.redirect(next);
+  const requestedNext = req.body?.next || req.query?.next || req.header('Referer') || '/dashboard';
+  res.redirect(safeLocalRedirect(requestedNext));
 });
 
 // -------------------------
@@ -4087,9 +4158,12 @@ app.post(['/settings/companies/save', '/api/companies/save'], upload.fields([
 
   const rawLightBase64 = (logo_light_base64 || logo_light_data_url || '').trim();
   const rawDarkBase64 = (logo_dark_base64 || logo_dark_data_url || '').trim();
+  const isSafeRasterDataUrl = value => /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(String(value || ''));
 
-  const lightFromUpload = fileToDataUrl(lightFile) || (rawLightBase64.startsWith('data:image/') ? rawLightBase64 : '');
-  const darkFromUpload = fileToDataUrl(darkFile) || (rawDarkBase64.startsWith('data:image/') ? rawDarkBase64 : '');
+  const lightFileData = fileToDataUrl(lightFile);
+  const darkFileData = fileToDataUrl(darkFile);
+  const lightFromUpload = (isSafeRasterDataUrl(lightFileData) ? lightFileData : '') || (isSafeRasterDataUrl(rawLightBase64) ? rawLightBase64 : '');
+  const darkFromUpload = (isSafeRasterDataUrl(darkFileData) ? darkFileData : '') || (isSafeRasterDataUrl(rawDarkBase64) ? rawDarkBase64 : '');
 
   const cleanLightUrlInput = (logo_light_url && String(logo_light_url).trim() && !String(logo_light_url).trim().startsWith('[Uploaded'))
     ? String(logo_light_url).trim()
@@ -4280,8 +4354,9 @@ app.all('/set-company', async (req, res) => {
     logAudit('Workspace Switched', `Switched active organization workspace to ${company.name} (${company.code})`, 'companies', '/settings/companies', 'info', actor);
     flash('success', `Switched active workspace to ${company.name} (${company.code}).`);
   }
-  const nextTarget = req.query?.next || req.body?.next || req.header('Referer') || '/dashboard';
-  res.redirect(nextTarget.startsWith('/login') ? '/dashboard' : nextTarget);
+  const requestedNext = req.query?.next || req.body?.next || req.header('Referer') || '/dashboard';
+  const safeNext = safeLocalRedirect(requestedNext);
+  res.redirect(safeNext.startsWith('/login') ? '/dashboard' : safeNext);
 });
 
 // -------------------------
@@ -5334,13 +5409,24 @@ app.post('/assets/new/step-3', upload.any(), (req, res) => {
     resolvedPhotoUrl = `/static/uploads/${uploadedFile.filename}`;
   } else if (photo_base64 && String(photo_base64).startsWith('data:image/')) {
     try {
-      const match = String(photo_base64).match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+      // Do not persist SVG or arbitrary image MIME payloads as same-origin files.
+      // SVG can execute active content when opened directly in a browser.
+      const match = String(photo_base64).match(/^data:image\/(png|jpe?g|webp|gif);base64,([A-Za-z0-9+/=]+)$/i);
       if (match) {
-        const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
-        const filename = `${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${ext}`;
-        const filePath = path.join(UPLOADS_DIR, filename);
-        fs.writeFileSync(filePath, Buffer.from(match[2], 'base64'));
-        resolvedPhotoUrl = `/static/uploads/${filename}`;
+        const mimeSubtype = match[1].toLowerCase();
+        const ext = mimeSubtype === 'jpeg' ? 'jpg' : mimeSubtype;
+        const buffer = Buffer.from(match[2], 'base64');
+        const isValidImage =
+          (mimeSubtype === 'png' && buffer.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) ||
+          ((mimeSubtype === 'jpg' || mimeSubtype === 'jpeg') && buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) ||
+          (mimeSubtype === 'gif' && ['GIF87a', 'GIF89a'].includes(buffer.subarray(0, 6).toString('ascii'))) ||
+          (mimeSubtype === 'webp' && buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP');
+        if (buffer.length > 0 && buffer.length <= 25 * 1024 * 1024 && isValidImage) {
+          const filename = `${Date.now()}_${crypto.randomBytes(4).toString('hex')}.${ext}`;
+          const filePath = path.join(UPLOADS_DIR, filename);
+          fs.writeFileSync(filePath, buffer, { flag: 'wx' });
+          resolvedPhotoUrl = `/static/uploads/${filename}`;
+        }
       }
     } catch (e) {
       console.warn('Could not persist base64 photo in step-3:', e.message);
@@ -8526,13 +8612,20 @@ app.post('/settings/admin/save', async (req, res) => {
   delete incoming.admin_new_password;
   delete incoming.lock_after_save;
 
+  const settingsActor = getCurrentActor(req);
+  const isPlatformAdminActor = Boolean(settingsActor && (settingsActor.id === 'USR-001' || settingsActor.is_platform_admin === true));
+  if (newAdminPass && !isPlatformAdminActor) {
+    return res.status(403).send('Only the platform administrator can change the platform administrator password.');
+  }
+
   store.SYSTEM_SETTINGS = { ...store.SYSTEM_SETTINGS, ...incoming };
 
   if (newAdminPass) {
-    updateUserPasswordEverywhere(ADMIN_PRIMARY_EMAIL, newAdminPass);
-    const actor = getCurrentActor(req);
-    if (actor && actor.id !== 'USR-001') {
-      updateUserPasswordEverywhere(actor, newAdminPass);
+    try {
+      await updateUserPasswordEverywhere(ADMIN_PRIMARY_EMAIL, newAdminPass);
+    } catch (error) {
+      console.error('[admin settings] password persistence failed:', error.message);
+      return res.status(503).send('The administrator password could not be securely saved. No success was reported.');
     }
   }
   await saveStore();
@@ -9376,7 +9469,8 @@ app.post('/settings/admin-users/create', async (req, res) => {
     console.warn('DAL upsertUser error:', e.message);
   }
   if (submittedUserPass) {
-    updateUserPasswordEverywhere(target, submittedUserPass);
+    try { await updateUserPasswordEverywhere(target, submittedUserPass); }
+    catch (error) { console.error('[user administration] password persistence failed:', error.message); return res.status(503).send('The user password could not be securely saved.'); }
   } else {
     saveStore();
   }
@@ -9873,7 +9967,8 @@ app.post('/settings/profile/save', upload.fields([
       return res.redirect('/settings/profile');
     }
     if (newPassword) {
-      updateUserPasswordEverywhere(target, newPassword);
+      try { await updateUserPasswordEverywhere(target, newPassword); }
+      catch (error) { console.error('[profile] password persistence failed:', error.message); return res.status(503).send('The password could not be securely saved.'); }
       logAudit('Password Updated', `${target.name} (${target.email}) updated their account password.`, 'security', '/settings/profile');
     }
     const profFile = req.files && req.files['profile_image'] && req.files['profile_image'][0];

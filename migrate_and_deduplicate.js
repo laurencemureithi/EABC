@@ -1,6 +1,13 @@
+// One-time legacy data operation: rewrites legacy workspace and business records.
+// Never run without a verified backup, a reviewed mapping and a disposable rehearsal.
+if (process.env.ALLOW_LEGACY_DATA_MIGRATION !== 'true') {
+  throw new Error('Blocked legacy data operation. Review the script, rehearse on a disposable database, and set ALLOW_LEGACY_DATA_MIGRATION=true only for the approved migration window.');
+}
+
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
+const { hashPassword, isPasswordHash } = require('./src/security/auth-security');
 
 const pool = new Pool({
   host: process.env.SQL_HOST,
@@ -307,7 +314,7 @@ async function run() {
           company_id = EXCLUDED.company_id,
           active = EXCLUDED.active;
       `, [
-        u.id, u.uid || u.id, u.email, u.name, u.password || 'Admin@123',
+        u.id, u.uid || u.id, u.email, u.name, (u.password ? (isPasswordHash(u.password) ? u.password : hashPassword(u.password)) : null),
         u.role || 'Administrator', u.access_scope || 'Full System', u.department || 'Engineering',
         u.company_id || 'comp-001', u.active !== false,
         JSON.stringify(u.permissions || []), JSON.stringify(u.edit_permissions || []), JSON.stringify(u.delete_permissions || []),

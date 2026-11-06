@@ -1,8 +1,11 @@
+const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || process.env.ADMIN_LOGIN_PASSWORD;
+if (!E2E_ADMIN_PASSWORD) throw new Error('Set E2E_ADMIN_PASSWORD (or ADMIN_LOGIN_PASSWORD) before running staging end-to-end tests.');
 const http = require('http');
-const fs = require('fs');
+const https = require('https');
 const assert = require('assert');
+const dal = require('./src/db/dal');
 
-const BASE_URL = 'http://127.0.0.1:3000';
+const BASE_URL = process.env.BASE_URL || (process.env.PORT ? `http://127.0.0.1:${process.env.PORT}` : 'http://127.0.0.1:3000');
 
 function request(options, postData = null) {
   return new Promise((resolve, reject) => {
@@ -30,7 +33,8 @@ function request(options, postData = null) {
       reqOptions.headers['Content-Length'] = Buffer.byteLength(postData);
     }
 
-    const req = http.request(reqOptions, (res) => {
+    const transport = url.protocol === 'https:' ? https : http;
+    const req = transport.request(reqOptions, (res) => {
       let body = '';
       res.on('data', chunk => body += chunk);
       res.on('end', () => {
@@ -65,6 +69,28 @@ function cookieHeader(cookies) {
   return Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ');
 }
 
+
+async function loadAuthoritativeState() {
+  const [COMPANIES, ASSETS, ADMIN_USERS, SYSTEM_NOTIFICATIONS, settings, REPORT_EXPORTS, ASSET_DOCUMENTS] = await Promise.all([
+    dal.getCompanies(null),
+    dal.getAssets(null),
+    dal.getUsers(null),
+    dal.getNotifications(null, null),
+    dal.getSystemSettings(),
+    dal.getReports(null),
+    dal.getAssetDocuments(null, null)
+  ]);
+  return {
+    COMPANIES: COMPANIES || [],
+    ASSETS: ASSETS || [],
+    ADMIN_USERS: ADMIN_USERS || [],
+    SYSTEM_NOTIFICATIONS: SYSTEM_NOTIFICATIONS || [],
+    CUSTOM_ROLES: Array.isArray(settings?.custom_roles) ? settings.custom_roles : [],
+    REPORT_EXPORTS: REPORT_EXPORTS || [],
+    ASSET_DOCUMENTS: ASSET_DOCUMENTS || []
+  };
+}
+
 function assertRedirect(res, message = 'Should redirect') {
   assert.ok(res.statusCode === 302 || res.statusCode === 303, `${message}: expected 302 or 303, got ${res.statusCode}`);
 }
@@ -89,7 +115,7 @@ async function runScenario() {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
   }, {
     email: process.env.E2E_ADMIN_EMAIL || process.env.ADMIN_PRIMARY_EMAIL || 'opsloom.ke@gmail.com',
-    password: process.env.E2E_ADMIN_PASSWORD || process.env.ADMIN_LOGIN_PASSWORD || 'Admin@123'
+    password: E2E_ADMIN_PASSWORD
   });
   assertRedirect(loginRes, 'Admin login redirect');
   adminSession = parseCookies(loginRes);
@@ -113,7 +139,7 @@ async function runScenario() {
     secondary_color: '#3b82f6'
   });
   assertRedirect(createWsARes);
-  let datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
+  let datastore = await loadAuthoritativeState();
   wsA = datastore.COMPANIES.find(c => c.code === wsACode);
   assert.ok(wsA, 'Workspace A created');
   console.log(`   ✅ Step 2 Passed: Workspace A created (ID: ${wsA.id}, Name: ${wsA.name})\n`);
@@ -135,7 +161,7 @@ async function runScenario() {
     secondary_color: '#60a5fa'
   });
   assertRedirect(updateWsABranding);
-  datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
+  datastore = await loadAuthoritativeState();
   wsA = datastore.COMPANIES.find(c => c.id === wsA.id);
   assert.strictEqual(wsA.name, 'Alpha Manufacturing Group');
   console.log('   ✅ Step 3 Passed: Workspace A branding saved.\n');
@@ -157,7 +183,7 @@ async function runScenario() {
     secondary_color: '#10b981'
   });
   assertRedirect(createWsBRes);
-  datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
+  datastore = await loadAuthoritativeState();
   wsB = datastore.COMPANIES.find(c => c.code === wsBCode);
   assert.ok(wsB, 'Workspace B created');
   console.log(`   ✅ Step 4 Passed: Workspace B created (ID: ${wsB.id}, Name: ${wsB.name})\n`);
@@ -179,7 +205,7 @@ async function runScenario() {
     secondary_color: '#34d399'
   });
   assertRedirect(updateWsBBranding);
-  datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
+  datastore = await loadAuthoritativeState();
   wsB = datastore.COMPANIES.find(c => c.id === wsB.id);
   assert.strictEqual(wsB.name, 'Beta Logistics East Africa');
   console.log('   ✅ Step 5 Passed: Workspace B branding saved.\n');
@@ -223,8 +249,8 @@ async function runScenario() {
 
   // STEP 8: Refresh
   console.log('Step 8 & 9: Refresh and Confirm Asset Remains...');
-  datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
-  assetA = (datastore.ASSETS || datastore.WORKSPACE_DATA?.[wsA.id]?.ASSETS || []).find(a => a.asset_id === assetTag);
+  datastore = await loadAuthoritativeState();
+  assetA = (datastore.ASSETS || []).find(a => a.asset_id === assetTag);
   assert.ok(assetA, 'Asset remains after refresh');
   console.log(`   ✅ Step 8 & 9 Passed: Asset "${assetA.asset_name}" verified in persistent store.\n`);
 
@@ -249,8 +275,8 @@ async function runScenario() {
 
   // STEP 11 & 12: Refresh & confirm edit remains
   console.log('Step 11 & 12: Refresh and Confirm Edit Remains...');
-  datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
-  assetA = (datastore.ASSETS || datastore.WORKSPACE_DATA?.[wsA.id]?.ASSETS || []).find(a => a.uid === assetA.uid);
+  datastore = await loadAuthoritativeState();
+  assetA = (datastore.ASSETS || []).find(a => a.uid === assetA.uid);
   assert.strictEqual(assetA.asset_name, 'Conveyor Line Alpha-1 (Upgraded)');
   assert.strictEqual(assetA.location, 'Bay 1 - Station B');
   console.log('   ✅ Step 11 & 12 Passed: Edited values verified in persistent store.\n');
@@ -266,8 +292,8 @@ async function runScenario() {
 
   // STEP 14 & 15: Refresh & confirm it remains deleted
   console.log('Step 14 & 15: Refresh and Confirm Asset Remains Deleted...');
-  datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
-  const assetStillInA = (datastore.ASSETS || datastore.WORKSPACE_DATA?.[wsA.id]?.ASSETS || []).some(a => a.uid === assetA.uid);
+  datastore = await loadAuthoritativeState();
+  const assetStillInA = (datastore.ASSETS || []).some(a => a.uid === assetA.uid);
   assert.strictEqual(assetStillInA, false, 'Asset must not be in active workspace assets');
   console.log('   ✅ Step 14 & 15 Passed: Asset remains safely deleted from active view.\n');
 
@@ -293,7 +319,7 @@ async function runScenario() {
 
   // STEP 18 & 19: Refresh & confirm role exists
   console.log('Step 18 & 19: Refresh and Confirm Role Exists...');
-  datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
+  datastore = await loadAuthoritativeState();
   customRole = (datastore.CUSTOM_ROLES || []).find(r => r.name === roleName);
   assert.ok(customRole, 'Custom role must exist in persistent store');
   assert.ok(customRole.modules.includes('assets'), 'Role includes assets module');
@@ -320,7 +346,7 @@ async function runScenario() {
     permissions: ['dashboard', 'assets', 'messages']
   });
   assertRedirect(createUserRes);
-  datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
+  datastore = await loadAuthoritativeState();
   restrictedUser = datastore.ADMIN_USERS.find(u => u.email === restrictedUserEmail);
   assert.ok(restrictedUser, 'Restricted user created');
   assert.strictEqual(restrictedUser.role, customRole.name);
@@ -378,7 +404,7 @@ async function runScenario() {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
   }, {
     email: process.env.E2E_ADMIN_EMAIL || process.env.ADMIN_PRIMARY_EMAIL || 'opsloom.ke@gmail.com',
-    password: process.env.E2E_ADMIN_PASSWORD || process.env.ADMIN_LOGIN_PASSWORD || 'Admin@123'
+    password: E2E_ADMIN_PASSWORD
   });
   adminSession = { ...adminSession, ...parseCookies(reAdminLogin), opsloom_ws_id: wsA.id };
   
@@ -397,8 +423,8 @@ async function runScenario() {
     section: 'Production'
   });
 
-  datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
-  const evAsset = (datastore.ASSETS || datastore.WORKSPACE_DATA?.[wsA.id]?.ASSETS || []).find(a => a.asset_id === evAssetTag);
+  datastore = await loadAuthoritativeState();
+  const evAsset = (datastore.ASSETS || []).find(a => a.asset_id === evAssetTag);
 
   await request({
     path: '/maintenance/schedule/step-3',
@@ -415,8 +441,8 @@ async function runScenario() {
   });
 
   // Verify notification was created
-  datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
-  const notifs = datastore.SYSTEM_NOTIFICATIONS || [];
+  datastore = await loadAuthoritativeState();
+  const notifs = await dal.getNotifications(null, wsA.id);
   const pmNotif = notifs.find(n => n.title?.includes('PM') || n.message?.includes('Recalibration') || n.message?.includes('Task'));
   assert.ok(pmNotif, 'Real event notification must exist');
   console.log(`   ✅ Step 26 & 27 Passed: Event notification "${pmNotif.title}" generated from PM scheduling.\n`);
@@ -476,8 +502,8 @@ async function runScenario() {
     category: 'strategic_roi'
   });
   assertRedirect(genReportARes);
-  datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
-  const reportA = (datastore.WORKSPACE_DATA?.[wsA.id]?.REPORT_EXPORTS || datastore.REPORT_EXPORTS || [])[0];
+  datastore = await loadAuthoritativeState();
+  const reportA = (await dal.getReports(wsA.id))[0];
   assert.ok(reportA, 'Report A must be created');
 
   const repARes = await request({
@@ -508,8 +534,8 @@ async function runScenario() {
     category: 'strategic_roi'
   });
   assertRedirect(genReportBRes);
-  datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
-  const reportB = (datastore.WORKSPACE_DATA?.[wsB.id]?.REPORT_EXPORTS || datastore.REPORT_EXPORTS || [])[0];
+  datastore = await loadAuthoritativeState();
+  const reportB = (await dal.getReports(wsB.id))[0];
   assert.ok(reportB, 'Report B must be created');
 
   const repBRes = await request({
@@ -539,8 +565,8 @@ async function runScenario() {
     notes: 'Approved standard operating procedure.'
   });
   assertRedirect(uploadDocRes);
-  datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
-  const docs = (datastore.ASSET_DOCUMENTS || datastore.WORKSPACE_DATA?.[wsA.id]?.ASSET_DOCUMENTS || []);
+  datastore = await loadAuthoritativeState();
+  const docs = await dal.getAssetDocuments(null, wsA.id);
   assert.ok(docs.length > 0, 'Document must be persisted');
   console.log(`   ✅ Step 36, 37 & 38 Passed: Document "${docs[0].title || docs[0].name}" persisted and verified.\n`);
 
@@ -554,7 +580,7 @@ async function runScenario() {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
   }, {
     email: process.env.E2E_ADMIN_EMAIL || process.env.ADMIN_PRIMARY_EMAIL || 'opsloom.ke@gmail.com',
-    password: process.env.E2E_ADMIN_PASSWORD || process.env.ADMIN_LOGIN_PASSWORD || 'Admin@123'
+    password: E2E_ADMIN_PASSWORD
   });
   assertRedirect(finalLogin);
   const finalSession = parseCookies(finalLogin);
@@ -565,7 +591,7 @@ async function runScenario() {
   });
   assert.strictEqual(finalDash.statusCode, 200);
 
-  datastore = JSON.parse(fs.readFileSync('data/datastore.json', 'utf8'));
+  datastore = await loadAuthoritativeState();
   assert.ok(datastore.COMPANIES.some(c => c.id === wsA.id), 'Workspace A persisted');
   assert.ok(datastore.COMPANIES.some(c => c.id === wsB.id), 'Workspace B persisted');
   assert.ok(datastore.ADMIN_USERS.some(u => u.email === restrictedUserEmail), 'User persisted');

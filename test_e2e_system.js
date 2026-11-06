@@ -1,4 +1,7 @@
+const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || process.env.ADMIN_LOGIN_PASSWORD;
+if (!E2E_ADMIN_PASSWORD) throw new Error('Set E2E_ADMIN_PASSWORD (or ADMIN_LOGIN_PASSWORD) before running staging end-to-end tests.');
 const http = require('http');
+const https = require('https');
 const assert = require('assert');
 const dal = require('./src/db/dal');
 
@@ -30,7 +33,8 @@ function request(options, postData = null) {
       reqOptions.headers['Content-Length'] = Buffer.byteLength(postData);
     }
 
-    const req = http.request(reqOptions, (res) => {
+    const transport = url.protocol === 'https:' ? https : http;
+    const req = transport.request(reqOptions, (res) => {
       let body = '';
       res.on('data', chunk => body += chunk);
       res.on('end', () => {
@@ -105,7 +109,7 @@ async function runTests() {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
   }, {
     email: process.env.E2E_ADMIN_EMAIL || process.env.ADMIN_PRIMARY_EMAIL || 'opsloom.ke@gmail.com',
-    password: process.env.E2E_ADMIN_PASSWORD || process.env.ADMIN_LOGIN_PASSWORD || 'Admin@123'
+    password: E2E_ADMIN_PASSWORD
   });
   assertRedirect(loginRes, 'Successful login should redirect');
   assert.ok(loginRes.headers.location.includes('/dashboard'), 'Login redirect should lead to /dashboard');

@@ -1,5 +1,10 @@
 const dal = require('./src/db/dal');
 
+if (process.env.NODE_ENV !== 'development' || process.env.ALLOW_DEMO_SEED !== 'true') {
+  throw new Error('This legacy script inserts fabricated demo assets and is disabled. Use only against an isolated local development database with ALLOW_DEMO_SEED=true.');
+}
+
+
 async function seedProductionDatabase() {
   console.log('--- Initializing Authoritative PostgreSQL Database ---');
 
@@ -38,11 +43,12 @@ async function seedProductionDatabase() {
     created_at: '2026-01-01T00:00:00.000Z'
   };
   await dal.upsertCompany(comp001);
+  global._currentCompanyId = comp001.id;
   console.log('✅ Company comp-001 configured in PostgreSQL');
 
   // 2. Clean up test companies and orphaned breakdowns/tasks
-  await dal.query("DELETE FROM breakdowns WHERE asset_uid NOT IN (SELECT uid FROM assets) AND asset_id NOT IN (SELECT asset_id FROM assets);");
-  await dal.query("DELETE FROM maintenance_tasks WHERE asset_uid NOT IN (SELECT uid FROM assets) AND asset_id NOT IN (SELECT asset_id FROM assets);");
+  await dal.query("DELETE FROM breakdowns WHERE company_id = 'comp-001' AND asset_uid NOT IN (SELECT uid FROM assets WHERE company_id = 'comp-001') AND asset_id NOT IN (SELECT asset_id FROM assets WHERE company_id = 'comp-001');");
+  await dal.query("DELETE FROM maintenance_tasks WHERE company_id = 'comp-001' AND asset_uid NOT IN (SELECT uid FROM assets WHERE company_id = 'comp-001') AND asset_id NOT IN (SELECT asset_id FROM assets WHERE company_id = 'comp-001');");
   console.log('✅ Cleaned up orphaned test records');
 
   // 3. Ensure primary assets exist in PostgreSQL for comp-001

@@ -1,3 +1,6 @@
+-- LEGACY SCHEMA SNAPSHOT — NOT USED BY THE CURRENT POSTGRESQL MIGRATION RUNNER.
+-- Do not execute this file on staging or production. Use database/migrations/*.sql only.
+
 -- ASSETS
 CREATE TABLE IF NOT EXISTS assets (
   uid TEXT PRIMARY KEY,

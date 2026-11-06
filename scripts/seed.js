@@ -12,6 +12,9 @@ try {
 const dal = require('../src/db/dal');
 
 async function seedDevelopmentData() {
+  if (process.env.NODE_ENV !== 'development' || process.env.ALLOW_DEMO_SEED !== 'true') {
+    throw new Error('Demo seeding is disabled. Set NODE_ENV=development and ALLOW_DEMO_SEED=true only for an isolated local demo database.');
+  }
   console.log('\n====================================================');
   console.log('🌱 EABC DEVELOPMENT DEMO SEEDER');
   console.log('====================================================\n');
@@ -24,6 +27,7 @@ async function seedDevelopmentData() {
     }
 
     const targetCompanyId = 'comp-001';
+    global._currentCompanyId = targetCompanyId;
     console.log(`Checking target organization (${targetCompanyId})...`);
 
     let company = await dal.getCompanyById(targetCompanyId);

@@ -5,7 +5,7 @@ services:
     plan: 0.5c-512mb
     region: frankfurt
     buildCommand: npm install
-    preDeployCommand: npm run db:migrate
+    preDeployCommand: npm run db:migrate && npm run db:bootstrap:staging
     startCommand: npm start
     healthCheckPath: /health
     disk:
@@ -25,6 +25,8 @@ services:
         generateValue: true
       - key: ADMIN_LOGIN_PASSWORD
         sync: false
+      - key: ALLOW_STAGING_BOOTSTRAP
+        value: 'true'
       - key: ADMIN_PRIMARY_EMAIL
         value: opsloom.ke@gmail.com
       - key: UPLOADS_DIR

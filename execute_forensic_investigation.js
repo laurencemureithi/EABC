@@ -1,3 +1,9 @@
+// Legacy diagnostic script: not part of the supported PostgreSQL staging test suite.
+// It may mutate a database and is blocked unless explicitly opted into local development.
+if (process.env.NODE_ENV !== 'development' || process.env.ALLOW_LEGACY_TESTS !== 'true') {
+  throw new Error('This legacy diagnostic script is disabled. Use the PostgreSQL-backed npm run test:staging suite on a disposable database.');
+}
+
 const http = require('http');
 const fs = require('fs');
 const path = require('path');

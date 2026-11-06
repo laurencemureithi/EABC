@@ -14,7 +14,8 @@
     "test:security": "node test_security_hardening.js",
     "test:all": "npm run test:security && npm test",
     "test:staging": "npm run test:security && node test_e2e_system.js && node test_extended_e2e.js && node test_confirmations_and_ai.js && node test_all_9_parts.js && node test_section22_scenario.js && node test_issue6_profile.js",
-    "db:audit": "node scripts/audit-tenant-data.js"
+    "db:audit": "node scripts/audit-tenant-data.js",
+    "db:bootstrap:staging": "node scripts/bootstrap-staging.js"
   },
   "keywords": [],
   "author": "",

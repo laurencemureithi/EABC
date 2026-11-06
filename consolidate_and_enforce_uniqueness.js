@@ -1,3 +1,9 @@
+// One-time legacy data operation: consolidates and deletes hard-coded legacy company IDs.
+// Never run without a verified backup, a reviewed mapping and a disposable rehearsal.
+if (process.env.ALLOW_LEGACY_DATA_CONSOLIDATION !== 'true') {
+  throw new Error('Blocked legacy data operation. Review the script, rehearse on a disposable database, and set ALLOW_LEGACY_DATA_CONSOLIDATION=true only for the approved migration window.');
+}
+
 const dal = require('./src/db/dal');
 
 async function runDeduplicationAndConsolidation() {

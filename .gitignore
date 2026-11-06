@@ -28,3 +28,6 @@ node_modules/
 Thumbs.db
 .vscode/
 .idea/
+
+# Generated operational reports may contain confidential company data
+static/exports/reports/*.pdf

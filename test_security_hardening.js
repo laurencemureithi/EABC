@@ -31,6 +31,20 @@ assert.equal(tenantCompanyId(undefined, global._currentCompanyId, 'asset'), 'com
 assert.equal(tenantCompanyId('company-a', global._currentCompanyId, 'asset'), 'company-a', 'matching tenant ID must pass');
 assert.throws(() => tenantCompanyId('company-b', global._currentCompanyId, 'asset'), error => error.code === 'TENANT_SCOPE_VIOLATION', 'cross-tenant writes must be rejected');
 global._currentCompanyId = null;
-assert.equal(tenantCompanyId('company-b', global._currentCompanyId, 'asset'), 'company-b', 'platform scope may explicitly target another tenant');
+assert.throws(
+  () => tenantCompanyId('company-b', global._currentCompanyId, 'asset'),
+  error => error.code === 'TENANT_SCOPE_MISSING',
+  'missing tenant context must fail closed instead of trusting caller-supplied company IDs'
+);
+assert.equal(
+  tenantCompanyId('company-b', global._currentCompanyId, 'asset', { allowCrossTenant: true }),
+  'company-b',
+  'only an explicit trusted platform-admin context may target another tenant'
+);
+assert.throws(
+  () => tenantCompanyId(undefined, global._currentCompanyId, 'asset', { allowCrossTenant: true }),
+  error => error.code === 'TENANT_SCOPE_MISSING',
+  'platform scope must still name the target company for writes'
+);
 global._currentCompanyId = previousTenant;
 console.log('PASS: tenant scoping defaults, matching writes and cross-tenant write rejection');

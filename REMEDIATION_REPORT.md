@@ -1,90 +1,92 @@
-# EABC / Opsloom codebase remediation report
+# EABC remediation report — source audit update
 
-**Release status: staging candidate only — NOT approved for customer production.**
+**Review date:** 6 November 2026  
+**Reviewed artifact:** `eabc-remediated-staging.zip`  
+**Review scope:** application source, database access layer, migrations, security middleware, seed/migration scripts, deployment configuration, tests, documentation and bundled artifacts.
 
-## Work completed in this pass
+## Executive decision
 
-### Authentication and session integrity
-- Added a standalone security module using Node.js `scrypt` password hashing with per-password random salts.
-- Added one-time legacy plaintext-password verification followed by hash migration after successful login.
-- Replaced the raw `opsloom_user` ID cookie with an HMAC-SHA256 signed, expiring token.
-- Made the authentication cookie `HttpOnly`, `SameSite=Lax`, and `Secure` when served over HTTPS.
-- Rejected unsigned legacy user-ID cookies.
-- Disabled the legacy `/login/google` route that previously granted a fixed administrator identity without verifying Google identity.
-- Removed the unauthenticated company-brand save exception.
-- Required unique administrator bootstrap credentials and a 32+ character session secret in staging/production.
-- Added per-IP login throttling and API rate limiting.
-- Added same-origin validation for state-changing browser requests.
+**Staging only, after a disposable database is provisioned and the remaining runtime checks are completed. Not production-ready.**
 
-### Tenant and database controls
-- Added a tenant-scope guard for DAL writes.
-- Made common DAL collection reads and destructive operations default to the authenticated active tenant. Explicit `null` scope is reserved for trusted full-database synchronization/platform administration.
-- Restricted company switching, company creation/deletion, company branding, user provisioning and user administration to the platform administrator or the user's assigned organization as appropriate.
-- Scoped AI telemetry, saved AI chats, notifications, internal messages, reports, recycle-bin data, audit views, technician views and key asset/maintenance routes.
-- Removed a dangerous empty-asset fallback that could display every tenant's assets.
-- Removed several success/detail fallbacks that silently displayed another record when a requested record was missing.
-- Added a temporary serialized-request guard because the existing application still uses process-global active-workspace state. Staging/production startup requires `WORKSPACE_SERIAL_GUARD=true`.
-- Made database synchronization failures fail closed in staging/production.
-- Added a persistence-failure flag so a failed settings write blocks subsequent staging/production requests pending investigation.
-- Added a tenant-data audit script to identify null/orphan company IDs, duplicate login emails and broken asset links.
+The original archive contained a substantial amount of remediation work, but the code still had material security and operational gaps. The earlier statement that tenant helper tests passed was misleading: the test explicitly approved a caller-supplied company ID when no active tenant was bound. That behavior has now been changed to fail closed unless a trusted platform-admin scope is explicitly supplied.
 
-### Uploads and HTTP security
-- Rejected Vercel and `/tmp` upload storage in staging/production.
-- Added a configurable durable `UPLOADS_DIR` requirement.
-- Added authentication and tenant ownership checks before uploaded files are served.
-- Added a file-extension allowlist and a 25 MB per-file limit (maximum 10 files per request).
-- Added Helmet security headers, disabled `X-Powered-By`, and configured HSTS for HTTPS staging/production.
-- Suppressed raw internal error messages in staging/production responses.
+## Changes applied in this audit pass
 
-### Deployment preparation
-- Added `render.yaml` for a managed Render staging environment with a same-region managed PostgreSQL database, private database network access, pre-deploy migrations and a persistent upload disk.
-- Added `STAGING_DEPLOYMENT.md` with environment variables, rollout sequence and smoke-test instructions.
-- Updated `.env.example` so it no longer contains the old default administrator password.
-- Added `test:security`, `test:staging`, `db:audit` and expanded lint scripts.
-- Updated existing end-to-end tests to accept staging administrator credentials through environment variables.
+1. **Fail-closed tenant write helper**
+   - `src/security/tenant-scope.js` now rejects writes when no verified company context exists.
+   - Cross-company writes require the explicit `allowCrossTenant: true` authorization option.
+   - The DAL derives that option from a trusted request flag set only after the main server authenticates the actor as a platform administrator.
+   - The serialized request lane resets the privilege flag before each request and the authentication middleware sets it for the current authenticated platform-admin request only.
 
-## Validation actually performed
+2. **Public report file protection**
+   - Generated report paths under `/static/exports/reports` and `/exports/reports` now require an authenticated user and company ownership, with platform-admin access handled separately.
+   - Twenty historical PDF exports containing Ultravetis operational report content were removed from the source archive.
+   - Generated report PDFs are now ignored by Git.
+
+3. **Redirect hardening**
+   - Workspace and department navigation redirects now reject protocol-relative and external redirect targets.
+
+4. **Upload input hardening**
+   - Base64 asset photos are restricted to PNG/JPEG/WebP/GIF raster payloads, checked against their file signatures and capped at 25 MB. Company-logo data URLs also reject SVG and non-raster payloads. SVG is not written as a same-origin upload file.
+
+5. **Credential hygiene**
+   - End-to-end tests no longer fall back to the known `Admin@123` password. They require explicit `E2E_ADMIN_PASSWORD` or `ADMIN_LOGIN_PASSWORD`.
+   - The legacy deduplication script no longer creates a default administrator password; imported plaintext passwords are hashed before insertion.
+   - Password update and login-migration writes are scoped to the affected user's company; password update callers now await PostgreSQL persistence before reporting success.
+   - Administrator recovery codes use a cryptographic random generator, reset requests/attempts are rate-limited, and the code is only reported as sent after SMTP delivery succeeds. SMTP certificate verification is enabled by default.
+
+6. **Integration test corrections**
+   - The section-22 scenario now verifies PostgreSQL as the authoritative source instead of reading the intentionally empty `data/datastore.json` file.
+   - The profile-branding test now creates and cleans up a temporary company rather than overwriting the real `comp-001` brand/contact details; it no longer uses a hardcoded admin password.
+   - E2E request helpers can target HTTPS staging URLs and require explicit administrator credentials.
+
+7. **First-run staging bootstrap**
+   - Added `scripts/bootstrap-staging.js`, which runs only with explicit staging environment flags.
+   - The Render pre-deploy command now runs migrations followed by the idempotent bootstrap. It creates only the configured administrator and the existing default `comp-001` organization when absent; it inserts no sample business records and never overwrites an existing admin password.
+
+8. **Demo seeder safety**
+   - Development seed scripts require `NODE_ENV=development` and `ALLOW_DEMO_SEED=true`.
+   - The legacy production-named seeder is explicitly blocked outside isolated local development and its orphan cleanup is restricted to `comp-001`.
+   - The production checklist no longer claims the application is ready for production.
+
+## Validation performed in this audit pass
 
 | Check | Result | Notes |
 |---|---|---|
-| JavaScript syntax across project | PASS | All 42 `.js` files passed `node --check` through `scripts/check-syntax.js`. |
-| `npm run lint` | PASS | Server, DAL and security modules passed syntax checks. |
-| `npm run test:security` | PASS | Password hashing, legacy migration verification, signed sessions, tamper rejection, expiry and tenant-scope helper tests passed. |
-| `npm test` | BLOCKED | `pg` dependency is not installed in this environment. |
-| Dependency installation | BLOCKED | `npm install` could not complete in this environment; package-lock generation was not completed. |
-| PostgreSQL migrations | NOT RUN | No live staging database or installed `pg` package was available. |
-| Multi-company adversarial tests | NOT RUN | Requires a populated disposable PostgreSQL database and full runtime dependencies. |
-| Browser workflow tests | NOT RUN | Requires installed dependencies, a running server and database. |
-| Upload privacy tests | NOT RUN | Requires a running staging service and multiple test organizations. |
+| JavaScript syntax check | PASS | All 42 JavaScript files pass `node scripts/check-syntax.js`. |
+| Security helper tests | PASS | Password hashing, signed sessions, tamper rejection, expiry, missing-tenant rejection and explicit privileged scope. |
+| Main end-to-end suite | BLOCKED | `pg` is not installed in the review environment. |
+| Full browser workflow tests | NOT RUN | Requires installed dependencies, a live app and a disposable PostgreSQL database. |
+| PostgreSQL migrations | NOT RUN | No PostgreSQL instance/credentials were supplied. |
+| Render Blueprint YAML | PASS | `render.yaml` parses; current Render plan IDs are documented and valid. |
+| TypeScript project check | BLOCKED | `tsc --noEmit` fails because the separate Drizzle/Firebase TypeScript layer is missing runtime/type dependencies and Node typings; this is not the configured `server.js` runtime. |
+| Tenant adversarial tests | NOT RUN | Requires at least two companies and users in a disposable database. |
+| Upload/report access tests | NOT RUN | Requires a running app, database and test files across two tenants. |
+| Dependency audit | NOT RUN | Network package installation did not complete; no npm lockfile is present. |
 
-## Important limitations that remain
+## Findings that remain open
 
-1. **The legacy global workspace architecture is not fully eliminated.** The serialized-request guard is a temporary single-instance containment, not a scalable replacement for request-scoped tenant context. Do not add instances or onboard unrelated customer organizations until this is fully refactored and adversarially tested.
-2. **Tenant scoping is not yet proven across every route.** The DAL and major routes have been hardened, but a full route-by-route authorization test is still required. The `db:audit` script must be run against the actual database before any data migration or customer onboarding.
-3. **Some route handlers still catch DAL write errors and continue.** A complete transaction/commit audit is required so that success confirmations are emitted only after durable commits.
-4. **KPI methodology and AI fallback content still require a separate remediation pass.** Existing hardcoded example metrics and invalid assumptions must be removed or recalculated from company data before a business owner relies on them.
-5. **Persistent disk uploads are suitable only as a controlled single-instance staging step.** Before horizontal scaling or commercial multi-tenant production, move documents to private object storage with authenticated/signed retrieval and a migration plan.
-6. **Content Security Policy is disabled in Helmet** because the existing templates contain inline scripts/styles. A nonce/hash-based CSP migration is still required.
-7. **A reproducible npm lockfile is still required.** Generate and commit `package-lock.json` after dependency installation succeeds; then change the Render build command from `npm install` to `npm ci`.
-8. **Backups and restore drills, monitoring/alerting, load testing, dependency vulnerability scanning, and incident recovery have not been demonstrated.**
+### Critical / production blockers
 
-## Staging environment
+- The main application still uses `global._currentCompanyId` and process-global store state. `WORKSPACE_SERIAL_GUARD=true` serializes requests on one process; it is not a request-scoped architecture and does not support horizontal scaling or serverless execution safely.
+- The DAL has a mixture of tenant-filtered and unfiltered read/delete methods. Platform-wide operations must be reviewed route by route; the current helper change does not constitute proof of full tenant isolation.
+- Several handlers still issue fire-and-forget or swallowed database writes. A complete write/transaction audit is still required.
+- The current `database/migrations/0001_initial_schema.sql` uses `CREATE TABLE IF NOT EXISTS`; this does not upgrade older tables created by the legacy `database/schema.sql`. The second migration may fail against an old schema where `company_id` or newer columns are absent. Rehearse on a representative copy before migrating any existing database.
+- The repository still lacks `package-lock.json`. A package-lock-only install attempt did not complete in this environment, and the main tests fail because `pg` is not installed. Render's `npm install` is not deterministic. Generate a lockfile, commit it and use `npm ci`.
+- The repository contains a separate experimental TypeScript/Drizzle/Firebase data layer and two alternate server implementations. They are not wired into `npm start`; reconcile or remove them before treating the repository as one maintainable production architecture.
+- KPI methodology and fallback/example metrics have not been independently validated against known datasets.
+- Uploads remain on a service-attached persistent disk. Before production or multi-instance use, move to private object storage with authenticated retrieval.
+- Helmet Content Security Policy remains disabled pending a nonce/hash migration.
+- Backup/restore drills, monitoring, alerting, load tests, dependency vulnerability scanning and incident recovery have not been demonstrated.
 
-The supplied Render Blueprint is a starting configuration, not a completed deployment. It provisions a Frankfurt web service and PostgreSQL database, with the database restricted to private network connections and a 5 GB persistent disk mounted at `/var/data`.
+### Operational notes
 
-Required staging environment variables:
-- `NODE_ENV=staging`
-- `DATABASE_URL`
-- `SESSION_SECRET` (32+ random characters)
-- `ADMIN_LOGIN_PASSWORD` (unique, 12+ characters)
-- `UPLOADS_DIR=/var/data/uploads`
-- `WORKSPACE_SERIAL_GUARD=true`
-- `TZ=Africa/Nairobi`
+- The Render Blueprint uses valid current plan IDs (`0.5c-512mb` web service and `0.5c-1g` PostgreSQL), but infrastructure validity is not application readiness.
+- The Render service and database are configured for Frankfurt. This is a deployment choice, not a code correctness issue; evaluate latency and data residency requirements before production.
+- Do not connect live customer data to staging.
+- `database/schema.sql` is a legacy schema snapshot and is not used by the current migration runner. Use only `database/migrations/*.sql` for a clean staging database.
+- Do not run the legacy `migrate_and_deduplicate.js` script against a live database without a separately reviewed data migration plan, verified backup and disposable rehearsal.
 
-Optional: `GEMINI_API_KEY`, SMTP credentials, and `ADMIN_PRIMARY_EMAIL`.
+## Promotion rule
 
-After deploying, run `npm run db:audit`, then run the staging smoke tests in `STAGING_DEPLOYMENT.md`. Do not connect live customer data to this staging instance.
-
-## Promotion gate
-
-EABC must remain in staging until the outstanding limitations above are closed, especially tenant isolation, write/commit semantics, KPI correctness, private object storage, database backup/restore and reproducible full-suite tests. The project is not yet ready to be sold as a production SaaS platform.
+Keep this branch as a staging candidate only. Production approval requires evidence that every blocker above is closed and all existing modules pass functional acceptance testing.

@@ -5,6 +5,15 @@ try {
 const { Pool } = require('pg');
 const { tenantCompanyId } = require('../security/tenant-scope');
 
+function resolveTenantCompanyId(requestedCompanyId, _legacyActiveCompanyId, entity) {
+  return tenantCompanyId(
+    requestedCompanyId,
+    global._currentCompanyId || null,
+    entity,
+    { allowCrossTenant: global._platformAdminTenantAccess === true }
+  );
+}
+
 let pool = null;
 
 // ---- Pool management & safe query helpers ----
@@ -398,7 +407,7 @@ async function upsertAsset(a) {
     RETURNING *;
   `;
   const params = [
-    a.uid, tenantCompanyId(a.company_id, global._currentCompanyId || null, 'asset'), a.asset_id, a.asset_name,
+    a.uid, resolveTenantCompanyId(a.company_id, global._currentCompanyId || null, 'asset'), a.asset_id, a.asset_name,
     a.section || 'General', a.department || 'Engineering', a.status || 'operational', a.criticality || 'A',
     a.serial_no || '', a.manufacturer || '', a.model_number || '', a.power_rating || '',
     a.supplier || '', a.installation_date || '', a.year_of_manufacture || '', a.warranty_expiry || '',
@@ -510,7 +519,7 @@ async function addToRecycleBin(item) {
   `;
   const bid = item.bin_id || item.id || `bin-${Date.now()}`;
   const params = [
-    bid, item.company_id ? tenantCompanyId(item.company_id, global._currentCompanyId || null, 'recycle-bin record') : (global._currentCompanyId || null), item.entity_type, item.entity_label, item.primary_id || item.identifier || bid,
+    bid, item.company_id ? resolveTenantCompanyId(item.company_id, global._currentCompanyId || null, 'recycle-bin record') : (global._currentCompanyId || null), item.entity_type, item.entity_label, item.primary_id || item.identifier || bid,
     item.deleted_by || item.deleted_by_name || 'Administrator', item.deleted_by_email || '', item.deleted_by_role || '',
     item.deleted_at || new Date().toLocaleDateString(), item.deleted_at_iso || new Date().toISOString(),
     JSON.stringify(item.record || {}), item.summary || ''
@@ -610,7 +619,7 @@ async function restoreFromRecycleBin(binId, actor = {}) {
     `, [
       notifId,
       null,
-      (item.company_id ? tenantCompanyId(item.company_id, global._currentCompanyId || null, 'recycle-bin notification') : (activeCompanyId || 'comp-001')),
+      (item.company_id ? resolveTenantCompanyId(item.company_id, global._currentCompanyId || null, 'recycle-bin notification') : (activeCompanyId || 'comp-001')),
       `${item.entity_type}_restored`,
       item.entity_type === 'company' ? 'companies' : (item.entity_type === 'asset' ? 'assets' : 'general'),
       item.primary_id,
@@ -757,7 +766,7 @@ async function upsertUser(u) {
   const params = [
     u.id, u.uid || u.id, u.email, u.name, u.password || null,
     u.role || 'Staff Member', u.access_scope || 'Standard', u.department || 'Engineering',
-    tenantCompanyId(u.company_id, global._currentCompanyId || null, 'user'), u.active !== false,
+    resolveTenantCompanyId(u.company_id, global._currentCompanyId || null, 'user'), u.active !== false,
     JSON.stringify(u.permissions || []), JSON.stringify(u.edit_permissions || []), JSON.stringify(u.delete_permissions || []),
     u.signature_name || u.name, u.signature_title || u.role, u.signature_font || 'Inter',
     u.signature_color || '#1554FF', u.signature_style || 'formal',
@@ -814,7 +823,7 @@ async function addNotification({ userId, companyId, eventType, entityModule, ent
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false, false, $10)
     RETURNING *;
   `;
-  return await query(sql, [notifId, userId || null, tenantCompanyId(companyId, global._currentCompanyId || null, 'notification'), eventType, entityModule, entityId || null, title, message, severity, nowIso]);
+  return await query(sql, [notifId, userId || null, resolveTenantCompanyId(companyId, global._currentCompanyId || null, 'notification'), eventType, entityModule, entityId || null, title, message, severity, nowIso]);
 }
 
 async function getRecentToasts(userId = null, companyId = global._currentCompanyId || null) {
@@ -941,7 +950,7 @@ async function upsertBreakdown(b) {
   const mediaStr = b.media ? (typeof b.media === 'string' ? b.media : JSON.stringify(b.media)) : null;
 
   const params = [
-    b.breakdown_id, tenantCompanyId(b.company_id, global._currentCompanyId || null, 'breakdown'), b.asset_uid || '', b.asset_id, b.asset_name,
+    b.breakdown_id, resolveTenantCompanyId(b.company_id, global._currentCompanyId || null, 'breakdown'), b.asset_uid || '', b.asset_id, b.asset_name,
     b.incident_title, b.section || '', b.department || '', b.reported_dt || new Date().toISOString(),
     b.failure_category || '', b.severity || 'Medium', b.symptoms || '', b.technician_name || '',
     b.technician_phone || '', b.technician_email || '', b.status || 'Open', b.notes || '',
@@ -1017,7 +1026,7 @@ async function upsertMaintenanceTask(t) {
   `;
   const costTot = String(t.cost_total || t.cost || 0);
   const params = [
-    t.task_id, tenantCompanyId(t.company_id, global._currentCompanyId || null, 'maintenance task'), t.asset_uid || '', t.asset_id, t.asset_name,
+    t.task_id, resolveTenantCompanyId(t.company_id, global._currentCompanyId || null, 'maintenance task'), t.asset_uid || '', t.asset_id, t.asset_name,
     t.maintenance_type || 'Preventive', t.frequency || 'Monthly', t.section || '', t.technician || '',
     t.task_title || '', t.task_description || '', t.due_date || '', t.status || 'Scheduled',
     t.priority || 'Medium', t.notes || '', t.completed_at || '', t.completion_notes || '',
@@ -1095,7 +1104,7 @@ async function upsertInventoryPart(p) {
   const minVal = Number(p.min_qty !== undefined ? p.min_qty : (p.reorder_level || 5));
   const unitPriceVal = String(p.unit_price !== undefined ? p.unit_price : (p.unit_cost || '0'));
   const params = [
-    p.uid, tenantCompanyId(p.company_id, global._currentCompanyId || null, 'inventory part'), p.part_name, p.sku, p.category || 'Mechanical',
+    p.uid, resolveTenantCompanyId(p.company_id, global._currentCompanyId || null, 'inventory part'), p.part_name, p.sku, p.category || 'Mechanical',
     quantityVal, minVal, p.storage_location || '', unitPriceVal, p.supplier || '',
     Number(p.lead_time_days) || 0, Boolean(p.is_critical), p.manufacturer || '', p.model_number || '',
     p.tech_specs || '', p.photo_url || '', p.doc_url || '', p.created_at || new Date().toISOString(),
@@ -1133,7 +1142,7 @@ async function addAudit(entry) {
   const aid = entry.id || `aud-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
   const nowIso = entry.created_at || new Date().toISOString();
   return await query(sql, [
-    aid, tenantCompanyId(entry.company_id, global._currentCompanyId || null, 'audit event'), entry.action, entry.detail, entry.module || 'general',
+    aid, resolveTenantCompanyId(entry.company_id, global._currentCompanyId || null, 'audit event'), entry.action, entry.detail, entry.module || 'general',
     entry.href || '/dashboard', entry.severity || 'info', entry.user_name || 'System Administrator',
     entry.user_email || 'opsloom.ke@gmail.com', entry.user_role || 'Administrator', nowIso
   ]);
@@ -1212,7 +1221,7 @@ async function getTechnicians(companyId = global._currentCompanyId || null) {
     if (res && res.rows) {
       return res.rows.map(r => ({
         id: r.id,
-        company_id: tenantCompanyId(r.company_id, global._currentCompanyId || null, 'technician'),
+        company_id: resolveTenantCompanyId(r.company_id, global._currentCompanyId || null, 'technician'),
         name: r.name,
         email: r.email || '',
         phone: r.phone || '',
@@ -1248,7 +1257,7 @@ async function upsertTechnician(t) {
     const statusVal = t.active === false || t.status === 'Inactive' ? 'Inactive' : 'Active';
     const params = [
       t.id,
-      tenantCompanyId(t.company_id, global._currentCompanyId || null, 'technician'),
+      resolveTenantCompanyId(t.company_id, global._currentCompanyId || null, 'technician'),
       t.name,
       t.email || '',
       t.phone || '',
@@ -1376,7 +1385,7 @@ async function upsertReport(r) {
     RETURNING *;
   `;
   const params = [
-    r.id, tenantCompanyId(r.company_id, global._currentCompanyId || null, 'report'), r.name, r.report_title || r.name,
+    r.id, resolveTenantCompanyId(r.company_id, global._currentCompanyId || null, 'report'), r.name, r.report_title || r.name,
     r.category || 'Strategic & Financial ROI', r.category_key || 'strategic_roi',
     r.department || 'Engineering', r.scope_mode || 'department',
     r.start_date || '', r.end_date || '', r.period || '', r.format || 'PDF',
@@ -1436,7 +1445,7 @@ async function upsertAssetDocument(d) {
     RETURNING *;
   `;
   const params = [
-    d.id || d.uid, d.uid || d.id, d.asset_uid, tenantCompanyId(d.company_id, global._currentCompanyId || null, 'asset document'),
+    d.id || d.uid, d.uid || d.id, d.asset_uid, resolveTenantCompanyId(d.company_id, global._currentCompanyId || null, 'asset document'),
     d.title || d.doc_name || 'Document', d.doc_name || d.title || 'Document',
     d.category || 'Manual', d.version || 'v1.0', d.owner || 'Engineering Team',
     d.expiry_date || '', d.review_date || '', d.description || '',
@@ -1489,7 +1498,7 @@ async function upsertSparePart(sp) {
   `;
   const params = [
     sp.id || `spare-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
-    sp.asset_uid, tenantCompanyId(sp.company_id, global._currentCompanyId || null, 'spare part'), sp.part_name, sp.part_number || sp.sku || '',
+    sp.asset_uid, resolveTenantCompanyId(sp.company_id, global._currentCompanyId || null, 'spare part'), sp.part_name, sp.part_number || sp.sku || '',
     Number(sp.quantity) || 1, sp.criticality || 'A', Number(sp.lead_time_days) || 7,
     sp.supplier || '', sp.created_at || new Date().toISOString()
   ];
@@ -1528,7 +1537,7 @@ async function upsertMessage(m) {
   `;
   const params = [
     m.id || `msg-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
-    tenantCompanyId(m.company_id, global._currentCompanyId || null, 'message'), m.folder || 'inbox', m.sender_name || 'System',
+    resolveTenantCompanyId(m.company_id, global._currentCompanyId || null, 'message'), m.folder || 'inbox', m.sender_name || 'System',
     m.sender_email || '', m.recipient_email || '', m.subject || '',
     m.content || '', m.category || 'General', m.priority || 'Normal',
     Boolean(m.is_read), m.created_at || new Date().toISOString()

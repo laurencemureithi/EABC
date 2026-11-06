@@ -6,7 +6,7 @@ A mission-critical, multi-organization operations management and industrial equi
 
 ## Architecture & Compatibility
 
-- **Runtime Engine**: Node.js **18.x LTS**, **20.x LTS**, or **22.x LTS**
+- **Runtime Engine**: Node.js **22.x LTS** (required by `package.json`)
 - **Persistence Store**: **PostgreSQL 14+ / 15+ / 16+** (Native connection pooling via `pg`)
 - **Web Framework**: Express 5.x with Nunjucks templates and Tailwind CSS
 - **Operating Systems**: 
@@ -24,7 +24,7 @@ A mission-critical, multi-organization operations management and industrial equi
 ## Quick Start (Local Laptop Setup)
 
 ### 1. Prerequisites
-- Install **Node.js 18+ or 20+ LTS** ([nodejs.org](https://nodejs.org/))
+- Install **Node.js 22.x LTS** ([nodejs.org](https://nodejs.org/))
 - Install **PostgreSQL 14+** ([postgresql.org](https://www.postgresql.org/download/))
 
 ### 2. Database Creation
@@ -58,11 +58,11 @@ Edit your `.env` file with your database credentials:
 NODE_ENV=development
 HOST=127.0.0.1
 PORT=3000
-DATABASE_URL=postgresql://eabc_user:StrongPassword123!@localhost:5432/eabc_db
-SESSION_SECRET=your_32_character_super_secret_session_key_here
+DATABASE_URL=postgresql://<user>:<password>@localhost:5432/eabc_db
+SESSION_SECRET=replace-with-a-random-secret-of-at-least-32-characters
 TZ=Africa/Nairobi
 ADMIN_PRIMARY_EMAIL=opsloom.ke@gmail.com
-ADMIN_LOGIN_PASSWORD=Admin@123
+ADMIN_LOGIN_PASSWORD=replace-with-a-unique-local-password-of-12-or-more-characters
 ```
 
 ### 4. Run Automated Migrations & Start
@@ -72,7 +72,8 @@ ADMIN_LOGIN_PASSWORD=Admin@123
 npm run db:migrate
 
 # 2. (Optional) Seed realistic demonstration data for development/demo
-npm run db:seed
+# Only for an isolated local development database:
+NODE_ENV=development ALLOW_DEMO_SEED=true npm run db:seed
 
 # 3. Start the application
 npm start
@@ -80,7 +81,7 @@ npm start
 
 Open your browser to: **`http://localhost:3000/login`**
 - **Email**: `opsloom.ke@gmail.com`
-- **Password**: `Admin@123`
+- **Password**: the value you configured in `ADMIN_LOGIN_PASSWORD`
 
 ---
 
@@ -259,15 +260,16 @@ pg_restore -U postgres -d eabc_db -v -c /var/backups/eabc_20261023.dump
 | `npm start` | Launches the production server using `node server.js` |
 | `npm run dev` | Runs the server in development mode |
 | `npm run db:migrate` | Runs all pending database migrations safely |
-| `npm run db:seed` | Explicitly seeds realistic demonstration records (development only) |
+| `npm run db:seed` | Seeds demonstration records only when `NODE_ENV=development` and `ALLOW_DEMO_SEED=true` |
 | `npm run lint` | Runs syntax and structural validation |
-| `npm test` | Runs the 21 comprehensive end-to-end business system tests |
+| `npm test` | Runs the main end-to-end suite; requires PostgreSQL, installed dependencies and explicit E2E credentials |
 
 ---
 
 ## Security Best Practices
 1. **Never commit `.env`** to version control.
 2. **Rotate `SESSION_SECRET`** and database passwords before deploying to production.
-3. **Change initial admin password** (`Admin@123`) upon first login via **Settings > Profile**.
+3. **Never use a shared/default administrator password.** Configure a unique `ADMIN_LOGIN_PASSWORD` before staging.
 4. **Use HTTPS** in production via reverse proxy or Cloud SSL termination.
-5. **Session Cookies**: Automatically marked `HttpOnly` and configured with inactivity timeouts.
+5. **Session Cookies**: The authentication cookie is signed, `HttpOnly`, and configured with inactivity timeouts.
+6. **Do not deploy to production based on this README.** See `REMEDIATION_AUDIT.md` and `STAGING_DEPLOYMENT.md`; production approval remains blocked.
